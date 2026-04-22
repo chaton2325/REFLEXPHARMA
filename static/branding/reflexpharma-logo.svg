@@ -1,0 +1,29 @@
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="640" rx="48" fill="#FFF8E1"/>
+  <path d="M320 92C320 69.9086 337.909 52 360 52H452C474.091 52 492 69.9086 492 92V184H584C606.091 184 624 201.909 624 224V316C624 338.091 606.091 356 584 356H492V448C492 470.091 474.091 488 452 488H360C337.909 488 320 470.091 320 448V356H228C205.909 356 188 338.091 188 316V224C188 201.909 205.909 184 228 184H320V92Z" fill="url(#paint0_linear)"/>
+  <path d="M148 224C148 201.909 165.909 184 188 184H280V92C280 69.9086 297.909 52 320 52H360C382.091 52 400 69.9086 400 92V184H492C514.091 184 532 201.909 532 224V264C532 286.091 514.091 304 492 304H400V396C400 418.091 382.091 436 360 436H320C297.909 436 280 418.091 280 396V304H188C165.909 304 148 286.091 148 264V224Z" fill="url(#paint1_linear)"/>
+  <path d="M251 210C334 202 387 267 377 347C296 355 242 291 251 210Z" fill="#9BD000" stroke="white" stroke-width="14"/>
+  <path d="M369 115C466 129 517 215 482 311C387 298 337 213 369 115Z" fill="#8CCB1A" stroke="white" stroke-width="16"/>
+  <path d="M294 316C337 261 381 223 425 203C379 239 340 286 309 344" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <path d="M323 351C276 288 244 247 227 226C260 243 288 278 311 330" stroke="#4DAA2B" stroke-width="10" stroke-linecap="round"/>
+  <path d="M376 274L450 184C462 172 482 171 494 183L505 194C517 206 518 226 506 238L424 328" fill="white"/>
+  <path d="M205 315H439C430 394 373 453 303 453C233 453 176 394 205 315Z" fill="white"/>
+  <path d="M205 315H439C430 394 373 453 303 453C233 453 176 394 205 315Z" stroke="#48A928" stroke-width="18" stroke-linejoin="round"/>
+  <text x="300" y="404" text-anchor="middle" font-size="76" font-family="Georgia, serif" fill="#48A928">Rx</text>
+  <text x="320" y="540" text-anchor="middle" font-size="72" font-weight="800" font-family="Arial, Helvetica, sans-serif">
+    <tspan fill="#FFC90B">REFLEX</tspan><tspan fill="#20A538">PHARMA</tspan>
+  </text>
+  <text x="320" y="586" text-anchor="middle" font-size="26" letter-spacing="6" font-family="Arial, Helvetica, sans-serif" fill="#1D9E3D">GESTION DE PHARMACIE</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="406" y1="52" x2="406" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD311"/>
+      <stop offset="1" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="paint1_linear" x1="148" y1="244" x2="532" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD311"/>
+      <stop offset="0.55" stop-color="#FFD311"/>
+      <stop offset="0.56" stop-color="#66BF1E"/>
+      <stop offset="1" stop-color="#3AA326"/>
+    </linearGradient>
+  </defs>
+</svg>

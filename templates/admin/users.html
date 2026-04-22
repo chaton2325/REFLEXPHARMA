@@ -1,0 +1,106 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Utilisateurs | REFLEXPHARMA{% endblock %}
+
+{% block admin_content %}
+<section class="stats-grid">
+    <article class="stat-card">
+        <div class="eyebrow">Total utilisateurs</div>
+        <div class="value">{{ overview.total if overview else 0 }}</div>
+        <div class="note">Nombre total de lignes dans `users`.</div>
+    </article>
+    <article class="stat-card">
+        <div class="eyebrow">Actifs</div>
+        <div class="value">{{ overview.active if overview else 0 }}</div>
+        <div class="note">Comptes pouvant se connecter.</div>
+    </article>
+    <article class="stat-card">
+        <div class="eyebrow">Inactifs</div>
+        <div class="value">{{ overview.inactive if overview else 0 }}</div>
+        <div class="note">Comptes desactives ou suspendus.</div>
+    </article>
+    <article class="stat-card">
+        <div class="eyebrow">Profils employe lies</div>
+        <div class="value">{{ overview.with_employee_profile if overview else 0 }}</div>
+        <div class="note">Utilisateurs relies a `employees`.</div>
+    </article>
+</section>
+
+<section class="content-grid">
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <h2>Utilisateurs et roles</h2>
+                <p>Cette page exploite directement la table `users` et les liaisons avec `employees` et `admin_module_assignments`.</p>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th>Role</th>
+                        <th>Etat</th>
+                        <th>Employe</th>
+                        <th>Modules admin</th>
+                        <th>Connexion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users or [] %}
+                        <tr>
+                            <td data-label="Utilisateur">
+                                <strong>{{ user.full_name }}</strong><br>
+                                <span style="color: var(--muted);">{{ user.email }}</span><br>
+                                <span style="color: var(--muted);">{{ user.phone or "-" }}</span>
+                            </td>
+                            <td data-label="Role"><span class="badge warn">{{ user.role }}</span></td>
+                            <td data-label="Etat">
+                                <span class="badge {% if not user.is_active %}muted{% endif %}">
+                                    {% if user.is_active %}Actif{% else %}Inactif{% endif %}
+                                </span>
+                            </td>
+                            <td data-label="Employe">
+                                {% if user.has_employee_profile %}
+                                    <span class="badge">Lie</span>
+                                {% else %}
+                                    <span class="badge muted">Non lie</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Modules admin">{{ user.module_assignments }}</td>
+                            <td data-label="Connexion">{{ user.last_login or "-" }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6">Aucun utilisateur disponible.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <h3>Repartition des roles</h3>
+                <p>Resume des roles declares dans le schema.</p>
+            </div>
+        </div>
+        <div class="role-list">
+            {% for role in overview.roles or [] %}
+                <div class="role-item">
+                    <div>
+                        <strong>{{ role.label }}</strong><br>
+                        <span style="color: var(--muted);">{{ role.role }}</span>
+                    </div>
+                    <span class="badge warn">{{ role.total }}</span>
+                </div>
+            {% else %}
+                <div class="summary-item">Aucune repartition disponible.</div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}

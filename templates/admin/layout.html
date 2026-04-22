@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block body_class %}admin-page{% endblock %}
+{% block main_class %}admin-app{% endblock %}
+
+{% block extra_head %}
+<style>
+    .admin-app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+    }
+
+    .admin-sidebar {
+        background:
+            linear-gradient(180deg, rgba(255, 191, 0, 0.14), transparent 22%),
+            linear-gradient(180deg, var(--sidebar) 0%, #102716 100%);
+        color: #eef8ed;
+        padding: 28px 22px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .admin-brand {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        gap: 14px;
+        align-items: center;
+    }
+
+    .admin-brand-logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.08);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+    }
+
+    .admin-brand-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .admin-brand h1 {
+        margin: 0;
+        font-size: 1.15rem;
+        color: #ffffff;
+    }
+
+    .admin-brand p {
+        margin: 6px 0 0;
+        color: rgba(238, 248, 237, 0.72);
+        font-size: 0.88rem;
+    }
+
+    .admin-user {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .admin-user strong {
+        display: block;
+        color: #ffffff;
+        font-size: 1rem;
+    }
+
+    .admin-user span {
+        display: block;
+        margin-top: 6px;
+        color: rgba(238, 248, 237, 0.7);
+        font-size: 0.88rem;
+    }
+
+    .admin-nav {
+        display: grid;
+        gap: 10px;
+    }
+
+    .admin-nav a {
+        padding: 14px 16px;
+        border-radius: 14px;
+        text-decoration: none;
+        color: rgba(238, 248, 237, 0.86);
+        background: transparent;
+        border: 1px solid transparent;
+        transition: 0.2s ease;
+    }
+
+    .admin-nav a:hover,
+    .admin-nav a.is-active {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
+    }
+
+    .admin-sidebar-footer {
+        margin-top: auto;
+        display: grid;
+        gap: 12px;
+    }
+
+    .admin-sidebar-footer .btn {
+        width: 100%;
+    }
+
+    .admin-content {
+        padding: 28px;
+    }
+
+    .admin-topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .admin-topbar h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 3vw, 2.6rem);
+    }
+
+    .admin-topbar p {
+        margin: 8px 0 0;
+        color: var(--muted);
+    }
+
+    .admin-content-inner {
+        display: grid;
+        gap: 24px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .stat-card {
+        padding: 20px;
+        border-radius: 22px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+    }
+
+    .stat-card .eyebrow {
+        color: var(--muted);
+        font-size: 0.82rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .stat-card .value {
+        margin-top: 12px;
+        font-size: clamp(1.7rem, 2.8vw, 2.4rem);
+        font-weight: 800;
+        color: #17311d;
+    }
+
+    .stat-card .note {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+        gap: 20px;
+    }
+
+    .panel {
+        padding: 22px;
+        border-radius: 24px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+    }
+
+    .stack {
+        display: grid;
+        gap: 16px;
+    }
+
+    .role-list,
+    .summary-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .role-item,
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #f7faf7;
+        border: 1px solid var(--border);
+    }
+
+    .db-error {
+        padding: 16px;
+        border-radius: 16px;
+        background: #fff3f2;
+        color: #9e2f23;
+        border: 1px solid rgba(180, 35, 24, 0.14);
+    }
+
+    .mobile-nav {
+        display: none;
+        gap: 10px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .mobile-nav a {
+        white-space: nowrap;
+        text-decoration: none;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: #edf5ec;
+        color: #2a522d;
+        font-weight: 700;
+        border: 1px solid var(--border);
+    }
+
+    .mobile-nav a.is-active {
+        background: #1d5d22;
+        color: #fff;
+        border-color: #1d5d22;
+    }
+
+    @media (max-width: 1180px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 920px) {
+        .admin-app {
+            grid-template-columns: 1fr;
+        }
+
+        .admin-sidebar {
+            display: none;
+        }
+
+        .mobile-nav {
+            display: flex;
+        }
+
+        .admin-content {
+            padding: 18px 14px 22px;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .admin-topbar {
+            margin-bottom: 18px;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .panel,
+        .stat-card {
+            padding: 18px;
+            border-radius: 18px;
+        }
+
+        .admin-topbar h1 {
+            font-size: 1.7rem;
+        }
+
+        .section-head {
+            margin-bottom: 18px;
+        }
+
+        .role-item,
+        .summary-item {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<aside class="admin-sidebar">
+    <div class="admin-brand">
+        <div class="admin-brand-logo">
+            <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="Logo Reflexpharma">
+        </div>
+        <div>
+            <h1>REFLEXPHARMA</h1>
+            <p>Gestion de pharmacie</p>
+        </div>
+    </div>
+
+    <div class="admin-user">
+        <strong>{{ current_user.full_name }}</strong>
+        <span>{{ current_user.email }}</span>
+        <span>{{ current_user.role }}</span>
+    </div>
+
+    <nav class="admin-nav" aria-label="Navigation principale">
+        <a href="{{ url_for('dashboard.dashboard_home') }}" class="{% if current_section == 'dashboard' %}is-active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('dashboard.users') }}" class="{% if current_section == 'users' %}is-active{% endif %}">Utilisateurs et roles</a>
+        <a href="{{ url_for('dashboard.employees') }}" class="{% if current_section == 'employees' %}is-active{% endif %}">Employes</a>
+    </nav>
+
+    <div class="admin-sidebar-footer">
+        <a class="btn btn-secondary" href="{{ url_for('dashboard.dashboard_home') }}">Vue generale</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+            <button class="btn" type="submit">Se deconnecter</button>
+        </form>
+    </div>
+</aside>
+
+<section class="admin-content">
+    <div class="mobile-nav" aria-label="Navigation mobile">
+        <a href="{{ url_for('dashboard.dashboard_home') }}" class="{% if current_section == 'dashboard' %}is-active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('dashboard.users') }}" class="{% if current_section == 'users' %}is-active{% endif %}">Utilisateurs</a>
+        <a href="{{ url_for('dashboard.employees') }}" class="{% if current_section == 'employees' %}is-active{% endif %}">Employes</a>
+    </div>
+
+    <header class="admin-topbar">
+        <div>
+            <h1>{{ page_title }}</h1>
+            <p>Interface d'administration responsive pour les donnees critiques de REFLEXPHARMA.</p>
+        </div>
+        <div class="badge warn">Connecte en tant que {{ current_user.role }}</div>
+    </header>
+
+    {% if db_error %}
+        <div class="db-error">
+            La base de donnees n'est pas accessible pour charger les donnees de cette page.
+            Detail: {{ db_error }}
+        </div>
+    {% endif %}
+
+    <div class="admin-content-inner">
+        {% block admin_content %}{% endblock %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Session | REFLEXPHARMA{% endblock %}
+
+{% block content %}
+<section class="card" style="padding: 32px;">
+    <div style="display: flex; justify-content: space-between; gap: 24px; align-items: start; flex-wrap: wrap;">
+        <div>
+            <p style="margin: 0 0 8px; color: #0f766e; font-weight: 700; letter-spacing: 0.08em;">SESSION</p>
+            <h1 style="margin: 0 0 8px; font-size: 2rem;">{{ user.full_name }}</h1>
+            <p style="margin: 0; color: #63778a;">{{ user.email }}</p>
+        </div>
+
+        <form method="post" action="{{ url_for('auth.logout') }}">
+            <button class="btn btn-secondary" type="submit">Se deconnecter</button>
+        </form>
+    </div>
+
+    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+        <article style="padding: 18px; border-radius: 16px; background: #f8fbfd; border: 1px solid #d6e1ea;">
+            <div style="font-size: 0.85rem; color: #63778a;">Role</div>
+            <div style="margin-top: 8px; font-size: 1.1rem; font-weight: 700;">{{ user.role }}</div>
+        </article>
+
+        <article style="padding: 18px; border-radius: 16px; background: #f8fbfd; border: 1px solid #d6e1ea;">
+            <div style="font-size: 0.85rem; color: #63778a;">Actif</div>
+            <div style="margin-top: 8px; font-size: 1.1rem; font-weight: 700;">
+                {% if user.is_active %}Oui{% else %}Non{% endif %}
+            </div>
+        </article>
+
+        <article style="padding: 18px; border-radius: 16px; background: #f8fbfd; border: 1px solid #d6e1ea;">
+            <div style="font-size: 0.85rem; color: #63778a;">Derniere connexion</div>
+            <div style="margin-top: 8px; font-size: 1.1rem; font-weight: 700;">{{ user.last_login or '-' }}</div>
+        </article>
+
+        <article style="padding: 18px; border-radius: 16px; background: #f8fbfd; border: 1px solid #d6e1ea;">
+            <div style="font-size: 0.85rem; color: #63778a;">Cree le</div>
+            <div style="margin-top: 8px; font-size: 1.1rem; font-weight: 700;">{{ user.created_at }}</div>
+        </article>
+    </div>
+</section>
+{% endblock %}
