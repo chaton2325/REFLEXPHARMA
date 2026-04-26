@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Postes - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3">Types de Postes</h1>
+    <a href="{{ url_for('admin.create_poste') }}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i> Nouveau Poste
+    </a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th>Nom du Poste</th>
+                    <th>Description</th>
+                    <th>Date de Création</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for poste in postes %}
+                <tr>
+                    <td class="fw-bold">{{ poste.nom }}</td>
+                    <td>{{ poste.description or 'Aucune description' }}</td>
+                    <td>{{ poste.created_at.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-end">
+                        <div class="btn-group">
+                            <a href="{{ url_for('admin.edit_poste', id=poste.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <form action="{{ url_for('admin.delete_poste', id=poste.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Supprimer ce poste ?')" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

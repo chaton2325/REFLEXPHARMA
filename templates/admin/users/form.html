@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_users') }}">Employés</a></li>
+                <li class="breadcrumb-item active">{{ title }}</li>
+            </ol>
+        </nav>
+        
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">{{ title }}</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nom</label>
+                            <input type="text" name="nom" class="form-control" value="{{ user.nom if user else '' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Prénom</label>
+                            <input type="text" name="prenom" class="form-control" value="{{ user.prenom if user else '' }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ user.email if user else '' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Téléphone</label>
+                            <input type="text" name="telephone" class="form-control" value="{{ user.telephone if user else '' }}">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Adresse</label>
+                        <textarea name="adresse" class="form-control" rows="2">{{ user.adresse if user else '' }}</textarea>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Rôle</label>
+                            <select name="role" class="form-select" required>
+                                <option value="employee" {% if user and user.role == 'employee' %}selected{% endif %}>Employé</option>
+                                <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="superadmin" {% if user and user.role == 'superadmin' %}selected{% endif %}>Superadmin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Poste / Métier</label>
+                            <select name="poste" class="form-select">
+                                <option value="" disabled {% if not user or not user.poste %}selected{% endif %}>Choisir un poste...</option>
+                                {% for p in postes %}
+                                <option value="{{ p.nom }}" {% if user and user.poste == p.nom %}selected{% endif %}>{{ p.nom }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Date de prise de poste</label>
+                            <input type="date" name="date_prise_poste" class="form-control" value="{{ user.date_prise_poste.strftime('%Y-%m-%d') if user and user.date_prise_poste else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Salaire mensuel</label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" name="salaire_mensuel" class="form-control" value="{{ user.salaire_mensuel if user and user.salaire_mensuel else '' }}">
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Mot de passe {% if user %}(laisser vide pour ne pas modifier){% endif %}</label>
+                        <input type="password" name="password" class="form-control" {% if not user %}required{% endif %}>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="isActive" {% if not user or user.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="isActive">Compte actif</label>
+                        </div>
+                    </div>
+
+                    {% if current_user.role == 'superadmin' and user %}
+                    <hr>
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-shield-alt me-2"></i>Permissions spécifiques (prioritaires)</h6>
+                        <div class="row">
+                            {% for feature, label in features.items() %}
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="perm_{{ feature }}" id="perm_{{ feature }}" 
+                                           {% if user_perms.get(feature) %}checked{% endif %}>
+                                    <label class="form-check-label" for="perm_{{ feature }}">{{ label }}</label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Note: Ces réglages surchargent les permissions par défaut du poste.</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('admin.list_users') }}" class="btn btn-light border">Annuler</a>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

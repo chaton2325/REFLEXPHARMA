@@ -1,27 +1,45 @@
 import os
-
-from dotenv import load_dotenv
 from flask import Flask, redirect, url_for
+from extensions import db, login_manager, migrate
+from flask_migrate import upgrade
 
+# Importation de TOUS les modèles pour que SQLAlchemy les connaisse
+from models.user import User
+from models.poste import Poste
+from models.permission import Permission
 
+from config import config
 
-
-
-load_dotenv()
-
-
-def create_app():
+def create_app(config_name='default'):
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
+    app.config.from_object(config[config_name])
 
+    db.init_app(app)
+    login_manager.init_app(app)
+    migrate.init_app(app, db)
 
-    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+
+    # Enregistrement des blueprints
+    from blueprints.auth import auth as auth_blueprint
+    app.register_blueprint(auth_blueprint, url_prefix='/auth')
+
+    from blueprints.admin import admin as admin_blueprint
+    app.register_blueprint(admin_blueprint, url_prefix='/admin')
+
+    @app.route('/')
+    def index():
+        return redirect(url_for('auth.login'))
 
     return app
 
-
-app = create_app()
-
-
-if __name__ == "__main__":
-    app.run(debug=os.getenv("FLASK_DEBUG", "true").lower() == "true")
+if __name__ == '__main__':
+    app = create_app(os.getenv('FLASK_CONFIG') or 'default')
+    with app.app_context():
+        # Crée les tables initiales si elles n'existent pas
+        db.create_all()
+        # Note: Dans un environnement pro, on utiliserait 'flask db upgrade'
+        # Pour ce projet, on garde db.create_all() pour la simplicité initiale
+    app.run()
