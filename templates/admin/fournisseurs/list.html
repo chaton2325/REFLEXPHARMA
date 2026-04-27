@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Fournisseurs - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Paramètres</li>
+                <li class="breadcrumb-item active">Fournisseurs</li>
+            </ol>
+        </nav>
+        <h1 class="h3">Gestion des Fournisseurs</h1>
+    </div>
+    <div class="d-flex gap-3">
+        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
+        </button>
+        <div class="input-group" style="width: 300px;">
+            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un fournisseur...">
+        </div>
+        <a href="{{ url_for('admin.create_fournisseur') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Ajouter
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_fournisseurs') }}" method="POST">
+            <table class="table table-hover align-middle mb-0" id="fournisseurTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAll">
+                            </div>
+                        </th>
+                        <th>Nom</th>
+                        <th>Groupe</th>
+                        <th>Préfixe</th>
+                        <th>Contact</th>
+                        <th>Finances</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in fournisseurs %}
+                    <tr>
+                        <td>
+                            <div class="form-check">
+                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ f.id }}">
+                            </div>
+                        </td>
+                        <td><div class="fw-bold">{{ f.nom }}</div></td>
+                        <td>
+                            {% if f.groupe %}
+                                <span class="badge bg-info text-dark">{{ f.groupe.nom }}</span>
+                            {% else %}
+                                <span class="text-muted small">Aucun</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary">{{ f.prefixe }}</span></td>
+                        <td>{{ f.contact or 'N/A' }}</td>
+                        <td>
+                            <div class="small">
+                                <span class="text-muted">Coeff:</span> {{ f.effectif_coefficient }}<br>
+                                <span class="text-muted">TVA:</span> {{ f.effectif_tva }}%
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ f.id }}" title="Détails">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="{{ url_for('admin.edit_fournisseur', id=f.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ f.id }}" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+
+                            <!-- Details Modal -->
+                            <div class="modal fade" id="detailsModal{{ f.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header bg-light">
+                                            <h5 class="modal-title"><i class="fas fa-truck me-2"></i>Détails du Fournisseur</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="mb-3">
+                                                <h6 class="text-muted text-uppercase small fw-bold">Nom de l'entreprise</h6>
+                                                <p class="fs-5 fw-bold text-primary">{{ f.nom }}</p>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Groupe</h6>
+                                                    <p>{{ f.groupe.nom if f.groupe else 'Aucun groupe' }}</p>
+                                                </div>
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Préfixe Code</h6>
+                                                    <p><span class="badge bg-secondary fs-6">{{ f.prefixe }}</span></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Coefficient</h6>
+                                                    <p>
+                                                        {{ f.effectif_coefficient }}
+                                                        {% if f.coefficient is none and f.groupe %}
+                                                            <small class="text-muted">(Hérité du groupe)</small>
+                                                        {% endif %}
+                                                    </p>
+                                                </div>
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">TVA (%)</h6>
+                                                    <p>
+                                                        {{ f.effectif_tva }}%
+                                                        {% if f.tva is none and f.groupe %}
+                                                            <small class="text-muted">(Hérité du groupe)</small>
+                                                        {% endif %}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h6 class="text-muted text-uppercase small fw-bold">Contact</h6>
+                                                <p>{{ f.contact or 'N/A' }}</p>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h6 class="text-muted text-uppercase small fw-bold">Site Web</h6>
+                                                <p>
+                                                    {% if f.site_web %}
+                                                        <a href="{{ f.site_web }}" target="_blank" class="text-decoration-none">
+                                                            <i class="fas fa-external-link-alt me-1 small"></i>{{ f.site_web }}
+                                                        </a>
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </p>
+                                            </div>
+                                            <div class="border-top pt-3">
+                                                <p class="mb-0 text-muted small"><strong>Ajouté le:</strong> {{ f.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                                                <p class="mb-0 text-muted small"><strong>Dernière modif:</strong> {{ f.updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <a href="{{ url_for('admin.edit_fournisseur', id=f.id) }}" class="btn btn-primary">Modifier</a>
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="deleteModal{{ f.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Confirmer la suppression</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            Êtes-vous sûr de vouloir supprimer le fournisseur <strong>{{ f.nom }}</strong> ?
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <form action="{{ url_for('admin.delete_fournisseur', id=f.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-danger">Supprimer</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            Aucun fournisseur enregistré.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression groupée</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> fournisseurs sélectionnés ? Cette action est irréversible.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const modalSelectedCountSpan = document.getElementById('modalSelectedCount');
+
+    function updateBulkDeleteUI() {
+        const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        if (selectedCount > 0) {
+            bulkDeleteBtn.classList.remove('d-none');
+            selectedCountSpan.textContent = selectedCount;
+            modalSelectedCountSpan.textContent = selectedCount;
+        } else {
+            bulkDeleteBtn.classList.add('d-none');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll.checked;
+            });
+            updateBulkDeleteUI();
+        });
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkDeleteUI);
+    });
+
+    const searchInput = document.getElementById('searchInput');
+    const table = document.getElementById('fournisseurTable');
+    const tbody = table.querySelector('tbody');
+    const rows = tbody.getElementsByTagName('tr');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const filter = searchInput.value.toLowerCase();
+            let visibleCount = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const text = row.textContent.toLowerCase();
+                
+                if (text.includes(filter)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

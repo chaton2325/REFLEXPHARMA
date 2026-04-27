@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Gestion des Postes - ReflexPharma{% endblock %}
+{% block title %}Groupes de Fournisseurs - ReflexPharma{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -8,11 +8,11 @@
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-1">
                 <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Paramètres</li>
-                <li class="breadcrumb-item active">Postes</li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a></li>
+                <li class="breadcrumb-item active">Groupes</li>
             </ol>
         </nav>
-        <h1 class="h3">Types de Postes</h1>
+        <h1 class="h3">Groupes de Fournisseurs</h1>
     </div>
     <div class="d-flex gap-3">
         <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
@@ -20,18 +20,18 @@
         </button>
         <div class="input-group" style="width: 300px;">
             <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un poste...">
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un groupe...">
         </div>
-        <a href="{{ url_for('admin.create_poste') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Nouveau Poste
+        <a href="{{ url_for('admin.create_groupe_fournisseur') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Ajouter un Groupe
         </a>
     </div>
 </div>
 
 <div class="card">
     <div class="table-responsive">
-        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_postes') }}" method="POST">
-            <table class="table table-hover align-middle mb-0" id="posteTable">
+        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_groupes_fournisseurs') }}" method="POST">
+            <table class="table table-hover align-middle mb-0" id="groupTable">
                 <thead class="bg-light">
                     <tr>
                         <th style="width: 40px;">
@@ -39,60 +39,79 @@
                                 <input class="form-check-input" type="checkbox" id="selectAll">
                             </div>
                         </th>
-                        <th>Nom du Poste</th>
-                        <th>Description</th>
-                        <th>Date de Création</th>
+                        <th>Nom du Groupe</th>
+                        <th>Coeff. par défaut</th>
+                        <th>TVA par défaut</th>
+                        <th>Fournisseurs</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for poste in postes %}
+                    {% for g in groupes %}
                     <tr>
                         <td>
                             <div class="form-check">
-                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ poste.id }}">
+                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ g.id }}">
                             </div>
                         </td>
-                        <td class="fw-bold">{{ poste.nom }}</td>
-                        <td>{{ poste.description or 'Aucune description' }}</td>
-                        <td>{{ poste.created_at.strftime('%d/%m/%Y') }}</td>
+                        <td><div class="fw-bold">{{ g.nom }}</div></td>
+                        <td>{{ g.coefficient_defaut }}</td>
+                        <td>{{ g.tva_defaut }}%</td>
+                        <td><span class="badge bg-info text-dark">{{ g.fournisseurs|length }}</span></td>
                         <td class="text-end">
                             <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ poste.id }}" title="Détails">
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ g.id }}" title="Détails">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <a href="{{ url_for('admin.edit_poste', id=poste.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                                <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ poste.id }}" title="Supprimer">
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ g.id }}" title="Supprimer">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
 
                             <!-- Details Modal -->
-                            <div class="modal fade" id="detailsModal{{ poste.id }}" tabindex="-1">
+                            <div class="modal fade" id="detailsModal{{ g.id }}" tabindex="-1">
                                 <div class="modal-dialog">
                                     <div class="modal-content text-start">
                                         <div class="modal-header bg-light">
-                                            <h5 class="modal-title"><i class="fas fa-briefcase me-2"></i>Détails du Poste</h5>
+                                            <h5 class="modal-title"><i class="fas fa-users-cog me-2"></i>Détails du Groupe</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
                                             <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Nom du Poste</h6>
-                                                <p class="fs-5 fw-bold text-primary">{{ poste.nom }}</p>
+                                                <h6 class="text-muted text-uppercase small fw-bold">Nom du Groupe</h6>
+                                                <p class="fs-5 fw-bold text-primary">{{ g.nom }}</p>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Coefficient par défaut</h6>
+                                                    <p class="fs-6">{{ g.coefficient_defaut }}</p>
+                                                </div>
+                                                <div class="col-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">TVA par défaut</h6>
+                                                    <p class="fs-6">{{ g.tva_defaut }}%</p>
+                                                </div>
                                             </div>
                                             <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Description</h6>
-                                                <p>{{ poste.description or 'Aucune description fournie.' }}</p>
-                                            </div>
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Date de création</h6>
-                                                <p>{{ poste.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                                                <h6 class="text-muted text-uppercase small fw-bold">Fournisseurs associés ({{ g.fournisseurs|length }})</h6>
+                                                {% if g.fournisseurs %}
+                                                    <ul class="list-group list-group-flush">
+                                                    {% for f in g.fournisseurs %}
+                                                        <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                                            <span>{{ f.nom }}</span>
+                                                            <span class="badge bg-secondary">{{ f.prefixe }}</span>
+                                                        </li>
+                                                    {% endfor %}
+                                                    </ul>
+                                                {% else %}
+                                                    <p class="text-muted small italic">Aucun fournisseur associé à ce groupe.</p>
+                                                {% endif %}
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <a href="{{ url_for('admin.edit_poste', id=poste.id) }}" class="btn btn-primary">Modifier</a>
+                                            <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-primary">Modifier</a>
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                                         </div>
                                     </div>
@@ -100,7 +119,7 @@
                             </div>
 
                             <!-- Delete Modal -->
-                            <div class="modal fade" id="deleteModal{{ poste.id }}" tabindex="-1">
+                            <div class="modal fade" id="deleteModal{{ g.id }}" tabindex="-1">
                                 <div class="modal-dialog">
                                     <div class="modal-content text-start">
                                         <div class="modal-header">
@@ -108,11 +127,11 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
-                                            Êtes-vous sûr de vouloir supprimer le poste <strong>{{ poste.nom }}</strong> ?
+                                            Êtes-vous sûr de vouloir supprimer le groupe <strong>{{ g.nom }}</strong> ?
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                            <form action="{{ url_for('admin.delete_poste', id=poste.id) }}" method="POST" class="d-inline">
+                                            <form action="{{ url_for('admin.delete_groupe_fournisseur', id=g.id) }}" method="POST" class="d-inline">
                                                 <button type="submit" class="btn btn-danger">Supprimer</button>
                                             </form>
                                         </div>
@@ -123,7 +142,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">Aucun poste enregistré.</td>
+                        <td colspan="6" class="text-center py-4 text-muted">Aucun groupe enregistré.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -141,7 +160,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> postes sélectionnés ? Cette action est irréversible.
+                Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> groupes sélectionnés ? Cette action est irréversible.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -184,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const searchInput = document.getElementById('searchInput');
-    const table = document.getElementById('posteTable');
+    const table = document.getElementById('groupTable');
     const tbody = table.querySelector('tbody');
     const rows = tbody.getElementsByTagName('tr');
 

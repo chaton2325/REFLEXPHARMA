@@ -33,6 +33,14 @@ CREATE TRIGGER update_users_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+-- Table postes
+CREATE TABLE IF NOT EXISTS postes (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Table permissions
 CREATE TABLE IF NOT EXISTS permissions (
     id SERIAL PRIMARY KEY,
@@ -41,3 +49,31 @@ CREATE TABLE IF NOT EXISTS permissions (
     poste_id INTEGER REFERENCES postes(id) ON DELETE CASCADE,
     is_allowed BOOLEAN DEFAULT true
 );
+
+-- Table groupes_fournisseurs
+CREATE TABLE IF NOT EXISTS groupes_fournisseurs (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(100) UNIQUE NOT NULL,
+    coefficient_defaut FLOAT DEFAULT 1.0,
+    tva_defaut FLOAT DEFAULT 20.0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table fournisseurs
+CREATE TABLE IF NOT EXISTS fournisseurs (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    site_web VARCHAR(255),
+    contact VARCHAR(100),
+    prefixe VARCHAR(10) UNIQUE NOT NULL,
+    coefficient FLOAT,
+    tva FLOAT,
+    groupe_id INTEGER REFERENCES groupes_fournisseurs(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_fournisseurs_updated_at
+    BEFORE UPDATE ON fournisseurs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

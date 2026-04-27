@@ -44,6 +44,23 @@
         </div>
     </div>
     {% endif %}
+
+    {% if current_user.has_permission('gestion_fournisseurs') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning me-3">
+                        <i class="fas fa-cog fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Paramètres</h5>
+                </div>
+                <p class="card-text">Gérez les fournisseurs et les configurations générales.</p>
+                <a href="{{ url_for('admin.list_fournisseurs') }}" class="btn btn-outline-warning btn-sm">Gérer les fournisseurs</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <div class="col-md-4 mb-4">
         <div class="card h-100 bg-light border-0">

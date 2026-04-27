@@ -6,6 +6,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Liste des Employés</h1>
     <div class="d-flex gap-3">
+        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
+        </button>
         <div class="input-group" style="width: 300px;">
             <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
             <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un employé...">
@@ -18,160 +21,225 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" id="employeeTable">
-            <thead class="bg-light">
-                <tr>
-                    <th>Nom & Prénom</th>
-                    <th>Email</th>
-                    <th>Poste</th>
-                    <th>Rôle</th>
-                    <th>Statut</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>
-                        <div class="fw-bold">{{ user.nom }} {{ user.prenom }}</div>
-                        <small class="text-muted">{{ user.telephone }}</small>
-                    </td>
-                    <td>{{ user.email }}</td>
-                    <td>{{ user.poste }}</td>
-                    <td>
-                        <span class="badge {% if user.role == 'superadmin' %}bg-danger{% elif user.role == 'admin' %}bg-warning{% else %}bg-info{% endif %} text-dark">
-                            {{ user.role }}
-                        </span>
-                    </td>
-                    <td>
-                        {% if user.is_active %}
-                            <span class="badge bg-success">Actif</span>
-                        {% else %}
-                            <span class="badge bg-secondary">Inactif</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ user.id }}" title="Détails">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <a href="{{ url_for('admin.toggle_user_active', id=user.id) }}" class="btn btn-sm btn-outline-secondary" title="{% if user.is_active %}Désactiver{% else %}Activer{% endif %}">
-                                <i class="fas {% if user.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
-                            </a>
-                            <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ user.id }}" title="Supprimer" {% if user.id == current_user.id %}disabled{% endif %}>
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_users') }}" method="POST">
+            <table class="table table-hover align-middle mb-0" id="employeeTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAll">
+                            </div>
+                        </th>
+                        <th>Nom & Prénom</th>
+                        <th>Email</th>
+                        <th>Poste</th>
+                        <th>Rôle</th>
+                        <th>Statut</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <div class="form-check">
+                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ user.id }}" {% if user.id == current_user.id %}disabled{% endif %}>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-bold">{{ user.nom }} {{ user.prenom }}</div>
+                            <small class="text-muted">{{ user.telephone }}</small>
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.poste }}</td>
+                        <td>
+                            <span class="badge {% if user.role == 'superadmin' %}bg-danger{% elif user.role == 'admin' %}bg-warning{% else %}bg-info{% endif %} text-dark">
+                                {{ user.role }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Actif</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ user.id }}" title="Détails">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="{{ url_for('admin.toggle_user_active', id=user.id) }}" class="btn btn-sm btn-outline-secondary" title="{% if user.is_active %}Désactiver{% else %}Activer{% endif %}">
+                                    <i class="fas {% if user.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
+                                </a>
+                                <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ user.id }}" title="Supprimer" {% if user.id == current_user.id %}disabled{% endif %}>
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
 
-                        <!-- Details Modal -->
-                        <div class="modal fade" id="detailsModal{{ user.id }}" tabindex="-1">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content text-start">
-                                    <div class="modal-header bg-light">
-                                        <h5 class="modal-title"><i class="fas fa-user me-2"></i>Détails de l'employé</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body p-4">
-                                        <div class="row mb-4">
-                                            <div class="col-md-6">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Informations Personnelles</h6>
-                                                <p class="mb-1"><strong>Nom complet:</strong> {{ user.nom }} {{ user.prenom }}</p>
-                                                <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
-                                                <p class="mb-1"><strong>Téléphone:</strong> {{ user.telephone or 'N/A' }}</p>
-                                                <p class="mb-1"><strong>Adresse:</strong> {{ user.adresse or 'N/A' }}</p>
+                            <!-- Details Modal -->
+                            <div class="modal fade" id="detailsModal{{ user.id }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header bg-light">
+                                            <h5 class="modal-title"><i class="fas fa-user me-2"></i>Détails de l'employé</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="row mb-4">
+                                                <div class="col-md-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Informations Personnelles</h6>
+                                                    <p class="mb-1"><strong>Nom complet:</strong> {{ user.nom }} {{ user.prenom }}</p>
+                                                    <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
+                                                    <p class="mb-1"><strong>Téléphone:</strong> {{ user.telephone or 'N/A' }}</p>
+                                                    <p class="mb-1"><strong>Adresse:</strong> {{ user.adresse or 'N/A' }}</p>
+                                                </div>
+                                                <div class="col-md-6 border-start">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Informations Professionnelles</h6>
+                                                    <p class="mb-1"><strong>Poste:</strong> <span class="badge bg-light text-dark border">{{ user.poste or 'Non défini' }}</span></p>
+                                                    <p class="mb-1"><strong>Rôle:</strong> {{ user.role }}</p>
+                                                    <p class="mb-1"><strong>Date de prise de poste:</strong> {{ user.date_prise_poste.strftime('%d/%m/%Y') if user.date_prise_poste else 'N/A' }}</p>
+                                                    <p class="mb-1"><strong>Salaire mensuel:</strong> {{ "%.2f"|format(user.salaire_mensuel) if user.salaire_mensuel else 'N/A' }} €</p>
+                                                </div>
                                             </div>
-                                            <div class="col-md-6 border-start">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Informations Professionnelles</h6>
-                                                <p class="mb-1"><strong>Poste:</strong> <span class="badge bg-light text-dark border">{{ user.poste or 'Non défini' }}</span></p>
-                                                <p class="mb-1"><strong>Rôle:</strong> {{ user.role }}</p>
-                                                <p class="mb-1"><strong>Date de prise de poste:</strong> {{ user.date_prise_poste.strftime('%d/%m/%Y') if user.date_prise_poste else 'N/A' }}</p>
-                                                <p class="mb-1"><strong>Salaire mensuel:</strong> {{ "%.2f"|format(user.salaire_mensuel) if user.salaire_mensuel else 'N/A' }} €</p>
+                                            <div class="row border-top pt-3">
+                                                <div class="col-md-6">
+                                                    <p class="mb-1 text-muted small"><strong>Compte créé le:</strong> {{ user.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                                                </div>
+                                                <div class="col-md-6 text-md-end">
+                                                    <p class="mb-1 text-muted small"><strong>Dernière mise à jour:</strong> {{ user.updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div class="row border-top pt-3">
-                                            <div class="col-md-6">
-                                                <p class="mb-1 text-muted small"><strong>Compte créé le:</strong> {{ user.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
-                                            </div>
-                                            <div class="col-md-6 text-md-end">
-                                                <p class="mb-1 text-muted small"><strong>Dernière mise à jour:</strong> {{ user.updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
-                                            </div>
+                                        <div class="modal-footer">
+                                            <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-primary">Modifier</a>
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                                         </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-primary">Modifier</a>
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal{{ user.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content text-start">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Confirmer la suppression</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{{ user.nom }} {{ user.prenom }}</strong> ?
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                        <form action="{{ url_for('admin.delete_user', id=user.id) }}" method="POST" class="d-inline">
-                                            <button type="submit" class="btn btn-danger">Supprimer</button>
-                                        </form>
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="deleteModal{{ user.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Confirmer la suppression</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{{ user.nom }} {{ user.prenom }}</strong> ?
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <form action="{{ url_for('admin.delete_user', id=user.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-danger">Supprimer</button>
+                                            </form>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression groupée</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> employés sélectionnés ? Cette action est irréversible.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();">Supprimer</button>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const modalSelectedCountSpan = document.getElementById('modalSelectedCount');
+
+    function updateBulkDeleteUI() {
+        const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        if (selectedCount > 0) {
+            bulkDeleteBtn.classList.remove('d-none');
+            selectedCountSpan.textContent = selectedCount;
+            modalSelectedCountSpan.textContent = selectedCount;
+        } else {
+            bulkDeleteBtn.classList.add('d-none');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => {
+                if (!cb.disabled) {
+                    cb.checked = selectAll.checked;
+                }
+            });
+            updateBulkDeleteUI();
+        });
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkDeleteUI);
+    });
+
     const searchInput = document.getElementById('searchInput');
     const table = document.getElementById('employeeTable');
-    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    const tbody = table.querySelector('tbody');
+    const rows = tbody.getElementsByTagName('tr');
 
-    searchInput.addEventListener('input', function() {
-        const filter = searchInput.value.toLowerCase();
-        let visibleCount = 0;
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const filter = searchInput.value.toLowerCase();
+            let visibleCount = 0;
 
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const text = row.textContent.toLowerCase();
-            
-            if (text.includes(filter)) {
-                row.style.display = '';
-                visibleCount++;
-            } else {
-                row.style.display = 'none';
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const text = row.textContent.toLowerCase();
+                
+                if (text.includes(filter)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
             }
-        }
 
-        // Optionnel: Gérer l'affichage d'un message si aucun résultat
-        let noResultMsg = document.getElementById('noResultMsg');
-        if (visibleCount === 0) {
-            if (!noResultMsg) {
-                noResultMsg = document.createElement('div');
-                noResultMsg.id = 'noResultMsg';
-                noResultMsg.className = 'text-center p-4 text-muted';
-                noResultMsg.innerHTML = '<i class="fas fa-search fa-2x mb-3 d-block"></i>Aucun employé trouvé';
-                table.parentNode.appendChild(noResultMsg);
+            let noResultMsg = document.getElementById('noResultMsg');
+            if (visibleCount === 0) {
+                if (!noResultMsg) {
+                    noResultMsg = document.createElement('div');
+                    noResultMsg.id = 'noResultMsg';
+                    noResultMsg.className = 'text-center p-4 text-muted';
+                    noResultMsg.innerHTML = '<i class="fas fa-search fa-2x mb-3 d-block"></i>Aucun employé trouvé';
+                    table.parentNode.appendChild(noResultMsg);
+                }
+            } else if (noResultMsg) {
+                noResultMsg.remove();
             }
-        } else if (noResultMsg) {
-            noResultMsg.remove();
-        }
-    });
+        });
+    }
 });
 </script>
 {% endblock %}

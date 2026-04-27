@@ -41,6 +41,19 @@
                         <a class="nav-link" href="{{ url_for('admin.list_postes') }}">Postes</a>
                     </li>
                     {% endif %}
+                    {% if current_user.has_permission('gestion_fournisseurs') %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown">
+                            Paramètres
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a></li>
+                            {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_groupes_fournisseurs') }}">Groupes de Fournisseurs</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">

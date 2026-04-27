@@ -7,6 +7,8 @@ from flask_migrate import upgrade
 from models.user import User
 from models.poste import Poste
 from models.permission import Permission
+from models.fournisseur import Fournisseur
+from models.groupe_fournisseur import GroupeFournisseur
 
 from config import config
 
