@@ -12,7 +12,12 @@ Les accès sont déterminés selon une logique de priorité stricte :
 ## Fonctionnalités gérées
 - `gestion_employes` : Accès à la liste et modification des employés.
 - `gestion_postes` : Accès à la configuration des types de postes.
-- `gestion_fournisseurs` : Accès au CRUD des fournisseurs dans les paramètres.
+- `gestion_fournisseurs` : Accès au CRUD des fournisseurs.
+- `gestion_groupes_fournisseurs` : Accès aux groupes de fournisseurs.
+- `gestion_rayons` : Accès aux rayons.
+- `gestion_familles` : Accès aux familles de produits.
+- `gestion_sections` : Accès aux sections de stockage/vente.
+- `gestion_produits` : Accès au catalogue produit.
 - `consultation_salaires` : Accès à la visualisation des informations financières.
 
 ## Règles d'Affichage (UI/UX)

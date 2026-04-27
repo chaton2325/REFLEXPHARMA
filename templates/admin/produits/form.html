@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_produits') }}">Produits</a></li>
+                <li class="breadcrumb-item active">{{ title }}</li>
+            </ol>
+        </nav>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">{{ title }}</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Nom du Produit</label>
+                            <input type="text" name="nom" class="form-control" value="{{ produit.nom if produit else '' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fournisseur</label>
+                            <select name="fournisseur_id" id="fournisseurSelect" class="form-select" required {{ 'disabled' if produit }}>
+                                <option value="" data-prefix="XXXX" data-coeff="1.0" data-tva="20.0" data-groupe="Aucun">Choisir un fournisseur...</option>
+                                {% for f in fournisseurs %}
+                                <option value="{{ f.id }}" data-prefix="{{ f.prefixe }}" 
+                                        data-coeff="{{ f.effectif_coefficient }}" 
+                                        data-tva="{{ f.effectif_tva }}" 
+                                        data-groupe="{{ f.groupe.nom if f.groupe else 'Aucun' }}"
+                                        {% if produit and produit.fournisseur_id == f.id %}selected{% endif %}>
+                                    {{ f.nom }} ({{ f.prefixe }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Code Produit (Généré)</label>
+                            <input type="text" name="code_produit" id="codeProduit" class="form-control" 
+                                value="{{ produit.code_produit if produit else '' }}" readonly placeholder="Automatique (13 chiffres)">
+                        </div>
+                    </div>
+                    <div class="row mb-4" id="fournisseurInfo" style="display:none;">
+                        <div class="col-md-12">
+                            <div class="p-3 border rounded bg-light small">
+                                <span class="me-3">Groupe: <span id="infoGroupe" class="fw-bold"></span></span>
+                                <span class="me-3">Coefficient: <span id="infoCoeff" class="fw-bold"></span></span>
+                                <span>TVA: <span id="infoTva" class="fw-bold"></span>%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Rayon</label>
+                            <select name="rayon_id" class="form-select">
+                                <option value="">Aucun</option>
+                                {% for r in rayons %}
+                                <option value="{{ r.id }}" {% if produit and produit.rayon_id == r.id %}selected{% endif %}>{{ r.nom }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Famille</label>
+                            <select name="famille_id" class="form-select">
+                                <option value="">Aucune</option>
+                                {% for f in familles %}
+                                <option value="{{ f.id }}" {% if produit and produit.famille_id == f.id %}selected{% endif %}>{{ f.nom }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Section</label>
+                            <select name="section_id" class="form-select">
+                                <option value="">Aucune</option>
+                                {% for s in sections %}
+                                <option value="{{ s.id }}" {% if produit and produit.section_id == s.id %}selected{% endif %}>{{ s.nom }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="mb-3 text-primary"><i class="fas fa-box me-2"></i>Conditionnement, Prix</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Type de Conditionnement</label>
+                            <select name="conditionnement" id="condSelect" class="form-select">
+                                <option value="1" {% if produit and produit.conditionnement == 1 %}selected{% endif %}>Cond 1 (Unité seule)</option>
+                                <option value="2" {% if produit and produit.conditionnement == 2 %}selected{% endif %}>Cond 2 (Unité + Sous-unité)</option>
+                                <option value="3" {% if produit and produit.conditionnement == 3 %}selected{% endif %}>Cond 3 (Unité + 2 Niveaux)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Prix Unité</label>
+                            <input type="number" step="0.01" name="prix_unite" class="form-control" value="{{ produit.prix_unite if produit else '0.00' }}" required>
+                        </div>
+                        <div class="col-md-4" id="divPrixSous" style="display: none;">
+                            <label class="form-label fw-bold">Prix Sous-Unité</label>
+                            <input type="number" step="0.01" name="prix_sous_unite" class="form-control" value="{{ produit.prix_sous_unite if (produit and produit.prix_sous_unite) else '' }}">
+                        </div>
+                        <div class="col-md-4" id="divPrixSousSous" style="display: none;">
+                            <label class="form-label fw-bold">Prix Sous-Sous-Unité</label>
+                            <input type="number" step="0.01" name="prix_sous_sous_unite" class="form-control" value="{{ produit.prix_sous_sous_unite if (produit and produit.prix_sous_sous_unite) else '' }}">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('admin.list_produits') }}" class="btn btn-light border">Annuler</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Enregistrer le Produit
+                        </button>
+                    </div>
+
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const condSelect = document.getElementById('condSelect');
+                        const divPrixSous = document.getElementById('divPrixSous');
+                        const divPrixSousSous = document.getElementById('divPrixSousSous');
+                        const fournSelect = document.getElementById('fournisseurSelect');
+                        const codeInput = document.getElementById('codeProduit');
+
+                        function updateFields() {
+                            const val = parseInt(condSelect.value);
+                            divPrixSous.style.display = val >= 2 ? 'block' : 'none';
+                            divPrixSousSous.style.display = val >= 3 ? 'block' : 'none';
+                        }
+
+                        function updateSupplierInfo() {
+                            const selectedOption = fournSelect.options[fournSelect.selectedIndex];
+                            const infoDiv = document.getElementById('fournisseurInfo');
+                            if (selectedOption.value) {
+                                document.getElementById('infoGroupe').textContent = selectedOption.getAttribute('data-groupe');
+                                document.getElementById('infoCoeff').textContent = selectedOption.getAttribute('data-coeff');
+                                document.getElementById('infoTva').textContent = selectedOption.getAttribute('data-tva');
+                                infoDiv.style.display = 'block';
+                            } else {
+                                infoDiv.style.display = 'none';
+                            }
+                        }
+
+                        function generateCode() {
+                            updateSupplierInfo();
+                            const selectedOption = fournSelect.options[fournSelect.selectedIndex];
+                            const prefix = selectedOption.getAttribute('data-prefix') || "XXXX";
+                            const random = Math.floor(100000000 + Math.random() * 900000000).toString().substring(0, 9);
+                            codeInput.value = `${prefix}-${random}`.substring(0, 13);
+                        }
+
+                        condSelect.addEventListener('change', updateFields);
+                        fournSelect.addEventListener('change', generateCode);
+                        
+                        updateFields();
+                        if (!codeInput.value) generateCode();
+                    });
+                    </script>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -36,11 +36,26 @@
                         <a class="nav-link" href="{{ url_for('admin.list_users') }}">Employés</a>
                     </li>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_postes') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_postes') }}">Postes</a>
+                    {% if current_user.has_permission('gestion_produits') %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="catalogueDropdown" role="button" data-bs-toggle="dropdown">
+                            Catalogue
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_produits') }}">Produits</a></li>
+                            {% if current_user.has_permission('gestion_rayons') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_rayons') }}">Rayons</a></li>
+                            {% endif %}
+                            {% if current_user.has_permission('gestion_familles') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_familles') }}">Familles</a></li>
+                            {% endif %}
+                            {% if current_user.has_permission('gestion_sections') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_sections') }}">Sections</a></li>
+                            {% endif %}
+                        </ul>
                     </li>
                     {% endif %}
+                    
                     {% if current_user.has_permission('gestion_fournisseurs') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown">
@@ -50,6 +65,10 @@
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a></li>
                             {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_groupes_fournisseurs') }}">Groupes de Fournisseurs</a></li>
+                            {% endif %}
+                            <li class="dropdown-divider"></li>
+                            {% if current_user.has_permission('gestion_postes') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_postes') }}">Postes</a></li>
                             {% endif %}
                         </ul>
                     </li>

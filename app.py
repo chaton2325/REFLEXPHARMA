@@ -9,6 +9,10 @@ from models.poste import Poste
 from models.permission import Permission
 from models.fournisseur import Fournisseur
 from models.groupe_fournisseur import GroupeFournisseur
+from models.rayon import Rayon
+from models.famille import Famille
+from models.section import Section
+from models.produit import Produit
 
 from config import config
 

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Catalogue Produits - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Catalogue</li>
+                <li class="breadcrumb-item active">Produits</li>
+            </ol>
+        </nav>
+        <h1 class="h3">Catalogue Produits</h1>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.export_produits_excel') }}" class="btn btn-outline-success">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-outline-danger">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
+    </div>
+    <div class="d-flex gap-3">
+        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
+        </button>
+        <div class="input-group" style="width: 300px;">
+            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un produit...">
+        </div>
+        <a href="{{ url_for('admin.create_produit') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Nouveau Produit
+        </a>
+    </div>
+</div>
+
+<div class="d-flex gap-3 mb-3">
+    <select id="filterFournisseur" class="form-select form-select-sm" style="width: 150px;">
+        <option value="">Tous Fournisseurs</option>
+        {% for f in fournisseurs_list %}
+        <option value="{{ f.nom }}">{{ f.nom }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterRayon" class="form-select form-select-sm" style="width: 150px;">
+        <option value="">Tous Rayons</option>
+        {% for r in rayons_list %}
+        <option value="{{ r.nom }}">{{ r.nom }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterFamille" class="form-select form-select-sm" style="width: 150px;">
+        <option value="">Toutes Familles</option>
+        {% for f in familles_list %}
+        <option value="{{ f.nom }}">{{ f.nom }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterCond" class="form-select form-select-sm" style="width: 150px;">
+        <option value="">Tout Cond.</option>
+        <option value="Cond 1">Cond 1</option>
+        <option value="Cond 2">Cond 2</option>
+        <option value="Cond 3">Cond 3</option>
+    </select>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_produits') }}" method="POST">
+            <table class="table table-hover align-middle mb-0" id="produitTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th><div class="form-check"><input class="form-check-input" type="checkbox" id="selectAll"></div></th>
+                        <th onclick="sortTable(1)" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(2)" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
+                        <th>Fournisseur</th>
+                        <th>Rayon/Famille</th>
+                        <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)" style="cursor:pointer">Prix <i class="fas fa-sort"></i></th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in produits %}
+                    <tr>
+                        <td>
+                            <div class="form-check">
+                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}">
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ p.code_produit }}</span></td>
+                        <td><div class="fw-bold">{{ p.nom }}</div></td>
+                        <td>{{ p.fournisseur.nom }}</td>
+                        <td>
+                            <span class="small text-muted">{{ p.rayon.nom if p.rayon else 'Sans Rayon' }}</span><br>
+                            <span class="badge bg-light text-dark small">{{ p.famille.nom if p.famille else 'N/A' }}</span>
+                        </td>
+                        <td><span class="badge bg-info text-dark">Cond {{ p.conditionnement }}</span></td>
+                        <td>{{ p.prix_unite }} €</td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ p.id }}" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+
+                            <!-- Details Modal -->
+                            <div class="modal fade" id="detailsModal{{ p.id }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header bg-light">
+                                            <h5 class="modal-title"><i class="fas fa-pills me-2 text-primary"></i>Détails du Produit</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <!-- ... -->
+                                        </div>
+                                        <div class="modal-footer">
+                                            <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-primary">Modifier</a>
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="deleteModal{{ p.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Confirmer la suppression</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            Êtes-vous sûr de vouloir supprimer le produit <strong>{{ p.nom }}</strong> ?
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <form action="{{ url_for('admin.delete_produit', id=p.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-danger">Supprimer</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">Aucun produit dans le catalogue.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const modalSelectedCountSpan = document.getElementById('modalSelectedCount');
+
+    function updateUI() {
+        const count = document.querySelectorAll('.row-checkbox:checked').length;
+        bulkDeleteBtn.classList.toggle('d-none', count === 0);
+        selectedCountSpan.textContent = count;
+        modalSelectedCountSpan.textContent = count;
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateUI();
+        });
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateUI));
+
+    function filterTable() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const fFournisseur = document.getElementById('filterFournisseur').value.toLowerCase();
+        const fRayon = document.getElementById('filterRayon').value.toLowerCase();
+        const fFamille = document.getElementById('filterFamille').value.toLowerCase();
+        const fCond = document.getElementById('filterCond').value.toLowerCase();
+        
+        const rows = document.querySelectorAll('#produitTable tbody tr');
+        rows.forEach(row => {
+            const textContent = row.textContent.toLowerCase();
+            const four = row.cells[3].textContent.toLowerCase();
+            const rayonFam = row.cells[4].textContent.toLowerCase();
+            const cond = row.cells[5].textContent.toLowerCase();
+            
+            const matchQuery = textContent.includes(query);
+            const matchFournisseur = !fFournisseur || four.includes(fFournisseur);
+            const matchRayon = !fRayon || rayonFam.includes(fRayon);
+            const matchFamille = !fFamille || rayonFam.includes(fFamille);
+            const matchCond = !fCond || cond.includes(fCond);
+            
+            row.style.display = (matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond) ? '' : 'none';
+        });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', filterTable);
+    document.getElementById('filterFournisseur').addEventListener('change', filterTable);
+    document.getElementById('filterRayon').addEventListener('change', filterTable);
+    document.getElementById('filterFamille').addEventListener('change', filterTable);
+    document.getElementById('filterCond').addEventListener('change', filterTable);
+});
+
+function sortTable(n) {
+    let table = document.getElementById("produitTable");
+    let rows = Array.from(table.rows).slice(1);
+    let dir = table.getAttribute("data-sort-dir") === "asc" ? "desc" : "asc";
+    table.setAttribute("data-sort-dir", dir);
+    
+    rows.sort((a, b) => {
+        let x = a.cells[n].textContent.trim();
+        let y = b.cells[n].textContent.trim();
+        return dir === "asc" ? x.localeCompare(y, undefined, {numeric: true}) : y.localeCompare(x, undefined, {numeric: true});
+    });
+    
+    let tbody = table.querySelector("tbody");
+    rows.forEach(row => tbody.appendChild(row));
+}
+</script>
+{% endblock %}

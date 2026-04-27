@@ -6,6 +6,10 @@ from models.poste import Poste
 from models.permission import Permission
 from models.fournisseur import Fournisseur
 from models.groupe_fournisseur import GroupeFournisseur
+from models.rayon import Rayon
+from models.famille import Famille
+from models.section import Section
+from models.produit import Produit
 from extensions import db
 from functools import wraps
 from datetime import datetime
@@ -207,34 +211,6 @@ def edit_user(id):
     user_perms = {p.feature: p.is_allowed for p in Permission.query.filter_by(user_id=id).all()}
     return render_template('admin/users/form.html', user=user, title="Modifier l'utilisateur", postes=postes, features=FEATURES, user_perms=user_perms)
 
-# ... (delete_user et toggle_user_active restent identiques)
-@admin.route('/users/delete/<int:id>', methods=['POST'])
-@login_required
-@permission_required('gestion_employes')
-def delete_user(id):
-    user = User.query.get_or_404(id)
-    if user.id == current_user.id:
-        flash("Vous ne pouvez pas supprimer votre propre compte.", "danger")
-        return redirect(url_for('admin.list_users'))
-    db.session.delete(user)
-    db.session.commit()
-    flash('Utilisateur supprimé.', 'success')
-    return redirect(url_for('admin.list_users'))
-
-@admin.route('/users/toggle/<int:id>')
-@login_required
-@permission_required('gestion_employes')
-def toggle_user_active(id):
-    user = User.query.get_or_404(id)
-    if user.id == current_user.id:
-        flash("Vous ne pouvez pas désactiver votre propre compte.", "danger")
-        return redirect(url_for('admin.list_users'))
-    user.is_active = not user.is_active
-    db.session.commit()
-    status = "activé" if user.is_active else "désactivé"
-    flash(f'Utilisateur {status}.', 'success')
-    return redirect(url_for('admin.list_users'))
-
 @admin.route('/users/bulk-delete', methods=['POST'])
 @login_required
 @permission_required('gestion_employes')
@@ -245,16 +221,45 @@ def bulk_delete_users():
         return redirect(url_for('admin.list_users'))
     
     deleted_count = 0
-    for user_id in ids:
-        if int(user_id) == current_user.id:
-            continue
-        user = User.query.get(user_id)
-        if user:
-            db.session.delete(user)
+    for u_id in ids:
+        u = User.query.get(u_id)
+        if u and u.id != current_user.id:
+            db.session.delete(u)
             deleted_count += 1
             
     db.session.commit()
     flash(f'{deleted_count} utilisateur(s) supprimé(s).', 'success')
+    return redirect(url_for('admin.list_users'))
+
+@admin.route('/users/toggle-active/<int:id>')
+@login_required
+@permission_required('gestion_employes')
+def toggle_user_active(id):
+    user = User.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash("Vous ne pouvez pas modifier le statut de votre propre compte.", "warning")
+        return redirect(url_for('admin.list_users'))
+
+    user.is_active = not user.is_active
+    db.session.commit()
+    flash(
+        'Utilisateur activ? avec succ?s.' if user.is_active else 'Utilisateur d?sactiv? avec succ?s.',
+        'success'
+    )
+    return redirect(url_for('admin.list_users'))
+
+@admin.route('/users/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def delete_user(id):
+    user = User.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash("Vous ne pouvez pas supprimer votre propre compte.", "warning")
+        return redirect(url_for('admin.list_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash('Utilisateur supprim?.', 'success')
     return redirect(url_for('admin.list_users'))
 
 # --- GESTION DES FOURNISSEURS ---
@@ -265,8 +270,6 @@ def list_fournisseurs():
     fournisseurs = Fournisseur.query.all()
     groupes = GroupeFournisseur.query.all()
     return render_template('admin/fournisseurs/list.html', fournisseurs=fournisseurs, groupes=groupes)
-
-# ... (les autres routes fournisseurs)
 
 @admin.route('/fournisseurs/bulk-delete', methods=['POST'])
 @login_required
@@ -450,3 +453,401 @@ def bulk_delete_groupes_fournisseurs():
     db.session.commit()
     flash(f'{deleted_count} groupe(s) supprimé(s).', 'success')
     return redirect(url_for('admin.list_groupes_fournisseurs'))
+
+# --- GESTION DES RAYONS ---
+@admin.route('/rayons')
+@login_required
+@permission_required('gestion_rayons')
+def list_rayons():
+    rayons = Rayon.query.all()
+    return render_template('admin/rayons/list.html', rayons=rayons)
+
+@admin.route('/rayons/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_rayons')
+def create_rayon():
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        if Rayon.query.filter_by(nom=nom).first():
+            flash('Ce rayon existe déjà.', 'danger')
+            return redirect(url_for('admin.create_rayon'))
+        new_rayon = Rayon(nom=nom, description=request.form.get('description'))
+        db.session.add(new_rayon)
+        db.session.commit()
+        flash('Rayon ajouté avec succès.', 'success')
+        return redirect(url_for('admin.list_rayons'))
+    return render_template('admin/rayons/form.html', title='Ajouter un Rayon')
+
+@admin.route('/rayons/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_rayons')
+def edit_rayon(id):
+    rayon = Rayon.query.get_or_404(id)
+    if request.method == 'POST':
+        rayon.nom = request.form.get('nom')
+        rayon.description = request.form.get('description')
+        db.session.commit()
+        flash('Rayon mis à jour.', 'success')
+        return redirect(url_for('admin.list_rayons'))
+    return render_template('admin/rayons/form.html', rayon=rayon, title='Modifier le Rayon')
+
+@admin.route('/rayons/bulk-delete', methods=['POST'])
+@login_required
+@permission_required('gestion_rayons')
+def bulk_delete_rayons():
+    ids = request.form.getlist('ids[]')
+    deleted_count = 0
+    for r_id in ids:
+        r = Rayon.query.get(r_id)
+        if r:
+            db.session.delete(r)
+            deleted_count += 1
+    db.session.commit()
+    flash(f'{deleted_count} rayon(s) supprimé(s).', 'success')
+    return redirect(url_for('admin.list_rayons'))
+
+@admin.route('/rayons/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_rayons')
+def delete_rayon(id):
+    item = Rayon.query.get_or_404(id)
+    db.session.delete(item)
+    db.session.commit()
+    flash('Rayon supprimé.', 'success')
+    return redirect(url_for('admin.list_rayons'))
+
+# --- GESTION DES FAMILLES ---
+@admin.route('/familles')
+@login_required
+@permission_required('gestion_familles')
+def list_familles():
+    familles = Famille.query.all()
+    return render_template('admin/familles/list.html', familles=familles)
+
+@admin.route('/familles/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_familles')
+def create_famille():
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        if Famille.query.filter_by(nom=nom).first():
+            flash('Cette famille existe déjà.', 'danger')
+            return redirect(url_for('admin.create_famille'))
+        new_famille = Famille(nom=nom, description=request.form.get('description'))
+        db.session.add(new_famille)
+        db.session.commit()
+        flash('Famille ajoutée.', 'success')
+        return redirect(url_for('admin.list_familles'))
+    return render_template('admin/familles/form.html', title='Ajouter une Famille')
+
+@admin.route('/familles/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_familles')
+def edit_famille(id):
+    famille = Famille.query.get_or_404(id)
+    if request.method == 'POST':
+        famille.nom = request.form.get('nom')
+        famille.description = request.form.get('description')
+        db.session.commit()
+        flash('Famille mise à jour.', 'success')
+        return redirect(url_for('admin.list_familles'))
+    return render_template('admin/familles/form.html', famille=famille, title='Modifier la Famille')
+
+@admin.route('/familles/bulk-delete', methods=['POST'])
+@login_required
+@permission_required('gestion_familles')
+def bulk_delete_familles():
+    ids = request.form.getlist('ids[]')
+    deleted_count = 0
+    for f_id in ids:
+        f = Famille.query.get(f_id)
+        if f:
+            db.session.delete(f)
+            deleted_count += 1
+    db.session.commit()
+    flash(f'{deleted_count} famille(s) supprimée(s).', 'success')
+    return redirect(url_for('admin.list_familles'))
+
+@admin.route('/familles/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_familles')
+def delete_famille(id):
+    item = Famille.query.get_or_404(id)
+    db.session.delete(item)
+    db.session.commit()
+    flash('Famille supprimée.', 'success')
+    return redirect(url_for('admin.list_familles'))
+
+# --- GESTION DES SECTIONS ---
+@admin.route('/sections')
+@login_required
+@permission_required('gestion_sections')
+def list_sections():
+    sections = Section.query.all()
+    return render_template('admin/sections/list.html', sections=sections)
+
+@admin.route('/sections/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_sections')
+def create_section():
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        if Section.query.filter_by(nom=nom).first():
+            flash('Cette section existe déjà.', 'danger')
+            return redirect(url_for('admin.create_section'))
+        new_section = Section(nom=nom, description=request.form.get('description'))
+        db.session.add(new_section)
+        db.session.commit()
+        flash('Section ajoutée.', 'success')
+        return redirect(url_for('admin.list_sections'))
+    return render_template('admin/sections/form.html', title='Ajouter une Section')
+
+@admin.route('/sections/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_sections')
+def edit_section(id):
+    section = Section.query.get_or_404(id)
+    if request.method == 'POST':
+        section.nom = request.form.get('nom')
+        section.description = request.form.get('description')
+        db.session.commit()
+        flash('Section mise à jour.', 'success')
+        return redirect(url_for('admin.list_sections'))
+    return render_template('admin/sections/form.html', section=section, title='Modifier la Section')
+
+@admin.route('/sections/bulk-delete', methods=['POST'])
+@login_required
+@permission_required('gestion_sections')
+def bulk_delete_sections():
+    ids = request.form.getlist('ids[]')
+    deleted_count = 0
+    for s_id in ids:
+        s = Section.query.get(s_id)
+        if s:
+            db.session.delete(s)
+            deleted_count += 1
+    db.session.commit()
+    flash(f'{deleted_count} section(s) supprimée(s).', 'success')
+    return redirect(url_for('admin.list_sections'))
+
+@admin.route('/sections/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_sections')
+def delete_section(id):
+    item = Section.query.get_or_404(id)
+    db.session.delete(item)
+    db.session.commit()
+    flash('Section supprimée.', 'success')
+    return redirect(url_for('admin.list_sections'))
+
+# --- GESTION DES PRODUITS ---
+@admin.route('/produits')
+@login_required
+@permission_required('gestion_produits')
+def list_produits():
+    produits = Produit.query.all()
+    fournisseurs_list = Fournisseur.query.all()
+    rayons_list = Rayon.query.all()
+    familles_list = Famille.query.all()
+    return render_template('admin/produits/list.html', produits=produits, 
+                           fournisseurs_list=fournisseurs_list, 
+                           rayons_list=rayons_list, 
+                           familles_list=familles_list)
+
+@admin.route('/produits/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_produits')
+def create_produit():
+    fournisseurs = Fournisseur.query.all()
+    rayons = Rayon.query.all()
+    familles = Famille.query.all()
+    sections = Section.query.all()
+    
+    if request.method == 'POST':
+        f_id = int(request.form.get('fournisseur_id'))
+        
+        new_produit = Produit(
+            nom=request.form.get('nom'),
+            code_produit=request.form.get('code_produit'),
+            fournisseur_id=f_id,
+            rayon_id=int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None,
+            famille_id=int(request.form.get('famille_id')) if request.form.get('famille_id') else None,
+            section_id=int(request.form.get('section_id')) if request.form.get('section_id') else None,
+            conditionnement=int(request.form.get('conditionnement')),
+            prix_unite=float(request.form.get('prix_unite') or 0),
+            prix_sous_unite=float(request.form.get('prix_sous_unite') or 0),
+            prix_sous_sous_unite=float(request.form.get('prix_sous_sous_unite') or 0),
+            coefficient=float(request.form.get('coefficient')) if request.form.get('coefficient') else None,
+            tva=float(request.form.get('tva')) if request.form.get('tva') else None
+        )
+        db.session.add(new_produit)
+        db.session.commit()
+        
+        flash(f'Produit créé avec le code : {new_produit.code_produit}', 'success')
+        return redirect(url_for('admin.list_produits'))
+        
+    return render_template('admin/produits/form.html', title='Ajouter un Produit', 
+                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections)
+
+@admin.route('/produits/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_produits')
+def edit_produit(id):
+    produit = Produit.query.get_or_404(id)
+    fournisseurs = Fournisseur.query.all()
+    rayons = Rayon.query.all()
+    familles = Famille.query.all()
+    sections = Section.query.all()
+    
+    if request.method == 'POST':
+        produit.nom = request.form.get('nom')
+        produit.rayon_id = int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None
+        produit.famille_id = int(request.form.get('famille_id')) if request.form.get('famille_id') else None
+        produit.section_id = int(request.form.get('section_id')) if request.form.get('section_id') else None
+        produit.conditionnement = int(request.form.get('conditionnement'))
+        produit.prix_unite = float(request.form.get('prix_unite') or 0)
+        produit.prix_sous_unite = float(request.form.get('prix_sous_unite') or 0)
+        produit.prix_sous_sous_unite = float(request.form.get('prix_sous_sous_unite') or 0)
+        produit.coefficient = float(request.form.get('coefficient')) if request.form.get('coefficient') else None
+        produit.tva = float(request.form.get('tva')) if request.form.get('tva') else None
+        
+        db.session.commit()
+        flash('Produit mis à jour.', 'success')
+        return redirect(url_for('admin.list_produits'))
+        
+    return render_template('admin/produits/form.html', produit=produit, title='Modifier le Produit',
+                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections)
+
+@admin.route('/produits/bulk-delete', methods=['POST'])
+@login_required
+@permission_required('gestion_produits')
+def bulk_delete_produits():
+    ids = request.form.getlist('ids[]')
+    deleted_count = 0
+    for p_id in ids:
+        p = Produit.query.get(p_id)
+        if p:
+            db.session.delete(p)
+            deleted_count += 1
+    db.session.commit()
+    flash(f'{deleted_count} produit(s) supprimé(s).', 'success')
+    return redirect(url_for('admin.list_produits'))
+
+@admin.route('/produits/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_produits')
+def delete_produit(id):
+    produit = Produit.query.get_or_404(id)
+    db.session.delete(produit)
+    db.session.commit()
+    flash('Produit supprimé du catalogue.', 'success')
+    return redirect(url_for('admin.list_produits'))
+
+# --- VUES FILTRÉES PRODUITS ---
+@admin.route('/produits/rayon/<int:id>')
+@login_required
+@permission_required('gestion_produits')
+def list_produits_by_rayon(id):
+    rayon = Rayon.query.get_or_404(id)
+    produits = Produit.query.filter_by(rayon_id=id).all()
+    return render_template('admin/produits/list.html', produits=produits, title=f'Produits - Rayon : {rayon.nom}')
+
+@admin.route('/produits/famille/<int:id>')
+@login_required
+@permission_required('gestion_produits')
+def list_produits_by_famille(id):
+    famille = Famille.query.get_or_404(id)
+    produits = Produit.query.filter_by(famille_id=id).all()
+    return render_template('admin/produits/list.html', produits=produits, title=f'Produits - Famille : {famille.nom}')
+
+@admin.route('/produits/section/<int:id>')
+@login_required
+@permission_required('gestion_produits')
+def list_produits_by_section(id):
+    section = Section.query.get_or_404(id)
+    produits = Produit.query.filter_by(section_id=id).all()
+    return render_template('admin/produits/list.html', produits=produits, title=f'Produits - Section : {section.nom}')
+
+import pandas as pd
+from flask import send_file
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+@admin.route('/produits/export/excel')
+@login_required
+@permission_required('gestion_produits')
+def export_produits_excel():
+    produits = Produit.query.all()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    data = [{
+        'Code': p.code_produit,
+        'Nom': p.nom,
+        'Fournisseur': p.fournisseur.nom if p.fournisseur else '',
+        'Rayon': p.rayon.nom if p.rayon else '',
+        'Famille': p.famille.nom if p.famille else '',
+        'Conditionnement': p.conditionnement,
+        'Prix Unité': p.prix_unite
+    } for p in produits]
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Produits', startrow=2)
+        workbook = writer.book
+        worksheet = writer.sheets['Produits']
+        
+        # Add metadata
+        worksheet['A1'] = f"Rapport généré le : {timestamp}"
+        worksheet['A2'] = f"Tiré par : {current_user.nom} {current_user.prenom}"
+        
+        # Style
+        from openpyxl.styles import Font, PatternFill, Alignment
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        
+        for cell in worksheet[3]: # Header row is now 3
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+            
+    output.seek(0)
+    return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx', as_attachment=True)
+
+@admin.route('/produits/export/pdf')
+@login_required
+@permission_required('gestion_produits')
+def export_produits_pdf():
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.pagesizes import A4
+    
+    produits = Produit.query.all()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=20, bottomMargin=20, leftMargin=20, rightMargin=20)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    elements.append(Paragraph(f'Catalogue Produits - ReflexPharma', styles['Title']))
+    elements.append(Paragraph(f'Tiré par : {current_user.nom} {current_user.prenom} | Date : {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal']))
+    elements.append(Spacer(1, 12))
+    
+    data = [['Code', 'Nom', 'Fournisseur', 'Prix']]
+    for p in produits:
+        data.append([p.code_produit, p.nom, p.fournisseur.nom if p.fournisseur else '-', f'{p.prix_unite} €'])
+        
+    table = Table(data, repeatRows=1, colWidths=[100, 200, 150, 80])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf', as_attachment=True)
