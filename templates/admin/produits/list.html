@@ -118,7 +118,45 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
-                                            <!-- ... -->
+                                            <div class="row g-4">
+                                                <div class="col-md-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Informations G?n?rales</h6>
+                                                    <p class="mb-2"><strong>Nom:</strong> {{ p.nom }}</p>
+                                                    <p class="mb-2"><strong>Code produit:</strong> <span class="badge bg-secondary">{{ p.code_produit }}</span></p>
+                                                    <p class="mb-2"><strong>Fournisseur:</strong> {{ p.fournisseur.nom if p.fournisseur else 'N/A' }}</p>
+                                                    <p class="mb-0"><strong>Conditionnement:</strong> Cond {{ p.conditionnement }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Classement</h6>
+                                                    <p class="mb-2"><strong>Rayon:</strong> {{ p.rayon.nom if p.rayon else 'Sans rayon' }}</p>
+                                                    <p class="mb-2"><strong>Famille:</strong> {{ p.famille.nom if p.famille else 'N/A' }}</p>
+                                                    <p class="mb-0"><strong>Section:</strong> {{ p.section.nom if p.section else 'N/A' }}</p>
+                                                </div>
+                                                <div class="col-12">
+                                                    <hr class="my-0">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Tarification</h6>
+                                                    <p class="mb-2"><strong>Prix unité:</strong> {{ "%.2f"|format(p.prix_unite or 0) }} ?</p>
+                                                    <p class="mb-2"><strong>Prix sous-unité:</strong> {{ "%.2f"|format(p.prix_sous_unite) ~ ' ?' if p.prix_sous_unite is not none else 'N/A' }}</p>
+                                                    <p class="mb-0"><strong>Prix sous-sous-unité:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite) ~ ' ?' if p.prix_sous_sous_unite is not none else 'N/A' }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6 class="text-muted text-uppercase small fw-bold">Param?tres Financiers</h6>
+                                                    <p class="mb-2"><strong>Coefficient effectif:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
+                                                    <p class="mb-2"><strong>TVA effective:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
+                                                    <p class="mb-0"><strong>Surcharge produit:</strong> {{ 'Oui' if p.coefficient is not none or p.tva is not none else 'Non' }}</p>
+                                                </div>
+                                                <div class="col-12">
+                                                    <hr class="my-0">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <p class="mb-1 text-muted small"><strong>Crée le:</strong> {{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else 'N/A' }}</p>
+                                                </div>
+                                                <div class="col-md-6 text-md-end">
+                                                    <p class="mb-1 text-muted small"><strong>Mis à jour le:</strong> {{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else 'N/A' }}</p>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="modal-footer">
                                             <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-primary">Modifier</a>
