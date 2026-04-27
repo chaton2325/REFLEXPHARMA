@@ -6,7 +6,9 @@ FEATURES = {
     'gestion_rayons': 'Gérer les rayons',
     'gestion_familles': 'Gérer les familles',
     'gestion_sections': 'Gérer les sections',
-    'gestion_produits': 'Gérer les produits'
+    'gestion_produits': 'Gérer les produits',
+    'gestion_stock': 'Gérer le stock',
+    'gestion_modifications_stock': 'Voir les modifications de stock'
 }
 
 def get_feature_label(feature):

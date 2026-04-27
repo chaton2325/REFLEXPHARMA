@@ -102,6 +102,40 @@
     </div>
     {% endif %}
 
+    {% if current_user.has_permission('gestion_stock') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm border-success">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">
+                        <i class="fas fa-warehouse fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Gestion Stock</h5>
+                </div>
+                <p class="card-text">Entrez les produits en stock et suivez les quantités, TTC et bénéfices.</p>
+                <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-success btn-sm">Gérer le stock</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if current_user.has_permission('gestion_modifications_stock') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm border-warning">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning me-3">
+                        <i class="fas fa-clipboard-list fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Modifications Stock</h5>
+                </div>
+                <p class="card-text">Consultez l'historique des changements de stock et leurs raisons.</p>
+                <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-warning btn-sm">Voir l'historique</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="col-md-4 mb-4">
         <div class="card h-100 bg-light border-0">
             <div class="card-body">

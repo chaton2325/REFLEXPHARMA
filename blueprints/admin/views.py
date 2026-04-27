@@ -10,6 +10,8 @@ from models.rayon import Rayon
 from models.famille import Famille
 from models.section import Section
 from models.produit import Produit
+from models.stock import Stock
+from models.stock_modification import StockModification
 from extensions import db
 from functools import wraps
 from datetime import datetime
@@ -43,6 +45,21 @@ def generate_product_code(fournisseur):
         code = f'{prefix}-{suffix}'[:13]
         if not Produit.query.filter_by(code_produit=code).first():
             return code
+
+def create_stock_modification(stock, produit, action, reason, old_values, new_values):
+    modification = StockModification(
+        produit=produit,
+        user_id=current_user.id,
+        action=action,
+        reason=reason,
+        old_quantite_unites=old_values[0],
+        old_quantite_sous_unites=old_values[1],
+        old_quantite_sous_sous_unites=old_values[2],
+        new_quantite_unites=new_values[0],
+        new_quantite_sous_unites=new_values[1],
+        new_quantite_sous_sous_unites=new_values[2]
+    )
+    db.session.add(modification)
 
 # --- DASHBOARD ---
 @admin.route('/dashboard')
@@ -752,6 +769,124 @@ def delete_produit(id):
     db.session.commit()
     flash('Produit supprimé du catalogue.', 'success')
     return redirect(url_for('admin.list_produits'))
+
+# --- GESTION DU STOCK ---
+@admin.route('/stock', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_stock')
+def manage_stock():
+    produits = Produit.query.order_by(Produit.nom.asc()).all()
+
+    if request.method == 'POST':
+        produit_id = int(request.form.get('produit_id'))
+        produit = Produit.query.get_or_404(produit_id)
+        reason = (request.form.get('reason') or '').strip()
+
+        if not reason:
+            flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
+            return redirect(url_for('admin.manage_stock'))
+
+        quantite_unites = int(request.form.get('quantite_unites') or 0)
+        quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
+        quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
+
+        stock = Stock.query.filter_by(produit_id=produit_id).first()
+        if stock is None:
+            stock = Stock(
+                produit_id=produit_id,
+                quantite_unites=quantite_unites,
+                quantite_sous_unites=quantite_sous_unites,
+                quantite_sous_sous_unites=quantite_sous_sous_unites
+            )
+            db.session.add(stock)
+            create_stock_modification(
+                stock=stock,
+                produit=produit,
+                action='create',
+                reason=reason,
+                old_values=(0, 0, 0),
+                new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites)
+            )
+            message = f'Stock initial ajouté pour {produit.nom}.'
+        else:
+            old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+            stock.quantite_unites += quantite_unites
+            stock.quantite_sous_unites += quantite_sous_unites
+            stock.quantite_sous_sous_unites += quantite_sous_sous_unites
+            create_stock_modification(
+                stock=stock,
+                produit=produit,
+                action='adjust',
+                reason=reason,
+                old_values=old_values,
+                new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+            )
+            message = f'Stock mis à jour pour {produit.nom}.'
+
+        db.session.commit()
+        flash(message, 'success')
+        return redirect(url_for('admin.manage_stock'))
+
+    stocks = Stock.query.join(Produit).order_by(Produit.nom.asc()).all()
+    return render_template('admin/stock/list.html', produits=produits, stocks=stocks)
+
+@admin.route('/stock/edit/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def edit_stock(id):
+    stock = Stock.query.get_or_404(id)
+    reason = (request.form.get('reason') or '').strip()
+    if not reason:
+        flash('Veuillez préciser la raison de la modification du stock.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    stock.quantite_unites = int(request.form.get('quantite_unites') or 0)
+    stock.quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
+    stock.quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
+    create_stock_modification(
+        stock=stock,
+        produit=stock.produit,
+        action='edit',
+        reason=reason,
+        old_values=old_values,
+        new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    )
+    db.session.commit()
+    flash(f'Stock mis à jour pour {stock.produit.nom}.', 'success')
+    return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def delete_stock(id):
+    stock = Stock.query.get_or_404(id)
+    reason = (request.form.get('reason') or '').strip()
+    if not reason:
+        flash('Veuillez préciser la raison de la suppression du stock.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    produit_nom = stock.produit.nom
+    old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    create_stock_modification(
+        stock=stock,
+        produit=stock.produit,
+        action='delete',
+        reason=reason,
+        old_values=old_values,
+        new_values=(0, 0, 0)
+    )
+    db.session.delete(stock)
+    db.session.commit()
+    flash(f'Stock supprimé pour {produit_nom}.', 'success')
+    return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/modifications')
+@login_required
+@permission_required('gestion_modifications_stock')
+def list_stock_modifications():
+    modifications = StockModification.query.order_by(StockModification.created_at.desc()).all()
+    return render_template('admin/stock/modifications.html', modifications=modifications)
 
 # --- VUES FILTRÉES PRODUITS ---
 @admin.route('/produits/rayon/<int:id>')

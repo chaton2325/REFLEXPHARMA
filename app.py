@@ -13,6 +13,8 @@ from models.rayon import Rayon
 from models.famille import Famille
 from models.section import Section
 from models.produit import Produit
+from models.stock import Stock
+from models.stock_modification import StockModification
 
 from config import config
 
