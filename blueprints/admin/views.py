@@ -48,10 +48,14 @@ def generate_product_code(fournisseur):
 
 def create_stock_modification(stock, produit, action, reason, old_values, new_values):
     modification = StockModification(
+        stock_id=None,
         produit=produit,
         user_id=current_user.id,
         action=action,
         reason=reason,
+        numero_bl=stock.numero_bl,
+        date_peremption=stock.date_peremption,
+        code_suivi=stock.code_suivi,
         old_quantite_unites=old_values[0],
         old_quantite_sous_unites=old_values[1],
         old_quantite_sous_sous_unites=old_values[2],
@@ -781,24 +785,49 @@ def manage_stock():
         produit_id = int(request.form.get('produit_id'))
         produit = Produit.query.get_or_404(produit_id)
         reason = (request.form.get('reason') or '').strip()
+        numero_bl_raw = (request.form.get('numero_bl') or '').strip()
+        date_peremption_str = (request.form.get('date_peremption') or '').strip()
 
         if not reason:
             flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
             return redirect(url_for('admin.manage_stock'))
+        if not numero_bl_raw:
+            flash('Veuillez préciser le numéro du BL.', 'warning')
+            return redirect(url_for('admin.manage_stock'))
+        if not date_peremption_str:
+            flash('Veuillez préciser la date de péremption.', 'warning')
+            return redirect(url_for('admin.manage_stock'))
+
+        try:
+            date_peremption = datetime.strptime(date_peremption_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('La date de péremption est invalide.', 'danger')
+            return redirect(url_for('admin.manage_stock'))
+
+        numero_bl = Stock.normalize_bl(numero_bl_raw)
 
         quantite_unites = int(request.form.get('quantite_unites') or 0)
         quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
         quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
+        code_suivi = Stock.build_tracking_code(produit.code_produit, numero_bl, date_peremption)
 
-        stock = Stock.query.filter_by(produit_id=produit_id).first()
+        stock = Stock.query.filter_by(
+            produit_id=produit_id,
+            numero_bl=numero_bl,
+            date_peremption=date_peremption
+        ).first()
         if stock is None:
             stock = Stock(
                 produit_id=produit_id,
+                numero_bl=numero_bl,
+                date_peremption=date_peremption,
+                code_suivi=code_suivi,
                 quantite_unites=quantite_unites,
                 quantite_sous_unites=quantite_sous_unites,
                 quantite_sous_sous_unites=quantite_sous_sous_unites
             )
             db.session.add(stock)
+            db.session.flush()
             create_stock_modification(
                 stock=stock,
                 produit=produit,
@@ -821,13 +850,13 @@ def manage_stock():
                 old_values=old_values,
                 new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
             )
-            message = f'Stock mis à jour pour {produit.nom}.'
+            message = f'Stock mis à jour pour {produit.nom} ({stock.code_suivi}).'
 
         db.session.commit()
         flash(message, 'success')
         return redirect(url_for('admin.manage_stock'))
 
-    stocks = Stock.query.join(Produit).order_by(Produit.nom.asc()).all()
+    stocks = Stock.query.join(Produit).order_by(Produit.nom.asc(), Stock.date_peremption.asc()).all()
     return render_template('admin/stock/list.html', produits=produits, stocks=stocks)
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
@@ -853,7 +882,7 @@ def edit_stock(id):
         new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
     )
     db.session.commit()
-    flash(f'Stock mis à jour pour {stock.produit.nom}.', 'success')
+    flash(f'Stock mis à jour pour {stock.produit.nom} ({stock.code_suivi}).', 'success')
     return redirect(url_for('admin.manage_stock'))
 
 @admin.route('/stock/delete/<int:id>', methods=['POST'])
@@ -867,6 +896,7 @@ def delete_stock(id):
         return redirect(url_for('admin.manage_stock'))
 
     produit_nom = stock.produit.nom
+    code_suivi = stock.code_suivi
     old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
     create_stock_modification(
         stock=stock,
@@ -878,7 +908,7 @@ def delete_stock(id):
     )
     db.session.delete(stock)
     db.session.commit()
-    flash(f'Stock supprimé pour {produit_nom}.', 'success')
+    flash(f'Stock supprimé pour {produit_nom} ({code_suivi}).', 'success')
     return redirect(url_for('admin.manage_stock'))
 
 @admin.route('/stock/modifications')

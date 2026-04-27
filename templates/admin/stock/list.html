@@ -12,7 +12,7 @@
             </ol>
         </nav>
         <h1 class="h3 mb-1">Gestion du Stock</h1>
-        <p class="text-muted mb-0">Entrée en stock des produits du catalogue avec quantités, TTC et bénéfice.</p>
+        <p class="text-muted mb-0">Entrée en stock des produits du catalogue par lot avec BL, péremption, TTC et bénéfice.</p>
     </div>
     <div class="text-end">
         {% if current_user.has_permission('gestion_modifications_stock') %}
@@ -22,6 +22,13 @@
         {% endif %}
         <div class="small text-muted">Lignes en stock</div>
         <div class="fs-4 fw-bold">{{ stocks|length }}</div>
+    </div>
+</div>
+
+<div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+    <i class="fas fa-exclamation-triangle mt-1"></i>
+    <div>
+        Toute modification effectuée sur les saisies de stock engendre une raison à spécifier. Chaque ligne de stock correspond à un lot identifié par le produit, le BL et la date de péremption.
     </div>
 </div>
 
@@ -39,6 +46,7 @@
                             <option value="">Choisir un produit...</option>
                             {% for produit in produits %}
                             <option value="{{ produit.id }}"
+                                    data-product-code="{{ produit.code_produit }}"
                                     data-conditionnement="{{ produit.conditionnement }}"
                                     data-prix-unite-ht="{{ produit.prix_unite or 0 }}"
                                     data-prix-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
@@ -53,6 +61,21 @@
                             </option>
                             {% endfor %}
                         </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="numero_bl" class="form-label fw-bold">Numéro de BL</label>
+                        <input type="text" name="numero_bl" id="numero_bl" class="form-control" required placeholder="Ex: BL-2026-000154">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="date_peremption" class="form-label fw-bold">Date de péremption</label>
+                        <input type="date" name="date_peremption" id="date_peremption" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="code_suivi_preview" class="form-label fw-bold">Code de suivi généré</label>
+                        <input type="text" id="code_suivi_preview" class="form-control" readonly placeholder="Calculé automatiquement à partir du produit, du BL et de la péremption">
                     </div>
 
                     <div class="border rounded p-3 bg-light mb-3">
@@ -105,7 +128,7 @@
                     <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
                         <div class="input-group input-group-sm" style="min-width: 280px;">
                             <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                            <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher un produit, code ou fournisseur...">
+                            <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher un produit, lot, BL, péremption ou fournisseur...">
                         </div>
                         <div id="stockActivityIndicator" class="small text-muted d-none">
                             <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -122,6 +145,9 @@
                     <thead class="bg-light">
                         <tr>
                             <th data-sort-type="text" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">Péremption <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="number" style="cursor:pointer">Quantités <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="number" style="cursor:pointer">Total HT <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="number" style="cursor:pointer">Total TTC <i class="fas fa-sort small text-muted"></i></th>
@@ -132,7 +158,7 @@
                     <tbody id="stockTableBody">
                         {% for stock in stocks %}
                         <tr
-                            data-search="{{ (stock.produit.nom ~ ' ' ~ stock.produit.code_produit ~ ' ' ~ (stock.produit.fournisseur.nom if stock.produit.fournisseur else ''))|lower }}"
+                            data-search="{{ (stock.produit.nom ~ ' ' ~ stock.produit.code_produit ~ ' ' ~ stock.code_suivi ~ ' ' ~ stock.numero_bl ~ ' ' ~ stock.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ stock.date_peremption.strftime('%Y-%m-%d') ~ ' ' ~ (stock.produit.fournisseur.nom if stock.produit.fournisseur else ''))|lower }}"
                             data-quantite="{{ stock.quantite_totale }}"
                             data-total-ht="{{ stock.prix_ht_total }}"
                             data-total-ttc="{{ stock.prix_ttc_total }}"
@@ -141,6 +167,11 @@
                                 <div class="fw-bold">{{ stock.produit.nom }}</div>
                                 <small class="text-muted">{{ stock.produit.code_produit }} | {{ stock.produit.fournisseur.nom if stock.produit.fournisseur else 'N/A' }}</small>
                             </td>
+                            <td data-sort-value="{{ stock.code_suivi|lower }}">
+                                <span class="badge bg-dark-subtle text-dark border">{{ stock.code_suivi }}</span>
+                            </td>
+                            <td data-sort-value="{{ stock.numero_bl|lower }}">{{ stock.numero_bl }}</td>
+                            <td data-sort-value="{{ stock.date_peremption.strftime('%Y-%m-%d') }}">{{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</td>
                             <td data-sort-value="{{ stock.quantite_totale }}">
                                 <div>U: {{ stock.quantite_unites }}</div>
                                 <div>S/U: {{ stock.quantite_sous_unites }}</div>
@@ -173,18 +204,27 @@
                                         </div>
                                         <div class="modal-body">
                                             <p class="fw-bold mb-3">{{ stock.produit.nom }}</p>
+                                            <div class="small text-muted mb-3">
+                                                <div><strong>Code suivi:</strong> {{ stock.code_suivi }}</div>
+                                                <div><strong>BL:</strong> {{ stock.numero_bl }}</div>
+                                                <div><strong>Péremption:</strong> {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
+                                            </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Quantité unités</label>
                                                 <input type="number" min="0" name="quantite_unites" class="form-control" value="{{ stock.quantite_unites }}" required>
                                             </div>
+                                            {% if stock.produit.conditionnement >= 2 %}
                                             <div class="mb-3">
                                                 <label class="form-label">Quantité sous-unités</label>
                                                 <input type="number" min="0" name="quantite_sous_unites" class="form-control" value="{{ stock.quantite_sous_unites }}">
                                             </div>
+                                            {% endif %}
+                                            {% if stock.produit.conditionnement >= 3 %}
                                             <div class="mb-0">
                                                 <label class="form-label">Quantité sous-sous-unités</label>
                                                 <input type="number" min="0" name="quantite_sous_sous_unites" class="form-control" value="{{ stock.quantite_sous_sous_unites }}">
                                             </div>
+                                            {% endif %}
                                             <div class="mt-3">
                                                 <label class="form-label">Raison de la modification</label>
                                                 <textarea name="reason" class="form-control" rows="3" required placeholder="Ex: correction après comptage, ajustement manuel..."></textarea>
@@ -209,6 +249,11 @@
                                         </div>
                                         <div class="modal-body">
                                             Supprimer la ligne de stock pour <strong>{{ stock.produit.nom }}</strong> ?
+                                            <div class="small text-muted mt-2">
+                                                <div><strong>Code suivi:</strong> {{ stock.code_suivi }}</div>
+                                                <div><strong>BL:</strong> {{ stock.numero_bl }}</div>
+                                                <div><strong>Péremption:</strong> {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
+                                            </div>
                                             <div class="mt-3">
                                                 <label class="form-label">Raison de la suppression</label>
                                                 <textarea name="reason" class="form-control" rows="3" required placeholder="Ex: produit retiré du stock, suppression après fusion de doublon..."></textarea>
@@ -224,11 +269,11 @@
                         </div>
                         {% else %}
                         <tr id="emptyStockRow">
-                            <td colspan="6" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
+                            <td colspan="9" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
                         </tr>
                         {% endfor %}
                         <tr id="noSearchResultsRow" class="d-none">
-                            <td colspan="6" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
+                            <td colspan="9" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -245,6 +290,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const qtySousSousUnites = document.getElementById('quantite_sous_sous_unites');
     const groupSousUnites = document.getElementById('groupSousUnites');
     const groupSousSousUnites = document.getElementById('groupSousSousUnites');
+    const numeroBlInput = document.getElementById('numero_bl');
+    const datePeremptionInput = document.getElementById('date_peremption');
+    const codeSuiviPreview = document.getElementById('code_suivi_preview');
     const stockSearchInput = document.getElementById('stockSearchInput');
     const stockActivityIndicator = document.getElementById('stockActivityIndicator');
     const stockVisibleCount = document.getElementById('stockVisibleCount');
@@ -262,6 +310,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function currentOption() {
         return produitSelect.options[produitSelect.selectedIndex];
+    }
+
+    function normalizeBl(value) {
+        return String(value || '')
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, '')
+            .replace(/[\\/]/g, '-');
     }
 
     function updateConditionnementVisibility() {
@@ -330,6 +386,22 @@ document.addEventListener('DOMContentLoaded', function() {
         updateConditionnementVisibility();
         updatePriceInfo();
         updateTotals();
+        updateTrackingCodePreview();
+    }
+
+    function updateTrackingCodePreview() {
+        if (!codeSuiviPreview) {
+            return;
+        }
+
+        const option = currentOption();
+        const produitCode = option?.dataset.productCode || '';
+        const numeroBl = normalizeBl(numeroBlInput?.value);
+        const peremption = datePeremptionInput?.value || '';
+
+        codeSuiviPreview.value = produitCode && numeroBl && peremption
+            ? `${produitCode}-${numeroBl}-${peremption}`
+            : '';
     }
 
     function setActivityIndicator(isVisible) {
@@ -401,6 +473,12 @@ document.addEventListener('DOMContentLoaded', function() {
     qtyUnites.addEventListener('input', updateTotals);
     qtySousUnites.addEventListener('input', updateTotals);
     qtySousSousUnites.addEventListener('input', updateTotals);
+    if (numeroBlInput) {
+        numeroBlInput.addEventListener('input', updateTrackingCodePreview);
+    }
+    if (datePeremptionInput) {
+        datePeremptionInput.addEventListener('input', updateTrackingCodePreview);
+    }
 
     if (stockSearchInput) {
         stockSearchInput.addEventListener('input', () => {

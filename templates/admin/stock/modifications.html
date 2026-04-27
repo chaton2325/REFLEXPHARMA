@@ -13,7 +13,7 @@
             </ol>
         </nav>
         <h1 class="h3 mb-1">Modifications de Stock</h1>
-        <p class="text-muted mb-0">Historique des changements de stock avec motif, auteur et quantités avant/après.</p>
+        <p class="text-muted mb-0">Historique des changements de stock avec lot suivi, BL, péremption, motif, auteur et quantités avant/après.</p>
     </div>
     <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-primary">
         <i class="fas fa-arrow-left me-1"></i> Retour au stock
@@ -27,6 +27,9 @@
                 <tr>
                     <th>Date</th>
                     <th>Produit</th>
+                    <th>Code suivi</th>
+                    <th>BL</th>
+                    <th>Péremption</th>
                     <th>Action</th>
                     <th>Auteur</th>
                     <th>Avant</th>
@@ -42,6 +45,9 @@
                         <div class="fw-bold">{{ item.produit.nom }}</div>
                         <small class="text-muted">{{ item.produit.code_produit }}</small>
                     </td>
+                    <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
+                    <td>{{ item.numero_bl }}</td>
+                    <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
                     <td>
                         <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% else %}bg-success{% endif %}">
                             {{ item.action }}
@@ -62,7 +68,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="text-center py-4 text-muted">Aucune modification de stock enregistrée.</td>
+                    <td colspan="10" class="text-center py-4 text-muted">Aucune modification de stock enregistrée.</td>
                 </tr>
                 {% endfor %}
             </tbody>

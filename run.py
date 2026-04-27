@@ -23,6 +23,11 @@ def setup_database():
             ],
             'permissions': [
                 # La table permissions est déjà gérée par create_all car nouvelle
+            ],
+            'stock_modifications': [
+                ('numero_bl', 'VARCHAR(120)'),
+                ('date_peremption', 'DATE'),
+                ('code_suivi', 'VARCHAR(255)')
             ]
         }
         
