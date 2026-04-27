@@ -147,18 +147,21 @@
                             <th data-sort-type="text" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="text" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="text" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
-                            <th data-sort-type="text" style="cursor:pointer">Péremption <i class="fas fa-sort small text-muted"></i></th>
-                            <th data-sort-type="number" style="cursor:pointer">Quantités <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">P?remption <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="number" style="cursor:pointer">QR tir? <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="text" style="cursor:pointer">Derni?re modif. <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="number" style="cursor:pointer">Quantit?s <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="number" style="cursor:pointer">Total HT <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="number" style="cursor:pointer">Total TTC <i class="fas fa-sort small text-muted"></i></th>
-                            <th data-sort-type="number" style="cursor:pointer">Bénéfice <i class="fas fa-sort small text-muted"></i></th>
+                            <th data-sort-type="number" style="cursor:pointer">B?n?fice <i class="fas fa-sort small text-muted"></i></th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="stockTableBody">
                         {% for stock in stocks %}
                         <tr
-                            data-search="{{ (stock.produit.nom ~ ' ' ~ stock.produit.code_produit ~ ' ' ~ stock.code_suivi ~ ' ' ~ stock.numero_bl ~ ' ' ~ stock.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ stock.date_peremption.strftime('%Y-%m-%d') ~ ' ' ~ (stock.produit.fournisseur.nom if stock.produit.fournisseur else ''))|lower }}"
+                            data-search="{{ (stock.produit.nom ~ ' ' ~ stock.produit.code_produit ~ ' ' ~ stock.code_suivi ~ ' ' ~ stock.numero_bl ~ ' ' ~ stock.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ stock.date_peremption.strftime('%Y-%m-%d') ~ ' ' ~ ('oui' if stock.qr_tire else 'non') ~ ' ' ~ stock.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ stock.updated_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ (stock.produit.fournisseur.nom if stock.produit.fournisseur else ''))|lower }}"
                             data-quantite="{{ stock.quantite_totale }}"
                             data-total-ht="{{ stock.prix_ht_total }}"
                             data-total-ttc="{{ stock.prix_ttc_total }}"
@@ -172,6 +175,17 @@
                             </td>
                             <td data-sort-value="{{ stock.numero_bl|lower }}">{{ stock.numero_bl }}</td>
                             <td data-sort-value="{{ stock.date_peremption.strftime('%Y-%m-%d') }}">{{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</td>
+                            <td data-sort-value="{{ 1 if stock.qr_tire else 0 }}">
+                                <span class="badge {% if stock.qr_tire %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ 'Oui' if stock.qr_tire else 'Non' }}
+                                </span>
+                            </td>
+                            <td data-sort-value="{{ stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else '' }}">
+                                {{ stock.created_at.strftime('%d/%m/%Y %H:%M') if stock.created_at else 'N/A' }}
+                            </td>
+                            <td data-sort-value="{{ stock.updated_at.strftime('%Y-%m-%d %H:%M:%S') if stock.updated_at else '' }}">
+                                {{ stock.updated_at.strftime('%d/%m/%Y %H:%M') if stock.updated_at else 'N/A' }}
+                            </td>
                             <td data-sort-value="{{ stock.quantite_totale }}">
                                 <div>U: {{ stock.quantite_unites }}</div>
                                 <div>S/U: {{ stock.quantite_sous_unites }}</div>
@@ -184,6 +198,11 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group">
+                                    {% if not stock.qr_tire %}
+                                    <a href="{{ url_for('admin.preview_stock_qr_codes', id=stock.id) }}" class="btn btn-sm btn-outline-dark" title="Prévisualiser les QR codes">
+                                        <i class="fas fa-qrcode"></i>
+                                    </a>
+                                    {% endif %}
                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -226,6 +245,10 @@
                                             </div>
                                             {% endif %}
                                             <div class="mt-3">
+                                                <div class="form-check form-switch mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="qr_tire" id="qrTire{{ stock.id }}" {% if stock.qr_tire %}checked{% endif %}>
+                                                    <label class="form-check-label" for="qrTire{{ stock.id }}">QR tir??</label>
+                                                </div>
                                                 <label class="form-label">Raison de la modification</label>
                                                 <textarea name="reason" class="form-control" rows="3" required placeholder="Ex: correction après comptage, ajustement manuel..."></textarea>
                                             </div>

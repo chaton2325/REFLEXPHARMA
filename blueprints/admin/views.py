@@ -16,6 +16,7 @@ from extensions import db
 from functools import wraps
 from datetime import datetime
 import secrets
+from urllib.parse import quote
 from utils.permissions import FEATURES
 
 def superadmin_required(f):
@@ -46,7 +47,7 @@ def generate_product_code(fournisseur):
         if not Produit.query.filter_by(code_produit=code).first():
             return code
 
-def create_stock_modification(stock, produit, action, reason, old_values, new_values):
+def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire):
     modification = StockModification(
         stock_id=None,
         produit=produit,
@@ -56,6 +57,8 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
         numero_bl=stock.numero_bl,
         date_peremption=stock.date_peremption,
         code_suivi=stock.code_suivi,
+        old_qr_tire=old_qr_tire,
+        new_qr_tire=new_qr_tire,
         old_quantite_unites=old_values[0],
         old_quantite_sous_unites=old_values[1],
         old_quantite_sous_sous_unites=old_values[2],
@@ -64,6 +67,20 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
         new_quantite_sous_sous_unites=new_values[2]
     )
     db.session.add(modification)
+
+def build_qr_svg_data_uri(value, size=96):
+    from reportlab.graphics.barcode import qr
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics import renderSVG
+
+    widget = qr.QrCodeWidget(value)
+    bounds = widget.getBounds()
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+    drawing = Drawing(size, size, transform=[size / width, 0, 0, size / height, 0, 0])
+    drawing.add(widget)
+    svg = renderSVG.drawToString(drawing)
+    return f"data:image/svg+xml;utf8,{quote(svg)}"
 
 # --- DASHBOARD ---
 @admin.route('/dashboard')
@@ -834,7 +851,9 @@ def manage_stock():
                 action='create',
                 reason=reason,
                 old_values=(0, 0, 0),
-                new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites)
+                new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites),
+                old_qr_tire=False,
+                new_qr_tire=stock.qr_tire
             )
             message = f'Stock initial ajouté pour {produit.nom}.'
         else:
@@ -848,7 +867,9 @@ def manage_stock():
                 action='adjust',
                 reason=reason,
                 old_values=old_values,
-                new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+                new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
+                old_qr_tire=stock.qr_tire,
+                new_qr_tire=stock.qr_tire
             )
             message = f'Stock mis à jour pour {produit.nom} ({stock.code_suivi}).'
 
@@ -870,16 +891,20 @@ def edit_stock(id):
         return redirect(url_for('admin.manage_stock'))
 
     old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    old_qr_tire = stock.qr_tire
     stock.quantite_unites = int(request.form.get('quantite_unites') or 0)
     stock.quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
     stock.quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
+    stock.qr_tire = True if request.form.get('qr_tire') else False
     create_stock_modification(
         stock=stock,
         produit=stock.produit,
         action='edit',
         reason=reason,
         old_values=old_values,
-        new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
+        old_qr_tire=old_qr_tire,
+        new_qr_tire=stock.qr_tire
     )
     db.session.commit()
     flash(f'Stock mis à jour pour {stock.produit.nom} ({stock.code_suivi}).', 'success')
@@ -904,11 +929,58 @@ def delete_stock(id):
         action='delete',
         reason=reason,
         old_values=old_values,
-        new_values=(0, 0, 0)
+        new_values=(0, 0, 0),
+        old_qr_tire=stock.qr_tire,
+        new_qr_tire=stock.qr_tire
     )
     db.session.delete(stock)
     db.session.commit()
     flash(f'Stock supprimé pour {produit_nom} ({code_suivi}).', 'success')
+    return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/<int:id>/qr-preview')
+@login_required
+@permission_required('gestion_stock')
+def preview_stock_qr_codes(id):
+    stock = Stock.query.get_or_404(id)
+    if stock.qr_tire:
+        flash('Les QR codes de ce lot sont déjà marqués comme tirés.', 'info')
+        return redirect(url_for('admin.manage_stock'))
+
+    qr_count = max(stock.quantite_totale, 0)
+    qr_image = build_qr_svg_data_uri(stock.code_suivi)
+    return render_template(
+        'admin/stock/qr_preview.html',
+        stock=stock,
+        qr_count=qr_count,
+        qr_image=qr_image
+    )
+
+@admin.route('/stock/<int:id>/mark-qr-printed', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def mark_stock_qr_printed(id):
+    stock = Stock.query.get_or_404(id)
+    reason = (request.form.get('reason') or '').strip()
+    if not reason:
+        flash('Veuillez préciser la raison du tirage des QR codes.', 'warning')
+        return redirect(url_for('admin.preview_stock_qr_codes', id=id))
+
+    old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    old_qr_tire = stock.qr_tire
+    stock.qr_tire = True
+    create_stock_modification(
+        stock=stock,
+        produit=stock.produit,
+        action='qr_print',
+        reason=reason,
+        old_values=old_values,
+        new_values=old_values,
+        old_qr_tire=old_qr_tire,
+        new_qr_tire=stock.qr_tire
+    )
+    db.session.commit()
+    flash(f'QR codes marqués comme tirés pour {stock.produit.nom} ({stock.code_suivi}).', 'success')
     return redirect(url_for('admin.manage_stock'))
 
 @admin.route('/stock/modifications')

@@ -15,6 +15,7 @@ class Stock(db.Model):
     numero_bl = db.Column(db.String(120), nullable=False)
     date_peremption = db.Column(db.Date, nullable=False)
     code_suivi = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    qr_tire = db.Column(db.Boolean, nullable=False, default=False)
     quantite_unites = db.Column(db.Integer, nullable=False, default=0)
     quantite_sous_unites = db.Column(db.Integer, nullable=False, default=0)
     quantite_sous_sous_unites = db.Column(db.Integer, nullable=False, default=0)

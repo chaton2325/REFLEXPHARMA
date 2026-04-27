@@ -24,10 +24,15 @@ def setup_database():
             'permissions': [
                 # La table permissions est déjà gérée par create_all car nouvelle
             ],
-            'stock_modifications': [
+            'stock_entries': [
+                ('qr_tire', 'BOOLEAN DEFAULT FALSE')
+            ],
+            'stock_modification_logs': [
                 ('numero_bl', 'VARCHAR(120)'),
                 ('date_peremption', 'DATE'),
-                ('code_suivi', 'VARCHAR(255)')
+                ('code_suivi', 'VARCHAR(255)'),
+                ('old_qr_tire', 'BOOLEAN DEFAULT FALSE'),
+                ('new_qr_tire', 'BOOLEAN DEFAULT FALSE')
             ]
         }
         

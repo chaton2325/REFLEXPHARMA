@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Prévisualisation QR - ReflexPharma{% endblock %}
+
+{% block content %}
+<style>
+@page {
+    size: A4 portrait;
+    margin: 5mm;
+}
+
+.qr-preview-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.qr-sheet {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1mm;
+}
+
+.qr-label {
+    border: 1px dashed #cfd4da;
+    padding: 1.5mm;
+    min-height: 34mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: hidden;
+}
+
+.qr-label img {
+    width: 26mm;
+    height: 26mm;
+    display: block;
+}
+
+.qr-label-code {
+    margin-top: 1mm;
+    font-size: 7px;
+    line-height: 1.1;
+    text-align: center;
+    word-break: break-all;
+}
+
+.qr-label-meta {
+    font-size: 6px;
+    line-height: 1.1;
+    text-align: center;
+    color: #6c757d;
+}
+
+@media print {
+    nav, footer, .alert, .qr-preview-toolbar, .btn, form {
+        display: none !important;
+    }
+
+    .container {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .card-body {
+        padding: 0 !important;
+    }
+}
+</style>
+
+<div class="qr-preview-toolbar">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
+                <li class="breadcrumb-item active">Prévisualisation QR</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Prévisualisation QR Codes</h1>
+        <p class="text-muted mb-0">
+            {{ qr_count }} étiquette(s) à tirer pour le lot <strong>{{ stock.code_suivi }}</strong>.
+        </p>
+        <div class="small text-muted mt-2">
+            Produit: {{ stock.produit.nom }} | BL: {{ stock.numero_bl }} | Péremption: {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-secondary">Retour</a>
+        <button type="button" class="btn btn-primary" onclick="window.print();">Imprimer</button>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        {% if qr_count > 0 %}
+        <div class="qr-sheet">
+            {% for _ in range(qr_count) %}
+            <div class="qr-label">
+                <img src="{{ qr_image }}" alt="QR code {{ stock.code_suivi }}">
+                <div class="qr-label-code">{{ stock.code_suivi }}</div>
+                <div class="qr-label-meta">{{ stock.produit.code_produit }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            La quantité totale du lot est à 0. Aucun QR code à imprimer.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Marquer comme tiré</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.mark_stock_qr_printed', id=stock.id) }}">
+            <div class="mb-3">
+                <label for="reason" class="form-label fw-bold">Raison</label>
+                <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Ex: tirage des étiquettes QR du lot pour mise en rayon..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-success" {% if qr_count == 0 %}disabled{% endif %}>
+                Marquer QR tiré = Oui
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -30,6 +30,7 @@
                     <th>Code suivi</th>
                     <th>BL</th>
                     <th>Péremption</th>
+                    <th>QR tiré</th>
                     <th>Action</th>
                     <th>Auteur</th>
                     <th>Avant</th>
@@ -49,8 +50,12 @@
                     <td>{{ item.numero_bl }}</td>
                     <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
                     <td>
-                        <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% else %}bg-success{% endif %}">
-                            {{ item.action }}
+                        <div>Avant: {{ 'Oui' if item.old_qr_tire else 'Non' }}</div>
+                        <div>Après: {{ 'Oui' if item.new_qr_tire else 'Non' }}</div>
+                    </td>
+                    <td>
+                        <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% else %}bg-success{% endif %}">
+                            {{ 'tirage qr' if item.action == 'qr_print' else item.action }}
                         </span>
                     </td>
                     <td>{{ item.user.prenom }} {{ item.user.nom }}</td>
@@ -68,7 +73,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10" class="text-center py-4 text-muted">Aucune modification de stock enregistrée.</td>
+                    <td colspan="11" class="text-center py-4 text-muted">Aucune modification de stock enregistrée.</td>
                 </tr>
                 {% endfor %}
             </tbody>
