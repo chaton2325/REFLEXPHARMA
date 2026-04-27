@@ -13,6 +13,7 @@ from models.produit import Produit
 from extensions import db
 from functools import wraps
 from datetime import datetime
+import secrets
 from utils.permissions import FEATURES
 
 def superadmin_required(f):
@@ -34,6 +35,14 @@ def permission_required(feature):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+def generate_product_code(fournisseur):
+    prefix = (fournisseur.prefixe or 'XXXX').upper()
+    while True:
+        suffix = ''.join(secrets.choice('0123456789') for _ in range(9))
+        code = f'{prefix}-{suffix}'[:13]
+        if not Produit.query.filter_by(code_produit=code).first():
+            return code
 
 # --- DASHBOARD ---
 @admin.route('/dashboard')
@@ -665,10 +674,11 @@ def create_produit():
     
     if request.method == 'POST':
         f_id = int(request.form.get('fournisseur_id'))
+        fournisseur = Fournisseur.query.get_or_404(f_id)
         
         new_produit = Produit(
             nom=request.form.get('nom'),
-            code_produit=request.form.get('code_produit'),
+            code_produit=generate_product_code(fournisseur),
             fournisseur_id=f_id,
             rayon_id=int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None,
             famille_id=int(request.form.get('famille_id')) if request.form.get('famille_id') else None,

@@ -41,5 +41,27 @@ class Produit(db.Model):
             return self.tva
         return self.fournisseur.effectif_tva if self.fournisseur else 20.0
 
+    def _calculate_ttc(self, prix_ht):
+        if prix_ht is None:
+            return None
+
+        coefficient = self.effectif_coefficient or 1.0
+        tva = self.effectif_tva or 0.0
+        marge_coefficient = (prix_ht * coefficient) - prix_ht
+        montant_tva = prix_ht * (tva / 100)
+        return prix_ht + marge_coefficient + montant_tva
+
+    @property
+    def prix_unite_ttc(self):
+        return self._calculate_ttc(self.prix_unite)
+
+    @property
+    def prix_sous_unite_ttc(self):
+        return self._calculate_ttc(self.prix_sous_unite)
+
+    @property
+    def prix_sous_sous_unite_ttc(self):
+        return self._calculate_ttc(self.prix_sous_sous_unite)
+
     def __repr__(self):
         return f'<Produit {self.nom} ({self.code_produit})>'

@@ -40,8 +40,15 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Code Produit (Généré)</label>
-                            <input type="text" name="code_produit" id="codeProduit" class="form-control" 
+                            <input type="text" id="codeProduit" class="form-control" 
                                 value="{{ produit.code_produit if produit else '' }}" readonly placeholder="Automatique (13 chiffres)">
+                            <div class="form-text">
+                                {% if produit %}
+                                Le code produit est figé après création.
+                                {% else %}
+                                Le code produit est généré automatiquement à l'enregistrement.
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-4" id="fournisseurInfo" style="display:none;">

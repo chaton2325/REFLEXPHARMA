@@ -75,7 +75,7 @@
                         <th>Fournisseur</th>
                         <th>Rayon/Famille</th>
                         <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(6)" style="cursor:pointer">Prix <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)" style="cursor:pointer">Prix HT / TTC <i class="fas fa-sort"></i></th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -95,7 +95,10 @@
                             <span class="badge bg-light text-dark small">{{ p.famille.nom if p.famille else 'N/A' }}</span>
                         </td>
                         <td><span class="badge bg-info text-dark">Cond {{ p.conditionnement }}</span></td>
-                        <td>{{ p.prix_unite }} €</td>
+                        <td>
+                            <div class="fw-semibold">{{ "%.2f"|format(p.prix_unite or 0) }} € HT</div>
+                            <small class="text-success">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
+                        </td>
                         <td class="text-end">
                             <div class="btn-group">
                                 <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
@@ -137,9 +140,12 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <h6 class="text-muted text-uppercase small fw-bold">Tarification</h6>
-                                                    <p class="mb-2"><strong>Prix unité:</strong> {{ "%.2f"|format(p.prix_unite or 0) }} ?</p>
-                                                    <p class="mb-2"><strong>Prix sous-unité:</strong> {{ "%.2f"|format(p.prix_sous_unite) ~ ' ?' if p.prix_sous_unite is not none else 'N/A' }}</p>
-                                                    <p class="mb-0"><strong>Prix sous-sous-unité:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite) ~ ' ?' if p.prix_sous_sous_unite is not none else 'N/A' }}</p>
+                                                    <p class="mb-2"><strong>Prix unité HT:</strong> {{ "%.2f"|format(p.prix_unite or 0) }} €</p>
+                                                    <p class="mb-2"><strong>Prix unité TTC:</strong> {{ "%.2f"|format(p.prix_unite_ttc or 0) }} €</p>
+                                                    <p class="mb-2"><strong>Prix sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_unite) ~ ' €' if p.prix_sous_unite is not none else 'N/A' }}</p>
+                                                    <p class="mb-2"><strong>Prix sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_unite_ttc) ~ ' €' if p.prix_sous_unite_ttc is not none else 'N/A' }}</p>
+                                                    <p class="mb-2"><strong>Prix sous-sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite) ~ ' €' if p.prix_sous_sous_unite is not none else 'N/A' }}</p>
+                                                    <p class="mb-0"><strong>Prix sous-sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite_ttc) ~ ' €' if p.prix_sous_sous_unite_ttc is not none else 'N/A' }}</p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <h6 class="text-muted text-uppercase small fw-bold">Param?tres Financiers</h6>
