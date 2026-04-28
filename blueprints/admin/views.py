@@ -82,6 +82,29 @@ def build_qr_svg_data_uri(value, size=96):
     svg = renderSVG.drawToString(drawing)
     return f"data:image/svg+xml;utf8,{quote(svg)}"
 
+def build_stock_qr_items(stocks, requested_counts=None):
+    requested_counts = requested_counts or {}
+    return [
+        {
+            'stock': stock,
+            'qr_count': max(requested_counts.get(stock.id, stock.quantite_unites), 0),
+            'qr_image': build_qr_svg_data_uri(stock.code_suivi)
+        }
+        for stock in stocks
+    ]
+
+def get_requested_qr_counts(stock_ids):
+    counts = {}
+    for stock_id in stock_ids:
+        raw_count = request.form.get(f'qr_count_{stock_id}')
+        if raw_count is None:
+            continue
+        try:
+            counts[stock_id] = max(int(raw_count), 0)
+        except ValueError:
+            counts[stock_id] = 0
+    return counts
+
 # --- DASHBOARD ---
 @admin.route('/dashboard')
 @login_required
@@ -947,13 +970,40 @@ def preview_stock_qr_codes(id):
         flash('Les QR codes de ce lot sont déjà marqués comme tirés.', 'info')
         return redirect(url_for('admin.manage_stock'))
 
-    qr_count = max(stock.quantite_totale, 0)
-    qr_image = build_qr_svg_data_uri(stock.code_suivi)
+    qr_items = build_stock_qr_items([stock])
     return render_template(
         'admin/stock/qr_preview.html',
-        stock=stock,
-        qr_count=qr_count,
-        qr_image=qr_image
+        qr_items=qr_items,
+        total_qr_count=sum(item['qr_count'] for item in qr_items),
+        selected_ids=[stock.id]
+    )
+
+@admin.route('/stock/qr-preview', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def preview_selected_stock_qr_codes():
+    selected_ids = [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    if not selected_ids:
+        flash('Veuillez selectionner au moins une ligne de stock pour tirer les QR codes.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    stocks = (
+        Stock.query
+        .join(Produit)
+        .filter(Stock.id.in_(selected_ids))
+        .order_by(Produit.nom.asc(), Stock.date_peremption.asc())
+        .all()
+    )
+    if not stocks:
+        flash('Aucune ligne de stock valide selectionnee.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    qr_items = build_stock_qr_items(stocks, get_requested_qr_counts(selected_ids))
+    return render_template(
+        'admin/stock/qr_preview.html',
+        qr_items=qr_items,
+        total_qr_count=sum(item['qr_count'] for item in qr_items),
+        selected_ids=[stock.id for stock in stocks]
     )
 
 @admin.route('/stock/<int:id>/mark-qr-printed', methods=['POST'])
@@ -981,6 +1031,42 @@ def mark_stock_qr_printed(id):
     )
     db.session.commit()
     flash(f'QR codes marqués comme tirés pour {stock.produit.nom} ({stock.code_suivi}).', 'success')
+    return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/mark-qr-printed', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def mark_selected_stock_qr_printed():
+    selected_ids = [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    reason = (request.form.get('reason') or '').strip()
+
+    if not selected_ids:
+        flash('Veuillez selectionner au moins une ligne de stock.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+    if not reason:
+        flash('Veuillez preciser la raison du tirage des QR codes.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    stocks = Stock.query.filter(Stock.id.in_(selected_ids)).all()
+    updated_count = 0
+    for stock in stocks:
+        old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        old_qr_tire = stock.qr_tire
+        stock.qr_tire = True
+        create_stock_modification(
+            stock=stock,
+            produit=stock.produit,
+            action='qr_print',
+            reason=reason,
+            old_values=old_values,
+            new_values=old_values,
+            old_qr_tire=old_qr_tire,
+            new_qr_tire=stock.qr_tire
+        )
+        updated_count += 1
+
+    db.session.commit()
+    flash(f'QR codes marques comme tires pour {updated_count} lot(s).', 'success')
     return redirect(url_for('admin.manage_stock'))
 
 @admin.route('/stock/modifications')

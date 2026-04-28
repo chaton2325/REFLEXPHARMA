@@ -121,11 +121,17 @@
     </div>
 
 <div class="col-lg-8">
+        <form id="bulkQrForm" method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}"></form>
         <div class="card">
             <div class="card-header bg-white">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                     <h5 class="mb-0">Stock Courant</h5>
                     <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
+                        <select id="qrTireFilter" class="form-select form-select-sm" style="min-width: 150px;">
+                            <option value="all">QR tire: Tous</option>
+                            <option value="non">QR tire: Non</option>
+                            <option value="oui">QR tire: Oui</option>
+                        </select>
                         <div class="input-group input-group-sm" style="min-width: 280px;">
                             <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
                             <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher un produit, lot, BL, péremption ou fournisseur...">
@@ -134,16 +140,31 @@
                             <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                             Traitement...
                         </div>
+                        <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
+                            <i class="fas fa-qrcode me-1"></i> Tirer QR selection
+                        </button>
                         <div class="small text-muted">
                             <span id="stockVisibleCount">{{ stocks|length }}</span> / {{ stocks|length }} résultat(s)
                         </div>
                     </div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                    <button type="button" id="selectVisibleQrRows" class="btn btn-sm btn-outline-secondary">
+                        Selectionner visibles
+                    </button>
+                    <button type="button" id="clearQrSelection" class="btn btn-sm btn-outline-secondary">
+                        Effacer selection
+                    </button>
+                    <span class="small text-muted"><span id="selectedStockCount">0</span> ligne(s) selectionnee(s)</span>
                 </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0" id="stockTable">
                     <thead class="bg-light">
                         <tr>
+                            <th style="width: 42px;">
+                                <input type="checkbox" class="form-check-input" id="toggleVisibleQrRows" title="Selectionner les lignes visibles">
+                            </th>
                             <th data-sort-type="text" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="text" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
                             <th data-sort-type="text" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
@@ -165,7 +186,11 @@
                             data-quantite="{{ stock.quantite_totale }}"
                             data-total-ht="{{ stock.prix_ht_total }}"
                             data-total-ttc="{{ stock.prix_ttc_total }}"
-                            data-benefice="{{ stock.benefice_total }}">
+                            data-benefice="{{ stock.benefice_total }}"
+                            data-qr-tire="{{ 'oui' if stock.qr_tire else 'non' }}">
+                            <td>
+                                <input type="checkbox" class="form-check-input stock-qr-checkbox" name="stock_ids" value="{{ stock.id }}" form="bulkQrForm" title="Selectionner ce lot">
+                            </td>
                             <td data-sort-value="{{ stock.produit.nom|lower }}">
                                 <div class="fw-bold">{{ stock.produit.nom }}</div>
                                 <small class="text-muted">{{ stock.produit.code_produit }} | {{ stock.produit.fournisseur.nom if stock.produit.fournisseur else 'N/A' }}</small>
@@ -292,11 +317,11 @@
                         </div>
                         {% else %}
                         <tr id="emptyStockRow">
-                            <td colspan="9" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
+                            <td colspan="13" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
                         </tr>
                         {% endfor %}
                         <tr id="noSearchResultsRow" class="d-none">
-                            <td colspan="9" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
+                            <td colspan="13" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -322,6 +347,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockTable = document.getElementById('stockTable');
     const stockTableBody = document.getElementById('stockTableBody');
     const noSearchResultsRow = document.getElementById('noSearchResultsRow');
+    const qrTireFilter = document.getElementById('qrTireFilter');
+    const toggleVisibleQrRows = document.getElementById('toggleVisibleQrRows');
+    const selectVisibleQrRows = document.getElementById('selectVisibleQrRows');
+    const clearQrSelection = document.getElementById('clearQrSelection');
+    const selectedStockCount = document.getElementById('selectedStockCount');
+    const bulkQrButton = document.getElementById('bulkQrButton');
     const sortableHeaders = stockTable ? stockTable.querySelectorAll('thead th[data-sort-type]') : [];
     let stockRows = stockTableBody ? Array.from(stockTableBody.querySelectorAll('tr[data-search]')) : [];
     let currentSort = { index: null, direction: 'asc' };
@@ -444,19 +475,46 @@ document.addEventListener('DOMContentLoaded', function() {
         if (noSearchResultsRow) {
             noSearchResultsRow.classList.toggle('d-none', visibleRows !== 0 || stockRows.length === 0);
         }
+        updateSelectionState();
     }
 
     function filterStockRows() {
-        if (!stockSearchInput) {
-            return;
-        }
-
-        const query = stockSearchInput.value.trim().toLowerCase();
+        const query = stockSearchInput ? stockSearchInput.value.trim().toLowerCase() : '';
+        const qrFilter = qrTireFilter ? qrTireFilter.value : 'all';
         stockRows.forEach((row) => {
             const text = row.dataset.search || '';
-            row.style.display = !query || text.includes(query) ? '' : 'none';
+            const matchesSearch = !query || text.includes(query);
+            const matchesQr = qrFilter === 'all' || row.dataset.qrTire === qrFilter;
+            row.style.display = matchesSearch && matchesQr ? '' : 'none';
         });
         updateVisibleCount();
+    }
+
+    function visibleStockRows() {
+        return stockRows.filter((row) => row.style.display !== 'none');
+    }
+
+    function stockCheckboxes(rows = stockRows) {
+        return rows
+            .map((row) => row.querySelector('.stock-qr-checkbox'))
+            .filter(Boolean);
+    }
+
+    function updateSelectionState() {
+        const selectedCount = stockCheckboxes().filter((checkbox) => checkbox.checked).length;
+        const visibleCheckboxes = stockCheckboxes(visibleStockRows());
+        const visibleSelectedCount = visibleCheckboxes.filter((checkbox) => checkbox.checked).length;
+
+        if (selectedStockCount) {
+            selectedStockCount.textContent = selectedCount;
+        }
+        if (bulkQrButton) {
+            bulkQrButton.disabled = selectedCount === 0;
+        }
+        if (toggleVisibleQrRows) {
+            toggleVisibleQrRows.checked = visibleCheckboxes.length > 0 && visibleSelectedCount === visibleCheckboxes.length;
+            toggleVisibleQrRows.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleCheckboxes.length;
+        }
     }
 
     function sortStockRows(columnIndex, sortType) {
@@ -514,9 +572,46 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    sortableHeaders.forEach((header, index) => {
+    if (qrTireFilter) {
+        qrTireFilter.addEventListener('change', () => {
+            runWithIndicator(filterStockRows);
+        });
+    }
+
+    stockCheckboxes().forEach((checkbox) => {
+        checkbox.addEventListener('change', updateSelectionState);
+    });
+
+    if (toggleVisibleQrRows) {
+        toggleVisibleQrRows.addEventListener('change', () => {
+            stockCheckboxes(visibleStockRows()).forEach((checkbox) => {
+                checkbox.checked = toggleVisibleQrRows.checked;
+            });
+            updateSelectionState();
+        });
+    }
+
+    if (selectVisibleQrRows) {
+        selectVisibleQrRows.addEventListener('click', () => {
+            stockCheckboxes(visibleStockRows()).forEach((checkbox) => {
+                checkbox.checked = true;
+            });
+            updateSelectionState();
+        });
+    }
+
+    if (clearQrSelection) {
+        clearQrSelection.addEventListener('click', () => {
+            stockCheckboxes().forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+            updateSelectionState();
+        });
+    }
+
+    sortableHeaders.forEach((header) => {
         header.addEventListener('click', () => {
-            runWithIndicator(() => sortStockRows(index, header.dataset.sortType));
+            runWithIndicator(() => sortStockRows(header.cellIndex, header.dataset.sortType));
         });
     });
 

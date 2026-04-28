@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Prévisualisation QR - ReflexPharma{% endblock %}
+{% block title %}Previsualisation QR - ReflexPharma{% endblock %}
 
 {% block content %}
 <style>
@@ -55,8 +55,17 @@
     color: #6c757d;
 }
 
+.qr-batch-separator {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: #6c757d;
+    border-top: 1px solid #dee2e6;
+    padding-top: 2mm;
+    margin-top: 1mm;
+}
+
 @media print {
-    nav, footer, .alert, .qr-preview-toolbar, .btn, form {
+    nav, footer, .alert, .qr-preview-toolbar, .btn, form, .qr-summary {
         display: none !important;
     }
 
@@ -78,22 +87,23 @@
 }
 </style>
 
+{% set items = qr_items if qr_items is defined else [{'stock': stock, 'qr_count': qr_count, 'qr_image': qr_image}] %}
+{% set total_count = total_qr_count if total_qr_count is defined else qr_count %}
+{% set ids_to_mark = selected_ids if selected_ids is defined else [stock.id] %}
+
 <div class="qr-preview-toolbar">
     <div>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-1">
                 <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
                 <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
-                <li class="breadcrumb-item active">Prévisualisation QR</li>
+                <li class="breadcrumb-item active">Previsualisation QR</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1">Prévisualisation QR Codes</h1>
+        <h1 class="h3 mb-1">Previsualisation QR Codes</h1>
         <p class="text-muted mb-0">
-            {{ qr_count }} étiquette(s) à tirer pour le lot <strong>{{ stock.code_suivi }}</strong>.
+            {{ total_count }} etiquette(s) a tirer pour {{ items|length }} lot(s) selectionne(s). Valeur par defaut: quantite unites uniquement.
         </p>
-        <div class="small text-muted mt-2">
-            Produit: {{ stock.produit.nom }} | BL: {{ stock.numero_bl }} | Péremption: {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}
-        </div>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-secondary">Retour</a>
@@ -101,21 +111,94 @@
     </div>
 </div>
 
+<div class="card mb-4 qr-summary">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Lots selectionnes</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}" class="mb-3">
+            {% for item in items %}
+            <input type="hidden" name="stock_ids" value="{{ item.stock.id }}">
+            {% endfor %}
+            <div class="row g-2 align-items-end">
+                {% for item in items %}
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label small fw-bold mb-1" for="qrCount{{ item.stock.id }}">
+                        {{ item.stock.produit.nom }}
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">QR</span>
+                        <input
+                            type="number"
+                            min="0"
+                            name="qr_count_{{ item.stock.id }}"
+                            id="qrCount{{ item.stock.id }}"
+                            class="form-control"
+                            value="{{ item.qr_count }}"
+                        >
+                        <span class="input-group-text">/ U: {{ item.stock.quantite_unites }}</span>
+                    </div>
+                    <div class="form-text">{{ item.stock.code_suivi }}</div>
+                </div>
+                {% endfor %}
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        Actualiser la previsualisation
+                    </button>
+                </div>
+            </div>
+        </form>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="bg-light">
+                    <tr>
+                        <th>Produit</th>
+                        <th>Code suivi</th>
+                        <th>BL</th>
+                        <th>Peremption</th>
+                        <th>QR tire</th>
+                        <th class="text-end">Unites</th>
+                        <th class="text-end">Etiquettes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.stock.produit.nom }}</td>
+                        <td><span class="badge bg-dark-subtle text-dark border">{{ item.stock.code_suivi }}</span></td>
+                        <td>{{ item.stock.numero_bl }}</td>
+                        <td>{{ item.stock.date_peremption.strftime('%d/%m/%Y') if item.stock.date_peremption else 'N/A' }}</td>
+                        <td>{{ 'Oui' if item.stock.qr_tire else 'Non' }}</td>
+                        <td class="text-end">{{ item.stock.quantite_unites }}</td>
+                        <td class="text-end">{{ item.qr_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <div class="card mb-4">
     <div class="card-body">
-        {% if qr_count > 0 %}
+        {% if total_count > 0 %}
         <div class="qr-sheet">
-            {% for _ in range(qr_count) %}
-            <div class="qr-label">
-                <img src="{{ qr_image }}" alt="QR code {{ stock.code_suivi }}">
-                <div class="qr-label-code">{{ stock.code_suivi }}</div>
-                <div class="qr-label-meta">{{ stock.produit.code_produit }}</div>
-            </div>
+            {% for item in items %}
+                <div class="qr-batch-separator">
+                    {{ item.stock.produit.nom }} | {{ item.stock.code_suivi }} | {{ item.qr_count }} etiquette(s)
+                </div>
+                {% for _ in range(item.qr_count) %}
+                <div class="qr-label">
+                    <img src="{{ item.qr_image }}" alt="QR code {{ item.stock.code_suivi }}">
+                    <div class="qr-label-code">{{ item.stock.code_suivi }}</div>
+                    <div class="qr-label-meta">{{ item.stock.produit.code_produit }}</div>
+                </div>
+                {% endfor %}
             {% endfor %}
         </div>
         {% else %}
         <div class="text-center text-muted py-5">
-            La quantité totale du lot est à 0. Aucun QR code à imprimer.
+            La quantite totale selectionnee est a 0. Aucun QR code a imprimer.
         </div>
         {% endif %}
     </div>
@@ -123,16 +206,19 @@
 
 <div class="card">
     <div class="card-header bg-white">
-        <h5 class="mb-0">Marquer comme tiré</h5>
+        <h5 class="mb-0">Marquer comme tire</h5>
     </div>
     <div class="card-body">
-        <form method="POST" action="{{ url_for('admin.mark_stock_qr_printed', id=stock.id) }}">
+        <form method="POST" action="{{ url_for('admin.mark_selected_stock_qr_printed') }}">
+            {% for stock_id in ids_to_mark %}
+            <input type="hidden" name="stock_ids" value="{{ stock_id }}">
+            {% endfor %}
             <div class="mb-3">
                 <label for="reason" class="form-label fw-bold">Raison</label>
-                <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Ex: tirage des étiquettes QR du lot pour mise en rayon..."></textarea>
+                <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Ex: tirage des etiquettes QR pour mise en rayon..."></textarea>
             </div>
-            <button type="submit" class="btn btn-success" {% if qr_count == 0 %}disabled{% endif %}>
-                Marquer QR tiré = Oui
+            <button type="submit" class="btn btn-success" {% if total_count == 0 %}disabled{% endif %}>
+                Marquer QR tire = Oui
             </button>
         </form>
     </div>
