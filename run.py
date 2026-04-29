@@ -33,6 +33,25 @@ def setup_database():
                 ('code_suivi', 'VARCHAR(255)'),
                 ('old_qr_tire', 'BOOLEAN DEFAULT FALSE'),
                 ('new_qr_tire', 'BOOLEAN DEFAULT FALSE')
+            ],
+            'stock_exit_logs': [
+                ('fournisseur_id', 'INTEGER'),
+                ('fournisseur_nom', 'VARCHAR(100)'),
+                ('groupe_fournisseur_id', 'INTEGER'),
+                ('groupe_fournisseur_nom', 'VARCHAR(100)'),
+                ('mise_en_stock_at', 'TIMESTAMP'),
+                ('mise_en_stock_user_nom', 'VARCHAR(100)'),
+                ('mise_en_stock_user_prenom', 'VARCHAR(100)'),
+                ('mise_en_stock_user_email', 'VARCHAR(150)'),
+                ('prix_unite_ht', 'FLOAT DEFAULT 0'),
+                ('prix_sous_unite_ht', 'FLOAT DEFAULT 0'),
+                ('prix_sous_sous_unite_ht', 'FLOAT DEFAULT 0'),
+                ('prix_unite_ttc', 'FLOAT DEFAULT 0'),
+                ('prix_sous_unite_ttc', 'FLOAT DEFAULT 0'),
+                ('prix_sous_sous_unite_ttc', 'FLOAT DEFAULT 0'),
+                ('tva_pourcentage', 'FLOAT DEFAULT 0'),
+                ('total_sortie_ht', 'FLOAT DEFAULT 0'),
+                ('total_sortie_ttc', 'FLOAT DEFAULT 0')
             ]
         }
         
@@ -42,6 +61,25 @@ def setup_database():
                     # Tente d'ajouter la colonne. Si elle existe, PostgreSQL renverra une erreur gérée.
                     query = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_name} {col_type};"
                     db.session.execute(text(query))
+                except Exception:
+                    db.session.rollback()
+
+        # La table stock_exit_logs doit rester un journal brut sans identifiants
+        # pointant vers d'autres tables. On supprime les anciennes colonnes *_id.
+        columns_to_drop = {
+            'stock_exit_logs': [
+                'stock_id',
+                'produit_id',
+                'user_id',
+                'reason_id',
+                'fournisseur_id',
+                'groupe_fournisseur_id'
+            ]
+        }
+        for table, columns in columns_to_drop.items():
+            for col_name in columns:
+                try:
+                    db.session.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col_name};"))
                 except Exception:
                     db.session.rollback()
         

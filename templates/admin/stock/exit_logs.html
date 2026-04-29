@@ -16,6 +16,11 @@
         <p class="text-muted mb-0">Suivi des produits sortis avec auteur, motif, lot et quantites avant/apres.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        {% if current_user.has_permission('stats_sorties_stock') %}
+        <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-dark">
+            <i class="fas fa-chart-line me-1"></i> Statistiques
+        </a>
+        {% endif %}
         <a href="{{ url_for('admin.export_stock_exit_logs_excel') }}" class="btn btn-outline-success" id="exportExitExcel">
             <i class="fas fa-file-excel me-1"></i> Excel
         </a>
@@ -42,11 +47,16 @@
                 <select id="exitSortField" class="form-select form-select-sm" style="width: 180px;">
                     <option value="date">Date sortie</option>
                     <option value="produit">Produit</option>
+                    <option value="fournisseur">Fournisseur</option>
+                    <option value="groupe">Groupe fournisseur</option>
                     <option value="code">Code suivi</option>
                     <option value="bl">BL</option>
                     <option value="peremption">Peremption</option>
+                    <option value="mise_stock">Date mise en stock</option>
+                    <option value="mis_par">Mis en stock par</option>
                     <option value="auteur">Auteur</option>
                     <option value="raison">Raison</option>
+                    <option value="perte">Perte TTC</option>
                 </select>
                 <select id="exitSortDirection" class="form-select form-select-sm" style="width: 135px;">
                     <option value="desc">Decroissant</option>
@@ -68,35 +78,58 @@
                 <tr>
                     <th data-sort-field="date" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="produit" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="groupe" style="cursor:pointer">Groupe fournisseur <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="code" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="bl" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="peremption" style="cursor:pointer">Peremption <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="mise_stock" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="mis_par" style="cursor:pointer">Mis en stock par <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="auteur" style="cursor:pointer">Sorti par <i class="fas fa-sort small text-muted"></i></th>
                     <th data-sort-field="raison" style="cursor:pointer">Raison <i class="fas fa-sort small text-muted"></i></th>
                     <th>Quantite sortie</th>
+                    <th>TVA</th>
+                    <th>Prix unitaires</th>
+                    <th data-sort-field="perte" style="cursor:pointer">Perte / valeur <i class="fas fa-sort small text-muted"></i></th>
                     <th>Avant</th>
                     <th>Apres</th>
                 </tr>
             </thead>
             <tbody id="exitLogsBody">
                 {% for item in exits %}
+                {% set prices = exit_prices[item.id] %}
+                {% set supplier = exit_suppliers[item.id] %}
+                {% set fournisseur = supplier.fournisseur %}
+                {% set groupe_fournisseur = supplier.groupe_fournisseur %}
                 <tr class="exit-log-row"
-                    data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom)|lower }}"
+                    data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc))|lower }}"
                     data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
                     data-produit="{{ item.produit_nom|lower }}"
+                    data-fournisseur="{{ fournisseur|lower }}"
+                    data-groupe="{{ groupe_fournisseur|lower }}"
                     data-code="{{ item.code_suivi|lower }}"
                     data-bl="{{ item.numero_bl|lower }}"
                     data-peremption="{{ item.date_peremption.strftime('%Y%m%d') if item.date_peremption else '' }}"
+                    data-mise_stock="{{ item.mise_en_stock_at.strftime('%Y%m%d%H%M%S') if item.mise_en_stock_at else '' }}"
+                    data-mis_par="{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or ''))|lower }}"
                     data-auteur="{{ (item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email)|lower }}"
-                    data-raison="{{ item.reason_nom|lower }}">
+                    data-raison="{{ item.reason_nom|lower }}"
+                    data-perte="{{ '%.2f'|format(prices.total_ttc) }}">
                     <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
                     <td>
                         <div class="fw-bold">{{ item.produit_nom }}</div>
                         <small class="text-muted">{{ item.produit_code }}</small>
                     </td>
+                    <td>{{ fournisseur }}</td>
+                    <td>{{ groupe_fournisseur }}</td>
                     <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
                     <td>{{ item.numero_bl }}</td>
                     <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
+                    <td>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</td>
+                    <td>
+                        <div>{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}</div>
+                        <small class="text-muted">{{ item.mise_en_stock_user_email or '-' }}</small>
+                    </td>
                     <td>
                         <div>{{ item.user_prenom }} {{ item.user_nom }}</div>
                         <small class="text-muted">{{ item.user_email }}</small>
@@ -106,6 +139,21 @@
                         <div>U: {{ item.quantite_unites_sortie }}</div>
                         <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
                         <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
+                    </td>
+                    <td>{{ "%.2f"|format(prices.tva_pourcentage) }}%</td>
+                    <td>
+                        <div class="small text-muted">HT</div>
+                        <div>U: {{ "%.2f"|format(prices.prix_unite_ht) }}</div>
+                        <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ht) }}</div>
+                        <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
+                        <div class="small text-muted mt-1">TTC</div>
+                        <div>U: {{ "%.2f"|format(prices.prix_unite_ttc) }}</div>
+                        <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ttc) }}</div>
+                        <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
+                    </td>
+                    <td>
+                        <div>HT: {{ "%.2f"|format(prices.total_ht) }}</div>
+                        <div class="fw-bold text-danger">TTC: {{ "%.2f"|format(prices.total_ttc) }}</div>
                     </td>
                     <td>
                         <div>U: {{ item.old_quantite_unites }}</div>
@@ -120,11 +168,11 @@
                 </tr>
                 {% else %}
                 <tr id="emptyExitLogsRow">
-                    <td colspan="10" class="text-center py-4 text-muted">Aucune sortie de stock enregistree.</td>
+                    <td colspan="17" class="text-center py-4 text-muted">Aucune sortie de stock enregistree.</td>
                 </tr>
                 {% endfor %}
                 <tr id="noExitSearchResultsRow" class="d-none">
-                    <td colspan="10" class="text-center py-4 text-muted">Aucune sortie ne correspond a la recherche.</td>
+                    <td colspan="17" class="text-center py-4 text-muted">Aucune sortie ne correspond a la recherche.</td>
                 </tr>
             </tbody>
         </table>

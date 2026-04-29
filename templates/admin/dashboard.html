@@ -136,6 +136,23 @@
     </div>
     {% endif %}
 
+    {% if current_user.has_permission('stats_sorties_stock') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm border-danger">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-danger bg-opacity-10 p-3 rounded-circle text-danger me-3">
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Statistiques Sorties</h5>
+                </div>
+                <p class="card-text">Analysez les sorties, pertes, fournisseurs, raisons et utilisateurs.</p>
+                <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-danger btn-sm">Voir les statistiques</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="col-md-4 mb-4">
         <div class="card h-100 bg-light border-0">
             <div class="card-body">

@@ -10,7 +10,8 @@ FEATURES = {
     'gestion_stock': 'Gérer le stock',
     'gestion_raisons_stock': 'Gérer les raisons de stock',
     'effectuer_sortie_stock': 'Effectuer des sorties de stock',
-    'gestion_modifications_stock': 'Voir les modifications de stock'
+    'gestion_modifications_stock': 'Voir les modifications de stock',
+    'stats_sorties_stock': 'Voir les statistiques des sorties de stock'
 }
 
 def get_feature_label(feature):

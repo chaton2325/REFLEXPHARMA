@@ -72,23 +72,60 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
     db.session.add(modification)
 
 def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
+    fournisseur = stock.produit.fournisseur
+    groupe_fournisseur = fournisseur.groupe if fournisseur else None
+    stock_creation = (
+        StockModification.query
+        .filter_by(code_suivi=stock.code_suivi, action='create')
+        .order_by(StockModification.created_at.asc())
+        .first()
+    )
+    stocked_by = stock_creation.user if stock_creation and stock_creation.user else None
+    prix_unite_ht = float(stock.produit.prix_unite or 0)
+    prix_sous_unite_ht = float(stock.produit.prix_sous_unite or 0)
+    prix_sous_sous_unite_ht = float(stock.produit.prix_sous_sous_unite or 0)
+    prix_unite_ttc = float(stock.produit.prix_unite_ttc or 0)
+    prix_sous_unite_ttc = float(stock.produit.prix_sous_unite_ttc or 0)
+    prix_sous_sous_unite_ttc = float(stock.produit.prix_sous_sous_unite_ttc or 0)
+    total_sortie_ht = (
+        exit_values[0] * prix_unite_ht
+        + exit_values[1] * prix_sous_unite_ht
+        + exit_values[2] * prix_sous_sous_unite_ht
+    )
+    total_sortie_ttc = (
+        exit_values[0] * prix_unite_ttc
+        + exit_values[1] * prix_sous_unite_ttc
+        + exit_values[2] * prix_sous_sous_unite_ttc
+    )
+
     log = StockExitLog(
-        stock_id=stock.id,
-        produit_id=stock.produit.id,
         produit_nom=stock.produit.nom,
         produit_code=stock.produit.code_produit,
+        fournisseur_nom=fournisseur.nom if fournisseur else None,
+        groupe_fournisseur_nom=groupe_fournisseur.nom if groupe_fournisseur else None,
         numero_bl=stock.numero_bl,
         date_peremption=stock.date_peremption,
         code_suivi=stock.code_suivi,
-        user_id=current_user.id,
+        mise_en_stock_at=stock_creation.created_at if stock_creation else stock.created_at,
+        mise_en_stock_user_nom=stocked_by.nom if stocked_by else None,
+        mise_en_stock_user_prenom=stocked_by.prenom if stocked_by else None,
+        mise_en_stock_user_email=stocked_by.email if stocked_by else None,
         user_nom=current_user.nom,
         user_prenom=current_user.prenom,
         user_email=current_user.email,
-        reason_id=reason.id,
         reason_nom=reason.nom,
         quantite_unites_sortie=exit_values[0],
         quantite_sous_unites_sortie=exit_values[1],
         quantite_sous_sous_unites_sortie=exit_values[2],
+        prix_unite_ht=prix_unite_ht,
+        prix_sous_unite_ht=prix_sous_unite_ht,
+        prix_sous_sous_unite_ht=prix_sous_sous_unite_ht,
+        prix_unite_ttc=prix_unite_ttc,
+        prix_sous_unite_ttc=prix_sous_unite_ttc,
+        prix_sous_sous_unite_ttc=prix_sous_sous_unite_ttc,
+        tva_pourcentage=float(stock.produit.effectif_tva or 0),
+        total_sortie_ht=total_sortie_ht,
+        total_sortie_ttc=total_sortie_ttc,
         old_quantite_unites=old_values[0],
         old_quantite_sous_unites=old_values[1],
         old_quantite_sous_sous_unites=old_values[2],
@@ -1433,22 +1470,737 @@ def list_stock_modifications():
 @permission_required('gestion_modifications_stock')
 def list_stock_exit_logs():
     exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
-    return render_template('admin/stock/exit_logs.html', exits=exits)
+    exit_prices = {item.id: get_exit_log_prices(item) for item in exits}
+    exit_suppliers = {item.id: get_exit_log_supplier_info(item) for item in exits}
+    return render_template(
+        'admin/stock/exit_logs.html',
+        exits=exits,
+        exit_prices=exit_prices,
+        exit_suppliers=exit_suppliers
+    )
+
+def parse_date_arg(name):
+    value = (request.args.get(name) or '').strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+def parse_float_arg(name):
+    value = (request.args.get(name) or '').strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+def get_stock_exit_stats_filters():
+    return {
+        'date_from': request.args.get('date_from', '').strip(),
+        'date_to': request.args.get('date_to', '').strip(),
+        'produit': request.args.get('produit', '').strip(),
+        'fournisseur': request.args.get('fournisseur', '').strip(),
+        'groupe': request.args.get('groupe', '').strip(),
+        'sorti_par': request.args.get('sorti_par', '').strip(),
+        'mis_en_stock_par': request.args.get('mis_en_stock_par', '').strip(),
+        'raison': request.args.get('raison', '').strip(),
+        'tva': request.args.get('tva', '').strip(),
+        'min_ttc': request.args.get('min_ttc', '').strip(),
+        'max_ttc': request.args.get('max_ttc', '').strip()
+    }
+
+def get_stock_exit_stats_options(exits):
+    def sorted_values(values):
+        return sorted(value for value in values if value)
+
+    return {
+        'produits': sorted_values({f'{item.produit_nom} ({item.produit_code})' for item in exits}),
+        'fournisseurs': sorted_values({item.fournisseur_nom or '-' for item in exits}),
+        'groupes': sorted_values({item.groupe_fournisseur_nom or '-' for item in exits}),
+        'sorti_par': sorted_values({f'{item.user_prenom} {item.user_nom}'.strip() for item in exits}),
+        'mis_en_stock_par': sorted_values({f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-' for item in exits}),
+        'raisons': sorted_values({item.reason_nom or '-' for item in exits}),
+        'tvas': sorted_values({f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}' for item in exits})
+    }
+
+def get_filtered_stock_exit_logs(filters=None):
+    filters = filters or get_stock_exit_stats_filters()
+    exits = StockExitLog.query.order_by(StockExitLog.created_at.asc()).all()
+    date_from = parse_date_arg('date_from')
+    date_to = parse_date_arg('date_to')
+    min_ttc = parse_float_arg('min_ttc')
+    max_ttc = parse_float_arg('max_ttc')
+
+    def item_value(item, key):
+        if key == 'produit':
+            return f'{item.produit_nom} ({item.produit_code})'
+        if key == 'fournisseur':
+            return item.fournisseur_nom or '-'
+        if key == 'groupe':
+            return item.groupe_fournisseur_nom or '-'
+        if key == 'sorti_par':
+            return f'{item.user_prenom} {item.user_nom}'.strip()
+        if key == 'mis_en_stock_par':
+            return f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-'
+        if key == 'raison':
+            return item.reason_nom or '-'
+        if key == 'tva':
+            return f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}'
+        return ''
+
+    filtered = []
+    for item in exits:
+        item_date = item.created_at.date() if item.created_at else None
+        if date_from and item_date and item_date < date_from:
+            continue
+        if date_to and item_date and item_date > date_to:
+            continue
+        if min_ttc is not None and get_exit_log_prices(item)['total_ttc'] < min_ttc:
+            continue
+        if max_ttc is not None and get_exit_log_prices(item)['total_ttc'] > max_ttc:
+            continue
+        if any(filters[key] and item_value(item, key) != filters[key] for key in ['produit', 'fournisseur', 'groupe', 'sorti_par', 'mis_en_stock_par', 'raison', 'tva']):
+            continue
+        filtered.append(item)
+    return filtered
+
+def build_stock_exit_stats(exits=None):
+    from collections import defaultdict
+
+    exits = exits if exits is not None else StockExitLog.query.order_by(StockExitLog.created_at.asc()).all()
+    now = datetime.now()
+    today = now.date()
+
+    totals = {
+        'count': len(exits),
+        'total_ht': 0.0,
+        'total_ttc': 0.0,
+        'total_taxes': 0.0,
+        'today_count': 0,
+        'today_ttc': 0.0,
+        'today_taxes': 0.0,
+        'last_7_count': 0,
+        'last_7_ttc': 0.0,
+        'last_7_taxes': 0.0,
+        'last_30_count': 0,
+        'last_30_ttc': 0.0,
+        'last_30_taxes': 0.0,
+        'expired_count': 0,
+        'expired_ttc': 0.0,
+        'expired_taxes': 0.0,
+        'quantity_total': 0,
+        'avg_ttc': 0.0,
+        'avg_taxes': 0.0,
+        'avg_stock_age_days': 0.0
+    }
+
+    daily = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
+    monthly = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
+    by_product = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_supplier = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_supplier_group = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_exit_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_stock_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_reason = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
+    by_tva = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0})
+    by_weekday = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
+    by_hour = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
+    stock_age_days = []
+
+    for item in exits:
+        prices = get_exit_log_prices(item)
+        total_ht = prices['total_ht']
+        total_ttc = prices['total_ttc']
+        total_taxes = max(total_ttc - total_ht, 0)
+        quantity = (
+            item.quantite_unites_sortie
+            + item.quantite_sous_unites_sortie
+            + item.quantite_sous_sous_unites_sortie
+        )
+        created_at = item.created_at or now
+        created_date = created_at.date()
+
+        totals['total_ht'] += total_ht
+        totals['total_ttc'] += total_ttc
+        totals['total_taxes'] += total_taxes
+        totals['quantity_total'] += quantity
+
+        if created_date == today:
+            totals['today_count'] += 1
+            totals['today_ttc'] += total_ttc
+            totals['today_taxes'] += total_taxes
+        if (today - created_date).days <= 6:
+            totals['last_7_count'] += 1
+            totals['last_7_ttc'] += total_ttc
+            totals['last_7_taxes'] += total_taxes
+        if (today - created_date).days <= 29:
+            totals['last_30_count'] += 1
+            totals['last_30_ttc'] += total_ttc
+            totals['last_30_taxes'] += total_taxes
+        if item.date_peremption and item.date_peremption < created_date:
+            totals['expired_count'] += 1
+            totals['expired_ttc'] += total_ttc
+            totals['expired_taxes'] += total_taxes
+        if item.mise_en_stock_at:
+            stock_age_days.append(max((created_at - item.mise_en_stock_at).days, 0))
+
+        day_key = created_at.strftime('%Y-%m-%d')
+        month_key = created_at.strftime('%Y-%m')
+        daily[day_key]['count'] += 1
+        daily[day_key]['ht'] += total_ht
+        daily[day_key]['taxes'] += total_taxes
+        daily[day_key]['ttc'] += total_ttc
+        monthly[month_key]['count'] += 1
+        monthly[month_key]['ht'] += total_ht
+        monthly[month_key]['taxes'] += total_taxes
+        monthly[month_key]['ttc'] += total_ttc
+
+        product_key = f'{item.produit_nom} ({item.produit_code})'
+        supplier_key = item.fournisseur_nom or '-'
+        supplier_group_key = item.groupe_fournisseur_nom or '-'
+        exit_user_key = f'{item.user_prenom} {item.user_nom}'.strip() or '-'
+        stock_user_key = f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-'
+        reason_key = item.reason_nom or '-'
+        tva_key = f'{prices["tva_pourcentage"]:.2f}%'
+        weekday_key = created_at.strftime('%A')
+        hour_key = created_at.strftime('%H:00')
+
+        for bucket, key in [
+            (by_product, product_key),
+            (by_supplier, supplier_key),
+            (by_supplier_group, supplier_group_key),
+            (by_exit_user, exit_user_key),
+            (by_stock_user, stock_user_key),
+            (by_reason, reason_key),
+        ]:
+            bucket[key]['count'] += 1
+            bucket[key]['ttc'] += total_ttc
+            bucket[key]['quantity'] += quantity
+
+        by_tva[tva_key]['count'] += 1
+        by_tva[tva_key]['ttc'] += total_ttc
+        by_tva[tva_key]['taxes'] += total_taxes
+        by_weekday[weekday_key]['count'] += 1
+        by_weekday[weekday_key]['ht'] += total_ht
+        by_weekday[weekday_key]['taxes'] += total_taxes
+        by_weekday[weekday_key]['ttc'] += total_ttc
+        by_hour[hour_key]['count'] += 1
+        by_hour[hour_key]['ht'] += total_ht
+        by_hour[hour_key]['taxes'] += total_taxes
+        by_hour[hour_key]['ttc'] += total_ttc
+
+    totals['avg_ttc'] = totals['total_ttc'] / totals['count'] if totals['count'] else 0
+    totals['avg_taxes'] = totals['total_taxes'] / totals['count'] if totals['count'] else 0
+    totals['avg_stock_age_days'] = sum(stock_age_days) / len(stock_age_days) if stock_age_days else 0
+
+    def top_rows(bucket, limit=10):
+        return [
+            {
+                'label': label,
+                'count': values['count'],
+                'quantity': values.get('quantity', 0),
+                'ttc': round(values['ttc'], 2),
+                'taxes': round(values.get('taxes', 0), 2)
+            }
+            for label, values in sorted(bucket.items(), key=lambda item: item[1]['ttc'], reverse=True)[:limit]
+        ]
+
+    def series_rows(bucket):
+        labels = sorted(bucket.keys())
+        return {
+            'labels': labels,
+            'count': [bucket[label]['count'] for label in labels],
+            'ht': [round(bucket[label].get('ht', 0), 2) for label in labels],
+            'taxes': [round(bucket[label].get('taxes', 0), 2) for label in labels],
+            'ttc': [round(bucket[label]['ttc'], 2) for label in labels]
+        }
+
+    return {
+        'totals': {key: round(value, 2) if isinstance(value, float) else value for key, value in totals.items()},
+        'daily': series_rows(daily),
+        'monthly': series_rows(monthly),
+        'hourly': series_rows(by_hour),
+        'weekday': series_rows(by_weekday),
+        'top_products': top_rows(by_product),
+        'top_suppliers': top_rows(by_supplier),
+        'top_supplier_groups': top_rows(by_supplier_group),
+        'top_exit_users': top_rows(by_exit_user),
+        'top_stock_users': top_rows(by_stock_user),
+        'top_reasons': top_rows(by_reason),
+        'tva': top_rows(by_tva, limit=20)
+    }
+
+@admin.route('/stock/exits/stats')
+@login_required
+@permission_required('stats_sorties_stock')
+def stock_exit_stats():
+    filters = get_stock_exit_stats_filters()
+    all_exits = StockExitLog.query.order_by(StockExitLog.created_at.asc()).all()
+    exits = get_filtered_stock_exit_logs(filters)
+    stats = build_stock_exit_stats(exits)
+    options = get_stock_exit_stats_options(all_exits)
+    return render_template('admin/stock/exit_stats.html', stats=stats, filters=filters, options=options)
+
+@admin.route('/stock/exits/stats/export/excel')
+@login_required
+@permission_required('stats_sorties_stock')
+def export_stock_exit_stats_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+    from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+
+    filters = get_stock_exit_stats_filters()
+    exits = get_filtered_stock_exit_logs(filters)
+    stats = build_stock_exit_stats(exits)
+    rows = build_stock_exit_log_rows(exits)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        summary_rows = [
+            {'Indicateur': 'Sorties totales', 'Valeur': stats['totals']['count']},
+            {'Indicateur': 'Quantite totale', 'Valeur': stats['totals']['quantity_total']},
+            {'Indicateur': 'Total HT', 'Valeur': stats['totals']['total_ht']},
+            {'Indicateur': 'Taxes perdues', 'Valeur': stats['totals']['total_taxes']},
+            {'Indicateur': 'Perte / valeur TTC', 'Valeur': stats['totals']['total_ttc']},
+            {'Indicateur': 'Sortie moyenne TTC', 'Valeur': stats['totals']['avg_ttc']},
+            {'Indicateur': 'Taxes moyennes par sortie', 'Valeur': stats['totals']['avg_taxes']},
+            {'Indicateur': 'Age moyen stock avant sortie', 'Valeur': stats['totals']['avg_stock_age_days']},
+            {'Indicateur': 'Produits perimes sortis', 'Valeur': stats['totals']['expired_count']},
+            {'Indicateur': 'Taxes perdues produits perimes', 'Valeur': stats['totals']['expired_taxes']},
+            {'Indicateur': 'Perte TTC produits perimes', 'Valeur': stats['totals']['expired_ttc']}
+        ]
+        pd.DataFrame(summary_rows).to_excel(writer, index=False, sheet_name='Synthese', startrow=5)
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Details')
+        for sheet_name in ['Top produits', 'Top fournisseurs', 'Top raisons', 'Par utilisateur']:
+            data = {
+                'Top produits': stats['top_products'],
+                'Top fournisseurs': stats['top_suppliers'],
+                'Top raisons': stats['top_reasons'],
+                'Par utilisateur': stats['top_exit_users']
+            }[sheet_name]
+            pd.DataFrame(data).to_excel(writer, index=False, sheet_name=sheet_name)
+
+        chart_sheet = writer.book.create_sheet('Courbes')
+        chart_sheet['A1'] = 'Evolution quotidienne'
+        chart_sheet.append(['Date', 'Sorties', 'HT', 'Taxes', 'TTC'])
+        for label, count, ht, taxes, ttc in zip(stats['daily']['labels'], stats['daily']['count'], stats['daily']['ht'], stats['daily']['taxes'], stats['daily']['ttc']):
+            chart_sheet.append([label, count, ht, taxes, ttc])
+
+        monthly_start = chart_sheet.max_row + 3
+        chart_sheet.cell(monthly_start, 1, 'Evolution mensuelle')
+        chart_sheet.cell(monthly_start + 1, 1, 'Mois')
+        chart_sheet.cell(monthly_start + 1, 2, 'Sorties')
+        chart_sheet.cell(monthly_start + 1, 3, 'HT')
+        chart_sheet.cell(monthly_start + 1, 4, 'Taxes')
+        chart_sheet.cell(monthly_start + 1, 5, 'TTC')
+        for offset, (label, count, ht, taxes, ttc) in enumerate(zip(stats['monthly']['labels'], stats['monthly']['count'], stats['monthly']['ht'], stats['monthly']['taxes'], stats['monthly']['ttc']), start=monthly_start + 2):
+            chart_sheet.cell(offset, 1, label)
+            chart_sheet.cell(offset, 2, count)
+            chart_sheet.cell(offset, 3, ht)
+            chart_sheet.cell(offset, 4, taxes)
+            chart_sheet.cell(offset, 5, ttc)
+
+        products_start = chart_sheet.max_row + 3
+        chart_sheet.cell(products_start, 1, 'Top produits')
+        chart_sheet.cell(products_start + 1, 1, 'Produit')
+        chart_sheet.cell(products_start + 1, 2, 'TTC')
+        for offset, row in enumerate(stats['top_products'][:10], start=products_start + 2):
+            chart_sheet.cell(offset, 1, row['label'])
+            chart_sheet.cell(offset, 2, row['ttc'])
+
+        reasons_start = chart_sheet.max_row + 3
+        chart_sheet.cell(reasons_start, 1, 'Top raisons')
+        chart_sheet.cell(reasons_start + 1, 1, 'Raison')
+        chart_sheet.cell(reasons_start + 1, 2, 'TTC')
+        for offset, row in enumerate(stats['top_reasons'][:10], start=reasons_start + 2):
+            chart_sheet.cell(offset, 1, row['label'])
+            chart_sheet.cell(offset, 2, row['ttc'])
+
+        worksheet = writer.sheets['Synthese']
+        worksheet['A1'] = 'Rapport statistiques sorties de stock - ReflexPharma'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        active_filters = ', '.join(f'{key}={value}' for key, value in filters.items() if value) or 'Aucun filtre'
+        worksheet['A4'] = f'Filtres : {active_filters}'
+        worksheet['A5'] = f'Lignes analysees : {len(exits)}'
+
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for ws in writer.sheets.values():
+            for row in ws.iter_rows():
+                for cell in row:
+                    cell.alignment = Alignment(vertical='top', wrap_text=True)
+                    cell.border = thin_border
+            for cell in ws[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+            for col in range(1, min(ws.max_column, 12) + 1):
+                ws.column_dimensions[chr(64 + col)].width = 22
+
+        if stats['daily']['labels']:
+            daily_chart = LineChart()
+            daily_chart.title = 'Sorties quotidiennes'
+            daily_chart.y_axis.title = 'HT / taxes / TTC / sorties'
+            daily_chart.x_axis.title = 'Date'
+            daily_chart.add_data(Reference(chart_sheet, min_col=2, max_col=5, min_row=2, max_row=2 + len(stats['daily']['labels'])), titles_from_data=True)
+            daily_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=3, max_row=2 + len(stats['daily']['labels'])))
+            daily_chart.height = 9
+            daily_chart.width = 22
+            chart_sheet.add_chart(daily_chart, 'E2')
+
+        if stats['monthly']['labels']:
+            monthly_chart = BarChart()
+            monthly_chart.title = 'Valeur mensuelle HT / taxes / TTC'
+            monthly_chart.y_axis.title = 'Valeur'
+            monthly_chart.x_axis.title = 'Mois'
+            monthly_end = monthly_start + 1 + len(stats['monthly']['labels'])
+            monthly_chart.add_data(Reference(chart_sheet, min_col=3, max_col=5, min_row=monthly_start + 1, max_row=monthly_end), titles_from_data=True)
+            monthly_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=monthly_start + 2, max_row=monthly_end))
+            monthly_chart.height = 8
+            monthly_chart.width = 18
+            chart_sheet.add_chart(monthly_chart, 'E20')
+
+        if stats['top_products']:
+            product_chart = BarChart()
+            product_chart.type = 'bar'
+            product_chart.title = 'Top produits par perte TTC'
+            product_end = products_start + 1 + min(len(stats['top_products']), 10)
+            product_chart.add_data(Reference(chart_sheet, min_col=2, min_row=products_start + 1, max_row=product_end), titles_from_data=True)
+            product_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=products_start + 2, max_row=product_end))
+            product_chart.height = 10
+            product_chart.width = 22
+            chart_sheet.add_chart(product_chart, 'E36')
+
+        if stats['top_reasons']:
+            reason_chart = PieChart()
+            reason_chart.title = 'Repartition par raison'
+            reason_end = reasons_start + 1 + min(len(stats['top_reasons']), 10)
+            reason_chart.add_data(Reference(chart_sheet, min_col=2, min_row=reasons_start + 1, max_row=reason_end), titles_from_data=True)
+            reason_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=reasons_start + 2, max_row=reason_end))
+            reason_chart.height = 9
+            reason_chart.width = 14
+            chart_sheet.add_chart(reason_chart, 'E56')
+
+    output.seek(0)
+    filename = f'stats_sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/stock/exits/stats/export/pdf')
+@login_required
+@permission_required('stats_sorties_stock')
+def export_stock_exit_stats_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.graphics.charts.barcharts import VerticalBarChart, HorizontalBarChart
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
+    from reportlab.graphics.charts.piecharts import Pie
+
+    filters = get_stock_exit_stats_filters()
+    exits = get_filtered_stock_exit_logs(filters)
+    stats = build_stock_exit_stats(exits)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=18, bottomMargin=18, leftMargin=18, rightMargin=18)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('StatsTitle', parent=styles['Title'], fontSize=13, leading=15)
+    meta_style = ParagraphStyle('StatsMeta', parent=styles['Normal'], fontSize=8, leading=10)
+    elements = [
+        Paragraph('Rapport statistiques sorties de stock - ReflexPharma', title_style),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom}', meta_style),
+        Paragraph('Filtres : ' + (', '.join(f'{key}={value}' for key, value in filters.items() if value) or 'Aucun filtre'), meta_style),
+        Spacer(1, 8)
+    ]
+
+    summary = [
+        ['Indicateur', 'Valeur'],
+        ['Sorties totales', stats['totals']['count']],
+        ['Quantite totale', stats['totals']['quantity_total']],
+        ['Total HT', f"{stats['totals']['total_ht']:.2f}"],
+        ['Taxes perdues', f"{stats['totals']['total_taxes']:.2f}"],
+        ['Perte / valeur TTC', f"{stats['totals']['total_ttc']:.2f}"],
+        ['Sortie moyenne TTC', f"{stats['totals']['avg_ttc']:.2f}"],
+        ['Taxes moyennes par sortie', f"{stats['totals']['avg_taxes']:.2f}"],
+        ['Age moyen avant sortie', f"{stats['totals']['avg_stock_age_days']:.1f} j"],
+        ['Produits perimes sortis', stats['totals']['expired_count']],
+        ['Taxes perdues produits perimes', f"{stats['totals']['expired_taxes']:.2f}"]
+    ]
+    elements.append(Table(summary, repeatRows=1, colWidths=[260, 240], style=[
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(Spacer(1, 10))
+
+    def add_vertical_chart(title, labels, values, value_label='TTC', max_items=12):
+        labels = labels[:max_items]
+        values = values[:max_items]
+        if not labels or not values:
+            return
+        drawing = Drawing(500, 185)
+        drawing.add(String(0, 170, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = VerticalBarChart()
+        chart.x = 35
+        chart.y = 35
+        chart.height = 115
+        chart.width = 430
+        chart.data = [values]
+        chart.categoryAxis.categoryNames = labels
+        chart.categoryAxis.labels.angle = 35
+        chart.categoryAxis.labels.fontSize = 5
+        chart.valueAxis.valueMin = 0
+        chart.bars[0].fillColor = colors.HexColor('#DC3545')
+        drawing.add(chart)
+        drawing.add(String(35, 12, value_label, fontSize=7, fillColor=colors.HexColor('#6B7280')))
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_grouped_vertical_chart(title, labels, series, max_items=12):
+        labels = labels[:max_items]
+        if not labels or not series:
+            return
+        drawing = Drawing(500, 205)
+        drawing.add(String(0, 190, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = VerticalBarChart()
+        chart.x = 35
+        chart.y = 42
+        chart.height = 125
+        chart.width = 430
+        chart.data = [values[:max_items] for _, values, _ in series]
+        chart.categoryAxis.categoryNames = labels
+        chart.categoryAxis.labels.angle = 35
+        chart.categoryAxis.labels.fontSize = 5
+        chart.valueAxis.valueMin = 0
+        for index, (_, _, color) in enumerate(series):
+            chart.bars[index].fillColor = color
+        drawing.add(chart)
+        y = 18
+        x = 35
+        for label, _, color in series:
+            drawing.add(String(x, y, label, fontSize=7, fillColor=color))
+            x += 80
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_horizontal_chart(title, rows, max_items=8):
+        rows = rows[:max_items]
+        if not rows:
+            return
+        drawing = Drawing(500, 210)
+        drawing.add(String(0, 195, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = HorizontalBarChart()
+        chart.x = 125
+        chart.y = 25
+        chart.height = 155
+        chart.width = 330
+        chart.data = [[row['ttc'] for row in rows]]
+        chart.categoryAxis.categoryNames = [row['label'][:28] for row in rows]
+        chart.categoryAxis.labels.fontSize = 6
+        chart.valueAxis.valueMin = 0
+        chart.bars[0].fillColor = colors.HexColor('#198754')
+        drawing.add(chart)
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_line_chart(title, labels, values, max_items=18):
+        labels = labels[-max_items:]
+        values = values[-max_items:]
+        if not labels or not values:
+            return
+        drawing = Drawing(500, 185)
+        drawing.add(String(0, 170, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = HorizontalLineChart()
+        chart.x = 35
+        chart.y = 35
+        chart.height = 115
+        chart.width = 430
+        chart.data = [values]
+        chart.categoryAxis.categoryNames = labels
+        chart.categoryAxis.labels.angle = 35
+        chart.categoryAxis.labels.fontSize = 5
+        chart.valueAxis.valueMin = 0
+        chart.lines[0].strokeColor = colors.HexColor('#DC3545')
+        drawing.add(chart)
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_multi_line_chart(title, labels, series, max_items=18):
+        labels = labels[-max_items:]
+        if not labels or not series:
+            return
+        drawing = Drawing(500, 200)
+        drawing.add(String(0, 185, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = HorizontalLineChart()
+        chart.x = 35
+        chart.y = 45
+        chart.height = 115
+        chart.width = 430
+        chart.data = [values[-max_items:] for _, values, _ in series]
+        chart.categoryAxis.categoryNames = labels
+        chart.categoryAxis.labels.angle = 35
+        chart.categoryAxis.labels.fontSize = 5
+        chart.valueAxis.valueMin = 0
+        for index, (_, _, color) in enumerate(series):
+            chart.lines[index].strokeColor = color
+        drawing.add(chart)
+        x = 35
+        for label, _, color in series:
+            drawing.add(String(x, 18, label, fontSize=7, fillColor=color))
+            x += 85
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_pie_chart(title, rows, max_items=6):
+        rows = rows[:max_items]
+        if not rows:
+            return
+        drawing = Drawing(500, 180)
+        drawing.add(String(0, 165, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        pie = Pie()
+        pie.x = 20
+        pie.y = 25
+        pie.width = 130
+        pie.height = 130
+        pie.data = [row['ttc'] for row in rows]
+        pie.labels = [row['label'][:18] for row in rows]
+        drawing.add(pie)
+        y = 135
+        for row in rows:
+            drawing.add(String(180, y, f"{row['label'][:40]}: {row['ttc']:.2f}", fontSize=7, fillColor=colors.HexColor('#374151')))
+            y -= 16
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    add_multi_line_chart(
+        'Courbe quotidienne HT / taxes / TTC',
+        stats['daily']['labels'],
+        [
+            ('HT', stats['daily']['ht'], colors.HexColor('#198754')),
+            ('Taxes', stats['daily']['taxes'], colors.HexColor('#FFC107')),
+            ('TTC', stats['daily']['ttc'], colors.HexColor('#DC3545'))
+        ]
+    )
+    add_grouped_vertical_chart(
+        'Valeur mensuelle HT / taxes / TTC',
+        stats['monthly']['labels'],
+        [
+            ('HT', stats['monthly']['ht'], colors.HexColor('#198754')),
+            ('Taxes', stats['monthly']['taxes'], colors.HexColor('#FFC107')),
+            ('TTC', stats['monthly']['ttc'], colors.HexColor('#DC3545'))
+        ]
+    )
+    add_horizontal_chart('Top produits par perte TTC', stats['top_products'])
+    add_horizontal_chart('Top fournisseurs par perte TTC', stats['top_suppliers'])
+    add_pie_chart('Repartition par raison', stats['top_reasons'])
+
+    def add_top_table(title, rows):
+        elements.append(Paragraph(title, styles['Heading3']))
+        data = [['Libelle', 'Sorties', 'Qte', 'TTC']]
+        data.extend([[row['label'], row['count'], row.get('quantity', 0), f"{row['ttc']:.2f}"] for row in rows[:8]])
+        elements.append(Table(data, repeatRows=1, colWidths=[290, 60, 60, 90], style=[
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elements.append(Spacer(1, 8))
+
+    add_top_table('Top produits', stats['top_products'])
+    add_top_table('Top fournisseurs', stats['top_suppliers'])
+    add_top_table('Top raisons', stats['top_reasons'])
+    add_top_table('Top utilisateurs sortie', stats['top_exit_users'])
+
+    doc.build(elements)
+    output.seek(0)
+    filename = f'stats_sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+def get_exit_log_prices(item):
+    prix_unite_ht = float(item.prix_unite_ht or 0)
+    prix_sous_unite_ht = float(item.prix_sous_unite_ht or 0)
+    prix_sous_sous_unite_ht = float(item.prix_sous_sous_unite_ht or 0)
+    prix_unite_ttc = float(item.prix_unite_ttc or 0)
+    prix_sous_unite_ttc = float(item.prix_sous_unite_ttc or 0)
+    prix_sous_sous_unite_ttc = float(item.prix_sous_sous_unite_ttc or 0)
+
+    total_ht = float(item.total_sortie_ht or 0)
+    total_ttc = float(item.total_sortie_ttc or 0)
+    if not total_ht:
+        total_ht = (
+            item.quantite_unites_sortie * prix_unite_ht
+            + item.quantite_sous_unites_sortie * prix_sous_unite_ht
+            + item.quantite_sous_sous_unites_sortie * prix_sous_sous_unite_ht
+        )
+    if not total_ttc:
+        total_ttc = (
+            item.quantite_unites_sortie * prix_unite_ttc
+            + item.quantite_sous_unites_sortie * prix_sous_unite_ttc
+            + item.quantite_sous_sous_unites_sortie * prix_sous_sous_unite_ttc
+        )
+
+    return {
+        'prix_unite_ht': prix_unite_ht,
+        'prix_sous_unite_ht': prix_sous_unite_ht,
+        'prix_sous_sous_unite_ht': prix_sous_sous_unite_ht,
+        'prix_unite_ttc': prix_unite_ttc,
+        'prix_sous_unite_ttc': prix_sous_unite_ttc,
+        'prix_sous_sous_unite_ttc': prix_sous_sous_unite_ttc,
+        'tva_pourcentage': float(item.tva_pourcentage or 0),
+        'total_ht': total_ht,
+        'total_ttc': total_ttc
+    }
+
+def get_exit_log_supplier_info(item):
+    return {
+        'fournisseur': item.fournisseur_nom or '-',
+        'groupe_fournisseur': item.groupe_fournisseur_nom or '-'
+    }
 
 def build_stock_exit_log_rows(exits):
     rows = []
     for item in exits:
+        prices = get_exit_log_prices(item)
+        supplier = get_exit_log_supplier_info(item)
         rows.append({
             'date_sortie': item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '-',
             'produit': item.produit_nom,
             'code_produit': item.produit_code,
+            'fournisseur': supplier['fournisseur'],
+            'groupe_fournisseur': supplier['groupe_fournisseur'],
             'code_suivi': item.code_suivi,
             'numero_bl': item.numero_bl,
             'date_peremption': item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '-',
+            'date_mise_en_stock': item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-',
+            'mis_en_stock_par': (
+                f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip()
+                or '-'
+            ),
+            'mis_en_stock_email': item.mise_en_stock_user_email or '-',
             'sorti_par': f'{item.user_prenom} {item.user_nom}',
             'email': item.user_email,
             'raison': item.reason_nom,
             'sortie': f'U:{item.quantite_unites_sortie} S/U:{item.quantite_sous_unites_sortie} SS/U:{item.quantite_sous_sous_unites_sortie}',
+            'prix_ht': f'U:{prices["prix_unite_ht"]:.2f} S/U:{prices["prix_sous_unite_ht"]:.2f} SS/U:{prices["prix_sous_sous_unite_ht"]:.2f}',
+            'prix_ttc': f'U:{prices["prix_unite_ttc"]:.2f} S/U:{prices["prix_sous_unite_ttc"]:.2f} SS/U:{prices["prix_sous_sous_unite_ttc"]:.2f}',
+            'tva': f'{prices["tva_pourcentage"]:.2f}',
+            'total_ht': f'{prices["total_ht"]:.2f}',
+            'total_ttc': f'{prices["total_ttc"]:.2f}',
             'avant': f'U:{item.old_quantite_unites} S/U:{item.old_quantite_sous_unites} SS/U:{item.old_quantite_sous_sous_unites}',
             'apres': f'U:{item.new_quantite_unites} S/U:{item.new_quantite_sous_unites} SS/U:{item.new_quantite_sous_sous_unites}'
         })
@@ -1467,24 +2219,38 @@ def get_stock_exit_logs_for_export():
                 item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '',
                 item.produit_nom or '',
                 item.produit_code or '',
+                get_exit_log_supplier_info(item)['fournisseur'],
+                get_exit_log_supplier_info(item)['groupe_fournisseur'],
                 item.code_suivi or '',
                 item.numero_bl or '',
                 item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '',
+                item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '',
+                item.mise_en_stock_user_prenom or '',
+                item.mise_en_stock_user_nom or '',
+                item.mise_en_stock_user_email or '',
                 item.user_prenom or '',
                 item.user_nom or '',
                 item.user_email or '',
-                item.reason_nom or ''
+                item.reason_nom or '',
+                f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}',
+                f'{get_exit_log_prices(item)["total_ht"]:.2f}',
+                f'{get_exit_log_prices(item)["total_ttc"]:.2f}'
             ]).lower()
         ]
 
     sort_getters = {
         'date': lambda item: item.created_at or datetime.min,
         'produit': lambda item: (item.produit_nom or '').lower(),
+        'fournisseur': lambda item: get_exit_log_supplier_info(item)['fournisseur'].lower(),
+        'groupe': lambda item: get_exit_log_supplier_info(item)['groupe_fournisseur'].lower(),
         'code': lambda item: (item.code_suivi or '').lower(),
         'bl': lambda item: (item.numero_bl or '').lower(),
         'peremption': lambda item: item.date_peremption or datetime.min.date(),
+        'mise_stock': lambda item: item.mise_en_stock_at or datetime.min,
+        'mis_par': lambda item: f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""} {item.mise_en_stock_user_email or ""}'.lower(),
         'auteur': lambda item: f'{item.user_prenom or ""} {item.user_nom or ""} {item.user_email or ""}'.lower(),
-        'raison': lambda item: (item.reason_nom or '').lower()
+        'raison': lambda item: (item.reason_nom or '').lower(),
+        'perte': lambda item: get_exit_log_prices(item)['total_ttc']
     }
     exits.sort(key=sort_getters.get(sort_field, sort_getters['date']), reverse=sort_direction != 'asc')
     return exits
@@ -1509,13 +2275,23 @@ def export_stock_exit_logs_excel():
             'date_sortie': 'Date sortie',
             'produit': 'Produit',
             'code_produit': 'Code produit',
+            'fournisseur': 'Fournisseur',
+            'groupe_fournisseur': 'Groupe fournisseur',
             'code_suivi': 'Code suivi',
             'numero_bl': 'BL',
             'date_peremption': 'Peremption',
+            'date_mise_en_stock': 'Date mise en stock',
+            'mis_en_stock_par': 'Mis en stock par',
+            'mis_en_stock_email': 'Email mise en stock',
             'sorti_par': 'Sorti par',
             'email': 'Email auteur',
             'raison': 'Raison',
             'sortie': 'Quantite sortie',
+            'prix_ht': 'Prix unitaires HT',
+            'prix_ttc': 'Prix unitaires TTC',
+            'tva': 'TVA %',
+            'total_ht': 'Total sortie HT',
+            'total_ttc': 'Perte / valeur TTC',
             'avant': 'Avant',
             'apres': 'Apres'
         })
@@ -1543,7 +2319,7 @@ def export_stock_exit_logs_excel():
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
 
-        widths = [17, 24, 15, 34, 14, 13, 20, 26, 20, 21, 21, 21]
+        widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 18, 21, 21]
         for index, width in enumerate(widths, start=1):
             worksheet.column_dimensions[chr(64 + index)].width = width
         worksheet.freeze_panes = 'A6'
@@ -1588,12 +2364,19 @@ def export_stock_exit_logs_pdf():
     data = [[
         Paragraph('Date', header_style),
         Paragraph('Produit', header_style),
+        Paragraph('Fourn.', header_style),
+        Paragraph('Groupe', header_style),
         Paragraph('Code suivi', header_style),
         Paragraph('BL', header_style),
         Paragraph('Peremp.', header_style),
+        Paragraph('Mise stock', header_style),
+        Paragraph('Mis par', header_style),
         Paragraph('Auteur', header_style),
         Paragraph('Raison', header_style),
         Paragraph('Sortie', header_style),
+        Paragraph('TVA', header_style),
+        Paragraph('Prix TTC', header_style),
+        Paragraph('Perte TTC', header_style),
         Paragraph('Avant', header_style),
         Paragraph('Apres', header_style)
     ]]
@@ -1603,17 +2386,24 @@ def export_stock_exit_logs_pdf():
         data.append([
             row['date_sortie'],
             Paragraph(f"{produit}<br/>{code_produit}", cell_style),
+            Paragraph(escape(str(row['fournisseur'])), cell_style),
+            Paragraph(escape(str(row['groupe_fournisseur'])), cell_style),
             Paragraph(escape(str(row['code_suivi'])), cell_style),
             Paragraph(escape(str(row['numero_bl'])), cell_style),
             row['date_peremption'],
+            row['date_mise_en_stock'],
+            Paragraph(escape(str(row['mis_en_stock_par'])), cell_style),
             Paragraph(escape(str(row['sorti_par'])), cell_style),
             Paragraph(escape(str(row['raison'])), cell_style),
             row['sortie'],
+            f"{row['tva']}%",
+            row['prix_ttc'],
+            row['total_ttc'],
             row['avant'],
             row['apres']
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[58, 100, 130, 55, 45, 75, 80, 82, 82, 82])
+    table = Table(data, repeatRows=1, colWidths=[42, 68, 54, 50, 76, 36, 32, 47, 47, 48, 48, 45, 43, 58, 39, 42, 42])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
