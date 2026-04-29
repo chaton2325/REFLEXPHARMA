@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Historique des sorties de stock - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
+                <li class="breadcrumb-item active">Sorties</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Historique des sorties de stock</h1>
+        <p class="text-muted mb-0">Suivi des produits sortis avec auteur, motif, lot et quantites avant/apres.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.export_stock_exit_logs_excel') }}" class="btn btn-outline-success" id="exportExitExcel">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_stock_exit_logs_pdf') }}" class="btn btn-outline-danger" id="exportExitPdf">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
+        <a href="{{ url_for('admin.stock_exit') }}" class="btn btn-warning">
+            <i class="fas fa-sign-out-alt me-1"></i> Nouvelle sortie
+        </a>
+        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-1"></i> Retour au stock
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div class="input-group" style="max-width: 520px;">
+                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="exitSearchInput" class="form-control" placeholder="Rechercher date, produit, lot, auteur, raison...">
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <select id="exitSortField" class="form-select form-select-sm" style="width: 180px;">
+                    <option value="date">Date sortie</option>
+                    <option value="produit">Produit</option>
+                    <option value="code">Code suivi</option>
+                    <option value="bl">BL</option>
+                    <option value="peremption">Peremption</option>
+                    <option value="auteur">Auteur</option>
+                    <option value="raison">Raison</option>
+                </select>
+                <select id="exitSortDirection" class="form-select form-select-sm" style="width: 135px;">
+                    <option value="desc">Decroissant</option>
+                    <option value="asc">Croissant</option>
+                </select>
+                <button type="button" id="applyExitSort" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-sort me-1"></i> Trier
+                </button>
+                <button type="button" id="clearExitSearch" class="btn btn-sm btn-outline-secondary">
+                    Effacer
+                </button>
+                <span class="small text-muted"><span id="exitVisibleCount">{{ exits|length }}</span> / {{ exits|length }} sortie(s)</span>
+            </div>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="exitLogsTable">
+            <thead class="bg-light">
+                <tr>
+                    <th data-sort-field="date" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="produit" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="code" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="bl" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="peremption" style="cursor:pointer">Peremption <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="auteur" style="cursor:pointer">Sorti par <i class="fas fa-sort small text-muted"></i></th>
+                    <th data-sort-field="raison" style="cursor:pointer">Raison <i class="fas fa-sort small text-muted"></i></th>
+                    <th>Quantite sortie</th>
+                    <th>Avant</th>
+                    <th>Apres</th>
+                </tr>
+            </thead>
+            <tbody id="exitLogsBody">
+                {% for item in exits %}
+                <tr class="exit-log-row"
+                    data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom)|lower }}"
+                    data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
+                    data-produit="{{ item.produit_nom|lower }}"
+                    data-code="{{ item.code_suivi|lower }}"
+                    data-bl="{{ item.numero_bl|lower }}"
+                    data-peremption="{{ item.date_peremption.strftime('%Y%m%d') if item.date_peremption else '' }}"
+                    data-auteur="{{ (item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email)|lower }}"
+                    data-raison="{{ item.reason_nom|lower }}">
+                    <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
+                    <td>
+                        <div class="fw-bold">{{ item.produit_nom }}</div>
+                        <small class="text-muted">{{ item.produit_code }}</small>
+                    </td>
+                    <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
+                    <td>{{ item.numero_bl }}</td>
+                    <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
+                    <td>
+                        <div>{{ item.user_prenom }} {{ item.user_nom }}</div>
+                        <small class="text-muted">{{ item.user_email }}</small>
+                    </td>
+                    <td>{{ item.reason_nom }}</td>
+                    <td>
+                        <div>U: {{ item.quantite_unites_sortie }}</div>
+                        <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
+                        <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
+                    </td>
+                    <td>
+                        <div>U: {{ item.old_quantite_unites }}</div>
+                        <div>S/U: {{ item.old_quantite_sous_unites }}</div>
+                        <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
+                    </td>
+                    <td>
+                        <div>U: {{ item.new_quantite_unites }}</div>
+                        <div>S/U: {{ item.new_quantite_sous_unites }}</div>
+                        <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyExitLogsRow">
+                    <td colspan="10" class="text-center py-4 text-muted">Aucune sortie de stock enregistree.</td>
+                </tr>
+                {% endfor %}
+                <tr id="noExitSearchResultsRow" class="d-none">
+                    <td colspan="10" class="text-center py-4 text-muted">Aucune sortie ne correspond a la recherche.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('exitSearchInput');
+    const clearButton = document.getElementById('clearExitSearch');
+    const sortField = document.getElementById('exitSortField');
+    const sortDirection = document.getElementById('exitSortDirection');
+    const applySort = document.getElementById('applyExitSort');
+    const tableBody = document.getElementById('exitLogsBody');
+    const visibleCount = document.getElementById('exitVisibleCount');
+    const noResultsRow = document.getElementById('noExitSearchResultsRow');
+    const exportExcel = document.getElementById('exportExitExcel');
+    const exportPdf = document.getElementById('exportExitPdf');
+    let rows = Array.from(document.querySelectorAll('.exit-log-row'));
+
+    function normalize(value) {
+        return (value || '').toString().toLowerCase();
+    }
+
+    function updateVisibleCount() {
+        const count = rows.filter((row) => row.style.display !== 'none').length;
+        if (visibleCount) {
+            visibleCount.textContent = count;
+        }
+        if (noResultsRow) {
+            noResultsRow.classList.toggle('d-none', count !== 0 || rows.length === 0);
+        }
+    }
+
+    function updateExportLinks() {
+        const params = new URLSearchParams();
+        const query = searchInput ? searchInput.value.trim() : '';
+        if (query) {
+            params.set('q', query);
+        }
+        if (sortField) {
+            params.set('sort', sortField.value);
+        }
+        if (sortDirection) {
+            params.set('direction', sortDirection.value);
+        }
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        if (exportExcel) {
+            exportExcel.href = "{{ url_for('admin.export_stock_exit_logs_excel') }}" + suffix;
+        }
+        if (exportPdf) {
+            exportPdf.href = "{{ url_for('admin.export_stock_exit_logs_pdf') }}" + suffix;
+        }
+    }
+
+    function filterRows() {
+        const query = normalize(searchInput ? searchInput.value.trim() : '');
+        rows.forEach((row) => {
+            const match = !query || normalize(row.dataset.search).includes(query);
+            row.style.display = match ? '' : 'none';
+        });
+        updateVisibleCount();
+        updateExportLinks();
+    }
+
+    function sortRows(field, direction) {
+        const multiplier = direction === 'asc' ? 1 : -1;
+        rows.sort((a, b) => {
+            const valueA = normalize(a.dataset[field]);
+            const valueB = normalize(b.dataset[field]);
+            return valueA.localeCompare(valueB, 'fr', { numeric: true }) * multiplier;
+        });
+        rows.forEach((row) => tableBody.appendChild(row));
+        if (noResultsRow) {
+            tableBody.appendChild(noResultsRow);
+        }
+        filterRows();
+        updateExportLinks();
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', filterRows);
+    }
+    if (clearButton && searchInput) {
+        clearButton.addEventListener('click', function() {
+            searchInput.value = '';
+            filterRows();
+        });
+    }
+    if (applySort) {
+        applySort.addEventListener('click', function() {
+            sortRows(sortField.value, sortDirection.value);
+            updateExportLinks();
+        });
+    }
+    document.querySelectorAll('#exitLogsTable th[data-sort-field]').forEach((header) => {
+        header.addEventListener('click', function() {
+            const field = this.dataset.sortField;
+            const nextDirection = sortField.value === field && sortDirection.value === 'asc' ? 'desc' : 'asc';
+            sortField.value = field;
+            sortDirection.value = nextDirection;
+            sortRows(field, nextDirection);
+            updateExportLinks();
+        });
+    });
+
+    updateVisibleCount();
+    updateExportLinks();
+});
+</script>
+{% endblock %}

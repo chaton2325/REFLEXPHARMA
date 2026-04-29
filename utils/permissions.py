@@ -8,6 +8,8 @@ FEATURES = {
     'gestion_sections': 'Gérer les sections',
     'gestion_produits': 'Gérer les produits',
     'gestion_stock': 'Gérer le stock',
+    'gestion_raisons_stock': 'Gérer les raisons de stock',
+    'effectuer_sortie_stock': 'Effectuer des sorties de stock',
     'gestion_modifications_stock': 'Voir les modifications de stock'
 }
 

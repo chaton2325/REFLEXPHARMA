@@ -12,6 +12,8 @@ from models.section import Section
 from models.produit import Produit
 from models.stock import Stock
 from models.stock_modification import StockModification
+from models.stock_reason import StockReason
+from models.stock_exit_log import StockExitLog
 from extensions import db
 from functools import wraps
 from datetime import datetime
@@ -47,13 +49,14 @@ def generate_product_code(fournisseur):
         if not Produit.query.filter_by(code_produit=code).first():
             return code
 
-def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire):
+def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
     modification = StockModification(
         stock_id=None,
         produit=produit,
         user_id=current_user.id,
         action=action,
-        reason=reason,
+        reason=reason if not reason_id else None,
+        reason_id=reason_id,
         numero_bl=stock.numero_bl,
         date_peremption=stock.date_peremption,
         code_suivi=stock.code_suivi,
@@ -67,6 +70,81 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
         new_quantite_sous_sous_unites=new_values[2]
     )
     db.session.add(modification)
+
+def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
+    log = StockExitLog(
+        stock_id=stock.id,
+        produit_id=stock.produit.id,
+        produit_nom=stock.produit.nom,
+        produit_code=stock.produit.code_produit,
+        numero_bl=stock.numero_bl,
+        date_peremption=stock.date_peremption,
+        code_suivi=stock.code_suivi,
+        user_id=current_user.id,
+        user_nom=current_user.nom,
+        user_prenom=current_user.prenom,
+        user_email=current_user.email,
+        reason_id=reason.id,
+        reason_nom=reason.nom,
+        quantite_unites_sortie=exit_values[0],
+        quantite_sous_unites_sortie=exit_values[1],
+        quantite_sous_sous_unites_sortie=exit_values[2],
+        old_quantite_unites=old_values[0],
+        old_quantite_sous_unites=old_values[1],
+        old_quantite_sous_sous_unites=old_values[2],
+        new_quantite_unites=new_values[0],
+        new_quantite_sous_unites=new_values[1],
+        new_quantite_sous_sous_unites=new_values[2]
+    )
+    db.session.add(log)
+
+# --- GESTION DES RAISONS DE STOCK ---
+@admin.route('/stock/reasons')
+@login_required
+@permission_required('gestion_raisons_stock')
+def list_stock_reasons():
+    reasons = StockReason.query.all()
+    return render_template('admin/stock/reasons.html', reasons=reasons)
+
+@admin.route('/stock/reasons/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_raisons_stock')
+def create_stock_reason():
+    if request.method == 'POST':
+        new_reason = StockReason(
+            nom=request.form.get('nom'),
+            type=request.form.get('type'),
+            description=request.form.get('description')
+        )
+        db.session.add(new_reason)
+        db.session.commit()
+        flash('Raison de stock ajoutée avec succès.', 'success')
+        return redirect(url_for('admin.list_stock_reasons'))
+    return render_template('admin/stock/reason_form.html', title="Ajouter une raison de stock")
+
+@admin.route('/stock/reasons/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_raisons_stock')
+def edit_stock_reason(id):
+    reason = StockReason.query.get_or_404(id)
+    if request.method == 'POST':
+        reason.nom = request.form.get('nom')
+        reason.type = request.form.get('type')
+        reason.description = request.form.get('description')
+        db.session.commit()
+        flash('Raison de stock mise à jour avec succès.', 'success')
+        return redirect(url_for('admin.list_stock_reasons'))
+    return render_template('admin/stock/reason_form.html', reason=reason, title="Modifier la raison de stock")
+
+@admin.route('/stock/reasons/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_raisons_stock')
+def delete_stock_reason(id):
+    reason = StockReason.query.get_or_404(id)
+    db.session.delete(reason)
+    db.session.commit()
+    flash('Raison de stock supprimée.', 'success')
+    return redirect(url_for('admin.list_stock_reasons'))
 
 def build_qr_svg_data_uri(value, size=96):
     from reportlab.graphics.barcode import qr
@@ -868,15 +946,17 @@ def delete_produit(id):
 @permission_required('gestion_stock')
 def manage_stock():
     produits = Produit.query.order_by(Produit.nom.asc()).all()
+    reasons = StockReason.query.filter_by(type='ajout').all()
 
     if request.method == 'POST':
         produit_id = int(request.form.get('produit_id'))
         produit = Produit.query.get_or_404(produit_id)
-        reason = (request.form.get('reason') or '').strip()
+        reason_id = request.form.get('reason_id')
+        reason_text = (request.form.get('reason') or '').strip()
         numero_bl_raw = (request.form.get('numero_bl') or '').strip()
         date_peremption_str = (request.form.get('date_peremption') or '').strip()
-
-        if not reason:
+        
+        if not reason_id and not reason_text:
             flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
             return redirect(url_for('admin.manage_stock'))
         if not numero_bl_raw:
@@ -920,7 +1000,8 @@ def manage_stock():
                 stock=stock,
                 produit=produit,
                 action='create',
-                reason=reason,
+                reason=reason_text,
+                reason_id=reason_id,
                 old_values=(0, 0, 0),
                 new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites),
                 old_qr_tire=False,
@@ -936,7 +1017,8 @@ def manage_stock():
                 stock=stock,
                 produit=produit,
                 action='adjust',
-                reason=reason,
+                reason=reason_text,
+                reason_id=reason_id,
                 old_values=old_values,
                 new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
                 old_qr_tire=stock.qr_tire,
@@ -949,7 +1031,7 @@ def manage_stock():
         return redirect(url_for('admin.manage_stock'))
 
     stocks = Stock.query.join(Produit).order_by(Produit.nom.asc(), Stock.date_peremption.asc()).all()
-    return render_template('admin/stock/list.html', produits=produits, stocks=stocks)
+    return render_template('admin/stock/list.html', produits=produits, stocks=stocks, reasons=reasons)
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
 @login_required
@@ -1008,6 +1090,70 @@ def delete_stock(id):
     db.session.commit()
     flash(f'Stock supprimé pour {produit_nom} ({code_suivi}).', 'success')
     return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/exit', methods=['GET', 'POST'])
+@login_required
+@permission_required('effectuer_sortie_stock')
+def stock_exit():
+    reasons = StockReason.query.filter_by(type='sortie').all()
+    if request.method == 'POST':
+        stock_id = request.form.get('stock_id')
+        stock = Stock.query.get_or_404(stock_id)
+        reason_id = request.form.get('reason_id')
+        reason = StockReason.query.filter_by(id=reason_id, type='sortie').first() if reason_id else None
+
+        if reason is None:
+            flash("Veuillez preciser une raison de sortie valide.", "warning")
+            return redirect(url_for('admin.stock_exit', stock_id=stock.id))
+        
+        q_u = int(request.form.get('quantite_unites') or 0)
+        q_su = int(request.form.get('quantite_sous_unites') or 0)
+        q_ssu = int(request.form.get('quantite_sous_sous_unites') or 0)
+
+        if q_u < 0 or q_su < 0 or q_ssu < 0:
+            flash("Les quantites de sortie ne peuvent pas etre negatives.", "danger")
+            return redirect(url_for('admin.stock_exit', stock_id=stock.id))
+
+        if q_u == 0 and q_su == 0 and q_ssu == 0:
+            flash("Veuillez preciser au moins une quantite a sortir.", "warning")
+            return redirect(url_for('admin.stock_exit', stock_id=stock.id))
+
+        if q_u > stock.quantite_unites or q_su > stock.quantite_sous_unites or q_ssu > stock.quantite_sous_sous_unites:
+            flash("La quantité de sortie dépasse le stock disponible pour ce lot.", "danger")
+            return redirect(url_for('admin.manage_stock'))
+
+        old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        stock.quantite_unites -= q_u
+        stock.quantite_sous_unites -= q_su
+        stock.quantite_sous_sous_unites -= q_ssu
+
+        create_stock_modification(
+            stock=stock,
+            produit=stock.produit,
+            action='sortie',
+            reason=None,
+            reason_id=reason_id,
+            old_values=old_values,
+            new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
+            old_qr_tire=stock.qr_tire,
+            new_qr_tire=stock.qr_tire
+        )
+        create_stock_exit_log(
+            stock=stock,
+            reason=reason,
+            old_values=old_values,
+            new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
+            exit_values=(q_u, q_su, q_ssu)
+        )
+        db.session.commit()
+        flash(f'Sortie de stock effectuée pour {stock.produit.nom}.', 'success')
+        return redirect(url_for('admin.manage_stock'))
+    
+    # Si GET, on peut passer un stock_id pour pré-remplir
+    stock_id = request.args.get('stock_id')
+    stock = Stock.query.get(stock_id) if stock_id else None
+    stocks = Stock.query.join(Produit).order_by(Produit.nom.asc()).all()
+    return render_template('admin/stock/exit_form.html', stock=stock, stocks=stocks, reasons=reasons)
 
 @admin.route('/stock/<int:id>/qr-preview')
 @login_required
@@ -1281,6 +1427,214 @@ def export_selected_stock_qr_pdf():
 def list_stock_modifications():
     modifications = StockModification.query.order_by(StockModification.created_at.desc()).all()
     return render_template('admin/stock/modifications.html', modifications=modifications)
+
+@admin.route('/stock/exits')
+@login_required
+@permission_required('gestion_modifications_stock')
+def list_stock_exit_logs():
+    exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
+    return render_template('admin/stock/exit_logs.html', exits=exits)
+
+def build_stock_exit_log_rows(exits):
+    rows = []
+    for item in exits:
+        rows.append({
+            'date_sortie': item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '-',
+            'produit': item.produit_nom,
+            'code_produit': item.produit_code,
+            'code_suivi': item.code_suivi,
+            'numero_bl': item.numero_bl,
+            'date_peremption': item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '-',
+            'sorti_par': f'{item.user_prenom} {item.user_nom}',
+            'email': item.user_email,
+            'raison': item.reason_nom,
+            'sortie': f'U:{item.quantite_unites_sortie} S/U:{item.quantite_sous_unites_sortie} SS/U:{item.quantite_sous_sous_unites_sortie}',
+            'avant': f'U:{item.old_quantite_unites} S/U:{item.old_quantite_sous_unites} SS/U:{item.old_quantite_sous_sous_unites}',
+            'apres': f'U:{item.new_quantite_unites} S/U:{item.new_quantite_sous_unites} SS/U:{item.new_quantite_sous_sous_unites}'
+        })
+    return rows
+
+def get_stock_exit_logs_for_export():
+    exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
+    query = (request.args.get('q') or '').strip().lower()
+    sort_field = request.args.get('sort') or 'date'
+    sort_direction = request.args.get('direction') or 'desc'
+
+    if query:
+        exits = [
+            item for item in exits
+            if query in ' '.join([
+                item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '',
+                item.produit_nom or '',
+                item.produit_code or '',
+                item.code_suivi or '',
+                item.numero_bl or '',
+                item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '',
+                item.user_prenom or '',
+                item.user_nom or '',
+                item.user_email or '',
+                item.reason_nom or ''
+            ]).lower()
+        ]
+
+    sort_getters = {
+        'date': lambda item: item.created_at or datetime.min,
+        'produit': lambda item: (item.produit_nom or '').lower(),
+        'code': lambda item: (item.code_suivi or '').lower(),
+        'bl': lambda item: (item.numero_bl or '').lower(),
+        'peremption': lambda item: item.date_peremption or datetime.min.date(),
+        'auteur': lambda item: f'{item.user_prenom or ""} {item.user_nom or ""} {item.user_email or ""}'.lower(),
+        'raison': lambda item: (item.reason_nom or '').lower()
+    }
+    exits.sort(key=sort_getters.get(sort_field, sort_getters['date']), reverse=sort_direction != 'asc')
+    return exits
+
+@admin.route('/stock/exits/export/excel')
+@login_required
+@permission_required('gestion_modifications_stock')
+def export_stock_exit_logs_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    exits = get_stock_exit_logs_for_export()
+    rows = build_stock_exit_log_rows(exits)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df = pd.DataFrame(rows)
+        df = df.rename(columns={
+            'date_sortie': 'Date sortie',
+            'produit': 'Produit',
+            'code_produit': 'Code produit',
+            'code_suivi': 'Code suivi',
+            'numero_bl': 'BL',
+            'date_peremption': 'Peremption',
+            'sorti_par': 'Sorti par',
+            'email': 'Email auteur',
+            'raison': 'Raison',
+            'sortie': 'Quantite sortie',
+            'avant': 'Avant',
+            'apres': 'Apres'
+        })
+        df.to_excel(writer, index=False, sheet_name='Sorties stock', startrow=4)
+        worksheet = writer.sheets['Sorties stock']
+        worksheet['A1'] = 'Historique des sorties de stock - ReflexPharma'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        meta_font = Font(size=10, color='374151')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+
+        worksheet['A1'].font = Font(bold=True, size=14, color='1F2937')
+        for row_number in range(2, 5):
+            worksheet[f'A{row_number}'].font = meta_font
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+
+        widths = [17, 24, 15, 34, 14, 13, 20, 26, 20, 21, 21, 21]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/stock/exits/export/pdf')
+@login_required
+@permission_required('gestion_modifications_stock')
+def export_stock_exit_logs_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    exits = get_stock_exit_logs_for_export()
+    rows = build_stock_exit_log_rows(exits)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=10, bottomMargin=10, leftMargin=10, rightMargin=10)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('ExitLogTitle', parent=styles['Title'], fontSize=11, leading=13, spaceAfter=3)
+    meta_style = ParagraphStyle('ExitLogMeta', parent=styles['Normal'], fontSize=7, leading=8, textColor=colors.HexColor('#374151'))
+    cell_style = ParagraphStyle('ExitLogCell', parent=styles['Normal'], fontSize=5.5, leading=6.4)
+    header_style = ParagraphStyle('ExitLogHeader', parent=cell_style, alignment=TA_CENTER, textColor=colors.white)
+
+    elements = [
+        Paragraph('Historique des sorties de stock - ReflexPharma', title_style),
+        Paragraph(
+            f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Lignes : {len(rows)}',
+            meta_style
+        ),
+        Spacer(1, 4)
+    ]
+
+    data = [[
+        Paragraph('Date', header_style),
+        Paragraph('Produit', header_style),
+        Paragraph('Code suivi', header_style),
+        Paragraph('BL', header_style),
+        Paragraph('Peremp.', header_style),
+        Paragraph('Auteur', header_style),
+        Paragraph('Raison', header_style),
+        Paragraph('Sortie', header_style),
+        Paragraph('Avant', header_style),
+        Paragraph('Apres', header_style)
+    ]]
+    for row in rows:
+        produit = escape(str(row['produit']))
+        code_produit = escape(str(row['code_produit']))
+        data.append([
+            row['date_sortie'],
+            Paragraph(f"{produit}<br/>{code_produit}", cell_style),
+            Paragraph(escape(str(row['code_suivi'])), cell_style),
+            Paragraph(escape(str(row['numero_bl'])), cell_style),
+            row['date_peremption'],
+            Paragraph(escape(str(row['sorti_par'])), cell_style),
+            Paragraph(escape(str(row['raison'])), cell_style),
+            row['sortie'],
+            row['avant'],
+            row['apres']
+        ])
+
+    table = Table(data, repeatRows=1, colWidths=[58, 100, 130, 55, 45, 75, 80, 82, 82, 82])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 5.5),
+        ('LEADING', (0, 0), (-1, -1), 6.4),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (3, 1), (4, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1.5),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    filename = f'sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 # --- VUES FILTRÉES PRODUITS ---
 @admin.route('/produits/rayon/<int:id>')

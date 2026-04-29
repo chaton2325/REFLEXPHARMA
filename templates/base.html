@@ -64,6 +64,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('admin.list_stock_modifications') }}">Modifications Stock</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.list_stock_exit_logs') }}">Sorties Stock</a>
+                    </li>
                     {% endif %}
                     
                     {% if current_user.has_permission('gestion_fournisseurs') %}

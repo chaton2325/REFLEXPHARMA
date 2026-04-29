@@ -15,6 +15,8 @@ from models.section import Section
 from models.produit import Produit
 from models.stock import Stock
 from models.stock_modification import StockModification
+from models.stock_reason import StockReason
+from models.stock_exit_log import StockExitLog
 
 from config import config
 

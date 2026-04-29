@@ -15,11 +15,26 @@
         <p class="text-muted mb-0">Entrée en stock des produits du catalogue par lot avec BL, péremption, TTC et bénéfice.</p>
     </div>
     <div class="text-end">
-        {% if current_user.has_permission('gestion_modifications_stock') %}
-        <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-secondary btn-sm mb-2">
-            <i class="fas fa-history me-1"></i> Voir les modifications
-        </a>
-        {% endif %}
+        <div class="d-flex gap-2 justify-content-end mb-2">
+            {% if current_user.has_permission('gestion_raisons_stock') %}
+            <a href="{{ url_for('admin.list_stock_reasons') }}" class="btn btn-outline-info btn-sm">
+                <i class="fas fa-list me-1"></i> Raisons
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('effectuer_sortie_stock') %}
+            <a href="{{ url_for('admin.stock_exit') }}" class="btn btn-warning btn-sm">
+                <i class="fas fa-sign-out-alt me-1"></i> Sortie de stock
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('gestion_modifications_stock') %}
+            <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-clipboard-list me-1"></i> Historique sorties
+            </a>
+            <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-history me-1"></i> Modifications
+            </a>
+            {% endif %}
+        </div>
         <div class="small text-muted">Lignes en stock</div>
         <div class="fs-4 fw-bold">{{ stocks|length }}</div>
     </div>
@@ -108,8 +123,18 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="reason" class="form-label fw-bold">Raison de l'entrée / modification</label>
-                        <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire, retour interne..."></textarea>
+                        <label for="reason_id" class="form-label fw-bold">Raison de l'entrée (pré-définie)</label>
+                        <select name="reason_id" id="reason_id" class="form-select">
+                            <option value="">-- Choisir une raison --</option>
+                            {% for r in reasons %}
+                            <option value="{{ r.id }}">{{ r.nom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="reason" class="form-label fw-bold">Commentaire / Raison libre</label>
+                        <textarea name="reason" id="reason" class="form-control" rows="2" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire, retour interne..."></textarea>
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100">
@@ -268,6 +293,9 @@
                                         <i class="fas fa-qrcode"></i>
                                     </a>
                                     {% endif %}
+                                    <a href="{{ url_for('admin.stock_exit', stock_id=stock.id) }}" class="btn btn-sm btn-outline-warning" title="Sortie de stock">
+                                        <i class="fas fa-sign-out-alt"></i>
+                                    </a>
                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}">
                                         <i class="fas fa-edit"></i>
                                     </button>

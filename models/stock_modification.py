@@ -11,7 +11,8 @@ class StockModification(db.Model):
     produit_id = db.Column(db.Integer, db.ForeignKey('produits.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     action = db.Column(db.String(30), nullable=False)
-    reason = db.Column(db.Text, nullable=False)
+    reason = db.Column(db.Text, nullable=True)
+    reason_id = db.Column(db.Integer, db.ForeignKey('stock_reasons.id'), nullable=True)
     numero_bl = db.Column(db.String(120), nullable=False)
     date_peremption = db.Column(db.Date, nullable=False)
     code_suivi = db.Column(db.String(255), nullable=False)
@@ -30,6 +31,7 @@ class StockModification(db.Model):
     stock = db.relationship('Stock', backref=db.backref('modifications', lazy=True))
     produit = db.relationship('Produit', backref=db.backref('stock_modifications', lazy=True))
     user = db.relationship('User', backref=db.backref('stock_modifications', lazy=True))
+    stock_reason = db.relationship('StockReason', backref=db.backref('modifications', lazy=True))
 
     @property
     def old_total(self):

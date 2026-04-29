@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Effectuer une sortie de stock - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
+            <li class="breadcrumb-item active">Sortie de stock</li>
+        </ol>
+    </nav>
+    <h1 class="h3">Effectuer une sortie de stock</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" id="exitForm">
+                    <div class="row g-4">
+                        <!-- Sélection du Lot -->
+                        <div class="col-md-7">
+                            <h5 class="mb-3 border-bottom pb-2">1. Sélectionner le lot</h5>
+                            
+                            <div class="mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                                    <input type="text" id="stockSearch" class="form-control" placeholder="Rechercher un produit, lot, BL...">
+                                </div>
+                            </div>
+
+                            <div class="table-responsive border rounded" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover mb-0" id="stockTable">
+                                    <thead class="bg-light sticky-top">
+                                        <tr>
+                                            <th style="width: 40px;"></th>
+                                            <th class="sortable" data-sort="name" style="cursor:pointer">Produit <i class="fas fa-sort xs text-muted"></i></th>
+                                            <th class="sortable" data-sort="perim" style="cursor:pointer">Péremption <i class="fas fa-sort xs text-muted"></i></th>
+                                            <th class="text-end">Dispo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stockList">
+                                        {% for s in stocks %}
+                                        <tr class="stock-row" 
+                                            data-id="{{ s.id }}" 
+                                            data-search="{{ (s.produit.nom ~ ' ' ~ s.code_suivi ~ ' ' ~ s.numero_bl)|lower }}"
+                                            data-name="{{ s.produit.nom|lower }}"
+                                            data-perim="{{ s.date_peremption.strftime('%Y%m%d') if s.date_peremption else '99999999' }}"
+                                            data-cond="{{ s.produit.conditionnement }}"
+                                            data-u="{{ s.quantite_unites }}" 
+                                            data-su="{{ s.quantite_sous_unites }}" 
+                                            data-ssu="{{ s.quantite_sous_sous_unites }}"
+                                            style="cursor: pointer;">
+                                            <td>
+                                                <input type="radio" name="stock_id" value="{{ s.id }}" class="form-check-input" required 
+                                                       {{ 'checked' if stock and s.id == stock.id else '' }}>
+                                            </td>
+                                            <td>
+                                                <div class="fw-bold">{{ s.produit.nom }}</div>
+                                                <small class="text-muted">{{ s.code_suivi }}</small>
+                                            </td>
+                                            <td>{{ s.date_peremption.strftime('%d/%m/%Y') if s.date_peremption else '-' }}</td>
+                                            <td class="text-end small">
+                                                {{ s.quantite_unites }}U
+                                                {% if s.produit.conditionnement >= 2 %}<br>{{ s.quantite_sous_unites }}SU{% endif %}
+                                                {% if s.produit.conditionnement >= 3 %}<br>{{ s.quantite_sous_sous_unites }}SSU{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Détails de la sortie -->
+                        <div class="col-md-5 border-start">
+                            <h5 class="mb-3 border-bottom pb-2">2. Détails de la sortie</h5>
+                            
+                            <div id="selectedStockInfo" class="alert alert-info py-2 mb-3 {{ 'd-none' if not stock else '' }}">
+                                <small>Lot sélectionné :</small>
+                                <div class="fw-bold" id="selectedStockName">{{ stock.produit.nom if stock else '' }}</div>
+                                <div class="small" id="selectedStockCode">{{ stock.code_suivi if stock else '' }}</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reason_id" class="form-label fw-bold">Raison de la sortie</label>
+                                <select class="form-select" id="reason_id" name="reason_id" required>
+                                    <option value="">-- Choisir une raison --</option>
+                                    {% for r in reasons %}
+                                    <option value="{{ r.id }}">{{ r.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-12" id="group_u">
+                                    <label for="quantite_unites" class="form-label fw-bold">Unités à sortir</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="quantite_unites" name="quantite_unites" min="0" value="0">
+                                        <span class="input-group-text bg-light text-muted" id="max_u">/ 0 dispo</span>
+                                    </div>
+                                </div>
+                                <div class="col-12 d-none" id="group_su">
+                                    <label for="quantite_sous_unites" class="form-label fw-bold">Sous-Unités à sortir</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="quantite_sous_unites" name="quantite_sous_unites" min="0" value="0">
+                                        <span class="input-group-text bg-light text-muted" id="max_su">/ 0 dispo</span>
+                                    </div>
+                                </div>
+                                <div class="col-12 d-none" id="group_ssu">
+                                    <label for="quantite_sous_sous_unites" class="form-label fw-bold">SS/Unités à sortir</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="quantite_sous_sous_unites" name="quantite_sous_sous_unites" min="0" value="0">
+                                        <span class="input-group-text bg-light text-muted" id="max_ssu">/ 0 dispo</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid mt-4">
+                                <button type="submit" class="btn btn-danger btn-lg" id="submitBtn" disabled>
+                                    Confirmer la sortie
+                                </button>
+                                <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-link text-muted mt-2">Annuler</a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stock-row.selected { background-color: #e7f1ff; }
+    .sortable:hover { background-color: #f8f9fa; }
+    xs { font-size: 0.7rem; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const stockSearch = document.getElementById('stockSearch');
+    const stockList = document.getElementById('stockList');
+    const stockRows = Array.from(document.querySelectorAll('.stock-row'));
+    const uInput = document.getElementById('quantite_unites');
+    const suInput = document.getElementById('quantite_sous_unites');
+    const ssuInput = document.getElementById('quantite_sous_sous_unites');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Elements de feedback
+    const infoBox = document.getElementById('selectedStockInfo');
+    const infoName = document.getElementById('selectedStockName');
+    const infoCode = document.getElementById('selectedStockCode');
+    const maxU = document.getElementById('max_u');
+    const maxSU = document.getElementById('max_su');
+    const maxSSU = document.getElementById('max_ssu');
+    const groupSU = document.getElementById('group_su');
+    const groupSSU = document.getElementById('group_ssu');
+
+    // 1. Recherche
+    stockSearch.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        stockRows.forEach(row => {
+            const text = row.dataset.search;
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    });
+
+    // 2. Tri
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            const isAsc = this.classList.contains('asc');
+            
+            // Reset icons
+            document.querySelectorAll('.sortable i').forEach(i => i.className = 'fas fa-sort xs text-muted');
+            
+            stockRows.sort((a, b) => {
+                let valA = a.dataset[field];
+                let valB = b.dataset[field];
+                return isAsc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+            });
+            
+            this.classList.toggle('asc', !isAsc);
+            this.querySelector('i').className = isAsc ? 'fas fa-sort-up xs' : 'fas fa-sort-down xs';
+            
+            stockRows.forEach(row => stockList.appendChild(row));
+        });
+    });
+
+    // 3. Sélection de ligne
+    stockRows.forEach(row => {
+        row.addEventListener('click', function() {
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+            updateSelection(this);
+        });
+    });
+
+    function updateSelection(row) {
+        // Style
+        stockRows.forEach(r => r.classList.remove('selected'));
+        row.classList.add('selected');
+
+        // Infos
+        const cond = parseInt(row.dataset.cond);
+        const uDispo = parseInt(row.dataset.u);
+        const suDispo = parseInt(row.dataset.su);
+        const ssuDispo = parseInt(row.dataset.ssu);
+
+        infoBox.classList.remove('d-none');
+        infoName.textContent = row.querySelector('.fw-bold').textContent;
+        infoCode.textContent = row.querySelector('.text-muted').textContent;
+
+        // Visibilité et Max
+        maxU.textContent = `/ ${uDispo} dispo`;
+        uInput.max = uDispo;
+        
+        if (cond >= 2) {
+            groupSU.classList.remove('d-none');
+            maxSU.textContent = `/ ${suDispo} dispo`;
+            suInput.max = suDispo;
+        } else {
+            groupSU.classList.add('d-none');
+            suInput.value = 0;
+        }
+
+        if (cond >= 3) {
+            groupSSU.classList.remove('d-none');
+            maxSSU.textContent = `/ ${ssuDispo} dispo`;
+            ssuInput.max = ssuDispo;
+        } else {
+            groupSSU.classList.add('d-none');
+            ssuInput.value = 0;
+        }
+
+        validate();
+    }
+
+    // 4. Validation
+    function validate() {
+        const anyQty = parseInt(uInput.value || 0) > 0 || 
+                       parseInt(suInput.value || 0) > 0 || 
+                       parseInt(ssuInput.value || 0) > 0;
+        const reasonSelected = document.getElementById('reason_id').value !== '';
+        const rowSelected = document.querySelector('.stock-row.selected') !== null;
+        
+        submitBtn.disabled = !(anyQty && reasonSelected && rowSelected);
+    }
+
+    [uInput, suInput, ssuInput].forEach(input => {
+        input.addEventListener('input', function() {
+            const max = parseInt(this.max);
+            if (parseInt(this.value) > max) this.value = max;
+            validate();
+        });
+    });
+
+    document.getElementById('reason_id').addEventListener('change', validate);
+
+    // Initialisation si un lot est déjà coché (via stock_id en paramètre)
+    const initialSelected = document.querySelector('.stock-row input:checked');
+    if (initialSelected) {
+        updateSelection(initialSelected.closest('.stock-row'));
+    }
+});
+</script>
+{% endblock %}
+
