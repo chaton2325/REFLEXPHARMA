@@ -132,6 +132,25 @@
                             <option value="non">QR tire: Non</option>
                             <option value="oui">QR tire: Oui</option>
                         </select>
+                        <select id="stockDateSortField" class="form-select form-select-sm" style="min-width: 165px;">
+                            <option value="peremption">Date peremption</option>
+                            <option value="created">Date mise en stock</option>
+                            <option value="updated">Date derniere modif.</option>
+                        </select>
+                        <select id="stockDateSortDirection" class="form-select form-select-sm" style="min-width: 125px;">
+                            <option value="asc">Plus ancien</option>
+                            <option value="desc">Plus recent</option>
+                        </select>
+                        <button type="button" id="applyStockDateSort" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-sort-amount-down-alt me-1"></i> Trier date
+                        </button>
+                        <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width: 150px;">
+                        <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary">
+                            Aujourd'hui
+                        </button>
+                        <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">
+                            Date: toutes
+                        </button>
                         <div class="input-group input-group-sm" style="min-width: 280px;">
                             <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
                             <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher un produit, lot, BL, péremption ou fournisseur...">
@@ -142,6 +161,24 @@
                         </div>
                         <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
                             <i class="fas fa-qrcode me-1"></i> Tirer QR selection
+                        </button>
+                        <button
+                            type="submit"
+                            form="bulkQrForm"
+                            formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}"
+                            formmethod="POST"
+                            class="btn btn-sm btn-outline-danger stock-export-button"
+                            disabled>
+                            <i class="fas fa-file-pdf me-1"></i> PDF
+                        </button>
+                        <button
+                            type="submit"
+                            form="bulkQrForm"
+                            formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}"
+                            formmethod="POST"
+                            class="btn btn-sm btn-outline-success stock-export-button"
+                            disabled>
+                            <i class="fas fa-file-excel me-1"></i> Excel
                         </button>
                         <div class="small text-muted">
                             <span id="stockVisibleCount">{{ stocks|length }}</span> / {{ stocks|length }} résultat(s)
@@ -187,7 +224,10 @@
                             data-total-ht="{{ stock.prix_ht_total }}"
                             data-total-ttc="{{ stock.prix_ttc_total }}"
                             data-benefice="{{ stock.benefice_total }}"
-                            data-qr-tire="{{ 'oui' if stock.qr_tire else 'non' }}">
+                            data-qr-tire="{{ 'oui' if stock.qr_tire else 'non' }}"
+                            data-date-peremption="{{ stock.date_peremption.strftime('%Y-%m-%d') if stock.date_peremption else '' }}"
+                            data-date-created="{{ stock.created_at.strftime('%Y-%m-%d') if stock.created_at else '' }}"
+                            data-date-updated="{{ stock.updated_at.strftime('%Y-%m-%d') if stock.updated_at else '' }}">
                             <td>
                                 <input type="checkbox" class="form-check-input stock-qr-checkbox" name="stock_ids" value="{{ stock.id }}" form="bulkQrForm" title="Selectionner ce lot">
                             </td>
@@ -348,11 +388,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockTableBody = document.getElementById('stockTableBody');
     const noSearchResultsRow = document.getElementById('noSearchResultsRow');
     const qrTireFilter = document.getElementById('qrTireFilter');
+    const stockDateSortField = document.getElementById('stockDateSortField');
+    const stockDateSortDirection = document.getElementById('stockDateSortDirection');
+    const applyStockDateSort = document.getElementById('applyStockDateSort');
+    const stockDateFilter = document.getElementById('stockDateFilter');
+    const stockTodayFilter = document.getElementById('stockTodayFilter');
+    const clearStockDateFilter = document.getElementById('clearStockDateFilter');
     const toggleVisibleQrRows = document.getElementById('toggleVisibleQrRows');
     const selectVisibleQrRows = document.getElementById('selectVisibleQrRows');
     const clearQrSelection = document.getElementById('clearQrSelection');
     const selectedStockCount = document.getElementById('selectedStockCount');
     const bulkQrButton = document.getElementById('bulkQrButton');
+    const stockExportButtons = document.querySelectorAll('.stock-export-button');
     const sortableHeaders = stockTable ? stockTable.querySelectorAll('thead th[data-sort-type]') : [];
     let stockRows = stockTableBody ? Array.from(stockTableBody.querySelectorAll('tr[data-search]')) : [];
     let currentSort = { index: null, direction: 'asc' };
@@ -464,6 +511,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function selectedDateField() {
+        return stockDateSortField ? stockDateSortField.value : 'peremption';
+    }
+
+    function rowDateValue(row) {
+        const field = selectedDateField();
+        if (field === 'created') {
+            return row.dataset.dateCreated || '';
+        }
+        if (field === 'updated') {
+            return row.dataset.dateUpdated || '';
+        }
+        return row.dataset.datePeremption || '';
+    }
+
+    function todayDateValue() {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${now.getFullYear()}-${month}-${day}`;
+    }
+
     function updateVisibleCount() {
         if (!stockVisibleCount) {
             return;
@@ -481,11 +550,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function filterStockRows() {
         const query = stockSearchInput ? stockSearchInput.value.trim().toLowerCase() : '';
         const qrFilter = qrTireFilter ? qrTireFilter.value : 'all';
+        const dateFilter = stockDateFilter ? stockDateFilter.value : '';
         stockRows.forEach((row) => {
             const text = row.dataset.search || '';
             const matchesSearch = !query || text.includes(query);
             const matchesQr = qrFilter === 'all' || row.dataset.qrTire === qrFilter;
-            row.style.display = matchesSearch && matchesQr ? '' : 'none';
+            const matchesDate = !dateFilter || rowDateValue(row) === dateFilter;
+            row.style.display = matchesSearch && matchesQr && matchesDate ? '' : 'none';
         });
         updateVisibleCount();
     }
@@ -511,18 +582,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bulkQrButton) {
             bulkQrButton.disabled = selectedCount === 0;
         }
+        stockExportButtons.forEach((button) => {
+            button.disabled = selectedCount === 0;
+        });
         if (toggleVisibleQrRows) {
             toggleVisibleQrRows.checked = visibleCheckboxes.length > 0 && visibleSelectedCount === visibleCheckboxes.length;
             toggleVisibleQrRows.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleCheckboxes.length;
         }
     }
 
-    function sortStockRows(columnIndex, sortType) {
+    function sortStockRows(columnIndex, sortType, forcedDirection = null) {
         if (!stockTableBody) {
             return;
         }
 
-        const direction = currentSort.index === columnIndex && currentSort.direction === 'asc' ? 'desc' : 'asc';
+        const direction = forcedDirection || (currentSort.index === columnIndex && currentSort.direction === 'asc' ? 'desc' : 'asc');
         currentSort = { index: columnIndex, direction };
 
         stockRows.sort((a, b) => {
@@ -540,6 +614,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         stockRows.forEach((row) => stockTableBody.appendChild(row));
         updateVisibleCount();
+    }
+
+    function sortStockRowsByDate() {
+        const dateColumnByField = {
+            peremption: 4,
+            created: 6,
+            updated: 7
+        };
+        const field = stockDateSortField ? stockDateSortField.value : 'peremption';
+        const direction = stockDateSortDirection ? stockDateSortDirection.value : 'asc';
+        sortStockRows(dateColumnByField[field] || 4, 'text', direction);
     }
 
     function runWithIndicator(task) {
@@ -575,6 +660,40 @@ document.addEventListener('DOMContentLoaded', function() {
     if (qrTireFilter) {
         qrTireFilter.addEventListener('change', () => {
             runWithIndicator(filterStockRows);
+        });
+    }
+
+    if (applyStockDateSort) {
+        applyStockDateSort.addEventListener('click', () => {
+            runWithIndicator(sortStockRowsByDate);
+        });
+    }
+
+    if (stockDateFilter) {
+        stockDateFilter.addEventListener('change', () => {
+            runWithIndicator(filterStockRows);
+        });
+    }
+
+    if (stockTodayFilter && stockDateFilter) {
+        stockTodayFilter.addEventListener('click', () => {
+            stockDateFilter.value = todayDateValue();
+            runWithIndicator(filterStockRows);
+        });
+    }
+
+    if (clearStockDateFilter && stockDateFilter) {
+        clearStockDateFilter.addEventListener('click', () => {
+            stockDateFilter.value = '';
+            runWithIndicator(filterStockRows);
+        });
+    }
+
+    if (stockDateSortField) {
+        stockDateSortField.addEventListener('change', () => {
+            if (stockDateFilter && stockDateFilter.value) {
+                runWithIndicator(filterStockRows);
+            }
         });
     }
 

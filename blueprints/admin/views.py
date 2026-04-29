@@ -105,6 +105,54 @@ def get_requested_qr_counts(stock_ids):
             counts[stock_id] = 0
     return counts
 
+def get_selected_stock_ids():
+    return [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+
+def get_stocks_in_requested_order(stock_ids):
+    stocks = Stock.query.filter(Stock.id.in_(stock_ids)).all()
+    stock_by_id = {stock.id: stock for stock in stocks}
+    return [stock_by_id[stock_id] for stock_id in stock_ids if stock_id in stock_by_id]
+
+def get_qr_print_info_map(stocks):
+    codes = [stock.code_suivi for stock in stocks]
+    if not codes:
+        return {}
+
+    modifications = (
+        StockModification.query
+        .filter(StockModification.action == 'qr_print', StockModification.code_suivi.in_(codes))
+        .order_by(StockModification.created_at.desc())
+        .all()
+    )
+    info_by_code = {}
+    for modification in modifications:
+        if modification.code_suivi not in info_by_code:
+            info_by_code[modification.code_suivi] = modification
+    return info_by_code
+
+def build_stock_qr_report_rows(stocks):
+    qr_print_info = get_qr_print_info_map(stocks)
+    rows = []
+    for stock in stocks:
+        print_info = qr_print_info.get(stock.code_suivi)
+        user_label = '-'
+        if print_info and print_info.user:
+            user_label = f'{print_info.user.nom} {print_info.user.prenom}'
+
+        rows.append({
+            'produit': stock.produit.nom,
+            'code_suivi': stock.code_suivi,
+            'numero_bl': stock.numero_bl,
+            'date_peremption': stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else '-',
+            'unites': stock.quantite_unites,
+            'sous_unites': stock.quantite_sous_unites,
+            'sous_sous_unites': stock.quantite_sous_sous_unites,
+            'qr_tire': 'Oui' if stock.qr_tire else 'Non',
+            'date_tirage': print_info.created_at.strftime('%d/%m/%Y %H:%M') if print_info and print_info.created_at else '-',
+            'tire_par': user_label
+        })
+    return rows
+
 # --- DASHBOARD ---
 @admin.route('/dashboard')
 @login_required
@@ -982,18 +1030,12 @@ def preview_stock_qr_codes(id):
 @login_required
 @permission_required('gestion_stock')
 def preview_selected_stock_qr_codes():
-    selected_ids = [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    selected_ids = get_selected_stock_ids()
     if not selected_ids:
         flash('Veuillez selectionner au moins une ligne de stock pour tirer les QR codes.', 'warning')
         return redirect(url_for('admin.manage_stock'))
 
-    stocks = (
-        Stock.query
-        .join(Produit)
-        .filter(Stock.id.in_(selected_ids))
-        .order_by(Produit.nom.asc(), Stock.date_peremption.asc())
-        .all()
-    )
+    stocks = get_stocks_in_requested_order(selected_ids)
     if not stocks:
         flash('Aucune ligne de stock valide selectionnee.', 'warning')
         return redirect(url_for('admin.manage_stock'))
@@ -1037,7 +1079,7 @@ def mark_stock_qr_printed(id):
 @login_required
 @permission_required('gestion_stock')
 def mark_selected_stock_qr_printed():
-    selected_ids = [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    selected_ids = get_selected_stock_ids()
     reason = (request.form.get('reason') or '').strip()
 
     if not selected_ids:
@@ -1047,7 +1089,7 @@ def mark_selected_stock_qr_printed():
         flash('Veuillez preciser la raison du tirage des QR codes.', 'warning')
         return redirect(url_for('admin.manage_stock'))
 
-    stocks = Stock.query.filter(Stock.id.in_(selected_ids)).all()
+    stocks = get_stocks_in_requested_order(selected_ids)
     updated_count = 0
     for stock in stocks:
         old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
@@ -1068,6 +1110,170 @@ def mark_selected_stock_qr_printed():
     db.session.commit()
     flash(f'QR codes marques comme tires pour {updated_count} lot(s).', 'success')
     return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/export/qr/excel', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def export_selected_stock_qr_excel():
+    selected_ids = get_selected_stock_ids()
+    stocks = get_stocks_in_requested_order(selected_ids)
+    if not stocks:
+        flash('Veuillez selectionner au moins une ligne de stock a exporter.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    import pandas as pd
+    import io
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    generated_at = datetime.now()
+    rows = build_stock_qr_report_rows(stocks)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df = pd.DataFrame(rows)
+        df = df.rename(columns={
+            'produit': 'Produit',
+            'code_suivi': 'Code suivi',
+            'numero_bl': 'BL',
+            'date_peremption': 'Peremption',
+            'unites': 'Unites',
+            'sous_unites': 'Sous-unites',
+            'sous_sous_unites': 'Sous-sous-unites',
+            'qr_tire': 'QR tire',
+            'date_tirage': 'Date tirage QR',
+            'tire_par': 'Tire par'
+        })
+        df.to_excel(writer, index=False, sheet_name='Stock QR', startrow=4)
+        worksheet = writer.sheets['Stock QR']
+        worksheet['A1'] = 'Rapport Stock QR - ReflexPharma'
+        worksheet['A2'] = f'Genere le : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Genere par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+
+        title_font = Font(bold=True, size=14, color='1F2937')
+        meta_font = Font(size=10, color='374151')
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+
+        worksheet['A1'].font = title_font
+        for row_number in range(2, 5):
+            worksheet[f'A{row_number}'].font = meta_font
+
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+
+        widths = [24, 34, 16, 14, 10, 12, 16, 10, 18, 22]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/stock/export/qr/pdf', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def export_selected_stock_qr_pdf():
+    selected_ids = get_selected_stock_ids()
+    stocks = get_stocks_in_requested_order(selected_ids)
+    if not stocks:
+        flash('Veuillez selectionner au moins une ligne de stock a exporter.', 'warning')
+        return redirect(url_for('admin.manage_stock'))
+
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    generated_at = datetime.now()
+    rows = build_stock_qr_report_rows(stocks)
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=landscape(A4),
+        topMargin=12,
+        bottomMargin=12,
+        leftMargin=12,
+        rightMargin=12
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('StockQrTitle', parent=styles['Title'], fontSize=12, leading=14, spaceAfter=4)
+    meta_style = ParagraphStyle('StockQrMeta', parent=styles['Normal'], fontSize=7, leading=9, textColor=colors.HexColor('#374151'))
+    cell_style = ParagraphStyle('StockQrCell', parent=styles['Normal'], fontSize=6, leading=7)
+    header_style = ParagraphStyle('StockQrHeader', parent=cell_style, alignment=TA_CENTER, textColor=colors.white)
+
+    elements = [
+        Paragraph('Rapport Stock QR - ReflexPharma', title_style),
+        Paragraph(
+            f'Genere le : {generated_at.strftime("%d/%m/%Y %H:%M")} | Genere par : {current_user.nom} {current_user.prenom} | Lignes : {len(rows)}',
+            meta_style
+        ),
+        Spacer(1, 6)
+    ]
+
+    data = [[
+        Paragraph('Produit', header_style),
+        Paragraph('Code suivi', header_style),
+        Paragraph('BL', header_style),
+        Paragraph('Peremp.', header_style),
+        Paragraph('U', header_style),
+        Paragraph('S/U', header_style),
+        Paragraph('SS/U', header_style),
+        Paragraph('QR', header_style),
+        Paragraph('Date tirage', header_style),
+        Paragraph('Tire par', header_style)
+    ]]
+    for row in rows:
+        data.append([
+            Paragraph(str(row['produit']), cell_style),
+            Paragraph(str(row['code_suivi']), cell_style),
+            Paragraph(str(row['numero_bl']), cell_style),
+            row['date_peremption'],
+            row['unites'],
+            row['sous_unites'],
+            row['sous_sous_unites'],
+            row['qr_tire'],
+            row['date_tirage'],
+            Paragraph(str(row['tire_par']), cell_style)
+        ])
+
+    table = Table(
+        data,
+        repeatRows=1,
+        colWidths=[95, 155, 70, 52, 28, 32, 36, 30, 75, 85]
+    )
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6),
+        ('LEADING', (0, 0), (-1, -1), 7),
+        ('ALIGN', (3, 1), (8, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 @admin.route('/stock/modifications')
 @login_required
