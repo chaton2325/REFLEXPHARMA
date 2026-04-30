@@ -52,6 +52,9 @@ def setup_database():
                 ('tva_pourcentage', 'FLOAT DEFAULT 0'),
                 ('total_sortie_ht', 'FLOAT DEFAULT 0'),
                 ('total_sortie_ttc', 'FLOAT DEFAULT 0')
+            ],
+            'groupes_clients': [
+                ('pourcentage_absorption', 'FLOAT DEFAULT 0')
             ]
         }
         

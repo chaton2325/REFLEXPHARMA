@@ -14,12 +14,17 @@ from models.stock import Stock
 from models.stock_modification import StockModification
 from models.stock_reason import StockReason
 from models.stock_exit_log import StockExitLog
+from models.groupe_client import GroupeClient
+from models.client import Client
+from models.client_modification_log import ClientModificationLog
 from extensions import db
 from functools import wraps
 from datetime import datetime
 import secrets
+import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
+from sqlalchemy.exc import SQLAlchemyError
 
 def superadmin_required(f):
     @wraps(f)
@@ -494,6 +499,459 @@ def delete_user(id):
     db.session.commit()
     flash('Utilisateur supprim?.', 'success')
     return redirect(url_for('admin.list_users'))
+
+# --- GESTION DES CLIENTS ---
+def client_snapshot(client):
+    return {
+        'matricule': client.matricule,
+        'nom': client.nom,
+        'prenom': client.prenom,
+        'email': client.email,
+        'telephone': client.telephone,
+        'solde': client.solde,
+        'groupe': client.groupe.nom if client.groupe else None
+    }
+
+def groupe_client_snapshot(groupe):
+    return {
+        'nom': groupe.nom,
+        'description': groupe.description,
+        'solde': groupe.solde,
+        'pourcentage_absorption': groupe.pourcentage_absorption,
+        'clients_count': len(groupe.clients) if groupe.clients is not None else 0
+    }
+
+def add_client_modification_log(entity_type, action, reference, label, old_values=None, new_values=None, reason=None):
+    log = ClientModificationLog(
+        entity_type=entity_type,
+        action=action,
+        reference=reference,
+        label=label,
+        old_values=json.dumps(old_values, ensure_ascii=False, default=str) if old_values is not None else None,
+        new_values=json.dumps(new_values, ensure_ascii=False, default=str) if new_values is not None else None,
+        reason=reason,
+        user_nom=current_user.nom,
+        user_prenom=current_user.prenom,
+        user_email=current_user.email
+    )
+    db.session.add(log)
+
+def parse_log_values(raw_values):
+    if not raw_values:
+        return {}
+    try:
+        return json.loads(raw_values)
+    except ValueError:
+        return {}
+
+def generate_client_matricule():
+    while True:
+        suffix = ''.join(secrets.choice('0123456789') for _ in range(7))
+        matricule = f'CL-{suffix}'
+        if not Client.query.filter_by(matricule=matricule).first():
+            return matricule
+
+@admin.route('/clients')
+@login_required
+@permission_required('gestion_clients')
+def list_clients():
+    clients = Client.query.order_by(Client.created_at.desc()).all()
+    return render_template('admin/clients/list.html', clients=clients)
+
+@admin.route('/clients/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_clients')
+def create_client():
+    groupes = GroupeClient.query.order_by(GroupeClient.nom.asc()).all()
+    if request.method == 'POST':
+        matricule = (request.form.get('matricule') or '').strip().upper() or generate_client_matricule()
+        email = (request.form.get('email') or '').strip() or None
+        if Client.query.filter_by(matricule=matricule).first():
+            flash('Ce matricule client existe dÃ©jÃ .', 'danger')
+            return redirect(url_for('admin.create_client'))
+        if email and Client.query.filter_by(email=email).first():
+            flash('Cet email est dÃ©jÃ  utilisÃ© par un client.', 'danger')
+            return redirect(url_for('admin.create_client'))
+
+        groupe_id = request.form.get('groupe_id')
+        client = Client(
+            matricule=matricule,
+            nom=request.form.get('nom'),
+            prenom=request.form.get('prenom'),
+            email=email,
+            telephone=request.form.get('telephone'),
+            solde=float(request.form.get('solde') or 0),
+            groupe_id=int(groupe_id) if groupe_id else None
+        )
+        db.session.add(client)
+        db.session.flush()
+        add_client_modification_log(
+            entity_type='client',
+            action='create',
+            reference=client.matricule,
+            label=client.nom_complet,
+            new_values=client_snapshot(client)
+        )
+        db.session.commit()
+        flash('Client ajoutÃ© avec succÃ¨s.', 'success')
+        return redirect(url_for('admin.list_clients'))
+
+    return render_template(
+        'admin/clients/form.html',
+        title='Ajouter un client',
+        groupes=groupes,
+        suggested_matricule=generate_client_matricule()
+    )
+
+@admin.route('/clients/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_clients')
+def edit_client(id):
+    client = Client.query.get_or_404(id)
+    groupes = GroupeClient.query.order_by(GroupeClient.nom.asc()).all()
+    if request.method == 'POST':
+        old_values = client_snapshot(client)
+        matricule = (request.form.get('matricule') or '').strip().upper()
+        email = (request.form.get('email') or '').strip() or None
+        existing_matricule = Client.query.filter_by(matricule=matricule).first()
+        if existing_matricule and existing_matricule.id != client.id:
+            flash('Ce matricule client existe dÃ©jÃ .', 'danger')
+            return redirect(url_for('admin.edit_client', id=id))
+        if email:
+            existing_email = Client.query.filter_by(email=email).first()
+            if existing_email and existing_email.id != client.id:
+                flash('Cet email est dÃ©jÃ  utilisÃ© par un client.', 'danger')
+                return redirect(url_for('admin.edit_client', id=id))
+
+        groupe_id = request.form.get('groupe_id')
+        client.matricule = matricule
+        client.nom = request.form.get('nom')
+        client.prenom = request.form.get('prenom')
+        client.email = email
+        client.telephone = request.form.get('telephone')
+        client.solde = float(request.form.get('solde') or 0)
+        client.groupe_id = int(groupe_id) if groupe_id else None
+        db.session.flush()
+        add_client_modification_log(
+            entity_type='client',
+            action='edit',
+            reference=client.matricule,
+            label=client.nom_complet,
+            old_values=old_values,
+            new_values=client_snapshot(client)
+        )
+        db.session.commit()
+        flash('Client mis Ã  jour avec succÃ¨s.', 'success')
+        return redirect(url_for('admin.list_clients'))
+
+    return render_template('admin/clients/form.html', title='Modifier le client', client=client, groupes=groupes)
+
+@admin.route('/clients/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_clients')
+def delete_client(id):
+    client = Client.query.get_or_404(id)
+    old_values = client_snapshot(client)
+    reference = client.matricule
+    label = client.nom_complet
+    add_client_modification_log(
+        entity_type='client',
+        action='delete',
+        reference=reference,
+        label=label,
+        old_values=old_values
+    )
+    db.session.delete(client)
+    db.session.commit()
+    flash('Client supprimÃ©.', 'success')
+    return redirect(url_for('admin.list_clients'))
+
+@admin.route('/clients/bulk-delete', methods=['POST'])
+@login_required
+@permission_required('gestion_clients')
+def bulk_delete_clients():
+    ids = request.form.getlist('ids[]')
+    deleted_count = 0
+    for client_id in ids:
+        client = Client.query.get(client_id)
+        if client:
+            add_client_modification_log(
+                entity_type='client',
+                action='delete',
+                reference=client.matricule,
+                label=client.nom_complet,
+                old_values=client_snapshot(client),
+                reason='Suppression groupée'
+            )
+            db.session.delete(client)
+            deleted_count += 1
+    db.session.commit()
+    flash(f'{deleted_count} client(s) supprimÃ©(s).', 'success')
+    return redirect(url_for('admin.list_clients'))
+
+# --- GESTION DES GROUPES CLIENTS ---
+@admin.route('/clients/groupes')
+@login_required
+@permission_required('gestion_groupes_clients')
+def list_groupes_clients():
+    groupes = GroupeClient.query.order_by(GroupeClient.nom.asc()).all()
+    return render_template('admin/clients/groupes_list.html', groupes=groupes)
+
+@admin.route('/clients/groupes/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_groupes_clients')
+def create_groupe_client():
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        if GroupeClient.query.filter_by(nom=nom).first():
+            flash('Ce groupe client existe dÃ©jÃ .', 'danger')
+            return redirect(url_for('admin.create_groupe_client'))
+        groupe = GroupeClient(
+            nom=nom,
+            description=request.form.get('description'),
+            solde=float(request.form.get('solde') or 0),
+            pourcentage_absorption=min(max(float(request.form.get('pourcentage_absorption') or 0), 0), 100)
+        )
+        db.session.add(groupe)
+        db.session.flush()
+        add_client_modification_log(
+            entity_type='groupe_client',
+            action='create',
+            reference=groupe.nom,
+            label=groupe.nom,
+            new_values=groupe_client_snapshot(groupe)
+        )
+        db.session.commit()
+        flash('Groupe client ajoutÃ© avec succÃ¨s.', 'success')
+        return redirect(url_for('admin.list_groupes_clients'))
+    return render_template('admin/clients/groupe_form.html', title='Ajouter un groupe client')
+
+@admin.route('/clients/groupes/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_groupes_clients')
+def edit_groupe_client(id):
+    groupe = GroupeClient.query.get_or_404(id)
+    if request.method == 'POST':
+        old_values = groupe_client_snapshot(groupe)
+        nom = request.form.get('nom')
+        existing = GroupeClient.query.filter_by(nom=nom).first()
+        if existing and existing.id != groupe.id:
+            flash('Ce groupe client existe dÃ©jÃ .', 'danger')
+            return redirect(url_for('admin.edit_groupe_client', id=id))
+        groupe.nom = nom
+        groupe.description = request.form.get('description')
+        groupe.solde = float(request.form.get('solde') or 0)
+        groupe.pourcentage_absorption = min(max(float(request.form.get('pourcentage_absorption') or 0), 0), 100)
+        db.session.flush()
+        add_client_modification_log(
+            entity_type='groupe_client',
+            action='edit',
+            reference=groupe.nom,
+            label=groupe.nom,
+            old_values=old_values,
+            new_values=groupe_client_snapshot(groupe)
+        )
+        db.session.commit()
+        flash('Groupe client mis Ã  jour avec succÃ¨s.', 'success')
+        return redirect(url_for('admin.list_groupes_clients'))
+    return render_template('admin/clients/groupe_form.html', title='Modifier le groupe client', groupe=groupe)
+
+@admin.route('/clients/groupes/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_groupes_clients')
+def delete_groupe_client(id):
+    groupe = GroupeClient.query.get_or_404(id)
+    old_values = groupe_client_snapshot(groupe)
+    reference = groupe.nom
+    label = groupe.nom
+    for client in groupe.clients:
+        client.groupe_id = None
+    add_client_modification_log(
+        entity_type='groupe_client',
+        action='delete',
+        reference=reference,
+        label=label,
+        old_values=old_values,
+        reason='Suppression du groupe et détachement des clients'
+    )
+    db.session.delete(groupe)
+    db.session.commit()
+    flash('Groupe client supprimÃ©. Les clients associÃ©s ont Ã©tÃ© dÃ©tachÃ©s.', 'success')
+    return redirect(url_for('admin.list_groupes_clients'))
+
+@admin.route('/clients/historique')
+@login_required
+@permission_required('historique_clients')
+def list_client_modification_logs():
+    logs = ClientModificationLog.query.order_by(ClientModificationLog.created_at.desc()).all()
+    parsed_logs = [
+        {
+            'log': log,
+            'old_values': parse_log_values(log.old_values),
+            'new_values': parse_log_values(log.new_values)
+        }
+        for log in logs
+    ]
+    return render_template('admin/clients/history.html', parsed_logs=parsed_logs)
+
+def get_filtered_client_modification_logs():
+    logs = ClientModificationLog.query.order_by(ClientModificationLog.created_at.desc()).all()
+    query = (request.args.get('q') or '').strip().lower()
+    entity_type = (request.args.get('type') or '').strip()
+    action = (request.args.get('action') or '').strip()
+    direction = (request.args.get('direction') or 'desc').strip()
+    date_from_raw = (request.args.get('date_from') or '').strip()
+    date_to_raw = (request.args.get('date_to') or '').strip()
+    try:
+        date_from = datetime.strptime(date_from_raw, '%Y-%m-%d').date() if date_from_raw else None
+    except ValueError:
+        date_from = None
+    try:
+        date_to = datetime.strptime(date_to_raw, '%Y-%m-%d').date() if date_to_raw else None
+    except ValueError:
+        date_to = None
+
+    if entity_type:
+        logs = [log for log in logs if log.entity_type == entity_type]
+    if action:
+        logs = [log for log in logs if log.action == action]
+    if date_from:
+        logs = [log for log in logs if log.created_at and log.created_at.date() >= date_from]
+    if date_to:
+        logs = [log for log in logs if log.created_at and log.created_at.date() <= date_to]
+    if query:
+        logs = [
+            log for log in logs
+            if query in ' '.join([
+                log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '',
+                log.entity_type or '',
+                log.action or '',
+                log.reference or '',
+                log.label or '',
+                log.user_prenom or '',
+                log.user_nom or '',
+                log.user_email or '',
+                log.old_values or '',
+                log.new_values or ''
+            ]).lower()
+        ]
+    logs.sort(key=lambda log: log.created_at or datetime.min, reverse=direction != 'asc')
+    return logs
+
+@admin.route('/clients/historique/export/excel')
+@login_required
+@permission_required('historique_clients')
+def export_client_modification_logs_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    logs = get_filtered_client_modification_logs()
+    generated_at = datetime.now()
+    rows = []
+    for log in logs:
+        rows.append({
+            'Date': log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '-',
+            'Type': 'Client' if log.entity_type == 'client' else 'Groupe client',
+            'Action': log.action,
+            'Reference': log.reference,
+            'Libelle': log.label,
+            'Avant': log.old_values or '',
+            'Apres': log.new_values or '',
+            'Fait par': f'{log.user_prenom} {log.user_nom}',
+            'Email': log.user_email,
+            'Raison': log.reason or ''
+        })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Historique clients', startrow=4)
+        worksheet = writer.sheets['Historique clients']
+        worksheet['A1'] = 'Historique clients et groupes clients - ReflexPharma'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        widths = [18, 16, 12, 18, 28, 42, 42, 22, 28, 28]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'historique_clients_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/clients/historique/export/pdf')
+@login_required
+@permission_required('historique_clients')
+def export_client_modification_logs_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    logs = get_filtered_client_modification_logs()
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=12, bottomMargin=12, leftMargin=12, rightMargin=12)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('ClientHistoryTitle', parent=styles['Title'], fontSize=12, leading=14)
+    meta_style = ParagraphStyle('ClientHistoryMeta', parent=styles['Normal'], fontSize=7, leading=9)
+    cell_style = ParagraphStyle('ClientHistoryCell', parent=styles['Normal'], fontSize=6, leading=7)
+
+    elements = [
+        Paragraph('Historique clients et groupes clients - ReflexPharma', title_style),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Lignes : {len(logs)}', meta_style),
+        Spacer(1, 6)
+    ]
+    data = [['Date', 'Type', 'Action', 'Reference', 'Libelle', 'Avant', 'Apres', 'Fait par']]
+    for log in logs:
+        data.append([
+            log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '-',
+            'Client' if log.entity_type == 'client' else 'Groupe',
+            log.action,
+            Paragraph(escape(str(log.reference or '-')), cell_style),
+            Paragraph(escape(str(log.label or '-')), cell_style),
+            Paragraph(escape(str(log.old_values or '-'))[:700], cell_style),
+            Paragraph(escape(str(log.new_values or '-'))[:700], cell_style),
+            Paragraph(escape(f'{log.user_prenom} {log.user_nom}'), cell_style)
+        ])
+
+    table = Table(data, repeatRows=1, colWidths=[58, 52, 42, 70, 90, 180, 180, 80])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6),
+        ('LEADING', (0, 0), (-1, -1), 7),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    filename = f'historique_clients_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 # --- GESTION DES FOURNISSEURS ---
 @admin.route('/fournisseurs')

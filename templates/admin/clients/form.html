@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_clients') }}">Clients</a></li>
+                <li class="breadcrumb-item active">{{ title }}</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header bg-white"><h5 class="mb-0">{{ title }}</h5></div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Matricule</label>
+                            <input type="text" name="matricule" class="form-control" value="{{ client.matricule if client else suggested_matricule }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Groupe client</label>
+                            <select name="groupe_id" class="form-select">
+                                <option value="">Aucun groupe</option>
+                                {% for groupe in groupes %}
+                                <option value="{{ groupe.id }}" {% if client and client.groupe_id == groupe.id %}selected{% endif %}>
+                                    {{ groupe.nom }} - solde {{ "%.2f"|format(groupe.solde) }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nom</label>
+                            <input type="text" name="nom" class="form-control" value="{{ client.nom if client else '' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Prénom</label>
+                            <input type="text" name="prenom" class="form-control" value="{{ client.prenom if client else '' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ client.email if client and client.email else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Téléphone</label>
+                            <input type="text" name="telephone" class="form-control" value="{{ client.telephone if client and client.telephone else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Solde client</label>
+                            <input type="number" step="0.01" name="solde" class="form-control" value="{{ client.solde if client else '0' }}" required>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <a href="{{ url_for('admin.list_clients') }}" class="btn btn-light border">Annuler</a>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

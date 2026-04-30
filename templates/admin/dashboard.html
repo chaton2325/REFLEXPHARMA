@@ -136,6 +136,33 @@
     </div>
     {% endif %}
 
+    {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm border-info">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info me-3">
+                        <i class="fas fa-address-book fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Clients</h5>
+                </div>
+                <p class="card-text">Gérez les clients, leurs groupes et les soldes associés.</p>
+                <div class="d-flex gap-2">
+                    {% if current_user.has_permission('gestion_clients') %}
+                    <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-info btn-sm">Clients</a>
+                    {% endif %}
+                    {% if current_user.has_permission('gestion_groupes_clients') %}
+                    <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-info btn-sm">Groupes</a>
+                    {% endif %}
+                    {% if current_user.has_permission('historique_clients') %}
+                    <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary btn-sm">Historique</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if current_user.has_permission('stats_sorties_stock') %}
     <div class="col-md-4 mb-4">
         <div class="card h-100 shadow-sm border-danger">

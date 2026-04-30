@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Historique clients - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_clients') }}">Clients</a></li>
+                <li class="breadcrumb-item active">Historique</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Historique clients et groupes clients</h1>
+        <p class="text-muted mb-0">Journal brut des créations, modifications et suppressions, sans clés étrangères.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.export_client_modification_logs_excel') }}" class="btn btn-outline-success" id="exportHistoryExcel">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_client_modification_logs_pdf') }}" class="btn btn-outline-danger" id="exportHistoryPdf">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
+        <div class="input-group" style="width: 340px;">
+            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="historySearchInput" class="form-control" placeholder="Rechercher historique...">
+        </div>
+        <select id="historyTypeFilter" class="form-select" style="width: 180px;">
+            <option value="">Tous les types</option>
+            <option value="client">Clients</option>
+            <option value="groupe_client">Groupes clients</option>
+        </select>
+        <select id="historyActionFilter" class="form-select" style="width: 150px;">
+            <option value="">Toutes actions</option>
+            <option value="create">Create</option>
+            <option value="edit">Edit</option>
+            <option value="delete">Delete</option>
+        </select>
+        <select id="historyDateSort" class="form-select" style="width: 150px;">
+            <option value="desc">Date récente</option>
+            <option value="asc">Date ancienne</option>
+        </select>
+        <input type="date" id="historyDateFrom" class="form-control" style="width: 155px;" title="Date debut">
+        <input type="date" id="historyDateTo" class="form-control" style="width: 155px;" title="Date fin">
+        <button type="button" id="clearHistoryDates" class="btn btn-outline-secondary">Dates: toutes</button>
+        <button type="button" id="resetHistoryFilters" class="btn btn-outline-dark">
+            <i class="fas fa-undo me-1"></i> Réinitialiser
+        </button>
+        <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-primary">Clients</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th style="cursor:pointer" id="historyDateHeader">Date <i class="fas fa-sort small text-muted"></i></th>
+                    <th>Type</th>
+                    <th>Action</th>
+                    <th>Référence</th>
+                    <th>Libellé</th>
+                    <th>Avant</th>
+                    <th>Après</th>
+                    <th>Fait par</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in parsed_logs %}
+                {% set log = item.log %}
+                <tr class="history-row"
+                    data-type="{{ log.entity_type }}"
+                    data-action="{{ log.action }}"
+                    data-date="{{ log.created_at.strftime('%Y%m%d%H%M%S') if log.created_at else '' }}"
+                    data-search="{{ (log.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ log.entity_type ~ ' ' ~ log.action ~ ' ' ~ (log.reference or '') ~ ' ' ~ log.label ~ ' ' ~ log.user_prenom ~ ' ' ~ log.user_nom ~ ' ' ~ log.user_email ~ ' ' ~ (log.old_values or '') ~ ' ' ~ (log.new_values or ''))|lower }}">
+                    <td>{{ log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '-' }}</td>
+                    <td>
+                        <span class="badge {% if log.entity_type == 'client' %}bg-primary{% else %}bg-info text-dark{% endif %}">
+                            {{ 'Client' if log.entity_type == 'client' else 'Groupe client' }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge {% if log.action == 'delete' %}bg-danger{% elif log.action == 'edit' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                            {{ log.action }}
+                        </span>
+                    </td>
+                    <td>{{ log.reference or '-' }}</td>
+                    <td>{{ log.label }}</td>
+                    <td style="min-width: 240px;">
+                        {% for key, value in item.old_values.items() %}
+                        <div><span class="text-muted">{{ key }}:</span> {{ value if value is not none else '-' }}</div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endfor %}
+                    </td>
+                    <td style="min-width: 240px;">
+                        {% for key, value in item.new_values.items() %}
+                        <div><span class="text-muted">{{ key }}:</span> {{ value if value is not none else '-' }}</div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <div>{{ log.user_prenom }} {{ log.user_nom }}</div>
+                        <small class="text-muted">{{ log.user_email }}</small>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center py-4 text-muted">Aucun historique client enregistré.</td></tr>
+                {% endfor %}
+                <tr id="emptyHistorySearchRow" class="d-none">
+                    <td colspan="8" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('historySearchInput');
+    const typeFilter = document.getElementById('historyTypeFilter');
+    const actionFilter = document.getElementById('historyActionFilter');
+    const dateSort = document.getElementById('historyDateSort');
+    const dateFrom = document.getElementById('historyDateFrom');
+    const dateTo = document.getElementById('historyDateTo');
+    const clearDates = document.getElementById('clearHistoryDates');
+    const resetFilters = document.getElementById('resetHistoryFilters');
+    const dateHeader = document.getElementById('historyDateHeader');
+    const tbody = document.querySelector('tbody');
+    const exportExcel = document.getElementById('exportHistoryExcel');
+    const exportPdf = document.getElementById('exportHistoryPdf');
+    let rows = Array.from(document.querySelectorAll('.history-row'));
+    const emptyRow = document.getElementById('emptyHistorySearchRow');
+
+    function updateExportLinks() {
+        const params = new URLSearchParams();
+        const query = searchInput.value.trim();
+        if (query) params.set('q', query);
+        if (typeFilter.value) params.set('type', typeFilter.value);
+        if (actionFilter.value) params.set('action', actionFilter.value);
+        params.set('direction', dateSort.value);
+        if (dateFrom.value) params.set('date_from', dateFrom.value);
+        if (dateTo.value) params.set('date_to', dateTo.value);
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        exportExcel.href = "{{ url_for('admin.export_client_modification_logs_excel') }}" + suffix;
+        exportPdf.href = "{{ url_for('admin.export_client_modification_logs_pdf') }}" + suffix;
+    }
+
+    function sortByDate() {
+        const multiplier = dateSort.value === 'asc' ? 1 : -1;
+        rows.sort((a, b) => a.dataset.date.localeCompare(b.dataset.date) * multiplier);
+        rows.forEach((row) => tbody.appendChild(row));
+        tbody.appendChild(emptyRow);
+    }
+
+    function filterRows() {
+        sortByDate();
+        const query = searchInput.value.trim().toLowerCase();
+        const type = typeFilter.value;
+        const action = actionFilter.value;
+        const fromValue = dateFrom.value ? dateFrom.value.replaceAll('-', '') : '';
+        const toValue = dateTo.value ? dateTo.value.replaceAll('-', '') : '';
+        let visible = 0;
+        rows.forEach((row) => {
+            const matchesSearch = !query || row.dataset.search.includes(query);
+            const matchesType = !type || row.dataset.type === type;
+            const matchesAction = !action || row.dataset.action === action;
+            const rowDate = row.dataset.date ? row.dataset.date.substring(0, 8) : '';
+            const matchesFrom = !fromValue || (rowDate && rowDate >= fromValue);
+            const matchesTo = !toValue || (rowDate && rowDate <= toValue);
+            const show = matchesSearch && matchesType && matchesAction && matchesFrom && matchesTo;
+            row.style.display = show ? '' : 'none';
+            if (show) visible += 1;
+        });
+        emptyRow.classList.toggle('d-none', visible !== 0 || rows.length === 0);
+        updateExportLinks();
+    }
+
+    if (searchInput) searchInput.addEventListener('input', filterRows);
+    if (typeFilter) typeFilter.addEventListener('change', filterRows);
+    if (actionFilter) actionFilter.addEventListener('change', filterRows);
+    if (dateSort) dateSort.addEventListener('change', filterRows);
+    if (dateFrom) dateFrom.addEventListener('change', filterRows);
+    if (dateTo) dateTo.addEventListener('change', filterRows);
+    if (clearDates) {
+        clearDates.addEventListener('click', function() {
+            dateFrom.value = '';
+            dateTo.value = '';
+            filterRows();
+        });
+    }
+    if (resetFilters) {
+        resetFilters.addEventListener('click', function() {
+            searchInput.value = '';
+            typeFilter.value = '';
+            actionFilter.value = '';
+            dateSort.value = 'desc';
+            dateFrom.value = '';
+            dateTo.value = '';
+            filterRows();
+        });
+    }
+    if (dateHeader) {
+        dateHeader.addEventListener('click', function() {
+            dateSort.value = dateSort.value === 'asc' ? 'desc' : 'asc';
+            filterRows();
+        });
+    }
+    updateExportLinks();
+});
+</script>
+{% endblock %}

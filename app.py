@@ -17,6 +17,9 @@ from models.stock import Stock
 from models.stock_modification import StockModification
 from models.stock_reason import StockReason
 from models.stock_exit_log import StockExitLog
+from models.groupe_client import GroupeClient
+from models.client import Client
+from models.client_modification_log import ClientModificationLog
 
 from config import config
 

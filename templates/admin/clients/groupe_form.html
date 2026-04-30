@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_groupes_clients') }}">Groupes clients</a></li>
+                <li class="breadcrumb-item active">{{ title }}</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header bg-white"><h5 class="mb-0">{{ title }}</h5></div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nom du groupe</label>
+                        <input type="text" name="nom" class="form-control" value="{{ groupe.nom if groupe else '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Solde groupe</label>
+                        <input type="number" step="0.01" name="solde" class="form-control" value="{{ groupe.solde if groupe else '0' }}" required>
+                        <div class="form-text">Ce solde pourra être utilisé plus tard pour décider si une vente débite le client ou son groupe.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Pourcentage absorbé par le groupe (%)</label>
+                        <input type="number" step="0.01" min="0" max="100" name="pourcentage_absorption" class="form-control" value="{{ groupe.pourcentage_absorption if groupe else '0' }}" required>
+                        <div class="form-text">Exemple: 70 signifie que 70% du montant sera pris sur le solde du groupe, et 30% restera à gérer sur le client.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea name="description" class="form-control" rows="3">{{ groupe.description if groupe else '' }}</textarea>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-light border">Annuler</a>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

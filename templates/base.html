@@ -60,6 +60,24 @@
                         <a class="nav-link" href="{{ url_for('admin.manage_stock') }}">Stock</a>
                     </li>
                     {% endif %}
+                    {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="clientsDropdown" role="button" data-bs-toggle="dropdown">
+                            Clients
+                        </a>
+                        <ul class="dropdown-menu">
+                            {% if current_user.has_permission('gestion_clients') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_clients') }}">Clients</a></li>
+                            {% endif %}
+                            {% if current_user.has_permission('gestion_groupes_clients') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_groupes_clients') }}">Groupes clients</a></li>
+                            {% endif %}
+                            {% if current_user.has_permission('historique_clients') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.list_client_modification_logs') }}">Historique clients</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
                     {% if current_user.has_permission('gestion_modifications_stock') %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('admin.list_stock_modifications') }}">Modifications Stock</a>

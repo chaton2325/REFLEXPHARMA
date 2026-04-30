@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Clients - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Clients</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Clients</h1>
+        <p class="text-muted mb-0">Gestion des clients, soldes et groupes clients.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+            <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
+        </button>
+        <div class="input-group" style="width: 300px;">
+            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="clientSearchInput" class="form-control" placeholder="Rechercher un client...">
+        </div>
+        {% if current_user.has_permission('gestion_groupes_clients') %}
+        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-info">
+            <i class="fas fa-users me-1"></i> Groupes clients
+        </a>
+        {% endif %}
+        {% if current_user.has_permission('historique_clients') %}
+        <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-history me-1"></i> Historique
+        </a>
+        {% endif %}
+        <a href="{{ url_for('admin.create_client') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Ajouter
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_clients') }}" method="POST"></form>
+    <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="clientTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th style="width: 42px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
+                        <th>Client</th>
+                        <th>Contact</th>
+                        <th>Groupe</th>
+                        <th>Solde client</th>
+                        <th>Dates</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr class="client-row" data-search="{{ (client.matricule ~ ' ' ~ client.nom ~ ' ' ~ client.prenom ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}">
+                        <td><input type="checkbox" class="form-check-input row-checkbox" name="ids[]" value="{{ client.id }}" form="bulkDeleteForm"></td>
+                        <td>
+                            <div class="fw-bold">{{ client.prenom }} {{ client.nom }}</div>
+                            <span class="badge bg-dark-subtle text-dark border">{{ client.matricule }}</span>
+                        </td>
+                        <td>
+                            <div>{{ client.telephone or '-' }}</div>
+                            <small class="text-muted">{{ client.email or '-' }}</small>
+                        </td>
+                        <td>
+                            {% if client.groupe %}
+                            <span class="badge bg-info text-dark">{{ client.groupe.nom }}</span>
+                            <div class="small text-muted">Solde groupe: {{ "%.2f"|format(client.groupe.solde) }}</div>
+                            <div class="small text-muted">Absorption: {{ "%.2f"|format(client.groupe.pourcentage_absorption) }}%</div>
+                            {% else %}
+                            <span class="text-muted">Aucun</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}">
+                            {{ "%.2f"|format(client.solde) }}
+                        </td>
+                        <td>
+                            <div class="small">Creation: {{ client.created_at.strftime('%d/%m/%Y %H:%M') if client.created_at else '-' }}</div>
+                            <div class="small text-muted">Modif: {{ client.updated_at.strftime('%d/%m/%Y %H:%M') if client.updated_at else '-' }}</div>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteClient{{ client.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <div class="modal fade" id="clientDetails{{ client.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-light">
+                                    <h5 class="modal-title">Détails client</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="mb-1"><strong>Matricule:</strong> {{ client.matricule }}</p>
+                                    <p class="mb-1"><strong>Nom:</strong> {{ client.prenom }} {{ client.nom }}</p>
+                                    <p class="mb-1"><strong>Email:</strong> {{ client.email or '-' }}</p>
+                                    <p class="mb-1"><strong>Téléphone:</strong> {{ client.telephone or '-' }}</p>
+                                    <p class="mb-1"><strong>Groupe:</strong> {{ client.groupe.nom if client.groupe else '-' }}</p>
+                                    <p class="mb-1"><strong>Solde client:</strong> {{ "%.2f"|format(client.solde) }}</p>
+                                    <p class="mb-0"><strong>Solde groupe:</strong> {{ "%.2f"|format(client.groupe.solde) if client.groupe else '-' }}</p>
+                                    <p class="mb-0"><strong>Absorption groupe:</strong> {{ "%.2f"|format(client.groupe.pourcentage_absorption) ~ '%' if client.groupe else '-' }}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-primary">Modifier</a>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal fade" id="deleteClient{{ client.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Supprimer le client</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                <div class="modal-body">Supprimer <strong>{{ client.prenom }} {{ client.nom }}</strong> ?</div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                    <form method="POST" action="{{ url_for('admin.delete_client', id=client.id) }}">
+                                        <button type="submit" class="btn btn-danger">Supprimer</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Aucun client enregistré.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+    </div>
+</div>
+
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Suppression groupée</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">Supprimer les <strong id="modalSelectedCount"></strong> clients sélectionnés ?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('clientSearchInput');
+    const rows = Array.from(document.querySelectorAll('.client-row'));
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = Array.from(document.querySelectorAll('.row-checkbox'));
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    const modalSelectedCount = document.getElementById('modalSelectedCount');
+
+    function updateBulkState() {
+        const count = checkboxes.filter((checkbox) => checkbox.checked).length;
+        bulkDeleteBtn.classList.toggle('d-none', count === 0);
+        selectedCount.textContent = count;
+        modalSelectedCount.textContent = count;
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = searchInput.value.trim().toLowerCase();
+            rows.forEach((row) => row.style.display = row.dataset.search.includes(query) ? '' : 'none');
+        });
+    }
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach((checkbox) => checkbox.checked = selectAll.checked);
+            updateBulkState();
+        });
+    }
+    checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkState));
+});
+</script>
+{% endblock %}
