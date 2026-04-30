@@ -119,6 +119,95 @@
                     <td>
                         <div class="fw-bold">{{ item.produit_nom }}</div>
                         <small class="text-muted">{{ item.produit_code }}</small>
+                        <div class="mt-2">
+                            <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}">
+                                <span class="life-path-pulse"></span>
+                                <i class="fas fa-route me-1"></i> Chemin de vie
+                            </button>
+                        </div>
+                        <div class="modal fade life-path-modal" id="lifePathModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content">
+                                    <div class="modal-header border-0 pb-0">
+                                        <div>
+                                            <div class="small text-muted">Trajectoire produit</div>
+                                            <h5 class="modal-title mb-0">{{ item.produit_nom }}</h5>
+                                            <div class="small text-muted">{{ item.produit_code }} | {{ item.code_suivi }}</div>
+                                        </div>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="life-hero">
+                                            <div>
+                                                <div class="life-hero-label">Valeur sortie TTC</div>
+                                                <div class="life-hero-value">{{ "%.2f"|format(prices.total_ttc) }}</div>
+                                                <div class="life-hero-sub">HT {{ "%.2f"|format(prices.total_ht) }} | TVA {{ "%.2f"|format(prices.tva_pourcentage) }}%</div>
+                                            </div>
+                                            <div class="life-orbit" aria-hidden="true">
+                                                <span></span><span></span><span></span>
+                                            </div>
+                                        </div>
+
+                                        <div class="life-path-track">
+                                            <div class="life-step life-step-in">
+                                                <div class="life-step-icon"><i class="fas fa-box-open"></i></div>
+                                                <div class="life-step-body">
+                                                    <div class="life-step-title">Mise en stock</div>
+                                                    <div>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</div>
+                                                    <div class="text-muted small">
+                                                        {{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}
+                                                        {% if item.mise_en_stock_user_email %} | {{ item.mise_en_stock_user_email }}{% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="life-step life-step-stock">
+                                                <div class="life-step-icon"><i class="fas fa-warehouse"></i></div>
+                                                <div class="life-step-body">
+                                                    <div class="life-step-title">Lot en stock</div>
+                                                    <div>BL {{ item.numero_bl }} | Peremption {{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '-' }}</div>
+                                                    <div class="text-muted small">{{ fournisseur }} | {{ groupe_fournisseur }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="life-step life-step-out">
+                                                <div class="life-step-icon"><i class="fas fa-sign-out-alt"></i></div>
+                                                <div class="life-step-body">
+                                                    <div class="life-step-title">Sortie de stock</div>
+                                                    <div>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '-' }}</div>
+                                                    <div class="text-muted small">{{ item.user_prenom }} {{ item.user_nom }} | {{ item.reason_nom }}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-3 mt-3">
+                                            <div class="col-md-4">
+                                                <div class="life-metric">
+                                                    <div class="life-metric-label">Quantites sorties</div>
+                                                    <div>U: {{ item.quantite_unites_sortie }}</div>
+                                                    <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
+                                                    <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="life-metric">
+                                                    <div class="life-metric-label">Avant sortie</div>
+                                                    <div>U: {{ item.old_quantite_unites }}</div>
+                                                    <div>S/U: {{ item.old_quantite_sous_unites }}</div>
+                                                    <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="life-metric">
+                                                    <div class="life-metric-label">Apres sortie</div>
+                                                    <div>U: {{ item.new_quantite_unites }}</div>
+                                                    <div>S/U: {{ item.new_quantite_sous_unites }}</div>
+                                                    <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </td>
                     <td>{{ fournisseur }}</td>
                     <td>{{ groupe_fournisseur }}</td>
@@ -178,6 +267,291 @@
         </table>
     </div>
 </div>
+
+<style>
+    .life-path-button {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid rgba(13, 110, 253, 0.28);
+        background: linear-gradient(135deg, #ffffff, #eef6ff);
+        color: #0b5ed7;
+        border-radius: 999px;
+        padding: 5px 11px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        overflow: hidden;
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .life-path-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(13, 110, 253, 0.58);
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.18);
+    }
+    .life-path-button::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-120%);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
+        animation: lifeShine 2.8s infinite;
+    }
+    .life-path-pulse {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #20c997;
+        box-shadow: 0 0 0 rgba(32, 201, 151, .5);
+        animation: lifePulse 1.6s infinite;
+    }
+    .life-path-modal .modal-content {
+        border: 0;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 24px 70px rgba(17, 24, 39, .28);
+    }
+    .life-path-modal .modal-body {
+        overflow-x: hidden;
+    }
+    .life-hero {
+        position: relative;
+        min-height: 132px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 22px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #0f172a, #164e63);
+        color: #fff;
+        overflow: hidden;
+    }
+    .life-hero::before {
+        content: "";
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        right: -70px;
+        top: -80px;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 50%;
+        animation: lifeRotate 8s linear infinite;
+    }
+    .life-hero-label {
+        font-size: .8rem;
+        opacity: .78;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+    .life-hero-value {
+        font-size: 2.3rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+    .life-hero-sub {
+        opacity: .82;
+        font-size: .9rem;
+    }
+    .life-orbit {
+        position: relative;
+        width: 90px;
+        height: 90px;
+        border: 1px solid rgba(255,255,255,.25);
+        border-radius: 50%;
+        animation: lifeRotate 7s linear infinite;
+    }
+    .life-orbit span {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #ffc107;
+    }
+    .life-orbit span:nth-child(1) { top: -7px; left: 38px; }
+    .life-orbit span:nth-child(2) { bottom: 9px; right: 1px; background: #20c997; }
+    .life-orbit span:nth-child(3) { bottom: 8px; left: 2px; background: #0dcaf0; }
+    .life-path-track {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+    }
+    .life-path-track::before {
+        content: "";
+        position: absolute;
+        left: 10%;
+        right: 10%;
+        top: 31px;
+        height: 3px;
+        background: linear-gradient(90deg, #198754, #0d6efd, #dc3545);
+        border-radius: 999px;
+        animation: lifeFlow 2.2s ease-in-out infinite;
+    }
+    .life-step {
+        position: relative;
+        z-index: 1;
+        padding: 18px;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: rgba(255,255,255,.95);
+        animation: lifeRise .55s ease both;
+    }
+    .life-step:nth-child(2) { animation-delay: .12s; }
+    .life-step:nth-child(3) { animation-delay: .24s; }
+    .life-step-icon {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #fff;
+        margin-bottom: 10px;
+        box-shadow: 0 10px 24px rgba(0,0,0,.14);
+    }
+    .life-step-in .life-step-icon { background: #198754; }
+    .life-step-stock .life-step-icon { background: #0d6efd; }
+    .life-step-out .life-step-icon { background: #dc3545; }
+    .life-step-title {
+        font-weight: 800;
+        margin-bottom: 3px;
+    }
+    .life-metric {
+        height: 100%;
+        padding: 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+    .life-metric-label {
+        font-weight: 800;
+        color: #334155;
+        margin-bottom: 6px;
+    }
+    @keyframes lifePulse {
+        0% { box-shadow: 0 0 0 0 rgba(32, 201, 151, .55); }
+        70% { box-shadow: 0 0 0 8px rgba(32, 201, 151, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(32, 201, 151, 0); }
+    }
+    @keyframes lifeShine {
+        0% { transform: translateX(-120%); }
+        45%, 100% { transform: translateX(120%); }
+    }
+    @keyframes lifeRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes lifeFlow {
+        0%, 100% { opacity: .45; transform: scaleX(.94); }
+        50% { opacity: 1; transform: scaleX(1); }
+    }
+    @keyframes lifeRise {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
+        .life-path-modal .modal-dialog {
+            margin: 10px;
+            max-width: calc(100% - 20px);
+        }
+        .life-path-modal .modal-content {
+            border-radius: 14px;
+        }
+        .life-path-modal .modal-header {
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .life-path-modal .modal-title {
+            font-size: 1rem;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+        .life-path-modal .modal-body {
+            padding: 14px;
+        }
+        .life-hero {
+            min-height: 0;
+            padding: 16px;
+        }
+        .life-hero-value {
+            font-size: 1.7rem;
+            overflow-wrap: anywhere;
+        }
+        .life-hero-sub {
+            font-size: .78rem;
+            overflow-wrap: anywhere;
+        }
+        .life-orbit {
+            width: 58px;
+            height: 58px;
+        }
+        .life-orbit span:nth-child(1) { left: 22px; }
+        .life-path-track {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .life-path-track::before {
+            left: 21px;
+            right: auto;
+            top: 36px;
+            bottom: 36px;
+            width: 3px;
+            height: auto;
+        }
+        .life-step {
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr);
+            gap: 10px;
+            padding: 14px;
+        }
+        .life-step-icon {
+            margin-bottom: 0;
+        }
+        .life-step-body {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .life-step-title {
+            font-size: .95rem;
+        }
+        .life-metric {
+            padding: 12px;
+            font-size: .9rem;
+        }
+        .life-hero {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 16px;
+        }
+    }
+    @media (max-width: 420px) {
+        .life-path-modal .modal-dialog {
+            margin: 6px;
+            max-width: calc(100% - 12px);
+        }
+        .life-path-modal .modal-body {
+            padding: 10px;
+        }
+        .life-hero {
+            padding: 14px;
+        }
+        .life-hero-value {
+            font-size: 1.45rem;
+        }
+        .life-step {
+            grid-template-columns: 38px minmax(0, 1fr);
+            padding: 12px;
+        }
+        .life-step-icon {
+            width: 38px;
+            height: 38px;
+        }
+        .life-path-track::before {
+            left: 18px;
+        }
+    }
+</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
