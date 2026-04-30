@@ -551,12 +551,239 @@ def generate_client_matricule():
         if not Client.query.filter_by(matricule=matricule).first():
             return matricule
 
+def parse_date_filter(value):
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date() if value else None
+    except ValueError:
+        return None
+
+def get_filtered_clients():
+    clients = Client.query.all()
+    query = (request.args.get('q') or '').strip().lower()
+    groupe_id = (request.args.get('groupe_id') or '').strip()
+    solde_status = (request.args.get('solde_status') or '').strip()
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    sort = (request.args.get('sort') or 'created_at').strip()
+    direction = (request.args.get('direction') or 'desc').strip()
+
+    if query:
+        clients = [
+            client for client in clients
+            if query in ' '.join([
+                client.matricule or '',
+                client.nom or '',
+                client.prenom or '',
+                client.email or '',
+                client.telephone or '',
+                client.groupe.nom if client.groupe else ''
+            ]).lower()
+        ]
+    if groupe_id == 'none':
+        clients = [client for client in clients if not client.groupe]
+    elif groupe_id:
+        try:
+            selected_groupe_id = int(groupe_id)
+            clients = [client for client in clients if client.groupe_id == selected_groupe_id]
+        except ValueError:
+            clients = []
+    if solde_status == 'positive':
+        clients = [client for client in clients if (client.solde or 0) > 0]
+    elif solde_status == 'zero':
+        clients = [client for client in clients if (client.solde or 0) == 0]
+    elif solde_status == 'negative':
+        clients = [client for client in clients if (client.solde or 0) < 0]
+    if date_from:
+        clients = [client for client in clients if client.created_at and client.created_at.date() >= date_from]
+    if date_to:
+        clients = [client for client in clients if client.created_at and client.created_at.date() <= date_to]
+
+    sorters = {
+        'matricule': lambda client: (client.matricule or '').lower(),
+        'nom': lambda client: (client.nom or '').lower(),
+        'prenom': lambda client: (client.prenom or '').lower(),
+        'email': lambda client: (client.email or '').lower(),
+        'telephone': lambda client: (client.telephone or '').lower(),
+        'groupe': lambda client: (client.groupe.nom if client.groupe else '').lower(),
+        'solde': lambda client: client.solde or 0,
+        'created_at': lambda client: client.created_at or datetime.min,
+        'updated_at': lambda client: client.updated_at or datetime.min
+    }
+    clients.sort(key=sorters.get(sort, sorters['created_at']), reverse=direction != 'asc')
+    return clients
+
+def get_filtered_groupes_clients():
+    groupes = GroupeClient.query.all()
+    query = (request.args.get('q') or '').strip().lower()
+    solde_status = (request.args.get('solde_status') or '').strip()
+    absorption_min_raw = (request.args.get('absorption_min') or '').strip()
+    absorption_max_raw = (request.args.get('absorption_max') or '').strip()
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    sort = (request.args.get('sort') or 'nom').strip()
+    direction = (request.args.get('direction') or 'asc').strip()
+
+    try:
+        absorption_min = float(absorption_min_raw) if absorption_min_raw else None
+    except ValueError:
+        absorption_min = None
+    try:
+        absorption_max = float(absorption_max_raw) if absorption_max_raw else None
+    except ValueError:
+        absorption_max = None
+
+    if query:
+        groupes = [
+            groupe for groupe in groupes
+            if query in ' '.join([groupe.nom or '', groupe.description or '']).lower()
+        ]
+    if solde_status == 'positive':
+        groupes = [groupe for groupe in groupes if (groupe.solde or 0) > 0]
+    elif solde_status == 'zero':
+        groupes = [groupe for groupe in groupes if (groupe.solde or 0) == 0]
+    elif solde_status == 'negative':
+        groupes = [groupe for groupe in groupes if (groupe.solde or 0) < 0]
+    if absorption_min is not None:
+        groupes = [groupe for groupe in groupes if (groupe.pourcentage_absorption or 0) >= absorption_min]
+    if absorption_max is not None:
+        groupes = [groupe for groupe in groupes if (groupe.pourcentage_absorption or 0) <= absorption_max]
+    if date_from:
+        groupes = [groupe for groupe in groupes if groupe.created_at and groupe.created_at.date() >= date_from]
+    if date_to:
+        groupes = [groupe for groupe in groupes if groupe.created_at and groupe.created_at.date() <= date_to]
+
+    sorters = {
+        'nom': lambda groupe: (groupe.nom or '').lower(),
+        'solde': lambda groupe: groupe.solde or 0,
+        'pourcentage_absorption': lambda groupe: groupe.pourcentage_absorption or 0,
+        'clients_count': lambda groupe: len(groupe.clients),
+        'created_at': lambda groupe: groupe.created_at or datetime.min,
+        'updated_at': lambda groupe: groupe.updated_at or datetime.min
+    }
+    groupes.sort(key=sorters.get(sort, sorters['nom']), reverse=direction != 'asc')
+    return groupes
+
 @admin.route('/clients')
 @login_required
 @permission_required('gestion_clients')
 def list_clients():
-    clients = Client.query.order_by(Client.created_at.desc()).all()
-    return render_template('admin/clients/list.html', clients=clients)
+    clients = get_filtered_clients()
+    groupes = GroupeClient.query.order_by(GroupeClient.nom.asc()).all()
+    return render_template('admin/clients/list.html', clients=clients, groupes=groupes, export_query=request.args.to_dict())
+
+@admin.route('/clients/export/excel')
+@login_required
+@permission_required('gestion_clients')
+def export_clients_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    clients = get_filtered_clients()
+    generated_at = datetime.now()
+    rows = []
+    for client in clients:
+        rows.append({
+            'Matricule': client.matricule,
+            'Nom': client.nom,
+            'Prenom': client.prenom,
+            'Email': client.email or '',
+            'Telephone': client.telephone or '',
+            'Solde client': client.solde or 0,
+            'Groupe': client.groupe.nom if client.groupe else '',
+            'Solde groupe': client.groupe.solde if client.groupe else '',
+            'Absorption groupe (%)': client.groupe.pourcentage_absorption if client.groupe else '',
+            'Part client (%)': 100 - client.groupe.pourcentage_absorption if client.groupe else '',
+            'Creation': client.created_at.strftime('%d/%m/%Y %H:%M') if client.created_at else '',
+            'Modification': client.updated_at.strftime('%d/%m/%Y %H:%M') if client.updated_at else ''
+        })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Clients', startrow=4)
+        worksheet = writer.sheets['Clients']
+        worksheet['A1'] = 'Clients - ReflexPharma'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        widths = [16, 18, 18, 28, 18, 16, 22, 16, 20, 16, 18, 18]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'clients_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/clients/export/pdf')
+@login_required
+@permission_required('gestion_clients')
+def export_clients_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    clients = get_filtered_clients()
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=12, bottomMargin=12, leftMargin=12, rightMargin=12)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('ClientsTitle', parent=styles['Title'], fontSize=12, leading=14)
+    meta_style = ParagraphStyle('ClientsMeta', parent=styles['Normal'], fontSize=7, leading=9)
+    cell_style = ParagraphStyle('ClientsCell', parent=styles['Normal'], fontSize=6, leading=7)
+    elements = [
+        Paragraph('Clients - ReflexPharma', title_style),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Lignes : {len(clients)}', meta_style),
+        Spacer(1, 6)
+    ]
+    data = [['Matricule', 'Client', 'Contact', 'Groupe', 'Solde', 'Abs.', 'Creation', 'Modif.']]
+    for client in clients:
+        data.append([
+            client.matricule,
+            Paragraph(escape(client.nom_complet or '-'), cell_style),
+            Paragraph(escape(f'{client.telephone or "-"}\n{client.email or "-"}'), cell_style),
+            Paragraph(escape(client.groupe.nom if client.groupe else '-'), cell_style),
+            f'{client.solde or 0:.2f}',
+            f'{client.groupe.pourcentage_absorption:.2f}%' if client.groupe else '-',
+            client.created_at.strftime('%d/%m/%Y') if client.created_at else '-',
+            client.updated_at.strftime('%d/%m/%Y') if client.updated_at else '-'
+        ])
+    table = Table(data, repeatRows=1, colWidths=[70, 110, 145, 105, 65, 45, 60, 60])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6),
+        ('LEADING', (0, 0), (-1, -1), 7),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    filename = f'clients_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 @admin.route('/clients/create', methods=['GET', 'POST'])
 @login_required
@@ -694,8 +921,119 @@ def bulk_delete_clients():
 @login_required
 @permission_required('gestion_groupes_clients')
 def list_groupes_clients():
-    groupes = GroupeClient.query.order_by(GroupeClient.nom.asc()).all()
-    return render_template('admin/clients/groupes_list.html', groupes=groupes)
+    groupes = get_filtered_groupes_clients()
+    return render_template('admin/clients/groupes_list.html', groupes=groupes, export_query=request.args.to_dict())
+
+@admin.route('/clients/groupes/export/excel')
+@login_required
+@permission_required('gestion_groupes_clients')
+def export_groupes_clients_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    groupes = get_filtered_groupes_clients()
+    generated_at = datetime.now()
+    rows = []
+    for groupe in groupes:
+        rows.append({
+            'Groupe': groupe.nom,
+            'Description': groupe.description or '',
+            'Solde groupe': groupe.solde or 0,
+            'Absorption groupe (%)': groupe.pourcentage_absorption or 0,
+            'Part client (%)': 100 - (groupe.pourcentage_absorption or 0),
+            'Nombre de clients': len(groupe.clients),
+            'Clients': ', '.join([f'{client.prenom} {client.nom} ({client.matricule})' for client in groupe.clients]),
+            'Creation': groupe.created_at.strftime('%d/%m/%Y %H:%M') if groupe.created_at else '',
+            'Modification': groupe.updated_at.strftime('%d/%m/%Y %H:%M') if groupe.updated_at else ''
+        })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Groupes clients', startrow=4)
+        worksheet = writer.sheets['Groupes clients']
+        worksheet['A1'] = 'Groupes clients - ReflexPharma'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        widths = [24, 36, 16, 22, 18, 18, 54, 18, 18]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'groupes_clients_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/clients/groupes/export/pdf')
+@login_required
+@permission_required('gestion_groupes_clients')
+def export_groupes_clients_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    groupes = get_filtered_groupes_clients()
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=12, bottomMargin=12, leftMargin=12, rightMargin=12)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('GroupesClientsTitle', parent=styles['Title'], fontSize=12, leading=14)
+    meta_style = ParagraphStyle('GroupesClientsMeta', parent=styles['Normal'], fontSize=7, leading=9)
+    cell_style = ParagraphStyle('GroupesClientsCell', parent=styles['Normal'], fontSize=6, leading=7)
+    elements = [
+        Paragraph('Groupes clients - ReflexPharma', title_style),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Lignes : {len(groupes)}', meta_style),
+        Spacer(1, 6)
+    ]
+    data = [['Groupe', 'Description', 'Solde', 'Abs.', 'Part client', 'Clients', 'Creation', 'Modif.']]
+    for groupe in groupes:
+        data.append([
+            Paragraph(escape(groupe.nom or '-'), cell_style),
+            Paragraph(escape(groupe.description or '-'), cell_style),
+            f'{groupe.solde or 0:.2f}',
+            f'{groupe.pourcentage_absorption or 0:.2f}%',
+            f'{100 - (groupe.pourcentage_absorption or 0):.2f}%',
+            str(len(groupe.clients)),
+            groupe.created_at.strftime('%d/%m/%Y') if groupe.created_at else '-',
+            groupe.updated_at.strftime('%d/%m/%Y') if groupe.updated_at else '-'
+        ])
+    table = Table(data, repeatRows=1, colWidths=[125, 190, 70, 55, 65, 50, 60, 60])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6),
+        ('LEADING', (0, 0), (-1, -1), 7),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    filename = f'groupes_clients_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 @admin.route('/clients/groupes/create', methods=['GET', 'POST'])
 @login_required

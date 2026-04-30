@@ -16,10 +16,12 @@
         <p class="text-muted mb-0">Soldes collectifs utilisables plus tard dans le module ventes.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <div class="input-group" style="width: 300px;">
-            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="groupSearchInput" class="form-control" placeholder="Rechercher un groupe...">
-        </div>
+        <a href="{{ url_for('admin.export_groupes_clients_excel', **export_query) }}" class="btn btn-outline-success">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_groupes_clients_pdf', **export_query) }}" class="btn btn-outline-danger">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
         <a href="{{ url_for('admin.create_groupe_client') }}" class="btn btn-primary">
             <i class="fas fa-plus me-1"></i> Ajouter
         </a>
@@ -30,6 +32,69 @@
         {% endif %}
     </div>
 </div>
+
+<form method="GET" class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Recherche</label>
+                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Nom ou description...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Solde</label>
+                <select name="solde_status" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
+                    <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
+                    <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Absorption min</label>
+                <input type="number" step="0.01" min="0" max="100" name="absorption_min" class="form-control" value="{{ request.args.get('absorption_min', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Absorption max</label>
+                <input type="number" step="0.01" min="0" max="100" name="absorption_max" class="form-control" value="{{ request.args.get('absorption_max', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date debut</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date fin</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Trier par</label>
+                <select name="sort" class="form-select">
+                    {% set selected_sort = request.args.get('sort', 'nom') %}
+                    <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
+                    <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
+                    <option value="pourcentage_absorption" {% if selected_sort == 'pourcentage_absorption' %}selected{% endif %}>Absorption</option>
+                    <option value="clients_count" {% if selected_sort == 'clients_count' %}selected{% endif %}>Nombre clients</option>
+                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
+                    <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Ordre</label>
+                <select name="direction" class="form-select">
+                    <option value="asc" {% if request.args.get('direction', 'asc') == 'asc' %}selected{% endif %}>Ascendant</option>
+                    <option value="desc" {% if request.args.get('direction') == 'desc' %}selected{% endif %}>Descendant</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="fas fa-filter me-1"></i> Filtrer
+                </button>
+                <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
 
 <div class="card">
     <div class="table-responsive">
@@ -46,7 +111,7 @@
             </thead>
             <tbody>
                 {% for groupe in groupes %}
-                <tr class="group-row" data-search="{{ (groupe.nom ~ ' ' ~ (groupe.description or ''))|lower }}">
+                <tr class="group-row">
                     <td>
                         <div class="fw-bold">{{ groupe.nom }}</div>
                         <small class="text-muted">{{ groupe.description or '-' }}</small>
@@ -129,16 +194,4 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('groupSearchInput');
-    const rows = Array.from(document.querySelectorAll('.group-row'));
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            const query = searchInput.value.trim().toLowerCase();
-            rows.forEach((row) => row.style.display = row.dataset.search.includes(query) ? '' : 'none');
-        });
-    }
-});
-</script>
 {% endblock %}

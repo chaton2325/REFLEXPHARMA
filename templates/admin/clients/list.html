@@ -18,10 +18,12 @@
         <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
             <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
         </button>
-        <div class="input-group" style="width: 300px;">
-            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="clientSearchInput" class="form-control" placeholder="Rechercher un client...">
-        </div>
+        <a href="{{ url_for('admin.export_clients_excel', **export_query) }}" class="btn btn-outline-success">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_clients_pdf', **export_query) }}" class="btn btn-outline-danger">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
         {% if current_user.has_permission('gestion_groupes_clients') %}
         <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-info">
             <i class="fas fa-users me-1"></i> Groupes clients
@@ -37,6 +39,74 @@
         </a>
     </div>
 </div>
+
+<form method="GET" class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Recherche</label>
+                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Nom, matricule, email...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Groupe</label>
+                <select name="groupe_id" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="none" {% if request.args.get('groupe_id') == 'none' %}selected{% endif %}>Sans groupe</option>
+                    {% for groupe in groupes %}
+                    <option value="{{ groupe.id }}" {% if request.args.get('groupe_id') == groupe.id|string %}selected{% endif %}>{{ groupe.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Solde</label>
+                <select name="solde_status" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
+                    <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
+                    <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date debut</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date fin</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Trier par</label>
+                <select name="sort" class="form-select">
+                    {% set selected_sort = request.args.get('sort', 'created_at') %}
+                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
+                    <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
+                    <option value="matricule" {% if selected_sort == 'matricule' %}selected{% endif %}>Matricule</option>
+                    <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
+                    <option value="prenom" {% if selected_sort == 'prenom' %}selected{% endif %}>Prenom</option>
+                    <option value="email" {% if selected_sort == 'email' %}selected{% endif %}>Email</option>
+                    <option value="telephone" {% if selected_sort == 'telephone' %}selected{% endif %}>Telephone</option>
+                    <option value="groupe" {% if selected_sort == 'groupe' %}selected{% endif %}>Groupe</option>
+                    <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Ordre</label>
+                <select name="direction" class="form-select">
+                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
+                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="fas fa-filter me-1"></i> Filtrer
+                </button>
+                <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
 
 <div class="card">
     <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_clients') }}" method="POST"></form>
@@ -55,7 +125,7 @@
                 </thead>
                 <tbody>
                     {% for client in clients %}
-                    <tr class="client-row" data-search="{{ (client.matricule ~ ' ' ~ client.nom ~ ' ' ~ client.prenom ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}">
+                    <tr class="client-row">
                         <td><input type="checkbox" class="form-check-input row-checkbox" name="ids[]" value="{{ client.id }}" form="bulkDeleteForm"></td>
                         <td>
                             <div class="fw-bold">{{ client.prenom }} {{ client.nom }}</div>
@@ -158,8 +228,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('clientSearchInput');
-    const rows = Array.from(document.querySelectorAll('.client-row'));
     const selectAll = document.getElementById('selectAll');
     const checkboxes = Array.from(document.querySelectorAll('.row-checkbox'));
     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
@@ -173,12 +241,6 @@ document.addEventListener('DOMContentLoaded', function() {
         modalSelectedCount.textContent = count;
     }
 
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            const query = searchInput.value.trim().toLowerCase();
-            rows.forEach((row) => row.style.display = row.dataset.search.includes(query) ? '' : 'none');
-        });
-    }
     if (selectAll) {
         selectAll.addEventListener('change', function() {
             checkboxes.forEach((checkbox) => checkbox.checked = selectAll.checked);
