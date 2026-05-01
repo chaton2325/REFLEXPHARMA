@@ -180,8 +180,25 @@
     </div>
     {% endif %}
 
+    {% if current_user.has_permission('gestion_ventes') %}
     <div class="col-md-4 mb-4">
-        <div class="card h-100 bg-light border-0">
+        <div class="card h-100 shadow-sm border-primary">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary me-3">
+                        <i class="fas fa-shopping-cart fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Ventes</h5>
+                </div>
+                <p class="card-text">Enregistrez les ventes simples, clients, produits et totaux TTC.</p>
+                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-primary btn-sm">Ouvrir les ventes</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="col-md-4 mb-4 d-none">
+        <div class="card h-100 bg-light border-0 d-none">
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">
                     <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">

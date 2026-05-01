@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Ventes - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Ventes</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Ventes</h1>
+        <p class="text-muted mb-0">Premiere base du module vente : enregistrement, totaux et suivi des ventes.</p>
+    </div>
+    <a href="{{ url_for('admin.create_vente') }}" class="btn btn-primary">
+        <i class="fas fa-cash-register me-1"></i> Nouvelle vente
+    </a>
+</div>
+
+<form method="GET" class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Recherche</label>
+                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Statut</label>
+                <select name="statut" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
+                    <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
+                    <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Paiement</label>
+                <select name="mode_paiement" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="especes" {% if request.args.get('mode_paiement') == 'especes' %}selected{% endif %}>Especes</option>
+                    <option value="mobile_money" {% if request.args.get('mode_paiement') == 'mobile_money' %}selected{% endif %}>Mobile money</option>
+                    <option value="carte" {% if request.args.get('mode_paiement') == 'carte' %}selected{% endif %}>Carte</option>
+                    <option value="solde_client" {% if request.args.get('mode_paiement') == 'solde_client' %}selected{% endif %}>Solde client</option>
+                    <option value="mixte" {% if request.args.get('mode_paiement') == 'mixte' %}selected{% endif %}>Mixte</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date debut</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date fin</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Trier par</label>
+                <select name="sort" class="form-select">
+                    {% set selected_sort = request.args.get('sort', 'created_at') %}
+                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Date</option>
+                    <option value="numero_vente" {% if selected_sort == 'numero_vente' %}selected{% endif %}>Numero</option>
+                    <option value="client" {% if selected_sort == 'client' %}selected{% endif %}>Client</option>
+                    <option value="total_ht" {% if selected_sort == 'total_ht' %}selected{% endif %}>Total HT</option>
+                    <option value="total_tva" {% if selected_sort == 'total_tva' %}selected{% endif %}>TVA</option>
+                    <option value="total_ttc" {% if selected_sort == 'total_ttc' %}selected{% endif %}>Total TTC</option>
+                    <option value="mode_paiement" {% if selected_sort == 'mode_paiement' %}selected{% endif %}>Paiement</option>
+                    <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Ordre</label>
+                <select name="direction" class="form-select">
+                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
+                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="fas fa-filter me-1"></i> Filtrer
+                </button>
+                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Ventes affichees</div>
+                <div class="h4 mb-0">{{ ventes|length }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total TVA</div>
+                <div class="h4 mb-0">{{ "%.2f"|format(ventes|sum(attribute='total_tva')) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total TTC</div>
+                <div class="h4 mb-0 text-success">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th>Vente</th>
+                    <th>Client</th>
+                    <th>Paiement</th>
+                    <th class="text-end">HT</th>
+                    <th class="text-end">TVA</th>
+                    <th class="text-end">TTC</th>
+                    <th>Auteur</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vente in ventes %}
+                <tr>
+                    <td>
+                        <div class="fw-bold">{{ vente.numero_vente }}</div>
+                        <small class="text-muted">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</small>
+                    </td>
+                    <td>
+                        <div>{{ vente.client_label }}</div>
+                        <small class="text-muted">{{ vente.groupe_client_nom or 'Client comptoir' }}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-dark-subtle text-dark border">{{ vente.mode_paiement }}</span>
+                        <div class="small text-muted">{{ vente.statut }}</div>
+                    </td>
+                    <td class="text-end">{{ "%.2f"|format(vente.total_ht) }}</td>
+                    <td class="text-end">{{ "%.2f"|format(vente.total_tva) }}</td>
+                    <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
+                    <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

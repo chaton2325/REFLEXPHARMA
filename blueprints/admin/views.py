@@ -17,6 +17,7 @@ from models.stock_exit_log import StockExitLog
 from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
+from models.vente import Vente, VenteLigne
 from extensions import db
 from functools import wraps
 from datetime import datetime
@@ -1116,6 +1117,248 @@ def delete_groupe_client(id):
     db.session.commit()
     flash('Groupe client supprimÃ©. Les clients associÃ©s ont Ã©tÃ© dÃ©tachÃ©s.', 'success')
     return redirect(url_for('admin.list_groupes_clients'))
+
+# --- GESTION DES VENTES ---
+def generate_numero_vente():
+    prefix = datetime.now().strftime('V%Y%m%d')
+    count = Vente.query.filter(Vente.numero_vente.like(f'{prefix}-%')).count() + 1
+    while True:
+        numero = f'{prefix}-{count:04d}'
+        if not Vente.query.filter_by(numero_vente=numero).first():
+            return numero
+        count += 1
+
+def get_product_unit_price(produit, unite):
+    if unite == 'sous_unite':
+        prix_ht = produit.prix_sous_unite if produit.prix_sous_unite is not None else produit.prix_unite
+        prix_ttc = produit.prix_sous_unite_ttc if produit.prix_sous_unite_ttc is not None else produit.prix_unite_ttc
+    elif unite == 'sous_sous_unite':
+        prix_ht = produit.prix_sous_sous_unite if produit.prix_sous_sous_unite is not None else produit.prix_unite
+        prix_ttc = produit.prix_sous_sous_unite_ttc if produit.prix_sous_sous_unite_ttc is not None else produit.prix_unite_ttc
+    else:
+        prix_ht = produit.prix_unite
+        prix_ttc = produit.prix_unite_ttc
+    return float(prix_ht or 0), float(prix_ttc or 0)
+
+def normalize_product_unit(produit, unite, stock_summary=None):
+    conditionnement = min(max(int(produit.conditionnement or 1), 1), 3)
+    if stock_summary:
+        if (stock_summary.get('sous_sous_unite') or 0) > 0:
+            conditionnement = max(conditionnement, 3)
+        elif (stock_summary.get('sous_unite') or 0) > 0:
+            conditionnement = max(conditionnement, 2)
+    if unite == 'sous_sous_unite' and conditionnement >= 3:
+        return unite
+    if unite == 'sous_unite' and conditionnement >= 2:
+        return unite
+    return 'unite'
+
+def get_product_stock_summary(produit):
+    return {
+        'unite': sum((stock.quantite_unites or 0) for stock in produit.stocks),
+        'sous_unite': sum((stock.quantite_sous_unites or 0) for stock in produit.stocks),
+        'sous_sous_unite': sum((stock.quantite_sous_sous_unites or 0) for stock in produit.stocks)
+    }
+
+def get_products_stock_totals(produits):
+    return {produit.id: get_product_stock_summary(produit) for produit in produits}
+
+def get_products_stock_tracking_codes(produits):
+    codes_by_product = {}
+    for produit in produits:
+        codes = []
+        for stock in produit.stocks:
+            total = (
+                (stock.quantite_unites or 0)
+                + (stock.quantite_sous_unites or 0)
+                + (stock.quantite_sous_sous_unites or 0)
+            )
+            if total <= 0:
+                continue
+            codes.append(
+                f'{stock.code_suivi} '
+                f'(U:{stock.quantite_unites or 0}, SU:{stock.quantite_sous_unites or 0}, SSU:{stock.quantite_sous_sous_unites or 0})'
+            )
+        codes_by_product[produit.id] = codes
+    return codes_by_product
+
+def get_filtered_ventes():
+    ventes = Vente.query.order_by(Vente.created_at.desc()).all()
+    query = (request.args.get('q') or '').strip().lower()
+    statut = (request.args.get('statut') or '').strip()
+    mode_paiement = (request.args.get('mode_paiement') or '').strip()
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    sort = (request.args.get('sort') or 'created_at').strip()
+    direction = (request.args.get('direction') or 'desc').strip()
+
+    if query:
+        ventes = [
+            vente for vente in ventes
+            if query in ' '.join([
+                vente.numero_vente or '',
+                vente.client_matricule or '',
+                vente.client_nom or '',
+                vente.client_prenom or '',
+                vente.client_email or '',
+                vente.groupe_client_nom or '',
+                vente.auteur_nom or '',
+                vente.auteur_prenom or '',
+                vente.mode_paiement or '',
+                vente.statut or ''
+            ]).lower()
+        ]
+    if statut:
+        ventes = [vente for vente in ventes if vente.statut == statut]
+    if mode_paiement:
+        ventes = [vente for vente in ventes if vente.mode_paiement == mode_paiement]
+    if date_from:
+        ventes = [vente for vente in ventes if vente.created_at and vente.created_at.date() >= date_from]
+    if date_to:
+        ventes = [vente for vente in ventes if vente.created_at and vente.created_at.date() <= date_to]
+
+    sorters = {
+        'numero_vente': lambda vente: vente.numero_vente or '',
+        'client': lambda vente: vente.client_label.lower(),
+        'mode_paiement': lambda vente: vente.mode_paiement or '',
+        'statut': lambda vente: vente.statut or '',
+        'total_ht': lambda vente: vente.total_ht or 0,
+        'total_tva': lambda vente: vente.total_tva or 0,
+        'total_ttc': lambda vente: vente.total_ttc or 0,
+        'auteur': lambda vente: f'{vente.auteur_prenom or ""} {vente.auteur_nom or ""}'.lower(),
+        'created_at': lambda vente: vente.created_at or datetime.min
+    }
+    ventes.sort(key=sorters.get(sort, sorters['created_at']), reverse=direction != 'asc')
+    return ventes
+
+@admin.route('/ventes')
+@login_required
+@permission_required('gestion_ventes')
+def list_ventes():
+    ventes = get_filtered_ventes()
+    return render_template('admin/ventes/list.html', ventes=ventes)
+
+@admin.route('/ventes/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_ventes')
+def create_vente():
+    clients = Client.query.order_by(Client.nom.asc(), Client.prenom.asc()).all()
+    produits = Produit.query.order_by(Produit.nom.asc()).all()
+    stock_totals = get_products_stock_totals(produits)
+    stock_tracking_codes = get_products_stock_tracking_codes(produits)
+    if request.method == 'POST':
+        client = None
+        client_id = request.form.get('client_id')
+        if client_id:
+            client = Client.query.get(client_id)
+
+        vente = Vente(
+            numero_vente=generate_numero_vente(),
+            statut=request.form.get('statut') or 'validee',
+            mode_paiement=request.form.get('mode_paiement') or 'especes',
+            note=request.form.get('note'),
+            client_id=client.id if client else None,
+            client_matricule=client.matricule if client else None,
+            client_nom=client.nom if client else None,
+            client_prenom=client.prenom if client else None,
+            client_email=client.email if client else None,
+            groupe_client_id=client.groupe.id if client and client.groupe else None,
+            groupe_client_nom=client.groupe.nom if client and client.groupe else None,
+            groupe_absorption_pourcentage=client.groupe.pourcentage_absorption if client and client.groupe else 0,
+            auteur_id=current_user.id,
+            auteur_nom=current_user.nom,
+            auteur_prenom=current_user.prenom,
+            auteur_email=current_user.email
+        )
+        db.session.add(vente)
+
+        produit_ids = request.form.getlist('produit_id[]')
+        unites = request.form.getlist('unite[]')
+        quantites = request.form.getlist('quantite[]')
+        total_ht = 0
+        total_tva = 0
+        total_ttc = 0
+        lignes_count = 0
+        requested_quantities = {}
+
+        for index, produit_id in enumerate(produit_ids):
+            if not produit_id:
+                continue
+            produit = Produit.query.get(produit_id)
+            if not produit:
+                continue
+            stock_summary = stock_totals.get(produit.id, get_product_stock_summary(produit))
+            unite = normalize_product_unit(produit, unites[index] if index < len(unites) else 'unite', stock_summary)
+            try:
+                quantite = float(quantites[index] if index < len(quantites) else 1)
+            except ValueError:
+                quantite = 1
+            if quantite <= 0:
+                continue
+
+            available_quantity = float(stock_summary.get(unite, 0) or 0)
+            request_key = (produit.id, unite)
+            requested_quantity = requested_quantities.get(request_key, 0) + quantite
+            if available_quantity <= 0:
+                db.session.rollback()
+                flash(f'{produit.nom} n a pas de stock disponible pour cette unite.', 'danger')
+                return redirect(url_for('admin.create_vente'))
+            if requested_quantity > available_quantity:
+                db.session.rollback()
+                flash(f'Stock insuffisant pour {produit.nom}. Disponible : {available_quantity:g}, demande : {requested_quantity:g}.', 'danger')
+                return redirect(url_for('admin.create_vente'))
+            requested_quantities[request_key] = requested_quantity
+
+            prix_ht, prix_ttc = get_product_unit_price(produit, unite)
+            ligne_total_ht = prix_ht * quantite
+            ligne_total_ttc = prix_ttc * quantite
+            ligne_total_tva = max(ligne_total_ttc - ligne_total_ht, 0)
+            db.session.add(VenteLigne(
+                vente=vente,
+                produit_id=produit.id,
+                produit_code=produit.code_produit,
+                produit_nom=produit.nom,
+                unite=unite,
+                quantite=quantite,
+                prix_unitaire_ht=prix_ht,
+                prix_unitaire_ttc=prix_ttc,
+                tva_pourcentage=produit.effectif_tva or 0,
+                total_ht=ligne_total_ht,
+                total_tva=ligne_total_tva,
+                total_ttc=ligne_total_ttc
+            ))
+            total_ht += ligne_total_ht
+            total_tva += ligne_total_tva
+            total_ttc += ligne_total_ttc
+            lignes_count += 1
+
+        if lignes_count == 0:
+            db.session.rollback()
+            flash('Ajoutez au moins un produit valide a la vente.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+
+        vente.total_ht = total_ht
+        vente.total_tva = total_tva
+        vente.total_ttc = total_ttc
+        db.session.commit()
+        flash('Vente enregistrÃ©e avec succÃ¨s.', 'success')
+        return redirect(url_for('admin.list_ventes'))
+
+    return render_template(
+        'admin/ventes/form.html',
+        clients=clients,
+        produits=produits,
+        stock_totals=stock_totals,
+        stock_tracking_codes=stock_tracking_codes,
+        suggested_numero=generate_numero_vente()
+    )
+
+@admin.route('/ventes/<int:id>')
+@login_required
+@permission_required('gestion_ventes')
+def detail_vente(id):
+    vente = Vente.query.get_or_404(id)
+    return render_template('admin/ventes/detail.html', vente=vente)
 
 @admin.route('/clients/historique')
 @login_required

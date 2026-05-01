@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle vente - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_ventes') }}">Ventes</a></li>
+                <li class="breadcrumb-item active">Nouvelle vente</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Nouvelle vente</h1>
+        <p class="text-muted mb-0">Numero prevu : {{ suggested_numero }}</p>
+    </div>
+</div>
+
+<form method="POST" class="card" id="venteForm">
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Client</label>
+                <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
+                <select name="client_id" class="form-select" id="clientSelect">
+                    <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-search="client comptoir">Client comptoir</option>
+                    {% for client in clients %}
+                    <option
+                        value="{{ client.id }}"
+                        data-client-name="{{ client.prenom }} {{ client.nom }}"
+                        data-client-matricule="{{ client.matricule }}"
+                        data-client-email="{{ client.email or '-' }}"
+                        data-client-phone="{{ client.telephone or '-' }}"
+                        data-solde="{{ client.solde or 0 }}"
+                        data-groupe="{{ client.groupe.nom if client.groupe else '' }}"
+                        data-groupe-solde="{{ client.groupe.solde if client.groupe else 0 }}"
+                        data-absorption="{{ client.groupe.pourcentage_absorption if client.groupe else 0 }}"
+                        data-search="{{ (client.prenom ~ ' ' ~ client.nom ~ ' ' ~ client.matricule ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}"
+                    >
+                        {{ client.prenom }} {{ client.nom }} - {{ client.matricule }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="border rounded p-2 mt-2 bg-light small" id="clientSelectedMeta">
+                    <div class="fw-bold">Client comptoir</div>
+                    <div class="text-muted">Aucun compte client sélectionné.</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Mode de paiement</label>
+                <select name="mode_paiement" class="form-select" required>
+                    <option value="especes">Especes</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="carte">Carte</option>
+                    <option value="solde_client">Solde client</option>
+                    <option value="mixte">Mixte</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-bold">Statut</label>
+                <select name="statut" class="form-select" required>
+                    <option value="validee">Validee</option>
+                    <option value="brouillon">Brouillon</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Note</label>
+                <input type="text" name="note" class="form-control" placeholder="Observation...">
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <div class="border rounded p-3 h-100 bg-light">
+                    <div class="text-muted small">Solde client</div>
+                    <div class="h5 mb-0" id="clientBalance">0.00</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 h-100 bg-light">
+                    <div class="text-muted small">Groupe client</div>
+                    <div class="fw-bold" id="clientGroupName">Aucun groupe</div>
+                    <div class="small text-muted">Solde : <span id="groupBalance">0.00</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 h-100 bg-light">
+                    <div class="text-muted small">Absorption groupe</div>
+                    <div class="h5 mb-0" id="groupAbsorption">0.00%</div>
+                    <div class="small text-muted">Client : <span id="clientAbsorption">100.00%</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 h-100 bg-light">
+                    <div class="text-muted small">Total vente TTC</div>
+                    <div class="h5 mb-0 text-success" id="saleTotalTtc">0.00</div>
+                    <div class="small text-muted">HT : <span id="saleTotalHt">0.00</span> / TVA : <span id="saleTotalTax">0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info d-flex flex-column flex-md-row justify-content-between gap-2">
+            <div>
+                <strong>Part absorbée par le groupe :</strong>
+                <span id="groupAmountToPay">0.00</span>
+            </div>
+            <div>
+                <strong>Prix à payer par le client :</strong>
+                <span id="clientAmountToPay">0.00</span>
+            </div>
+            <div>
+                <strong>Reste solde client :</strong>
+                <span id="clientBalanceAfter">0.00</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle" id="saleLinesTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th>Produit</th>
+                        <th style="width: 180px;">Unités</th>
+                        <th style="width: 140px;">Quantite</th>
+                        <th style="width: 52px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="saleLinesBody">
+                    <tr class="sale-line">
+                        <td>
+                            <input type="search" class="form-control mb-2 product-search" placeholder="Rechercher produit: nom, code suivi, fournisseur, groupe...">
+                            <select name="produit_id[]" class="form-select product-select" required>
+                                <option value="">Choisir un produit</option>
+                                {% for produit in produits %}
+                                <option
+                                    value="{{ produit.id }}"
+                                    data-product-code="{{ produit.code_produit }}"
+                                    data-tracking-codes="{{ stock_tracking_codes.get(produit.id, [])|join(' | ') }}"
+                                    data-fournisseur="{{ produit.fournisseur.nom if produit.fournisseur else '-' }}"
+                                    data-groupe-fournisseur="{{ produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '-' }}"
+                                    data-rayon="{{ produit.rayon.nom if produit.rayon else '-' }}"
+                                    data-famille="{{ produit.famille.nom if produit.famille else '-' }}"
+                                    data-section="{{ produit.section.nom if produit.section else '-' }}"
+                                    data-conditionnement="{{ [produit.conditionnement or 1, 3 if stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) > 0 else 2 if stock_totals.get(produit.id, {}).get('sous_unite', 0) > 0 else 1]|max }}"
+                                    data-stock-unite="{{ stock_totals.get(produit.id, {}).get('unite', 0) }}"
+                                    data-stock-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_unite', 0) }}"
+                                    data-stock-sous-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) }}"
+                                    data-unite-ht="{{ produit.prix_unite or 0 }}"
+                                    data-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
+                                    data-sous-unite-ht="{{ produit.prix_sous_unite or produit.prix_unite or 0 }}"
+                                    data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
+                                    data-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or produit.prix_unite or 0 }}"
+                                    data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
+                                    data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
+                                >
+                                    {{ produit.nom }} - {{ stock_tracking_codes.get(produit.id, [produit.code_produit])[0] }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="border rounded p-2 mt-2 bg-light small product-meta">
+                                <div class="fw-bold">Aucun produit sélectionné</div>
+                                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
+                            </div>
+                        </td>
+                        <td>
+                            <select name="unite[]" class="form-select unit-select">
+                                <option value="unite" data-min-conditionnement="1">Unités</option>
+                                <option value="sous_unite" data-min-conditionnement="2">Sous unités</option>
+                                <option value="sous_sous_unite" data-min-conditionnement="3">Sous sous unités</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" min="0.01" step="0.01" name="quantite[]" class="form-control" value="1" required>
+                            <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-line" title="Retirer">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+            <button type="button" class="btn btn-outline-primary" id="addLineBtn">
+                <i class="fas fa-plus me-1"></i> Ajouter une ligne
+            </button>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">Annuler</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const body = document.getElementById('saleLinesBody');
+    const addLineBtn = document.getElementById('addLineBtn');
+    const clientSelect = document.getElementById('clientSelect');
+    const clientSearchInput = document.getElementById('clientSearchInput');
+    const moneyFormatter = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function toNumber(value) {
+        const parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatMoney(value) {
+        return moneyFormatter.format(value);
+    }
+
+    function escapeHtml(value) {
+        return String(value || '-')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function getSelectedPrice(option, unit, kind) {
+        if (!option) return 0;
+        if (unit === 'sous_unite') return toNumber(option.dataset[`sousUnite${kind}`]);
+        if (unit === 'sous_sous_unite') return toNumber(option.dataset[`sousSousUnite${kind}`]);
+        return toNumber(option.dataset[`unite${kind}`]);
+    }
+
+    function getSelectedStock(option, unit) {
+        if (!option) return 0;
+        if (unit === 'sous_unite') return toNumber(option.dataset.stockSousUnite);
+        if (unit === 'sous_sous_unite') return toNumber(option.dataset.stockSousSousUnite);
+        return toNumber(option.dataset.stockUnite);
+    }
+
+    function productHasAvailableStock(option) {
+        if (!option || !option.value) return true;
+        const conditionnement = Math.min(Math.max(parseInt(option.dataset.conditionnement || '1', 10), 1), 3);
+        return (
+            getSelectedStock(option, 'unite') > 0
+            || (conditionnement >= 2 && getSelectedStock(option, 'sous_unite') > 0)
+            || (conditionnement >= 3 && getSelectedStock(option, 'sous_sous_unite') > 0)
+        );
+    }
+
+    function filterSelectOptions(select, query, enforceStock = false) {
+        const normalizedQuery = query.trim().toLowerCase();
+        Array.from(select.options).forEach((option, index) => {
+            if (index === 0) {
+                option.hidden = false;
+                return;
+            }
+            const haystack = option.dataset.search || option.textContent.toLowerCase();
+            const matchesQuery = normalizedQuery === '' || haystack.includes(normalizedQuery);
+            const hasStock = !enforceStock || productHasAvailableStock(option);
+            option.disabled = !hasStock;
+            option.hidden = !matchesQuery || !hasStock;
+        });
+    }
+
+    function updateUnitOptions(line) {
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        const unitSelect = line.querySelector('select[name="unite[]"]');
+        const selectedProduct = productSelect.options[productSelect.selectedIndex];
+        const conditionnement = Math.min(Math.max(parseInt(selectedProduct.dataset.conditionnement || '1', 10), 1), 3);
+        let selectedStillAvailable = false;
+
+        Array.from(unitSelect.options).forEach((option) => {
+            const minConditionnement = parseInt(option.dataset.minConditionnement || '1', 10);
+            const isAvailable = minConditionnement <= conditionnement && getSelectedStock(selectedProduct, option.value) > 0;
+            const baseLabel = option.value === 'sous_sous_unite' ? 'Sous sous unités' : option.value === 'sous_unite' ? 'Sous unités' : 'Unités';
+            option.textContent = `${baseLabel} (${formatMoney(getSelectedStock(selectedProduct, option.value))})`;
+            option.hidden = !isAvailable;
+            option.disabled = !isAvailable;
+            if (option.selected && isAvailable) {
+                selectedStillAvailable = true;
+            }
+        });
+
+        if (!selectedStillAvailable) {
+            const firstAvailable = Array.from(unitSelect.options).find((option) => !option.disabled);
+            unitSelect.value = firstAvailable ? firstAvailable.value : 'unite';
+        }
+    }
+
+    function updateAllUnitOptions() {
+        document.querySelectorAll('.sale-line').forEach(updateUnitOptions);
+    }
+
+    function updateLineStockState(line) {
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        const unitSelect = line.querySelector('select[name="unite[]"]');
+        const quantityInput = line.querySelector('input[name="quantite[]"]');
+        const stockAvailable = line.querySelector('.stock-available');
+        const selectedProduct = productSelect.options[productSelect.selectedIndex];
+        const noProduct = !selectedProduct || !selectedProduct.value;
+        const available = noProduct ? 0 : getSelectedStock(selectedProduct, unitSelect.value);
+        const quantity = Math.max(toNumber(quantityInput.value), 0);
+        const invalid = !noProduct && (available <= 0 || quantity > available);
+
+        quantityInput.max = noProduct ? '' : available;
+        stockAvailable.textContent = noProduct ? 'Stock disponible : -' : `Stock disponible : ${formatMoney(available)}`;
+        stockAvailable.classList.toggle('text-danger', invalid);
+        stockAvailable.classList.toggle('text-muted', !invalid);
+        quantityInput.classList.toggle('is-invalid', invalid);
+    }
+
+    function updateLineProductMeta(line) {
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        const productMeta = line.querySelector('.product-meta');
+        const selectedProduct = productSelect.options[productSelect.selectedIndex];
+        if (!selectedProduct || !selectedProduct.value) {
+            productMeta.innerHTML = `
+                <div class="fw-bold">Aucun produit sélectionné</div>
+                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
+            `;
+            return;
+        }
+        productMeta.innerHTML = `
+            <div class="fw-bold">${escapeHtml(selectedProduct.textContent.split(' - ')[0])}</div>
+            <div class="mt-1"><span class="text-muted">Code suivi :</span> ${escapeHtml(selectedProduct.dataset.trackingCodes || '-')}</div>
+            <div><span class="text-muted">Code produit :</span> ${escapeHtml(selectedProduct.dataset.productCode || '-')}</div>
+            <div><span class="text-muted">Fournisseur :</span> ${escapeHtml(selectedProduct.dataset.fournisseur || '-')}</div>
+            <div><span class="text-muted">Groupe fournisseur :</span> ${escapeHtml(selectedProduct.dataset.groupeFournisseur || '-')}</div>
+            <div><span class="text-muted">Famille :</span> ${escapeHtml(selectedProduct.dataset.famille || '-')}</div>
+            <div><span class="text-muted">Rayon :</span> ${escapeHtml(selectedProduct.dataset.rayon || '-')}</div>
+            <div><span class="text-muted">Section :</span> ${escapeHtml(selectedProduct.dataset.section || '-')}</div>
+        `;
+    }
+
+    function updateClientMeta() {
+        const clientMeta = document.getElementById('clientSelectedMeta');
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex];
+        if (!selectedClient || !selectedClient.value) {
+            clientMeta.innerHTML = `
+                <div class="fw-bold">Client comptoir</div>
+                <div class="text-muted">Aucun compte client sélectionné.</div>
+            `;
+            return;
+        }
+        clientMeta.innerHTML = `
+            <div class="fw-bold">${escapeHtml(selectedClient.dataset.clientName || selectedClient.textContent)}</div>
+            <div><span class="text-muted">Matricule :</span> ${escapeHtml(selectedClient.dataset.clientMatricule || '-')}</div>
+            <div><span class="text-muted">Contact :</span> ${escapeHtml(selectedClient.dataset.clientPhone || '-')} / ${escapeHtml(selectedClient.dataset.clientEmail || '-')}</div>
+            <div><span class="text-muted">Groupe :</span> ${escapeHtml(selectedClient.dataset.groupe || 'Aucun groupe')}</div>
+        `;
+    }
+
+    function updateSaleSummary() {
+        let totalHt = 0;
+        let totalTtc = 0;
+        document.querySelectorAll('.sale-line').forEach((line) => {
+            updateUnitOptions(line);
+            updateLineStockState(line);
+            updateLineProductMeta(line);
+            const productSelect = line.querySelector('select[name="produit_id[]"]');
+            const unitSelect = line.querySelector('select[name="unite[]"]');
+            const quantityInput = line.querySelector('input[name="quantite[]"]');
+            const option = productSelect.options[productSelect.selectedIndex];
+            const quantity = Math.max(toNumber(quantityInput.value), 0);
+            totalHt += getSelectedPrice(option, unitSelect.value, 'Ht') * quantity;
+            totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * quantity;
+        });
+
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex];
+        updateClientMeta();
+        const clientBalance = toNumber(selectedClient.dataset.solde);
+        const groupName = selectedClient.dataset.groupe || '';
+        const groupBalance = toNumber(selectedClient.dataset.groupeSolde);
+        const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
+        const groupAmount = totalTtc * (absorption / 100);
+        const clientAmount = totalTtc - groupAmount;
+
+        document.getElementById('clientBalance').textContent = formatMoney(clientBalance);
+        document.getElementById('clientGroupName').textContent = groupName || 'Aucun groupe';
+        document.getElementById('groupBalance').textContent = formatMoney(groupBalance);
+        document.getElementById('groupAbsorption').textContent = `${formatMoney(absorption)}%`;
+        document.getElementById('clientAbsorption').textContent = `${formatMoney(100 - absorption)}%`;
+        document.getElementById('saleTotalHt').textContent = formatMoney(totalHt);
+        document.getElementById('saleTotalTax').textContent = formatMoney(Math.max(totalTtc - totalHt, 0));
+        document.getElementById('saleTotalTtc').textContent = formatMoney(totalTtc);
+        document.getElementById('groupAmountToPay').textContent = formatMoney(groupAmount);
+        document.getElementById('clientAmountToPay').textContent = formatMoney(clientAmount);
+        document.getElementById('clientBalanceAfter').textContent = formatMoney(clientBalance - clientAmount);
+    }
+
+    function refreshRemoveButtons() {
+        const buttons = Array.from(document.querySelectorAll('.remove-line'));
+        buttons.forEach((button) => {
+            button.disabled = buttons.length === 1;
+        });
+    }
+
+    addLineBtn.addEventListener('click', function() {
+        const firstLine = body.querySelector('.sale-line');
+        const clone = firstLine.cloneNode(true);
+        clone.querySelectorAll('select').forEach((select) => select.selectedIndex = 0);
+        clone.querySelectorAll('.product-search').forEach((input) => input.value = '');
+        clone.querySelector('input[name="quantite[]"]').value = '1';
+        body.appendChild(clone);
+        filterSelectOptions(clone.querySelector('.product-select'), '', true);
+        refreshRemoveButtons();
+        updateAllUnitOptions();
+        updateSaleSummary();
+    });
+
+    body.addEventListener('click', function(event) {
+        const button = event.target.closest('.remove-line');
+        if (!button) return;
+        const lines = body.querySelectorAll('.sale-line');
+        if (lines.length > 1) {
+            button.closest('.sale-line').remove();
+        }
+        refreshRemoveButtons();
+        updateSaleSummary();
+    });
+
+    clientSearchInput.addEventListener('input', function() {
+        filterSelectOptions(clientSelect, clientSearchInput.value);
+    });
+    clientSelect.addEventListener('change', updateSaleSummary);
+    body.addEventListener('input', function(event) {
+        if (!event.target.classList.contains('product-search')) return;
+        const line = event.target.closest('.sale-line');
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        filterSelectOptions(productSelect, event.target.value, true);
+    });
+    body.addEventListener('change', function(event) {
+        if (event.target.classList.contains('product-select')) {
+            const line = event.target.closest('.sale-line');
+            updateUnitOptions(line);
+            updateLineStockState(line);
+        }
+        updateSaleSummary();
+    });
+    body.addEventListener('input', updateSaleSummary);
+    document.querySelectorAll('.product-select').forEach((select) => filterSelectOptions(select, '', true));
+    refreshRemoveButtons();
+    updateAllUnitOptions();
+    updateSaleSummary();
+});
+</script>
+{% endblock %}

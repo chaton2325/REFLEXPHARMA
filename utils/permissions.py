@@ -14,7 +14,8 @@ FEATURES = {
     'stats_sorties_stock': 'Voir les statistiques des sorties de stock',
     'gestion_clients': 'GÃ©rer les clients',
     'gestion_groupes_clients': 'GÃ©rer les groupes clients',
-    'historique_clients': 'Voir l historique des clients'
+    'historique_clients': 'Voir l historique des clients',
+    'gestion_ventes': 'Gerer les ventes'
 }
 
 def get_feature_label(feature):

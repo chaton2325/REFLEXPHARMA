@@ -60,6 +60,11 @@
                         <a class="nav-link" href="{{ url_for('admin.manage_stock') }}">Stock</a>
                     </li>
                     {% endif %}
+                    {% if current_user.has_permission('gestion_ventes') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.list_ventes') }}">Ventes</a>
+                    </li>
+                    {% endif %}
                     {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="clientsDropdown" role="button" data-bs-toggle="dropdown">

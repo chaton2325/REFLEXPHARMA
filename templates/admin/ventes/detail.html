@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Vente {{ vente.numero_vente }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_ventes') }}">Ventes</a></li>
+                <li class="breadcrumb-item active">{{ vente.numero_vente }}</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">{{ vente.numero_vente }}</h1>
+        <p class="text-muted mb-0">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</p>
+    </div>
+    <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Retour
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Client</div>
+                <div class="fw-bold">{{ vente.client_label }}</div>
+                <div class="small text-muted">{{ vente.client_matricule or 'Client comptoir' }}</div>
+                {% if vente.groupe_client_nom %}
+                <div class="small text-muted">Groupe : {{ vente.groupe_client_nom }} / absorption {{ "%.2f"|format(vente.groupe_absorption_pourcentage) }}%</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Paiement</div>
+                <div class="fw-bold">{{ vente.mode_paiement }}</div>
+                <div class="small text-muted">Statut : {{ vente.statut }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Auteur</div>
+                <div class="fw-bold">{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
+                <div class="small text-muted">{{ vente.auteur_email or '-' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th>Produit</th>
+                    <th>Unite</th>
+                    <th class="text-end">Quantite</th>
+                    <th class="text-end">PU HT</th>
+                    <th class="text-end">PU TTC</th>
+                    <th class="text-end">TVA</th>
+                    <th class="text-end">Total TTC</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in vente.lignes %}
+                <tr>
+                    <td>
+                        <div class="fw-bold">{{ ligne.produit_nom }}</div>
+                        <small class="text-muted">{{ ligne.produit_code or '-' }}</small>
+                    </td>
+                    <td>{{ ligne.unite }}</td>
+                    <td class="text-end">{{ "%.2f"|format(ligne.quantite) }}</td>
+                    <td class="text-end">{{ "%.2f"|format(ligne.prix_unitaire_ht) }}</td>
+                    <td class="text-end">{{ "%.2f"|format(ligne.prix_unitaire_ttc) }}</td>
+                    <td class="text-end">{{ "%.2f"|format(ligne.total_tva) }}</td>
+                    <td class="text-end fw-bold">{{ "%.2f"|format(ligne.total_ttc) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-light">
+                <tr>
+                    <th colspan="4"></th>
+                    <th class="text-end">Total HT</th>
+                    <th class="text-end">TVA</th>
+                    <th class="text-end">TTC</th>
+                </tr>
+                <tr>
+                    <th colspan="4"></th>
+                    <th class="text-end">{{ "%.2f"|format(vente.total_ht) }}</th>
+                    <th class="text-end">{{ "%.2f"|format(vente.total_tva) }}</th>
+                    <th class="text-end text-success">{{ "%.2f"|format(vente.total_ttc) }}</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+{% if vente.note %}
+<div class="card">
+    <div class="card-body">
+        <div class="text-muted small">Note</div>
+        <div>{{ vente.note }}</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

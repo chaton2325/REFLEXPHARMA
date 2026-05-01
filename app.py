@@ -20,6 +20,7 @@ from models.stock_exit_log import StockExitLog
 from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
+from models.vente import Vente, VenteLigne
 
 from config import config
 

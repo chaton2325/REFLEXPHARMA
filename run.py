@@ -55,6 +55,44 @@ def setup_database():
             ],
             'groupes_clients': [
                 ('pourcentage_absorption', 'FLOAT DEFAULT 0')
+            ],
+            'ventes': [
+                ('numero_vente', 'VARCHAR(80)'),
+                ('statut', 'VARCHAR(30) DEFAULT \'validee\''),
+                ('mode_paiement', 'VARCHAR(50) DEFAULT \'especes\''),
+                ('note', 'TEXT'),
+                ('client_id', 'INTEGER'),
+                ('client_matricule', 'VARCHAR(50)'),
+                ('client_nom', 'VARCHAR(120)'),
+                ('client_prenom', 'VARCHAR(120)'),
+                ('client_email', 'VARCHAR(150)'),
+                ('groupe_client_id', 'INTEGER'),
+                ('groupe_client_nom', 'VARCHAR(120)'),
+                ('groupe_absorption_pourcentage', 'FLOAT DEFAULT 0'),
+                ('total_ht', 'FLOAT DEFAULT 0'),
+                ('total_tva', 'FLOAT DEFAULT 0'),
+                ('total_ttc', 'FLOAT DEFAULT 0'),
+                ('auteur_id', 'INTEGER'),
+                ('auteur_nom', 'VARCHAR(100)'),
+                ('auteur_prenom', 'VARCHAR(100)'),
+                ('auteur_email', 'VARCHAR(150)'),
+                ('created_at', 'TIMESTAMP'),
+                ('updated_at', 'TIMESTAMP')
+            ],
+            'vente_lignes': [
+                ('vente_id', 'INTEGER'),
+                ('produit_id', 'INTEGER'),
+                ('produit_code', 'VARCHAR(50)'),
+                ('produit_nom', 'VARCHAR(200)'),
+                ('unite', 'VARCHAR(30) DEFAULT \'unite\''),
+                ('quantite', 'FLOAT DEFAULT 1'),
+                ('prix_unitaire_ht', 'FLOAT DEFAULT 0'),
+                ('prix_unitaire_ttc', 'FLOAT DEFAULT 0'),
+                ('tva_pourcentage', 'FLOAT DEFAULT 0'),
+                ('total_ht', 'FLOAT DEFAULT 0'),
+                ('total_tva', 'FLOAT DEFAULT 0'),
+                ('total_ttc', 'FLOAT DEFAULT 0'),
+                ('created_at', 'TIMESTAMP')
             ]
         }
         
