@@ -3,6 +3,93 @@
 {% block title %}Nouvelle vente - ReflexPharma{% endblock %}
 
 {% block content %}
+<style>
+    .treeview-panel {
+        max-height: 260px;
+        overflow-x: auto;
+        overflow-y: auto;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .375rem;
+        background: var(--bs-body-bg);
+    }
+
+    .treeview-header,
+    .treeview-row {
+        display: grid;
+        gap: .28rem;
+        align-items: center;
+        min-width: 0;
+        padding: .36rem .45rem;
+    }
+
+    .treeview-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--bs-light);
+        border-bottom: 1px solid var(--bs-border-color);
+        color: var(--bs-secondary-color);
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .treeview-row {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--bs-border-color);
+        background: transparent;
+        font-size: .8rem;
+        text-align: left;
+    }
+
+    .treeview-row:hover:not(:disabled) {
+        background-color: var(--bs-primary-bg-subtle);
+    }
+
+    .treeview-row.active {
+        background-color: var(--bs-primary-bg-subtle);
+        box-shadow: inset 3px 0 0 var(--bs-primary);
+        color: var(--bs-body-color);
+    }
+
+    .treeview-row:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+    }
+
+    .treeview-stockout {
+        background-color: var(--bs-light);
+    }
+
+    .client-tree {
+        grid-template-columns: minmax(180px, 1.4fr) 110px minmax(170px, 1fr) minmax(140px, .9fr);
+    }
+
+    .product-tree {
+        grid-template-columns: minmax(125px, 1.4fr) minmax(90px, .9fr) minmax(105px, 1fr) minmax(85px, .8fr) 44px 44px 44px 58px 54px 54px 54px 34px;
+    }
+
+    .treeview-row > div,
+    .treeview-header > div {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .treeview-empty {
+        padding: .8rem;
+        color: var(--bs-secondary-color);
+    }
+
+    .treeview-info-btn {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <nav aria-label="breadcrumb">
@@ -23,7 +110,7 @@
             <div class="col-md-4">
                 <label class="form-label fw-bold">Client</label>
                 <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
-                <select name="client_id" class="form-select" id="clientSelect">
+                <select name="client_id" class="form-select visually-hidden" id="clientSelect">
                     <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-search="client comptoir">Client comptoir</option>
                     {% for client in clients %}
                     <option
@@ -42,6 +129,7 @@
                     </option>
                     {% endfor %}
                 </select>
+                <div class="treeview-panel client-results mb-2" id="clientResults"></div>
                 <div class="border rounded p-2 mt-2 bg-light small" id="clientSelectedMeta">
                     <div class="fw-bold">Client comptoir</div>
                     <div class="text-muted">Aucun compte client sélectionné.</div>
@@ -71,20 +159,20 @@
         </div>
 
         <div class="row g-3 mb-3">
-            <div class="col-md-3">
+            <div class="col-md-3 client-account-section">
                 <div class="border rounded p-3 h-100 bg-light">
                     <div class="text-muted small">Solde client</div>
                     <div class="h5 mb-0" id="clientBalance">0.00</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 client-account-section">
                 <div class="border rounded p-3 h-100 bg-light">
                     <div class="text-muted small">Groupe client</div>
                     <div class="fw-bold" id="clientGroupName">Aucun groupe</div>
                     <div class="small text-muted">Solde : <span id="groupBalance">0.00</span></div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 client-account-section">
                 <div class="border rounded p-3 h-100 bg-light">
                     <div class="text-muted small">Absorption groupe</div>
                     <div class="h5 mb-0" id="groupAbsorption">0.00%</div>
@@ -100,18 +188,48 @@
             </div>
         </div>
 
-        <div class="alert alert-info d-flex flex-column flex-md-row justify-content-between gap-2">
-            <div>
-                <strong>Part absorbée par le groupe :</strong>
-                <span id="groupAmountToPay">0.00</span>
+        <div class="border rounded p-3 mb-3 d-none" aria-hidden="true">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Payé hors solde</label>
+                    <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <label class="form-label fw-bold">Débiter solde client</label>
+                    <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <label class="form-label fw-bold">Débiter solde groupe</label>
+                    <input type="number" min="0" step="0.01" name="montant_solde_groupe" id="amountGroupBalance" class="form-control payment-input" value="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Montant reçu</label>
+                    <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
+                </div>
             </div>
-            <div>
-                <strong>Prix à payer par le client :</strong>
-                <span id="clientAmountToPay">0.00</span>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="group">Tout solde groupe</button>
+                <button type="button" class="btn btn-sm btn-outline-info payment-preset client-account-section" data-preset="absorption">Appliquer % groupe</button>
             </div>
-            <div>
-                <strong>Reste solde client :</strong>
-                <span id="clientBalanceAfter">0.00</span>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                    <div class="small text-muted">Montant couvert</div>
+                    <div class="fw-bold" id="amountCovered">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Reste à payer</div>
+                    <div class="fw-bold text-danger" id="amountRemaining">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Monnaie à rendre</div>
+                    <div class="fw-bold text-success" id="changeDue">0.00</div>
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <div class="small text-muted">Soldes après vente</div>
+                    <div class="small">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
+                </div>
             </div>
         </div>
 
@@ -129,13 +247,14 @@
                     <tr class="sale-line">
                         <td>
                             <input type="search" class="form-control mb-2 product-search" placeholder="Rechercher produit: nom, code suivi, fournisseur, groupe...">
-                            <select name="produit_id[]" class="form-select product-select" required>
+                            <select name="produit_id[]" class="form-select product-select visually-hidden" required>
                                 <option value="">Choisir un produit</option>
                                 {% for produit in produits %}
                                 <option
                                     value="{{ produit.id }}"
                                     data-product-code="{{ produit.code_produit }}"
                                     data-tracking-codes="{{ stock_tracking_codes.get(produit.id, [])|join(' | ') }}"
+                                    data-expiry-dates="{{ stock_expiry_dates.get(produit.id, [])|join(' | ') }}"
                                     data-fournisseur="{{ produit.fournisseur.nom if produit.fournisseur else '-' }}"
                                     data-groupe-fournisseur="{{ produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '-' }}"
                                     data-rayon="{{ produit.rayon.nom if produit.rayon else '-' }}"
@@ -151,12 +270,13 @@
                                     data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
                                     data-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or produit.prix_unite or 0 }}"
                                     data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
-                                    data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
+                                    data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (stock_expiry_dates.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
                                 >
                                     {{ produit.nom }} - {{ stock_tracking_codes.get(produit.id, [produit.code_produit])[0] }}
                                 </option>
                                 {% endfor %}
                             </select>
+                            <div class="treeview-panel product-results mb-2"></div>
                             <div class="border rounded p-2 mt-2 bg-light small product-meta">
                                 <div class="fw-bold">Aucun produit sélectionné</div>
                                 <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
@@ -170,7 +290,7 @@
                             </select>
                         </td>
                         <td>
-                            <input type="number" min="0.01" step="0.01" name="quantite[]" class="form-control" value="1" required>
+                            <input type="number" min="1" step="1" name="quantite[]" class="form-control" value="1" required>
                             <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
                         </td>
                         <td>
@@ -183,27 +303,133 @@
             </table>
         </div>
 
-        <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+        <div class="d-flex justify-content-start mb-3">
             <button type="button" class="btn btn-outline-primary" id="addLineBtn">
                 <i class="fas fa-plus me-1"></i> Ajouter une ligne
             </button>
-            <div class="d-flex gap-2">
-                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">Annuler</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-1"></i> Enregistrer
-                </button>
+        </div>
+
+        <div class="border rounded p-3 mb-3">
+            <div class="row g-3 mb-2">
+                <div class="col-md-3">
+                    <div class="small text-muted">Total HT</div>
+                    <div class="fw-bold" id="paymentTotalHt">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">TVA</div>
+                    <div class="fw-bold" id="paymentTotalTax">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Total TTC</div>
+                    <div class="h5 mb-0 text-success" id="paymentTotalTtc">0.00</div>
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <div class="small text-muted">Part groupe calculée</div>
+                    <div class="fw-bold" id="paymentGroupShare">0.00</div>
+                    <div class="small text-muted"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <div class="small text-muted">Part client calculée</div>
+                    <div class="fw-bold" id="paymentClientShare">0.00</div>
+                    <div class="small text-muted"><span id="paymentClientPercent">100.00%</span> du TTC</div>
+                </div>
             </div>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3 client-account-section">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input payment-input" id="useGroupBalance" name="use_group_balance" value="1">
+                        <label class="form-check-label fw-bold" for="useGroupBalance">Débiter la part groupe</label>
+                    </div>
+                    <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
+                    <div class="small text-muted">Montant groupe : <span id="groupDebitPreview">0.00</span></div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Payé hors solde</label>
+                    <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <label class="form-label fw-bold">Débiter solde client</label>
+                    <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
+                    <div class="form-text">Le reste client peut être payé ici, hors solde, ou les deux.</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Montant reçu</label>
+                    <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                    <div class="small text-muted">Reste après groupe</div>
+                    <div class="fw-bold" id="remainingAfterGroup">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Payé + solde client</div>
+                    <div class="fw-bold" id="amountCovered">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Écart à corriger</div>
+                    <div class="fw-bold text-danger" id="amountRemaining">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Monnaie à rendre</div>
+                    <div class="fw-bold text-success" id="changeDue">0.00</div>
+                </div>
+                <div class="col-md-3 client-account-section">
+                    <div class="small text-muted">Soldes après vente</div>
+                    <div class="small">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-column flex-md-row justify-content-end gap-2">
+            <div>
+                <input type="password" name="validation_password" id="validationPassword" class="form-control" required autocomplete="current-password" placeholder="Mot de passe pour valider">
+                <div class="invalid-feedback">Mot de passe incorrect.</div>
+            </div>
+            <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">Annuler</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> Enregistrer
+            </button>
         </div>
     </div>
 </form>
 
+<div class="modal fade" id="productInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="productInfoTitle">Détails produit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="productInfoBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const venteForm = document.getElementById('venteForm');
     const body = document.getElementById('saleLinesBody');
     const addLineBtn = document.getElementById('addLineBtn');
     const clientSelect = document.getElementById('clientSelect');
     const clientSearchInput = document.getElementById('clientSearchInput');
+    const clientResults = document.getElementById('clientResults');
     const moneyFormatter = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.querySelectorAll('[aria-hidden="true"] input, [aria-hidden="true"] button').forEach((element) => {
+        element.disabled = true;
+    });
+
+    function fieldById(id) {
+        const matches = Array.from(document.querySelectorAll(`[id="${id}"]`));
+        return matches[matches.length - 1];
+    }
 
     function toNumber(value) {
         const parsed = parseFloat(value);
@@ -247,6 +473,98 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     }
 
+    function getResultPanel(select) {
+        if (select.id === 'clientSelect') return clientResults;
+        return select.closest('.sale-line').querySelector('.product-results');
+    }
+
+    function getOptionTitle(option) {
+        if (!option || !option.value) return option ? option.textContent.trim() : '';
+        return option.dataset.clientName || option.textContent.trim().split(' - ')[0];
+    }
+
+    function getClientCells(option) {
+        if (!option || !option.value) {
+            return ['Client comptoir', '-', '-', 'Aucun groupe'];
+        }
+        const contact = [option.dataset.clientPhone, option.dataset.clientEmail].filter(Boolean).join(' / ');
+        return [
+            option.dataset.clientName || option.textContent.trim(),
+            option.dataset.clientMatricule || '-',
+            contact || '-',
+            option.dataset.groupe || 'Aucun groupe'
+        ];
+    }
+
+    function getProductCells(option) {
+        return [
+            getOptionTitle(option),
+            option.dataset.trackingCodes || option.dataset.productCode || '-',
+            option.dataset.expiryDates || '-',
+            option.dataset.fournisseur || '-',
+            formatMoney(getSelectedStock(option, 'unite')),
+            formatMoney(getSelectedStock(option, 'sous_unite')),
+            formatMoney(getSelectedStock(option, 'sous_sous_unite')),
+            productHasAvailableStock(option) ? 'Disponible' : 'Stock 0',
+            formatMoney(toNumber(option.dataset.uniteTtc)),
+            formatMoney(toNumber(option.dataset.sousUniteTtc)),
+            formatMoney(toNumber(option.dataset.sousSousUniteTtc))
+        ];
+    }
+
+    function renderTreeHeader(isProduct) {
+        const headers = isProduct
+            ? ['Produit', 'Code suivi', 'Peremption', 'Fournisseur', 'U', 'SU', 'SSU', 'Etat', 'Prix U', 'Prix SU', 'Prix SSU', 'Info']
+            : ['Client', 'Matricule', 'Contact', 'Groupe'];
+        const treeClass = isProduct ? 'product-tree' : 'client-tree';
+        return `
+            <div class="treeview-header ${treeClass}" role="row">
+                ${headers.map((label) => `<div role="columnheader">${escapeHtml(label)}</div>`).join('')}
+            </div>
+        `;
+    }
+
+    function renderSearchResults(select, query) {
+        const panel = getResultPanel(select);
+        const isProduct = select.classList.contains('product-select');
+        const normalizedQuery = query.trim().toLowerCase();
+        const options = Array.from(select.options).filter((option, index) => {
+            if (isProduct && index === 0) return false;
+            const haystack = option.dataset.search || option.textContent.toLowerCase();
+            return normalizedQuery === '' || haystack.includes(normalizedQuery);
+        });
+
+        if (options.length === 0) {
+            panel.innerHTML = `
+                ${renderTreeHeader(isProduct)}
+                <div class="treeview-empty">Aucun resultat visible</div>
+            `;
+            return;
+        }
+
+        const treeClass = isProduct ? 'product-tree' : 'client-tree';
+        panel.innerHTML = renderTreeHeader(isProduct) + options.map((option) => {
+            const isOutOfStock = isProduct && !productHasAvailableStock(option);
+            const activeClass = option.selected ? 'active' : '';
+            const stockoutClass = isOutOfStock ? 'treeview-stockout' : '';
+            const disabledAttr = isOutOfStock ? 'disabled aria-disabled="true"' : '';
+            const cells = isProduct ? getProductCells(option) : getClientCells(option);
+            return `
+            <button type="button"
+                    class="treeview-row ${treeClass} ${activeClass} ${stockoutClass}"
+                    data-option-value="${escapeHtml(option.value)}"
+                    ${disabledAttr}>
+                ${cells.map((value, index) => {
+                    const stockStateClass = isProduct && index === 7 && isOutOfStock ? 'text-danger fw-bold' : '';
+                    const nameClass = index === 0 ? 'fw-bold' : '';
+                    return `<div class="${nameClass} ${stockStateClass}">${escapeHtml(value)}</div>`;
+                }).join('')}
+                ${isProduct ? '<div><span class="btn btn-sm btn-outline-info treeview-info-btn" data-product-info="1" title="Voir les détails"><i class="fas fa-info"></i></span></div>' : ''}
+            </button>
+        `;
+        }).join('');
+    }
+
     function filterSelectOptions(select, query, enforceStock = false) {
         const normalizedQuery = query.trim().toLowerCase();
         Array.from(select.options).forEach((option, index) => {
@@ -258,8 +576,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const matchesQuery = normalizedQuery === '' || haystack.includes(normalizedQuery);
             const hasStock = !enforceStock || productHasAvailableStock(option);
             option.disabled = !hasStock;
-            option.hidden = !matchesQuery || !hasStock;
+            option.hidden = !matchesQuery;
         });
+        renderSearchResults(select, query);
     }
 
     function updateUnitOptions(line) {
@@ -312,14 +631,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateLineProductMeta(line) {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
         const productMeta = line.querySelector('.product-meta');
+        const productSearch = line.querySelector('.product-search');
         const selectedProduct = productSelect.options[productSelect.selectedIndex];
         if (!selectedProduct || !selectedProduct.value) {
             productMeta.innerHTML = `
                 <div class="fw-bold">Aucun produit sélectionné</div>
                 <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
             `;
+            productSearch.placeholder = 'Rechercher produit: nom, code suivi, fournisseur, groupe...';
             return;
         }
+        productSearch.placeholder = getOptionTitle(selectedProduct);
         productMeta.innerHTML = `
             <div class="fw-bold">${escapeHtml(selectedProduct.textContent.split(' - ')[0])}</div>
             <div class="mt-1"><span class="text-muted">Code suivi :</span> ${escapeHtml(selectedProduct.dataset.trackingCodes || '-')}</div>
@@ -334,14 +656,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateClientMeta() {
         const clientMeta = document.getElementById('clientSelectedMeta');
-        const selectedClient = clientSelect.options[clientSelect.selectedIndex];
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
         if (!selectedClient || !selectedClient.value) {
+            clientSearchInput.placeholder = 'Client comptoir';
             clientMeta.innerHTML = `
                 <div class="fw-bold">Client comptoir</div>
                 <div class="text-muted">Aucun compte client sélectionné.</div>
             `;
             return;
         }
+        clientSearchInput.placeholder = getOptionTitle(selectedClient);
         clientMeta.innerHTML = `
             <div class="fw-bold">${escapeHtml(selectedClient.dataset.clientName || selectedClient.textContent)}</div>
             <div><span class="text-muted">Matricule :</span> ${escapeHtml(selectedClient.dataset.clientMatricule || '-')}</div>
@@ -366,14 +690,35 @@ document.addEventListener('DOMContentLoaded', function() {
             totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * quantity;
         });
 
-        const selectedClient = clientSelect.options[clientSelect.selectedIndex];
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
         updateClientMeta();
         const clientBalance = toNumber(selectedClient.dataset.solde);
         const groupName = selectedClient.dataset.groupe || '';
         const groupBalance = toNumber(selectedClient.dataset.groupeSolde);
         const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
-        const groupAmount = totalTtc * (absorption / 100);
-        const clientAmount = totalTtc - groupAmount;
+        const hasClientAccount = Boolean(clientSelect.value);
+        const useGroup = hasClientAccount && Boolean(fieldById('useGroupBalance')?.checked);
+        const groupShare = useGroup ? totalTtc * (absorption / 100) : 0;
+        const amountGroupBalance = Math.min(groupShare, totalTtc);
+        fieldById('amountGroupBalance').value = amountGroupBalance.toFixed(2);
+        const remainingAfterGroup = Math.max(totalTtc - amountGroupBalance, 0);
+        const groupPercent = totalTtc > 0 ? (amountGroupBalance / totalTtc) * 100 : 0;
+        const clientPercent = Math.max(100 - groupPercent, 0);
+        if (!hasClientAccount) {
+            fieldById('amountExternal').value = totalTtc.toFixed(2);
+            fieldById('amountClientBalance').value = '0';
+            fieldById('amountGroupBalance').value = '0';
+            if (fieldById('useGroupBalance')) {
+                fieldById('useGroupBalance').checked = false;
+            }
+        }
+        const amountExternal = toNumber(fieldById('amountExternal').value);
+        const amountClientBalance = toNumber(fieldById('amountClientBalance').value);
+        const amountReceived = toNumber(fieldById('amountReceived').value);
+        const amountCovered = amountExternal + amountClientBalance;
+        const amountRemaining = Math.max(remainingAfterGroup - amountCovered, 0);
+        const paymentExcess = Math.max(amountCovered - remainingAfterGroup, 0);
+        const changeDue = Math.max(amountReceived - amountExternal, 0);
 
         document.getElementById('clientBalance').textContent = formatMoney(clientBalance);
         document.getElementById('clientGroupName').textContent = groupName || 'Aucun groupe';
@@ -383,9 +728,157 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('saleTotalHt').textContent = formatMoney(totalHt);
         document.getElementById('saleTotalTax').textContent = formatMoney(Math.max(totalTtc - totalHt, 0));
         document.getElementById('saleTotalTtc').textContent = formatMoney(totalTtc);
-        document.getElementById('groupAmountToPay').textContent = formatMoney(groupAmount);
-        document.getElementById('clientAmountToPay').textContent = formatMoney(clientAmount);
-        document.getElementById('clientBalanceAfter').textContent = formatMoney(clientBalance - clientAmount);
+        fieldById('paymentTotalHt').textContent = formatMoney(totalHt);
+        fieldById('paymentTotalTax').textContent = formatMoney(Math.max(totalTtc - totalHt, 0));
+        fieldById('paymentTotalTtc').textContent = formatMoney(totalTtc);
+        fieldById('paymentGroupShare').textContent = formatMoney(groupShare);
+        fieldById('paymentGroupPercent').textContent = `${formatMoney(groupPercent)}%`;
+        fieldById('paymentClientShare').textContent = formatMoney(remainingAfterGroup);
+        fieldById('paymentClientPercent').textContent = `${formatMoney(clientPercent)}%`;
+        fieldById('remainingAfterGroup').textContent = formatMoney(remainingAfterGroup);
+        fieldById('groupDebitPreview').textContent = formatMoney(amountGroupBalance);
+        fieldById('amountCovered').textContent = formatMoney(amountCovered);
+        fieldById('amountRemaining').textContent = formatMoney(amountRemaining);
+        fieldById('changeDue').textContent = formatMoney(changeDue);
+        fieldById('clientBalanceAfter').textContent = formatMoney(clientBalance - amountClientBalance);
+        fieldById('groupBalanceAfter').textContent = formatMoney(groupBalance - amountGroupBalance);
+        fieldById('amountExternal').classList.remove('is-invalid');
+        fieldById('amountReceived').classList.toggle('is-invalid', amountExternal > amountReceived && amountExternal > 0);
+        fieldById('amountClientBalance').classList.toggle('is-invalid', amountClientBalance > clientBalance);
+        fieldById('useGroupBalance')?.classList.toggle('is-invalid', amountGroupBalance > groupBalance);
+        fieldById('amountCovered').classList.toggle('text-danger', paymentExcess > 0.01);
+    }
+
+    function getCurrentSaleTotal() {
+        let totalTtc = 0;
+        document.querySelectorAll('.sale-line').forEach((line) => {
+            const productSelect = line.querySelector('select[name="produit_id[]"]');
+            const unitSelect = line.querySelector('select[name="unite[]"]');
+            const quantityInput = line.querySelector('input[name="quantite[]"]');
+            const option = productSelect.options[productSelect.selectedIndex];
+            totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * Math.max(toNumber(quantityInput.value), 0);
+        });
+        return totalTtc;
+    }
+
+    function getRemainingAfterGroup() {
+        const totalTtc = getCurrentSaleTotal();
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
+        const groupAmount = clientSelect.value && fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
+        return Math.max(totalTtc - groupAmount, 0);
+    }
+
+    function syncClientBalanceFromExternal() {
+        if (!clientSelect.value) return;
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        const remainingAfterGroup = getRemainingAfterGroup();
+        const externalAmount = toNumber(fieldById('amountExternal').value);
+        const clientBalance = toNumber(selectedClient.dataset.solde);
+        fieldById('amountClientBalance').value = Math.min(Math.max(remainingAfterGroup - externalAmount, 0), clientBalance).toFixed(2);
+        updateSaleSummary();
+    }
+
+    function syncExternalFromClientBalance() {
+        if (!clientSelect.value) return;
+        const remainingAfterGroup = getRemainingAfterGroup();
+        const clientAmount = toNumber(fieldById('amountClientBalance').value);
+        fieldById('amountExternal').value = Math.max(remainingAfterGroup - clientAmount, 0).toFixed(2);
+        updateSaleSummary();
+    }
+
+    function getPaymentDifference() {
+        const totalTtc = getCurrentSaleTotal();
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
+        const groupAmount = clientSelect.value && fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
+        const remainingAfterGroup = Math.max(totalTtc - groupAmount, 0);
+        const covered = toNumber(fieldById('amountExternal').value) + toNumber(fieldById('amountClientBalance').value);
+        return remainingAfterGroup - covered;
+    }
+
+    function applyPaymentPreset(preset) {
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        const totalTtc = getCurrentSaleTotal();
+        const clientBalance = toNumber(selectedClient.dataset.solde);
+        const groupBalance = toNumber(selectedClient.dataset.groupeSolde);
+        const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
+        const externalInput = fieldById('amountExternal');
+        const clientInput = fieldById('amountClientBalance');
+        const receivedInput = fieldById('amountReceived');
+
+        externalInput.value = '0';
+        clientInput.value = '0';
+
+        if (preset === 'cash') {
+            const groupAmount = fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
+            const remaining = Math.max(totalTtc - groupAmount, 0);
+            externalInput.value = remaining.toFixed(2);
+            receivedInput.value = Math.max(toNumber(receivedInput.value), remaining).toFixed(2);
+        } else if (preset === 'client') {
+            const groupAmount = fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
+            clientInput.value = Math.min(Math.max(totalTtc - groupAmount, 0), clientBalance).toFixed(2);
+        }
+
+        updateSaleSummary();
+    }
+
+    function showProductInfo(option) {
+        if (!option) return;
+        document.getElementById('productInfoTitle').textContent = getOptionTitle(option);
+        document.getElementById('productInfoBody').innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-6"><div class="text-muted small">Code produit</div><div class="fw-bold">${escapeHtml(option.dataset.productCode || '-')}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Fournisseur</div><div>${escapeHtml(option.dataset.fournisseur || '-')}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Groupe fournisseur</div><div>${escapeHtml(option.dataset.groupeFournisseur || '-')}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Conditionnement</div><div>${escapeHtml(option.dataset.conditionnement || '-')}</div></div>
+                <div class="col-12"><div class="text-muted small">Codes de suivi</div><div>${escapeHtml(option.dataset.trackingCodes || '-')}</div></div>
+                <div class="col-12"><div class="text-muted small">Dates de péremption</div><div>${escapeHtml(option.dataset.expiryDates || '-')}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Stock U</div><div>${formatMoney(getSelectedStock(option, 'unite'))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Stock SU</div><div>${formatMoney(getSelectedStock(option, 'sous_unite'))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Stock SSU</div><div>${formatMoney(getSelectedStock(option, 'sous_sous_unite'))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Prix U TTC</div><div>${formatMoney(toNumber(option.dataset.uniteTtc))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Prix SU TTC</div><div>${formatMoney(toNumber(option.dataset.sousUniteTtc))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Prix SSU TTC</div><div>${formatMoney(toNumber(option.dataset.sousSousUniteTtc))}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Rayon</div><div>${escapeHtml(option.dataset.rayon || '-')}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Famille</div><div>${escapeHtml(option.dataset.famille || '-')}</div></div>
+                <div class="col-md-4"><div class="text-muted small">Section</div><div>${escapeHtml(option.dataset.section || '-')}</div></div>
+            </div>
+        `;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('productInfoModal')).show();
+    }
+
+    function resetClientBalancePayments() {
+        fieldById('amountClientBalance').value = '0';
+        fieldById('amountGroupBalance').value = '0';
+        if (fieldById('useGroupBalance')) {
+            fieldById('useGroupBalance').checked = false;
+        }
+    }
+
+    function updateClientAccountVisibility() {
+        const hasClientAccount = Boolean(clientSelect.value);
+        document.querySelectorAll('.client-account-section').forEach((element) => {
+            element.classList.toggle('d-none', !hasClientAccount);
+        });
+        fieldById('amountExternal').readOnly = !hasClientAccount;
+        if (!hasClientAccount) {
+            resetClientBalancePayments();
+        }
+    }
+
+    function selectClientFromTree(optionValue) {
+        if (!optionValue) {
+            clientSelect.selectedIndex = 0;
+            clientSearchInput.value = '';
+            resetClientBalancePayments();
+        } else {
+            clientSelect.value = optionValue;
+            const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+            clientSearchInput.value = selectedClient ? getOptionTitle(selectedClient) : '';
+        }
+        filterSelectOptions(clientSelect, clientSearchInput.value);
+        clientSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function refreshRemoveButtons() {
@@ -422,7 +915,38 @@ document.addEventListener('DOMContentLoaded', function() {
     clientSearchInput.addEventListener('input', function() {
         filterSelectOptions(clientSelect, clientSearchInput.value);
     });
-    clientSelect.addEventListener('change', updateSaleSummary);
+    clientResults.addEventListener('click', function(event) {
+        const item = event.target.closest('[data-option-value]');
+        if (!item) return;
+        selectClientFromTree(item.getAttribute('data-option-value') || '');
+    });
+    clientSelect.addEventListener('change', function() {
+        if (!clientSelect.value) {
+            clientSelect.selectedIndex = 0;
+            clientSearchInput.value = '';
+            resetClientBalancePayments();
+        }
+        updateClientAccountVisibility();
+        filterSelectOptions(clientSelect, clientSearchInput.value);
+        updateSaleSummary();
+    });
+    body.addEventListener('click', function(event) {
+        const item = event.target.closest('.product-results [data-option-value]');
+        if (!item) return;
+        const line = item.closest('.sale-line');
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        const productSearch = line.querySelector('.product-search');
+        if (event.target.closest('[data-product-info]')) {
+            const detailOption = Array.from(productSelect.options).find((option) => option.value === item.dataset.optionValue);
+            showProductInfo(detailOption);
+            return;
+        }
+        productSelect.value = item.dataset.optionValue;
+        const selectedProduct = productSelect.options[productSelect.selectedIndex];
+        productSearch.value = selectedProduct && selectedProduct.value ? getOptionTitle(selectedProduct) : '';
+        filterSelectOptions(productSelect, productSearch.value, true);
+        productSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     body.addEventListener('input', function(event) {
         if (!event.target.classList.contains('product-search')) return;
         const line = event.target.closest('.sale-line');
@@ -438,9 +962,69 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSaleSummary();
     });
     body.addEventListener('input', updateSaleSummary);
+    document.querySelectorAll('.payment-input').forEach((input) => {
+        input.addEventListener('input', updateSaleSummary);
+        input.addEventListener('change', updateSaleSummary);
+    });
+    fieldById('amountExternal').addEventListener('input', syncClientBalanceFromExternal);
+    fieldById('amountExternal').addEventListener('blur', function() {
+        const remainingAfterGroup = getRemainingAfterGroup();
+        const externalAmount = Math.min(toNumber(fieldById('amountExternal').value), remainingAfterGroup);
+        fieldById('amountExternal').value = externalAmount.toFixed(2);
+        syncClientBalanceFromExternal();
+    });
+    fieldById('amountClientBalance').addEventListener('input', syncExternalFromClientBalance);
+    fieldById('amountClientBalance').addEventListener('blur', function() {
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        const clientBalance = toNumber(selectedClient.dataset.solde);
+        fieldById('amountClientBalance').value = Math.min(toNumber(fieldById('amountClientBalance').value), clientBalance).toFixed(2);
+        syncExternalFromClientBalance();
+    });
+    fieldById('useGroupBalance')?.addEventListener('change', syncClientBalanceFromExternal);
+    document.querySelectorAll('.payment-preset').forEach((button) => {
+        button.addEventListener('click', () => applyPaymentPreset(button.dataset.preset));
+    });
+    venteForm.addEventListener('submit', function(event) {
+        if (venteForm.dataset.passwordChecked === '1') {
+            return;
+        }
+        event.preventDefault();
+        updateSaleSummary();
+        const paymentDifference = getPaymentDifference();
+        if (Math.abs(paymentDifference) > 0.01) {
+            fieldById('amountRemaining').classList.add('text-danger');
+            fieldById('amountRemaining').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        const passwordInput = document.getElementById('validationPassword');
+        const formData = new FormData();
+        formData.append('validation_password', passwordInput.value || '');
+        fetch('{{ url_for("admin.validate_vente_password") }}', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                if (!data.valid) {
+                    passwordInput.classList.add('is-invalid');
+                    passwordInput.focus();
+                    return;
+                }
+                passwordInput.classList.remove('is-invalid');
+                venteForm.dataset.passwordChecked = '1';
+                venteForm.submit();
+            })
+            .catch(() => {
+                passwordInput.classList.add('is-invalid');
+                passwordInput.focus();
+            });
+    });
+    filterSelectOptions(clientSelect, '');
     document.querySelectorAll('.product-select').forEach((select) => filterSelectOptions(select, '', true));
     refreshRemoveButtons();
     updateAllUnitOptions();
+    updateClientAccountVisibility();
     updateSaleSummary();
 });
 </script>

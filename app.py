@@ -2,6 +2,7 @@ import os
 from flask import Flask, redirect, url_for
 from extensions import db, login_manager, migrate
 from flask_migrate import upgrade
+from sqlalchemy import text
 
 # Importation de TOUS les modèles pour que SQLAlchemy les connaisse
 from models.user import User
@@ -23,6 +24,54 @@ from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 
 from config import config
+
+def ensure_database_schema(app):
+    with app.app_context():
+        db.create_all()
+
+        columns_to_check = {
+            'ventes': [
+                ('montant_recu', 'FLOAT DEFAULT 0'),
+                ('montant_hors_solde', 'FLOAT DEFAULT 0'),
+                ('montant_solde_client', 'FLOAT DEFAULT 0'),
+                ('montant_solde_groupe', 'FLOAT DEFAULT 0'),
+                ('monnaie_rendue', 'FLOAT DEFAULT 0'),
+                ('solde_client_avant', 'FLOAT DEFAULT 0'),
+                ('solde_client_apres', 'FLOAT DEFAULT 0'),
+                ('solde_groupe_avant', 'FLOAT DEFAULT 0'),
+                ('solde_groupe_apres', 'FLOAT DEFAULT 0')
+            ],
+            'vente_lignes': [
+                ('numero_vente', 'VARCHAR(80)'),
+                ('produit_fournisseur', 'VARCHAR(120)'),
+                ('produit_groupe_fournisseur', 'VARCHAR(120)'),
+                ('produit_rayon', 'VARCHAR(120)'),
+                ('produit_famille', 'VARCHAR(120)'),
+                ('produit_section', 'VARCHAR(120)'),
+                ('produit_conditionnement', 'INTEGER'),
+                ('produit_codes_suivi', 'TEXT'),
+                ('produit_dates_peremption', 'TEXT'),
+                ('stock_unite_avant', 'FLOAT DEFAULT 0'),
+                ('stock_sous_unite_avant', 'FLOAT DEFAULT 0'),
+                ('stock_sous_sous_unite_avant', 'FLOAT DEFAULT 0')
+            ]
+        }
+
+        for table, columns in columns_to_check.items():
+            for column_name, column_type in columns:
+                try:
+                    db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column_name} {column_type};"))
+                except Exception:
+                    db.session.rollback()
+
+        try:
+            db.session.execute(text("ALTER TABLE vente_lignes DROP CONSTRAINT IF EXISTS vente_lignes_vente_id_fkey;"))
+            db.session.execute(text("ALTER TABLE vente_lignes ALTER COLUMN vente_id DROP NOT NULL;"))
+            db.session.execute(text("UPDATE vente_lignes SET numero_vente = ventes.numero_vente FROM ventes WHERE vente_lignes.vente_id = ventes.id AND (vente_lignes.numero_vente IS NULL OR vente_lignes.numero_vente = '');"))
+        except Exception:
+            db.session.rollback()
+
+        db.session.commit()
 
 def create_app(config_name='default'):
     app = Flask(__name__)
@@ -47,13 +96,10 @@ def create_app(config_name='default'):
     def index():
         return redirect(url_for('auth.login'))
 
+    ensure_database_schema(app)
+
     return app
 
 if __name__ == '__main__':
     app = create_app(os.getenv('FLASK_CONFIG') or 'default')
-    with app.app_context():
-        # Crée les tables initiales si elles n'existent pas
-        db.create_all()
-        # Note: Dans un environnement pro, on utiliserait 'flask db upgrade'
-        # Pour ce projet, on garde db.create_all() pour la simplicité initiale
     app.run()

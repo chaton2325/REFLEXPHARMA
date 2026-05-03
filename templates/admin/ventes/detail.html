@@ -39,6 +39,11 @@
                 <div class="text-muted small">Paiement</div>
                 <div class="fw-bold">{{ vente.mode_paiement }}</div>
                 <div class="small text-muted">Statut : {{ vente.statut }}</div>
+                <div class="small text-muted">Reçu : {{ "%.2f"|format(vente.montant_recu) }} / Rendu : {{ "%.2f"|format(vente.monnaie_rendue) }}</div>
+                <div class="small text-muted">Hors solde : {{ "%.2f"|format(vente.montant_hors_solde) }}</div>
+                <div class="small text-muted">Solde client : {{ "%.2f"|format(vente.montant_solde_client) }}</div>
+                <div class="small text-muted">Solde groupe : {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
+                <div class="small text-muted">Après vente client/groupe : {{ "%.2f"|format(vente.solde_client_apres) }} / {{ "%.2f"|format(vente.solde_groupe_apres) }}</div>
             </div>
         </div>
     </div>
@@ -73,6 +78,19 @@
                     <td>
                         <div class="fw-bold">{{ ligne.produit_nom }}</div>
                         <small class="text-muted">{{ ligne.produit_code or '-' }}</small>
+                        <div class="small text-muted">Fournisseur : {{ ligne.produit_fournisseur or '-' }}</div>
+                        <div class="small text-muted">Péremption : {{ ligne.produit_dates_peremption or '-' }}</div>
+                        <div class="small text-muted">
+                            Rayon : {{ ligne.produit_rayon or '-' }} |
+                            Famille : {{ ligne.produit_famille or '-' }} |
+                            Section : {{ ligne.produit_section or '-' }}
+                        </div>
+                        <div class="small text-muted">
+                            Stock avant vente :
+                            U {{ "%.2f"|format(ligne.stock_unite_avant) }},
+                            SU {{ "%.2f"|format(ligne.stock_sous_unite_avant) }},
+                            SSU {{ "%.2f"|format(ligne.stock_sous_sous_unite_avant) }}
+                        </div>
                     </td>
                     <td>{{ ligne.unite }}</td>
                     <td class="text-end">{{ "%.2f"|format(ligne.quantite) }}</td>

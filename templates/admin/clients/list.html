@@ -156,6 +156,9 @@
                                 <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
                                     <i class="fas fa-eye"></i>
                                 </button>
+                                <a href="{{ url_for('admin.client_purchase_history', id=client.id) }}" class="btn btn-sm btn-outline-success" title="Historique des achats">
+                                    <i class="fas fa-receipt"></i>
+                                </a>
                                 <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i>
                                 </a>

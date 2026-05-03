@@ -125,6 +125,8 @@
                     <th class="text-end">HT</th>
                     <th class="text-end">TVA</th>
                     <th class="text-end">TTC</th>
+                    <th class="text-end">Soldes</th>
+                    <th class="text-end">Rendu</th>
                     <th>Auteur</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -147,6 +149,11 @@
                     <td class="text-end">{{ "%.2f"|format(vente.total_ht) }}</td>
                     <td class="text-end">{{ "%.2f"|format(vente.total_tva) }}</td>
                     <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
+                    <td class="text-end">
+                        <div class="small">Client: {{ "%.2f"|format(vente.montant_solde_client) }}</div>
+                        <div class="small text-muted">Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
+                    </td>
+                    <td class="text-end">{{ "%.2f"|format(vente.monnaie_rendue) }}</td>
                     <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
                     <td class="text-end">
                         <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
@@ -155,7 +162,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
+                <tr><td colspan="10" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

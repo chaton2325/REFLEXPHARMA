@@ -1182,6 +1182,55 @@ def get_products_stock_tracking_codes(produits):
         codes_by_product[produit.id] = codes
     return codes_by_product
 
+def get_products_stock_expiry_dates(produits):
+    expiries_by_product = {}
+    for produit in produits:
+        expiries = []
+        for stock in sorted(produit.stocks, key=lambda item: item.date_peremption):
+            total = (
+                (stock.quantite_unites or 0)
+                + (stock.quantite_sous_unites or 0)
+                + (stock.quantite_sous_sous_unites or 0)
+            )
+            label = stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else '-'
+            expiries.append(
+                f'{label} '
+                f'(U:{stock.quantite_unites or 0}, SU:{stock.quantite_sous_unites or 0}, SSU:{stock.quantite_sous_sous_unites or 0}, Total:{total})'
+            )
+        expiries_by_product[produit.id] = expiries
+    return expiries_by_product
+
+def consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
+    field_by_unit = {
+        'unite': 'quantite_unites',
+        'sous_unite': 'quantite_sous_unites',
+        'sous_sous_unite': 'quantite_sous_sous_unites'
+    }
+    field = field_by_unit.get(unite, 'quantite_unites')
+    remaining = quantite
+    stocks = sorted(produit.stocks, key=lambda item: item.date_peremption)
+    for stock in stocks:
+        available = float(getattr(stock, field) or 0)
+        if available <= 0 or remaining <= 0:
+            continue
+        consumed = min(available, remaining)
+        old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        setattr(stock, field, int(round(available - consumed)))
+        new_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        create_stock_modification(
+            stock=stock,
+            produit=produit,
+            action='sortie',
+            reason=f'Vente {numero_vente}',
+            reason_id=None,
+            old_values=old_values,
+            new_values=new_values,
+            old_qr_tire=stock.qr_tire,
+            new_qr_tire=stock.qr_tire
+        )
+        remaining -= consumed
+    return remaining <= 0.0001
+
 def get_filtered_ventes():
     ventes = Vente.query.order_by(Vente.created_at.desc()).all()
     query = (request.args.get('q') or '').strip().lower()
@@ -1246,26 +1295,39 @@ def create_vente():
     produits = Produit.query.order_by(Produit.nom.asc()).all()
     stock_totals = get_products_stock_totals(produits)
     stock_tracking_codes = get_products_stock_tracking_codes(produits)
+    stock_expiry_dates = get_products_stock_expiry_dates(produits)
     if request.method == 'POST':
+        def form_amount(name):
+            try:
+                return max(float(request.form.get(name) or 0), 0)
+            except ValueError:
+                return 0
+
+        validation_password = request.form.get('validation_password') or ''
+        if not current_user.check_password(validation_password):
+            flash('Mot de passe incorrect. La vente n a pas ete validee.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+
         client = None
         client_id = request.form.get('client_id')
         if client_id:
             client = Client.query.get(client_id)
 
+        numero_vente = generate_numero_vente()
         vente = Vente(
-            numero_vente=generate_numero_vente(),
+            numero_vente=numero_vente,
             statut=request.form.get('statut') or 'validee',
             mode_paiement=request.form.get('mode_paiement') or 'especes',
             note=request.form.get('note'),
-            client_id=client.id if client else None,
+            client_id=None,
             client_matricule=client.matricule if client else None,
             client_nom=client.nom if client else None,
             client_prenom=client.prenom if client else None,
             client_email=client.email if client else None,
-            groupe_client_id=client.groupe.id if client and client.groupe else None,
+            groupe_client_id=None,
             groupe_client_nom=client.groupe.nom if client and client.groupe else None,
             groupe_absorption_pourcentage=client.groupe.pourcentage_absorption if client and client.groupe else 0,
-            auteur_id=current_user.id,
+            auteur_id=None,
             auteur_nom=current_user.nom,
             auteur_prenom=current_user.prenom,
             auteur_email=current_user.email
@@ -1295,6 +1357,10 @@ def create_vente():
                 quantite = 1
             if quantite <= 0:
                 continue
+            if not quantite.is_integer():
+                db.session.rollback()
+                flash(f'La quantite vendue pour {produit.nom} doit etre un nombre entier.', 'danger')
+                return redirect(url_for('admin.create_vente'))
 
             available_quantity = float(stock_summary.get(unite, 0) or 0)
             request_key = (produit.id, unite)
@@ -1314,10 +1380,21 @@ def create_vente():
             ligne_total_ttc = prix_ttc * quantite
             ligne_total_tva = max(ligne_total_ttc - ligne_total_ht, 0)
             db.session.add(VenteLigne(
-                vente=vente,
-                produit_id=produit.id,
+                numero_vente=numero_vente,
+                produit_id=None,
                 produit_code=produit.code_produit,
                 produit_nom=produit.nom,
+                produit_fournisseur=produit.fournisseur.nom if produit.fournisseur else None,
+                produit_groupe_fournisseur=produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else None,
+                produit_rayon=produit.rayon.nom if produit.rayon else None,
+                produit_famille=produit.famille.nom if produit.famille else None,
+                produit_section=produit.section.nom if produit.section else None,
+                produit_conditionnement=produit.conditionnement or 1,
+                produit_codes_suivi=' | '.join(stock_tracking_codes.get(produit.id, [])),
+                produit_dates_peremption=' | '.join(stock_expiry_dates.get(produit.id, [])),
+                stock_unite_avant=float(stock_summary.get('unite', 0) or 0),
+                stock_sous_unite_avant=float(stock_summary.get('sous_unite', 0) or 0),
+                stock_sous_sous_unite_avant=float(stock_summary.get('sous_sous_unite', 0) or 0),
                 unite=unite,
                 quantite=quantite,
                 prix_unitaire_ht=prix_ht,
@@ -1327,6 +1404,10 @@ def create_vente():
                 total_tva=ligne_total_tva,
                 total_ttc=ligne_total_ttc
             ))
+            if not consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
+                db.session.rollback()
+                flash(f'Impossible de sortir le stock pour {produit.nom}.', 'danger')
+                return redirect(url_for('admin.create_vente'))
             total_ht += ligne_total_ht
             total_tva += ligne_total_tva
             total_ttc += ligne_total_ttc
@@ -1337,9 +1418,64 @@ def create_vente():
             flash('Ajoutez au moins un produit valide a la vente.', 'danger')
             return redirect(url_for('admin.create_vente'))
 
+        montant_hors_solde = form_amount('montant_hors_solde')
+        montant_solde_client = form_amount('montant_solde_client')
+        use_group_balance = request.form.get('use_group_balance') == '1'
+        montant_solde_groupe = 0
+        if use_group_balance and client and client.groupe:
+            absorption = min(max(float(client.groupe.pourcentage_absorption or 0), 0), 100)
+            montant_solde_groupe = total_ttc * (absorption / 100)
+        montant_recu = form_amount('montant_recu')
+        montant_couvert = montant_hors_solde + montant_solde_client + montant_solde_groupe
+        if montant_recu + 0.0001 < montant_hors_solde:
+            db.session.rollback()
+            flash(f'Montant recu insuffisant pour le paiement hors solde. Recu : {montant_recu:.2f}, hors solde : {montant_hors_solde:.2f}.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+        if montant_couvert + 0.0001 < total_ttc:
+            db.session.rollback()
+            flash(f'Paiement insuffisant. Total TTC : {total_ttc:.2f}, montant couvert : {montant_couvert:.2f}.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+        if montant_couvert - total_ttc > 0.01:
+            db.session.rollback()
+            flash(f'Paiement trop eleve. Ajustez les montants appliques a la vente. Total TTC : {total_ttc:.2f}, montant couvert : {montant_couvert:.2f}.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+
+        client_balance_before = float(client.solde or 0) if client else 0
+        group_balance_before = float(client.groupe.solde or 0) if client and client.groupe else 0
+        if montant_solde_client > 0 and not client:
+            db.session.rollback()
+            flash('Selectionnez un client pour debiter un solde client.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+        if montant_solde_client > client_balance_before:
+            db.session.rollback()
+            flash(f'Solde client insuffisant. Disponible : {client_balance_before:.2f}.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+        if montant_solde_groupe > 0 and not (client and client.groupe):
+            db.session.rollback()
+            flash('Selectionnez un client avec groupe pour debiter un solde groupe.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+        if montant_solde_groupe > group_balance_before:
+            db.session.rollback()
+            flash(f'Solde groupe insuffisant. Disponible : {group_balance_before:.2f}.', 'danger')
+            return redirect(url_for('admin.create_vente'))
+
+        if client and montant_solde_client > 0:
+            client.solde = client_balance_before - montant_solde_client
+        if client and client.groupe and montant_solde_groupe > 0:
+            client.groupe.solde = group_balance_before - montant_solde_groupe
+
         vente.total_ht = total_ht
         vente.total_tva = total_tva
         vente.total_ttc = total_ttc
+        vente.montant_recu = montant_recu
+        vente.montant_hors_solde = montant_hors_solde
+        vente.montant_solde_client = montant_solde_client
+        vente.montant_solde_groupe = montant_solde_groupe
+        vente.monnaie_rendue = max(montant_recu - montant_hors_solde, 0)
+        vente.solde_client_avant = client_balance_before
+        vente.solde_client_apres = client.solde if client else 0
+        vente.solde_groupe_avant = group_balance_before
+        vente.solde_groupe_apres = client.groupe.solde if client and client.groupe else 0
         db.session.commit()
         flash('Vente enregistrÃ©e avec succÃ¨s.', 'success')
         return redirect(url_for('admin.list_ventes'))
@@ -1350,8 +1486,16 @@ def create_vente():
         produits=produits,
         stock_totals=stock_totals,
         stock_tracking_codes=stock_tracking_codes,
+        stock_expiry_dates=stock_expiry_dates,
         suggested_numero=generate_numero_vente()
     )
+
+@admin.route('/ventes/validate-password', methods=['POST'])
+@login_required
+@permission_required('gestion_ventes')
+def validate_vente_password():
+    password = request.form.get('validation_password') or ''
+    return {'valid': current_user.check_password(password)}
 
 @admin.route('/ventes/<int:id>')
 @login_required
@@ -1359,6 +1503,14 @@ def create_vente():
 def detail_vente(id):
     vente = Vente.query.get_or_404(id)
     return render_template('admin/ventes/detail.html', vente=vente)
+
+@admin.route('/clients/<int:id>/achats')
+@login_required
+@permission_required('gestion_clients')
+def client_purchase_history(id):
+    client = Client.query.get_or_404(id)
+    ventes = Vente.query.filter_by(client_matricule=client.matricule).order_by(Vente.created_at.desc()).all()
+    return render_template('admin/clients/purchase_history.html', client=client, ventes=ventes)
 
 @admin.route('/clients/historique')
 @login_required

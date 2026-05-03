@@ -72,6 +72,15 @@ def setup_database():
                 ('total_ht', 'FLOAT DEFAULT 0'),
                 ('total_tva', 'FLOAT DEFAULT 0'),
                 ('total_ttc', 'FLOAT DEFAULT 0'),
+                ('montant_recu', 'FLOAT DEFAULT 0'),
+                ('montant_hors_solde', 'FLOAT DEFAULT 0'),
+                ('montant_solde_client', 'FLOAT DEFAULT 0'),
+                ('montant_solde_groupe', 'FLOAT DEFAULT 0'),
+                ('monnaie_rendue', 'FLOAT DEFAULT 0'),
+                ('solde_client_avant', 'FLOAT DEFAULT 0'),
+                ('solde_client_apres', 'FLOAT DEFAULT 0'),
+                ('solde_groupe_avant', 'FLOAT DEFAULT 0'),
+                ('solde_groupe_apres', 'FLOAT DEFAULT 0'),
                 ('auteur_id', 'INTEGER'),
                 ('auteur_nom', 'VARCHAR(100)'),
                 ('auteur_prenom', 'VARCHAR(100)'),
@@ -81,9 +90,21 @@ def setup_database():
             ],
             'vente_lignes': [
                 ('vente_id', 'INTEGER'),
+                ('numero_vente', 'VARCHAR(80)'),
                 ('produit_id', 'INTEGER'),
                 ('produit_code', 'VARCHAR(50)'),
                 ('produit_nom', 'VARCHAR(200)'),
+                ('produit_fournisseur', 'VARCHAR(120)'),
+                ('produit_groupe_fournisseur', 'VARCHAR(120)'),
+                ('produit_rayon', 'VARCHAR(120)'),
+                ('produit_famille', 'VARCHAR(120)'),
+                ('produit_section', 'VARCHAR(120)'),
+                ('produit_conditionnement', 'INTEGER'),
+                ('produit_codes_suivi', 'TEXT'),
+                ('produit_dates_peremption', 'TEXT'),
+                ('stock_unite_avant', 'FLOAT DEFAULT 0'),
+                ('stock_sous_unite_avant', 'FLOAT DEFAULT 0'),
+                ('stock_sous_sous_unite_avant', 'FLOAT DEFAULT 0'),
                 ('unite', 'VARCHAR(30) DEFAULT \'unite\''),
                 ('quantite', 'FLOAT DEFAULT 1'),
                 ('prix_unitaire_ht', 'FLOAT DEFAULT 0'),
@@ -123,6 +144,28 @@ def setup_database():
                     db.session.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col_name};"))
                 except Exception:
                     db.session.rollback()
+
+        # Les ventes doivent rester des snapshots historiques autonomes :
+        # aucune contrainte de clé étrangère ne doit pointer vers vente_lignes.
+        constraints_to_drop = {
+            'vente_lignes': [
+                'vente_lignes_vente_id_fkey'
+            ]
+        }
+        for table, constraints in constraints_to_drop.items():
+            for constraint_name in constraints:
+                try:
+                    db.session.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint_name};"))
+                except Exception:
+                    db.session.rollback()
+        try:
+            db.session.execute(text("ALTER TABLE vente_lignes ALTER COLUMN vente_id DROP NOT NULL;"))
+        except Exception:
+            db.session.rollback()
+        try:
+            db.session.execute(text("UPDATE vente_lignes SET numero_vente = ventes.numero_vente FROM ventes WHERE vente_lignes.vente_id = ventes.id AND (vente_lignes.numero_vente IS NULL OR vente_lignes.numero_vente = '');"))
+        except Exception:
+            db.session.rollback()
         
         db.session.commit()
         print("Structure de la base de données vérifiée et mise à jour.")
