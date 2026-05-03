@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Achats {{ groupe.nom }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_groupes_clients') }}">Groupes clients</a></li>
+                <li class="breadcrumb-item active">Achats du groupe</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1">Achats du groupe</h1>
+        <p class="text-muted mb-0">{{ groupe.nom }} | Absorption {{ "%.2f"|format(groupe.pourcentage_absorption) }}%</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.export_groupe_client_purchases_excel', id=groupe.id) }}" class="btn btn-outline-success">
+            <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('admin.export_groupe_client_purchases_pdf', id=groupe.id) }}" class="btn btn-outline-danger">
+            <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
+        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Retour
+        </a>
+    </div>
+</div>
+
+<style>
+    .purchase-stat-list {
+        display: grid;
+        gap: .65rem;
+    }
+    .purchase-stat-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .75rem;
+        align-items: center;
+    }
+    .purchase-stat-label {
+        min-width: 0;
+    }
+    .purchase-stat-bar {
+        height: 6px;
+        background: #e5e7eb;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: .25rem;
+    }
+    .purchase-stat-fill {
+        height: 100%;
+        background: #198754;
+    }
+</style>
+
+{% set top_employee = stats.employees[0] if stats.employees else None %}
+{% set top_product = stats.products[0] if stats.products else None %}
+{% set top_client = stats.clients[0] if stats.clients else None %}
+{% set max_employee_ttc = top_employee.ttc if top_employee else 0 %}
+{% set max_product_ttc = top_product.ttc if top_product else 0 %}
+{% set max_client_ttc = top_client.ttc if top_client else 0 %}
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Ventes</div><div class="h4 mb-0">{{ ventes|length }}</div></div></div></div>
+    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total TTC</div><div class="h4 mb-0 text-success">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div></div></div></div>
+    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Débit groupe</div><div class="h4 mb-0">{{ "%.2f"|format(ventes|sum(attribute='montant_solde_groupe')) }}</div></div></div></div>
+    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Solde actuel</div><div class="h4 mb-0">{{ "%.2f"|format(groupe.solde) }}</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Employe qui vend le plus</div>
+                <div class="h5 mb-1">{{ top_employee.label if top_employee else '-' }}</div>
+                <div class="small text-muted">{{ top_employee.count if top_employee else 0 }} vente(s) | {{ "%.2f"|format(top_employee.ttc if top_employee else 0) }} TTC</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Client qui achete le plus</div>
+                <div class="h5 mb-1">{{ top_client.label if top_client else '-' }}</div>
+                <div class="small text-muted">{{ top_client.count if top_client else 0 }} vente(s) | {{ "%.2f"|format(top_client.ttc if top_client else 0) }} TTC</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Produit le plus achete</div>
+                <div class="h5 mb-1">{{ top_product.label if top_product else '-' }}</div>
+                <div class="small text-muted">{{ "%.2f"|format(top_product.quantity if top_product else 0) }} unite(s) | {{ "%.2f"|format(top_product.ttc if top_product else 0) }} TTC</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-bold">Top employes</div>
+            <div class="card-body purchase-stat-list">
+                {% for row in stats.employees[:6] %}
+                <div class="purchase-stat-row">
+                    <div class="purchase-stat-label">
+                        <div class="text-truncate">{{ row.label }}</div>
+                        <div class="purchase-stat-bar"><div class="purchase-stat-fill" style="width: {{ (row.ttc / max_employee_ttc * 100) if max_employee_ttc else 0 }}%"></div></div>
+                    </div>
+                    <div class="text-end small fw-bold">{{ "%.2f"|format(row.ttc) }}</div>
+                </div>
+                {% else %}
+                <div class="text-muted small">Aucune statistique disponible.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-bold">Top clients du groupe</div>
+            <div class="card-body purchase-stat-list">
+                {% for row in stats.clients[:6] %}
+                <div class="purchase-stat-row">
+                    <div class="purchase-stat-label">
+                        <div class="text-truncate">{{ row.label }}</div>
+                        <div class="purchase-stat-bar"><div class="purchase-stat-fill" style="width: {{ (row.ttc / max_client_ttc * 100) if max_client_ttc else 0 }}%"></div></div>
+                    </div>
+                    <div class="text-end small fw-bold">{{ "%.2f"|format(row.ttc) }}</div>
+                </div>
+                {% else %}
+                <div class="text-muted small">Aucune statistique disponible.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-bold">Top produits</div>
+            <div class="card-body purchase-stat-list">
+                {% for row in stats.products[:6] %}
+                <div class="purchase-stat-row">
+                    <div class="purchase-stat-label">
+                        <div class="text-truncate">{{ row.label }}</div>
+                        <div class="purchase-stat-bar"><div class="purchase-stat-fill" style="width: {{ (row.ttc / max_product_ttc * 100) if max_product_ttc else 0 }}%"></div></div>
+                    </div>
+                    <div class="text-end small fw-bold">{{ "%.2f"|format(row.ttc) }}</div>
+                </div>
+                {% else %}
+                <div class="text-muted small">Aucune statistique disponible.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Jour</th>
+                    <th>Vente</th>
+                    <th>Client</th>
+                    <th>Produits</th>
+                    <th class="text-end">TTC</th>
+                    <th class="text-end">Solde groupe</th>
+                    <th>Effectué par</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vente in ventes %}
+                <tr>
+                    <td>{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</td>
+                    <td>{{ vente.created_at.strftime('%A') if vente.created_at else '-' }}</td>
+                    <td><div class="fw-bold">{{ vente.numero_vente }}</div><small class="text-muted">{{ vente.statut }}</small></td>
+                    <td><div>{{ vente.client_label }}</div><small class="text-muted">{{ vente.client_matricule or '-' }}</small></td>
+                    <td>
+                        {% for ligne in vente.lignes %}
+                        <div class="small">{{ ligne.produit_nom }} x {{ "%.2f"|format(ligne.quantite) }} {{ ligne.unite }}</div>
+                        {% endfor %}
+                    </td>
+                    <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
+                    <td class="text-end">{{ "%.2f"|format(vente.montant_solde_groupe) }}</td>
+                    <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center py-4 text-muted">Aucune vente enregistrée pour ce groupe.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
