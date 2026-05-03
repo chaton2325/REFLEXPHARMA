@@ -21,6 +21,7 @@ from models.vente import Vente, VenteLigne
 from extensions import db
 from functools import wraps
 from datetime import datetime
+from collections import defaultdict
 import secrets
 import json
 from urllib.parse import quote
@@ -1280,12 +1281,408 @@ def get_filtered_ventes():
     ventes.sort(key=sorters.get(sort, sorters['created_at']), reverse=direction != 'asc')
     return ventes
 
+def money_value(value):
+    return float(value or 0)
+
+def sale_employee_label(vente):
+    return f'{vente.auteur_prenom or ""} {vente.auteur_nom or ""}'.strip() or (vente.auteur_email or 'Inconnu')
+
+def sale_client_label(vente):
+    return vente.client_label if vente.client_label != 'Client comptoir' else 'Client comptoir'
+
+def add_stat_bucket(buckets, key, vente):
+    bucket = buckets[key]
+    bucket['label'] = key
+    bucket['count'] += 1
+    bucket['ht'] += money_value(vente.total_ht)
+    bucket['tva'] += money_value(vente.total_tva)
+    bucket['ttc'] += money_value(vente.total_ttc)
+    bucket['hors_solde'] += money_value(vente.montant_hors_solde)
+    bucket['solde_client'] += money_value(vente.montant_solde_client)
+    bucket['solde_groupe'] += money_value(vente.montant_solde_groupe)
+
+def sorted_stat_rows(buckets, limit=None):
+    rows = sorted(buckets.values(), key=lambda row: row['ttc'], reverse=True)
+    return rows[:limit] if limit else rows
+
+def build_vente_stats(ventes):
+    base_bucket = lambda: {
+        'label': '',
+        'count': 0,
+        'ht': 0.0,
+        'tva': 0.0,
+        'ttc': 0.0,
+        'hors_solde': 0.0,
+        'solde_client': 0.0,
+        'solde_groupe': 0.0
+    }
+    employee_buckets = defaultdict(base_bucket)
+    client_buckets = defaultdict(base_bucket)
+    mode_buckets = defaultdict(base_bucket)
+    status_buckets = defaultdict(base_bucket)
+    daily_buckets = defaultdict(base_bucket)
+    monthly_buckets = defaultdict(base_bucket)
+    product_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
+    supplier_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
+    family_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
+    weekday_buckets = defaultdict(base_bucket)
+    month_employee_buckets = defaultdict(base_bucket)
+    latest_month = None
+
+    totals = {
+        'count': len(ventes),
+        'ht': sum(money_value(vente.total_ht) for vente in ventes),
+        'tva': sum(money_value(vente.total_tva) for vente in ventes),
+        'ttc': sum(money_value(vente.total_ttc) for vente in ventes),
+        'hors_solde': sum(money_value(vente.montant_hors_solde) for vente in ventes),
+        'solde_client': sum(money_value(vente.montant_solde_client) for vente in ventes),
+        'solde_groupe': sum(money_value(vente.montant_solde_groupe) for vente in ventes),
+        'monnaie': sum(money_value(vente.monnaie_rendue) for vente in ventes)
+    }
+    totals['panier_moyen'] = totals['ttc'] / totals['count'] if totals['count'] else 0
+
+    for vente in ventes:
+        employee = sale_employee_label(vente)
+        client = sale_client_label(vente)
+        mode = vente.mode_paiement or 'Non precise'
+        status = vente.statut or 'Non precise'
+        day = vente.created_at.strftime('%Y-%m-%d') if vente.created_at else 'Sans date'
+        month = vente.created_at.strftime('%Y-%m') if vente.created_at else 'Sans date'
+        weekday = vente.created_at.strftime('%A') if vente.created_at else 'Sans date'
+        latest_month = max(latest_month, month) if latest_month else month
+
+        for buckets, key in [
+            (employee_buckets, employee),
+            (client_buckets, client),
+            (mode_buckets, mode),
+            (status_buckets, status),
+            (daily_buckets, day),
+            (monthly_buckets, month),
+            (weekday_buckets, weekday)
+        ]:
+            add_stat_bucket(buckets, key, vente)
+
+        for ligne in vente.lignes:
+            for buckets, key in [
+                (product_buckets, ligne.produit_nom or 'Produit inconnu'),
+                (supplier_buckets, ligne.produit_fournisseur or 'Fournisseur inconnu'),
+                (family_buckets, ligne.produit_famille or 'Famille inconnue')
+            ]:
+                bucket = buckets[key]
+                bucket['label'] = key
+                bucket['count'] += 1
+                bucket['quantity'] += money_value(ligne.quantite)
+                bucket['ht'] += money_value(ligne.total_ht)
+                bucket['tva'] += money_value(ligne.total_tva)
+                bucket['ttc'] += money_value(ligne.total_ttc)
+
+    if latest_month:
+        for vente in ventes:
+            if vente.created_at and vente.created_at.strftime('%Y-%m') == latest_month:
+                add_stat_bucket(month_employee_buckets, sale_employee_label(vente), vente)
+
+    daily_rows = sorted(daily_buckets.values(), key=lambda row: row['label'])
+    monthly_rows = sorted(monthly_buckets.values(), key=lambda row: row['label'])
+    employee_rows = sorted_stat_rows(employee_buckets)
+    employee_month_rows = sorted_stat_rows(month_employee_buckets)
+
+    return {
+        'totals': totals,
+        'daily': daily_rows,
+        'monthly': monthly_rows,
+        'employees': employee_rows,
+        'employee_of_month': employee_month_rows[0] if employee_month_rows else None,
+        'employee_of_month_period': latest_month,
+        'clients': sorted_stat_rows(client_buckets),
+        'products': sorted(product_buckets.values(), key=lambda row: row['ttc'], reverse=True),
+        'suppliers': sorted(supplier_buckets.values(), key=lambda row: row['ttc'], reverse=True),
+        'families': sorted(family_buckets.values(), key=lambda row: row['ttc'], reverse=True),
+        'modes': sorted_stat_rows(mode_buckets),
+        'statuses': sorted_stat_rows(status_buckets),
+        'weekdays': sorted_stat_rows(weekday_buckets)
+    }
+
 @admin.route('/ventes')
 @login_required
 @permission_required('gestion_ventes')
 def list_ventes():
     ventes = get_filtered_ventes()
     return render_template('admin/ventes/list.html', ventes=ventes)
+
+@admin.route('/ventes/stats')
+@login_required
+@permission_required('stats_ventes')
+def ventes_stats():
+    ventes = get_filtered_ventes()
+    stats = build_vente_stats(ventes)
+    return render_template('admin/ventes/stats.html', ventes=ventes, stats=stats, export_query=request.args.to_dict())
+
+@admin.route('/ventes/stats/export/excel')
+@login_required
+@permission_required('stats_ventes')
+def export_ventes_stats_excel():
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    ventes = get_filtered_ventes()
+    stats = build_vente_stats(ventes)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+
+    def table_rows(rows, quantity=False):
+        result = []
+        for row in rows:
+            data = {
+                'Libelle': row['label'],
+                'Ventes': row.get('count', 0),
+                'HT': row.get('ht', 0),
+                'TVA': row.get('tva', 0),
+                'TTC': row.get('ttc', 0)
+            }
+            if quantity:
+                data['Quantite'] = row.get('quantity', 0)
+            data['Hors solde'] = row.get('hors_solde', 0)
+            data['Solde client'] = row.get('solde_client', 0)
+            data['Solde groupe'] = row.get('solde_groupe', 0)
+            return_row = data
+            result.append(return_row)
+        return result
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        summary_rows = [
+            {'Indicateur': 'Nombre de ventes', 'Valeur': stats['totals']['count']},
+            {'Indicateur': 'Total HT', 'Valeur': stats['totals']['ht']},
+            {'Indicateur': 'Total TVA', 'Valeur': stats['totals']['tva']},
+            {'Indicateur': 'Total TTC', 'Valeur': stats['totals']['ttc']},
+            {'Indicateur': 'Panier moyen', 'Valeur': stats['totals']['panier_moyen']},
+            {'Indicateur': 'Hors solde', 'Valeur': stats['totals']['hors_solde']},
+            {'Indicateur': 'Solde client', 'Valeur': stats['totals']['solde_client']},
+            {'Indicateur': 'Solde groupe', 'Valeur': stats['totals']['solde_groupe']},
+            {'Indicateur': 'Monnaie rendue', 'Valeur': stats['totals']['monnaie']},
+            {'Indicateur': 'Employe du mois', 'Valeur': stats['employee_of_month']['label'] if stats['employee_of_month'] else '-'}
+        ]
+        pd.DataFrame(summary_rows).to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
+        pd.DataFrame(table_rows(stats['daily'])).to_excel(writer, index=False, sheet_name='Par jour')
+        pd.DataFrame(table_rows(stats['monthly'])).to_excel(writer, index=False, sheet_name='Par mois')
+        pd.DataFrame(table_rows(stats['employees'])).to_excel(writer, index=False, sheet_name='Employes')
+        pd.DataFrame(table_rows(stats['clients'][:50])).to_excel(writer, index=False, sheet_name='Clients')
+        pd.DataFrame(table_rows(stats['products'][:50], quantity=True)).to_excel(writer, index=False, sheet_name='Produits')
+        pd.DataFrame(table_rows(stats['suppliers'][:50], quantity=True)).to_excel(writer, index=False, sheet_name='Fournisseurs')
+        pd.DataFrame(table_rows(stats['modes'])).to_excel(writer, index=False, sheet_name='Paiements')
+
+        for sheet_name, worksheet in writer.sheets.items():
+            worksheet.freeze_panes = 'A2' if sheet_name != 'Synthese' else 'A6'
+            worksheet.column_dimensions['A'].width = 28
+            for column in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']:
+                worksheet.column_dimensions[column].width = 15
+            header_row = 5 if sheet_name == 'Synthese' else 1
+            for cell in worksheet[header_row]:
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+                cell.alignment = Alignment(horizontal='center')
+            for row in worksheet.iter_rows(min_row=header_row + 1):
+                for cell in row:
+                    cell.border = Border(bottom=Side(style='thin', color='D1D5DB'))
+
+        synth = writer.sheets['Synthese']
+        synth['A1'] = 'Statistiques des ventes - ReflexPharma'
+        synth['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        synth['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
+        synth['A4'] = f'Ventes filtrees : {len(ventes)}'
+
+        def add_bar_chart(sheet_name, title, category_col=1, value_col=5, anchor='J2', max_row=12):
+            ws = writer.sheets[sheet_name]
+            last_row = min(ws.max_row, max_row + 1)
+            if last_row < 2:
+                return
+            chart = BarChart()
+            chart.title = title
+            chart.y_axis.title = 'TTC'
+            chart.x_axis.title = 'Libelle'
+            data = Reference(ws, min_col=value_col, min_row=1, max_row=last_row)
+            cats = Reference(ws, min_col=category_col, min_row=2, max_row=last_row)
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(cats)
+            chart.height = 8
+            chart.width = 16
+            ws.add_chart(chart, anchor)
+
+        def add_line_chart(sheet_name, title, anchor='J2'):
+            ws = writer.sheets[sheet_name]
+            if ws.max_row < 2:
+                return
+            chart = LineChart()
+            chart.title = title
+            chart.y_axis.title = 'TTC'
+            data = Reference(ws, min_col=5, min_row=1, max_row=ws.max_row)
+            cats = Reference(ws, min_col=1, min_row=2, max_row=ws.max_row)
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(cats)
+            chart.height = 8
+            chart.width = 16
+            ws.add_chart(chart, anchor)
+
+        def add_pie_chart(sheet_name, title, anchor='J2'):
+            ws = writer.sheets[sheet_name]
+            if ws.max_row < 2:
+                return
+            chart = PieChart()
+            chart.title = title
+            data = Reference(ws, min_col=5, min_row=1, max_row=min(ws.max_row, 8))
+            cats = Reference(ws, min_col=1, min_row=2, max_row=min(ws.max_row, 8))
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(cats)
+            chart.height = 8
+            chart.width = 12
+            ws.add_chart(chart, anchor)
+
+        add_line_chart('Par jour', 'Evolution quotidienne TTC')
+        add_bar_chart('Employes', 'Top employes')
+        add_bar_chart('Produits', 'Top produits')
+        add_pie_chart('Paiements', 'Repartition des paiements')
+
+    output.seek(0)
+    filename = f'statistiques_ventes_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/ventes/stats/export/pdf')
+@login_required
+@permission_required('stats_ventes')
+def export_ventes_stats_pdf():
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.graphics.charts.barcharts import HorizontalBarChart
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
+    from reportlab.graphics.charts.piecharts import Pie
+
+    ventes = get_filtered_ventes()
+    stats = build_vente_stats(ventes)
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=18, bottomMargin=18, leftMargin=18, rightMargin=18)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=7, leading=9))
+    elements = [
+        Paragraph('Statistiques des ventes - ReflexPharma', styles['Title']),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Ventes : {len(ventes)}', styles['Small']),
+        Spacer(1, 8)
+    ]
+
+    summary = [
+        ['Ventes', stats['totals']['count'], 'Total TTC', f"{stats['totals']['ttc']:.2f}"],
+        ['Panier moyen', f"{stats['totals']['panier_moyen']:.2f}", 'TVA', f"{stats['totals']['tva']:.2f}"],
+        ['Hors solde', f"{stats['totals']['hors_solde']:.2f}", 'Solde client', f"{stats['totals']['solde_client']:.2f}"],
+        ['Solde groupe', f"{stats['totals']['solde_groupe']:.2f}", 'Employe du mois', stats['employee_of_month']['label'] if stats['employee_of_month'] else '-']
+    ]
+    elements.append(Table(summary, colWidths=[90, 100, 90, 200], style=[
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F9FAFB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(Spacer(1, 10))
+
+    def add_horizontal_chart(title, rows, max_items=8):
+        rows = rows[:max_items]
+        if not rows:
+            return
+        drawing = Drawing(500, 185)
+        drawing.add(String(0, 170, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = HorizontalBarChart()
+        chart.x = 130
+        chart.y = 25
+        chart.width = 330
+        chart.height = 125
+        chart.data = [[row['ttc'] for row in rows]]
+        chart.categoryAxis.categoryNames = [row['label'][:24] for row in rows]
+        chart.categoryAxis.labels.fontSize = 6
+        chart.valueAxis.valueMin = 0
+        chart.bars[0].fillColor = colors.HexColor('#198754')
+        drawing.add(chart)
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_line_chart(title, rows, max_items=18):
+        rows = rows[-max_items:]
+        if not rows:
+            return
+        drawing = Drawing(500, 175)
+        drawing.add(String(0, 160, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        chart = HorizontalLineChart()
+        chart.x = 35
+        chart.y = 35
+        chart.height = 105
+        chart.width = 420
+        chart.data = [[row['ttc'] for row in rows]]
+        chart.categoryAxis.categoryNames = [row['label'] for row in rows]
+        chart.categoryAxis.labels.angle = 35
+        chart.categoryAxis.labels.fontSize = 5
+        chart.valueAxis.valueMin = 0
+        chart.lines[0].strokeColor = colors.HexColor('#0D6EFD')
+        drawing.add(chart)
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    def add_pie_chart(title, rows, max_items=6):
+        rows = rows[:max_items]
+        if not rows:
+            return
+        drawing = Drawing(500, 170)
+        drawing.add(String(0, 155, title, fontSize=10, fillColor=colors.HexColor('#1F2937')))
+        pie = Pie()
+        pie.x = 20
+        pie.y = 20
+        pie.width = 120
+        pie.height = 120
+        pie.data = [row['ttc'] for row in rows]
+        pie.labels = [row['label'][:16] for row in rows]
+        drawing.add(pie)
+        y = 130
+        for row in rows:
+            drawing.add(String(175, y, f"{row['label'][:36]}: {row['ttc']:.2f}", fontSize=7, fillColor=colors.HexColor('#374151')))
+            y -= 16
+        elements.append(drawing)
+        elements.append(Spacer(1, 8))
+
+    add_line_chart('Evolution quotidienne TTC', stats['daily'])
+    add_horizontal_chart('Top employes par TTC', stats['employees'])
+    add_horizontal_chart('Top produits par TTC', stats['products'])
+    add_horizontal_chart('Top clients par TTC', stats['clients'])
+    add_pie_chart('Repartition par mode de paiement', stats['modes'])
+
+    def add_table(title, rows, quantity=False):
+        elements.append(Paragraph(title, styles['Heading3']))
+        headers = ['Libelle', 'Ventes', 'TTC'] if not quantity else ['Libelle', 'Lignes', 'Qte', 'TTC']
+        data = [headers]
+        for row in rows[:10]:
+            if quantity:
+                data.append([row['label'][:42], row.get('count', 0), f"{row.get('quantity', 0):.2f}", f"{row['ttc']:.2f}"])
+            else:
+                data.append([row['label'][:48], row.get('count', 0), f"{row['ttc']:.2f}"])
+        elements.append(Table(data, repeatRows=1, style=[
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ]))
+        elements.append(Spacer(1, 8))
+
+    add_table('Employes', stats['employees'])
+    add_table('Clients', stats['clients'])
+    add_table('Produits', stats['products'], quantity=True)
+    add_table('Fournisseurs', stats['suppliers'], quantity=True)
+
+    doc.build(elements)
+    output.seek(0)
+    filename = f'statistiques_ventes_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
 
 @admin.route('/ventes/create', methods=['GET', 'POST'])
 @login_required
