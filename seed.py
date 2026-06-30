@@ -8,7 +8,7 @@ app = create_app(os.getenv('FLASK_CONFIG') or 'default')
 
 def seed():
     with app.app_context():
-        # V?rifier si un superadmin existe d?j?
+        # V?rifier si un superadminl existe d?j?
         if not User.query.filter_by(role='superadmin').first():
             superadmin = User(
                 nom="Admin",
