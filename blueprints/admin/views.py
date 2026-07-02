@@ -19,6 +19,7 @@ from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 from models.setting import Setting
+from models.inventaire import Inventaire, InventaireLigne
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta
@@ -4231,4 +4232,410 @@ def app_settings():
         'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     }
     return render_template('admin/settings.html', settings=settings)
+
+
+# ==============================================================================
+# GESTION DE L'INVENTAIRE
+# ==============================================================================
+
+@admin.route('/inventaire')
+@login_required
+@permission_required('gestion_inventaire')
+def list_inventaires():
+    active_inventaire = Inventaire.query.filter_by(statut='en_cours').first()
+    inventaires = Inventaire.query.order_by(Inventaire.created_at.desc()).all()
+    return render_template(
+        'admin/inventaire/list.html',
+        active_inventaire=active_inventaire,
+        inventaires=inventaires
+    )
+
+@admin.route('/inventaire/create', methods=['POST'])
+@login_required
+@permission_required('gestion_inventaire')
+def create_inventaire():
+    active = Inventaire.query.filter_by(statut='en_cours').first()
+    if active:
+        flash("Un inventaire est déjà en cours.", "warning")
+        return redirect(url_for('admin.show_inventaire', id=active.id))
+        
+    titre = request.form.get('titre')
+    if not titre:
+        titre = f"Inventaire du {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        
+    new_inv = Inventaire(titre=titre, statut='en_cours', created_by_id=current_user.id)
+    db.session.add(new_inv)
+    db.session.flush()
+    
+    # Snapshot des entrées de stock
+    stocks = Stock.query.all()
+    for s in stocks:
+        ligne = InventaireLigne(
+            inventaire_id=new_inv.id,
+            stock_id=s.id,
+            produit_id=s.produit_id,
+            code_suivi=s.code_suivi,
+            numero_bl=s.numero_bl,
+            date_peremption=s.date_peremption,
+            quantite_unites_avant=s.quantite_unites,
+            quantite_sous_unites_avant=s.quantite_sous_unites,
+            quantite_sous_sous_unites_avant=s.quantite_sous_sous_unites
+        )
+        db.session.add(ligne)
+        
+    db.session.commit()
+    flash("Nouvel inventaire démarré avec succès.", "success")
+    return redirect(url_for('admin.show_inventaire', id=new_inv.id))
+
+@admin.route('/inventaire/<int:id>')
+@login_required
+@permission_required('gestion_inventaire')
+def show_inventaire(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    
+    # Récupérer toutes les lignes pour permettre la recherche et le filtrage côté client en JS
+    lines = InventaireLigne.query.filter_by(inventaire_id=id).order_by(InventaireLigne.id.asc()).all()
+    
+    total_count = len(lines)
+    scanned_count = sum(1 for line in lines if line.is_scanned)
+    
+    return render_template(
+        'admin/inventaire/show.html',
+        inventaire=inventaire,
+        lines=lines,
+        total_count=total_count,
+        scanned_count=scanned_count
+    )
+
+@admin.route('/inventaire/<int:id>/line/<int:line_id>/save', methods=['POST'])
+@login_required
+@permission_required('gestion_inventaire')
+def save_inventaire_line(id, line_id):
+    inventaire = Inventaire.query.get_or_404(id)
+    if inventaire.statut != 'en_cours':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return {'success': False, 'message': 'Inventaire déjà validé ou annulé.'}, 400
+        flash("Impossible de modifier un inventaire fermé.", "danger")
+        return redirect(url_for('admin.show_inventaire', id=id))
+        
+    line = InventaireLigne.query.filter_by(inventaire_id=id, id=line_id).first_or_404()
+    
+    try:
+        u = request.form.get('quantite_unites')
+        su = request.form.get('quantite_sous_unites')
+        ssu = request.form.get('quantite_sous_sous_unites')
+        
+        line.quantite_unites_apres = int(u) if u is not None and u != '' else 0
+        line.quantite_sous_unites_apres = int(su) if su is not None and su != '' else 0
+        line.quantite_sous_sous_unites_apres = int(ssu) if ssu is not None and ssu != '' else 0
+        
+        line.is_scanned = True
+        line.constate_at = datetime.utcnow()
+        line.constate_by_id = current_user.id
+        db.session.commit()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return {
+                'success': True,
+                'message': 'Ligne enregistrée avec succès.',
+                'total_apres': line.total_apres,
+                'a_decalage': line.a_decalage
+            }
+        flash("Ligne mise à jour avec succès.", "success")
+    except Exception as e:
+        db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return {'success': False, 'message': str(e)}, 400
+        flash(f"Erreur lors de la mise à jour : {str(e)}", "danger")
+        
+    return redirect(url_for('admin.show_inventaire', id=id))
+
+@admin.route('/inventaire/<int:id>/scan')
+@login_required
+@permission_required('gestion_inventaire')
+def scan_inventaire_qrcode(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    if inventaire.statut != 'en_cours':
+        flash("Cet inventaire n'est plus en cours.", "warning")
+        return redirect(url_for('admin.show_inventaire', id=id))
+    return render_template('admin/inventaire/scan.html', inventaire=inventaire)
+
+@admin.route('/inventaire/<int:id>/scan/lookup', methods=['GET'])
+@login_required
+@permission_required('gestion_inventaire')
+def scan_lookup(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    code = request.args.get('code', '').strip()
+    if not code:
+        return {'success': False, 'message': 'Code requis.'}, 400
+        
+    line = InventaireLigne.query.filter_by(inventaire_id=id).filter(
+        (InventaireLigne.code_suivi == code)
+    ).first()
+    
+    if not line:
+        line = InventaireLigne.query.join(Produit).filter(
+            (InventaireLigne.inventaire_id == id) &
+            ((Produit.code_produit == code) | (InventaireLigne.code_suivi.ilike(f'%{code}%')))
+        ).first()
+        
+    if not line:
+        return {'success': False, 'message': 'Aucun lot ou produit correspondant trouvé dans cet inventaire.'}, 404
+        
+    return {
+        'success': True,
+        'line_id': line.id,
+        'product_name': line.produit.nom,
+        'code_produit': line.produit.code_produit,
+        'code_suivi': line.code_suivi,
+        'numero_bl': line.numero_bl,
+        'date_peremption': line.date_peremption.strftime('%d/%m/%Y'),
+        'conditionnement': line.produit.conditionnement,
+        'quantite_unites_avant': line.quantite_unites_avant,
+        'quantite_sous_unites_avant': line.quantite_sous_unites_avant,
+        'quantite_sous_sous_unites_avant': line.quantite_sous_sous_unites_avant,
+        'quantite_unites_apres': line.quantite_unites_apres if line.quantite_unites_apres is not None else '',
+        'quantite_sous_unites_apres': line.quantite_sous_unites_apres if line.quantite_sous_unites_apres is not None else '',
+        'quantite_sous_sous_unites_apres': line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not None else ''
+    }
+
+@admin.route('/inventaire/<int:id>/validate', methods=['POST'])
+@login_required
+@permission_required('gestion_inventaire')
+def validate_inventaire(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    if inventaire.statut != 'en_cours':
+        flash("Inventaire déjà traité.", "danger")
+        return redirect(url_for('admin.show_inventaire', id=id))
+        
+    non_saisis_option = request.form.get('non_saisis', 'theorique')
+    lignes = InventaireLigne.query.filter_by(inventaire_id=id).all()
+    
+    for line in lignes:
+        if (line.quantite_unites_apres is None and 
+            line.quantite_sous_unites_apres is None and 
+            line.quantite_sous_sous_unites_apres is None):
+            
+            if non_saisis_option == 'theorique':
+                line.quantite_unites_apres = line.quantite_unites_avant
+                line.quantite_sous_unites_apres = line.quantite_sous_unites_avant
+                line.quantite_sous_sous_unites_apres = line.quantite_sous_sous_unites_avant
+            else:
+                line.quantite_unites_apres = 0
+                line.quantite_sous_unites_apres = 0
+                line.quantite_sous_sous_unites_apres = 0
+                
+            line.is_scanned = True
+            line.constate_at = datetime.utcnow()
+            line.constate_by_id = current_user.id
+            
+        if line.stock:
+            stock = line.stock
+            old_vals = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+            new_vals = (line.quantite_unites_apres, line.quantite_sous_unites_apres, line.quantite_sous_sous_unites_apres)
+            
+            if old_vals != new_vals:
+                stock.quantite_unites = line.quantite_unites_apres
+                stock.quantite_sous_unites = line.quantite_sous_unites_apres
+                stock.quantite_sous_sous_unites = line.quantite_sous_sous_unites_apres
+                
+                create_stock_modification(
+                    stock=stock,
+                    produit=stock.produit,
+                    action='update',
+                    reason=f'Ajustement par inventaire "{inventaire.titre}"',
+                    old_values=old_vals,
+                    new_values=new_vals,
+                    old_qr_tire=stock.qr_tire,
+                    new_qr_tire=stock.qr_tire
+                )
+                
+    inventaire.statut = 'valide'
+    inventaire.validated_at = datetime.utcnow()
+    inventaire.validated_by_id = current_user.id
+    
+    db.session.commit()
+    flash("L'inventaire a été validé et le stock mis à jour.", "success")
+    return redirect(url_for('admin.show_inventaire', id=id))
+
+@admin.route('/inventaire/<int:id>/cancel', methods=['POST'])
+@login_required
+@permission_required('gestion_inventaire')
+def cancel_inventaire(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    if inventaire.statut != 'en_cours':
+        flash("Seul un inventaire en cours peut être annulé.", "danger")
+        return redirect(url_for('admin.show_inventaire', id=id))
+        
+    inventaire.statut = 'annule'
+    db.session.commit()
+    flash("L'inventaire a été annulé.", "warning")
+    return redirect(url_for('admin.list_inventaires'))
+
+@admin.route('/inventaire/<int:id>/export/comptage')
+@login_required
+@permission_required('gestion_inventaire')
+def export_fiche_comptage_pdf(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import A4
+    import io
+    
+    lignes = InventaireLigne.query.filter_by(inventaire_id=id).all()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=30, bottomMargin=30, leftMargin=30, rightMargin=30)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#2c3e50'),
+        alignment=1,
+        spaceAfter=15
+    )
+    normal_style = styles['Normal']
+    
+    elements.append(Paragraph(f"Fiche de Comptage - {inventaire.titre}", title_style))
+    elements.append(Paragraph(f"Créé le : {inventaire.created_at.strftime('%d/%m/%Y %H:%M')} | Auteur : {inventaire.created_by.nom} {inventaire.created_by.prenom}", normal_style))
+    elements.append(Spacer(1, 15))
+    
+    data = [['Code Lot', 'Produit', 'Emplacement / Rayon', 'Stock Théor.', 'Stock Réel']]
+    for l in lignes:
+        rayon_nom = l.produit.rayon.nom if l.produit.rayon else '-'
+        cond = l.produit.conditionnement
+        if cond == 3:
+            th_str = f"U:{l.quantite_unites_avant}\nSU:{l.quantite_sous_unites_avant}\nSSU:{l.quantite_sous_sous_unites_avant}"
+        elif cond == 2:
+            th_str = f"U:{l.quantite_unites_avant}\nSU:{l.quantite_sous_unites_avant}"
+        else:
+            th_str = f"U:{l.quantite_unites_avant}"
+            
+        data.append([
+            l.code_suivi,
+            l.produit.nom,
+            rayon_nom,
+            th_str,
+            '[   ] U\n' + ('[   ] SU\n' if cond >= 2 else '') + ('[   ] SSU' if cond == 3 else '')
+        ])
+        
+    table = Table(data, repeatRows=1, colWidths=[130, 160, 110, 60, 75])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    return send_file(output, download_name=f"fiche_comptage_inv_{id}.pdf", as_attachment=True)
+
+@admin.route('/inventaire/<int:id>/export/rapport')
+@login_required
+@permission_required('gestion_inventaire')
+def export_rapport_inventaire_pdf(id):
+    inventaire = Inventaire.query.get_or_404(id)
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import A4
+    import io
+    
+    lignes = InventaireLigne.query.filter_by(inventaire_id=id).all()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=30, bottomMargin=30, leftMargin=30, rightMargin=30)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#1abc9c'),
+        alignment=1,
+        spaceAfter=15
+    )
+    normal_style = styles['Normal']
+    
+    elements.append(Paragraph(f"Rapport d'Inventaire - {inventaire.titre}", title_style))
+    statut_label = "Validé" if inventaire.statut == 'valide' else "Annulé" if inventaire.statut == 'annule' else "En cours"
+    validated_by_str = f" | Validé par : {inventaire.validated_by.nom} {inventaire.validated_by.prenom} le {inventaire.validated_at.strftime('%d/%m/%Y %H:%M')}" if inventaire.validated_at else ""
+    
+    elements.append(Paragraph(f"Statut : {statut_label} | Créé le : {inventaire.created_at.strftime('%d/%m/%Y %H:%M')}{validated_by_str}", normal_style))
+    elements.append(Spacer(1, 15))
+    
+    data = [['Code Lot', 'Produit', 'Stock Théor.', 'Stock Constaté', 'Écart']]
+    for l in lignes:
+        cond = l.produit.conditionnement
+        
+        if cond == 3:
+            th_str = f"U:{l.quantite_unites_avant}\nSU:{l.quantite_sous_unites_avant}\nSSU:{l.quantite_sous_sous_unites_avant}"
+        elif cond == 2:
+            th_str = f"U:{l.quantite_unites_avant}\nSU:{l.quantite_sous_unites_avant}"
+        else:
+            th_str = f"U:{l.quantite_unites_avant}"
+            
+        u_ap = l.quantite_unites_apres if l.quantite_unites_apres is not None else l.quantite_unites_avant
+        su_ap = l.quantite_sous_unites_apres if l.quantite_sous_unites_apres is not None else l.quantite_sous_unites_avant
+        ssu_ap = l.quantite_sous_sous_unites_apres if l.quantite_sous_sous_unites_apres is not None else l.quantite_sous_sous_unites_avant
+        
+        if cond == 3:
+            ap_str = f"U:{u_ap}\nSU:{su_ap}\nSSU:{ssu_ap}"
+        elif cond == 2:
+            ap_str = f"U:{u_ap}\nSU:{su_ap}"
+        else:
+            ap_str = f"U:{u_ap}"
+            
+        diff_u = u_ap - l.quantite_unites_avant
+        diff_su = su_ap - l.quantite_sous_unites_avant
+        diff_ssu = ssu_ap - l.quantite_sous_sous_unites_avant
+        
+        diff_parts = []
+        if diff_u != 0:
+            diff_parts.append(f"U:{'+' if diff_u > 0 else ''}{diff_u}")
+        if cond >= 2 and diff_su != 0:
+            diff_parts.append(f"SU:{'+' if diff_su > 0 else ''}{diff_su}")
+        if cond == 3 and diff_ssu != 0:
+            diff_parts.append(f"SSU:{'+' if diff_ssu > 0 else ''}{diff_ssu}")
+            
+        diff_str = "\n".join(diff_parts) if diff_parts else "Aucun"
+        
+        data.append([
+            l.code_suivi,
+            l.produit.nom,
+            th_str,
+            ap_str,
+            diff_str
+        ])
+        
+    table = Table(data, repeatRows=1, colWidths=[130, 180, 80, 80, 65])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    output.seek(0)
+    return send_file(output, download_name=f"rapport_inv_{id}.pdf", as_attachment=True)
+
 

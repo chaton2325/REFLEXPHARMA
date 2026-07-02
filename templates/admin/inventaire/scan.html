@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+
+{% block title %}Scanner Mobile - {{ inventaire.titre }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="container py-2 px-1 max-width-mobile">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="{{ url_for('admin.show_inventaire', id=inventaire.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h5 class="mb-0 fw-bold text-center text-truncate px-2" style="max-width: 60%;">{{ inventaire.titre }}</h5>
+        <span class="badge bg-success-subtle text-success-emphasis border">Scan Mobile</span>
+    </div>
+
+    <!-- Alertes -->
+    <div id="alert-container"></div>
+
+    <!-- Section Scanner -->
+    <div class="card shadow-sm border-0 mb-3" id="scanner-section">
+        <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-camera me-2"></i>Scanner QR Code / Code Lot</span>
+            <button class="btn btn-xs btn-outline-light py-0 px-2" id="toggle-camera-btn" style="font-size: 0.8rem;">
+                <i class="fas fa-sync-alt me-1"></i>Changer Caméra
+            </button>
+        </div>
+        <div class="card-body p-2 text-center bg-light position-relative">
+            <!-- Zone d'affichage de la caméra -->
+            <div id="reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background-color: #000;"></div>
+            
+            <!-- Viseur personnalisé -->
+            <div class="scanner-laser" id="laser-line"></div>
+        </div>
+    </div>
+
+    <!-- Recherche Manuelle alternative -->
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body p-2">
+            <form id="manual-search-form" class="d-flex gap-1">
+                <input type="text" id="manual-code" class="form-control form-control-sm" placeholder="Saisir code lot ou produit manuellement..." required>
+                <button type="submit" class="btn btn-sm btn-secondary px-3">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Card de Saisie du Produit (Caché par défaut) -->
+    <div class="card shadow border-0 mb-4 d-none" id="product-card">
+        <div class="card-header bg-success text-white py-2">
+            <h6 class="mb-0 fw-bold" id="prod-title">Nom du Produit</h6>
+        </div>
+        <div class="card-body p-3">
+            <div class="row g-2 mb-3 bg-light p-2 rounded small text-dark">
+                <div class="col-6">
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">LOT / SUIVI</span>
+                    <strong id="prod-code-suivi">-</strong>
+                </div>
+                <div class="col-6">
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">PÉREMPTION</span>
+                    <strong id="prod-peremption">-</strong>
+                </div>
+                <div class="col-6 mt-1">
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">BL</span>
+                    <strong id="prod-bl">-</strong>
+                </div>
+                <div class="col-6 mt-1">
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">STOCK THÉORIQUE</span>
+                    <strong id="prod-stock-theorique" class="text-primary">-</strong>
+                </div>
+            </div>
+
+            <!-- Formulaire de Saisie -->
+            <form id="save-qty-form" method="POST">
+                <input type="hidden" id="form-line-id">
+                
+                <div class="row g-2">
+                    <!-- Entrées dynamiques selon conditionnement -->
+                    <div class="col-12" id="input-group-u">
+                        <label class="form-label fw-bold mb-1" style="font-size: 0.9rem;">Quantité Unités (U)</label>
+                        <input type="number" id="qty-u" name="quantite_unites" class="form-control form-control-lg text-center fw-bold" min="0" required placeholder="0">
+                    </div>
+                    
+                    <div class="col-6 d-none" id="input-group-su">
+                        <label class="form-label fw-bold mb-1" style="font-size: 0.9rem;">Sous-Unités (SU)</label>
+                        <input type="number" id="qty-su" name="quantite_sous_unites" class="form-control form-control-lg text-center fw-bold" min="0" placeholder="0">
+                    </div>
+                    
+                    <div class="col-6 d-none" id="input-group-ssu">
+                        <label class="form-label fw-bold mb-1" style="font-size: 0.9rem;">Sous-Sous-Unités (SSU)</label>
+                        <input type="number" id="qty-ssu" name="quantite_sous_sous_unites" class="form-control form-control-lg text-center fw-bold" min="0" placeholder="0">
+                    </div>
+                </div>
+
+                <div class="row g-2 mt-3">
+                    <div class="col-4">
+                        <button type="button" class="btn btn-light border btn-lg w-100" id="btn-cancel-entry">
+                            <i class="fas fa-times me-1"></i>
+                        </button>
+                    </div>
+                    <div class="col-8">
+                        <button type="submit" class="btn btn-success btn-lg w-100 fw-bold">
+                            <i class="fas fa-save me-1"></i> Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Librairie HTML5 QR Code -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let html5QrcodeScanner = null;
+    let currentCameraId = null;
+    let cameraDevices = [];
+    let activeCameraIndex = 0;
+    
+    const lookupUrl = "{{ url_for('admin.scan_lookup', id=inventaire.id) }}";
+    
+    const productCard = document.getElementById('product-card');
+    const saveQtyForm = document.getElementById('save-qty-form');
+    const alertContainer = document.getElementById('alert-container');
+    const manualSearchForm = document.getElementById('manual-search-form');
+    const laserLine = document.getElementById('laser-line');
+    
+    // Sons de notification synthétisés
+    function beep(type) {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'scan') {
+                osc.frequency.value = 880; // La
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'success') {
+                // Double bip aigu
+                osc.frequency.value = 1000;
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.08);
+                
+                setTimeout(() => {
+                    const audioCtx2 = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc2 = audioCtx2.createOscillator();
+                    const gain2 = audioCtx2.createGain();
+                    osc2.connect(gain2);
+                    gain2.connect(audioCtx2.destination);
+                    osc2.frequency.value = 1300;
+                    gain2.gain.setValueAtTime(0.05, audioCtx2.currentTime);
+                    osc2.start();
+                    osc2.stop(audioCtx2.currentTime + 0.08);
+                }, 100);
+            } else if (type === 'error') {
+                osc.frequency.value = 220; // Grave
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.35);
+            }
+        } catch (e) {
+            console.log("Web Audio blocked/not supported");
+        }
+    }
+    
+    function showAlert(message, category) {
+        alertContainer.innerHTML = `
+            <div class="alert alert-${category} alert-dismissible fade show p-2 mb-2 small" role="alert">
+                ${message}
+                <button type="button" class="btn-close p-2" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        // Scroll to alert
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    // Fonction de recherche de lot
+    function findLot(code) {
+        // Stopper le scan le temps de la saisie
+        pauseScanner();
+        
+        showAlert("Recherche du lot...", "info");
+        
+        fetch(`${lookupUrl}?code=${encodeURIComponent(code)}`)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.message || 'Non trouvé'); });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                beep('scan');
+                // Masquer le scanner
+                document.getElementById('scanner-section').classList.add('d-none');
+                
+                // Remplir la fiche produit
+                document.getElementById('prod-title').textContent = data.product_name;
+                document.getElementById('prod-code-suivi').textContent = data.code_suivi;
+                document.getElementById('prod-peremption').textContent = data.date_peremption;
+                document.getElementById('prod-bl').textContent = data.numero_bl;
+                
+                // Stock théorique label
+                let thLabel = `U: ${data.quantite_unites_avant}`;
+                if (data.conditionnement >= 2) thLabel += ` | SU: ${data.quantite_sous_unites_avant}`;
+                if (data.conditionnement === 3) thLabel += ` | SSU: ${data.quantite_sous_sous_unites_avant}`;
+                document.getElementById('prod-stock-theorique').textContent = thLabel;
+                
+                // Configuration des inputs
+                document.getElementById('form-line-id').value = data.line_id;
+                
+                // Reset inputs values
+                document.getElementById('qty-u').value = data.quantite_unites_apres;
+                
+                const groupSU = document.getElementById('input-group-su');
+                const qtySU = document.getElementById('qty-su');
+                if (data.conditionnement >= 2) {
+                    groupSU.classList.remove('d-none');
+                    document.getElementById('input-group-u').className = 'col-6';
+                    qtySU.value = data.quantite_sous_unites_apres;
+                    qtySU.required = true;
+                } else {
+                    groupSU.classList.add('d-none');
+                    document.getElementById('input-group-u').className = 'col-12';
+                    qtySU.required = false;
+                }
+                
+                const groupSSU = document.getElementById('input-group-ssu');
+                const qtySSU = document.getElementById('qty-ssu');
+                if (data.conditionnement === 3) {
+                    groupSSU.classList.remove('d-none');
+                    qtySSU.value = data.quantite_sous_sous_unites_apres;
+                    qtySSU.required = true;
+                } else {
+                    groupSSU.classList.add('d-none');
+                    qtySSU.required = false;
+                }
+                
+                // Afficher la card produit
+                productCard.classList.remove('d-none');
+                alertContainer.innerHTML = ''; // Clear search alert
+                
+                // Focus sur le premier input
+                setTimeout(() => document.getElementById('qty-u').focus(), 100);
+            }
+        })
+        .catch(err => {
+            beep('error');
+            showAlert(err.message, 'danger');
+            resumeScanner();
+        });
+    }
+    
+    // Save quantites form submit
+    saveQtyForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const lineId = document.getElementById('form-line-id').value;
+        const saveUrl = `/admin/inventaire/{{ inventaire.id }}/line/${lineId}/save`;
+        
+        const formData = new FormData(this);
+        
+        fetch(saveUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                beep('success');
+                showAlert(`Lot enregistré avec succès. (Stock constaté : ${data.total_apres})`, 'success');
+                
+                // Reset UI pour le prochain scan
+                closeProductCard();
+            } else {
+                beep('error');
+                showAlert(`Erreur : ${data.message}`, 'danger');
+            }
+        })
+        .catch(err => {
+            beep('error');
+            showAlert('Erreur réseau lors de l\'enregistrement.', 'danger');
+        });
+    });
+    
+    // Annuler saisie en cours
+    document.getElementById('btn-cancel-entry').addEventListener('click', closeProductCard);
+    
+    function closeProductCard() {
+        productCard.classList.add('d-none');
+        document.getElementById('scanner-section').classList.remove('d-none');
+        document.getElementById('manual-code').value = '';
+        resumeScanner();
+    }
+    
+    // Manual Search Form
+    manualSearchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const code = document.getElementById('manual-code').value.trim();
+        if (code) {
+            findLot(code);
+        }
+    });
+
+    // CAMERA SCANNER LOGIC USING HTML5-QRCODE
+    
+    function onScanSuccess(decodedText, decodedResult) {
+        // Un scan valide
+        findLot(decodedText);
+    }
+    
+    function startScanner(cameraId) {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                initializeScanner(cameraId);
+            }).catch(err => {
+                console.warn("Scanner stop error", err);
+                initializeScanner(cameraId);
+            });
+        } else {
+            initializeScanner(cameraId);
+        }
+    }
+    
+    function initializeScanner(cameraId) {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        laserLine.style.display = 'block';
+        
+        html5QrcodeScanner.start(
+            cameraId, 
+            {
+                fps: 15,
+                qrbox: function(width, height) {
+                    // Adaptative qrbox size
+                    const size = Math.min(width, height) * 0.7;
+                    return { width: size, height: size };
+                }
+            },
+            onScanSuccess,
+            onScanFailure
+        ).catch(err => {
+            console.error("Camera startup error", err);
+            showAlert("Impossible de démarrer la caméra. Vérifiez les permissions.", "danger");
+            laserLine.style.display = 'none';
+        });
+    }
+    
+    function onScanFailure(error) {
+        // On scan failure is triggered on every frame. Usually safe to ignore.
+    }
+    
+    function pauseScanner() {
+        if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+            html5QrcodeScanner.pause();
+            laserLine.style.display = 'none';
+        }
+    }
+    
+    function resumeScanner() {
+        if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+            html5QrcodeScanner.resume();
+            laserLine.style.display = 'block';
+        }
+    }
+    
+    // Initialisation caméras
+    Html5Qrcode.getCameras().then(devices => {
+        cameraDevices = devices;
+        if (devices && devices.length > 0) {
+            // Rechercher de préférence une caméra arrière
+            let selectedDevice = devices[0];
+            for (let i = 0; i < devices.length; i++) {
+                if (devices[i].label.toLowerCase().includes('back') || 
+                    devices[i].label.toLowerCase().includes('arrière') ||
+                    devices[i].label.toLowerCase().includes('environment')) {
+                    selectedDevice = devices[i];
+                    activeCameraIndex = i;
+                    break;
+                }
+            }
+            currentCameraId = selectedDevice.id;
+            startScanner(currentCameraId);
+        } else {
+            showAlert("Aucune caméra détectée sur ce périphérique.", "warning");
+        }
+    }).catch(err => {
+        console.error(err);
+        showAlert("Erreur lors de l'accès aux caméras.", "danger");
+    });
+    
+    // Toggle camera button
+    document.getElementById('toggle-camera-btn').addEventListener('click', function() {
+        if (cameraDevices.length > 1) {
+            activeCameraIndex = (activeCameraIndex + 1) % cameraDevices.length;
+            currentCameraId = cameraDevices[activeCameraIndex].id;
+            startScanner(currentCameraId);
+        } else {
+            showAlert("Une seule caméra est disponible sur cet appareil.", "info");
+        }
+    });
+});
+</script>
+
+<style>
+.max-width-mobile {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+#reader {
+    position: relative;
+}
+
+#reader video {
+    object-fit: cover !important;
+}
+
+/* Style premium laser line effect */
+.scanner-laser {
+    position: absolute;
+    top: 50%;
+    left: 15%;
+    width: 70%;
+    height: 3px;
+    background-color: #198754;
+    box-shadow: 0 0 8px #198754;
+    animation: scanAnimation 2s infinite linear;
+    z-index: 10;
+    pointer-events: none;
+    display: none;
+}
+
+@keyframes scanAnimation {
+    0% {
+        top: 20%;
+    }
+    50% {
+        top: 80%;
+    }
+    100% {
+        top: 20%;
+    }
+}
+
+.btn-xs {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+    border-radius: 0.2rem;
+}
+</style>
+{% endblock %}

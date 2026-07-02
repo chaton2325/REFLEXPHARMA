@@ -23,6 +23,7 @@ from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 from models.setting import Setting
+from models.inventaire import Inventaire, InventaireLigne
 
 from config import config
 

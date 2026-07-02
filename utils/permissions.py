@@ -17,6 +17,7 @@ FEATURES = {
     'historique_clients': 'Voir l historique des clients',
     'gestion_ventes': 'Gerer les ventes',
     'stats_ventes': 'Voir les statistiques des ventes',
+    'gestion_inventaire': "Gérer l'inventaire",
     'gestion_parametres': 'Gérer les paramètres de l\'application'
 }
 

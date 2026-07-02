@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}{{ inventaire.titre }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.list_inventaires') }}">Inventaires</a></li>
+            <li class="breadcrumb-item active">{{ inventaire.titre }}</li>
+        </ol>
+    </nav>
+    
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 mb-0">{{ inventaire.titre }}</h1>
+                {% if inventaire.statut == 'en_cours' %}
+                <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
+                {% elif inventaire.statut == 'valide' %}
+                <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
+                {% else %}
+                <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Annulé</span>
+                {% endif %}
+            </div>
+            <p class="text-muted mb-0 small">
+                Créé par {{ inventaire.created_by.nom }} {{ inventaire.created_by.prenom }} le {{ inventaire.created_at.strftime('%d/%m/%Y à %H:%M') }}
+                {% if inventaire.validated_at %}
+                | Validé le {{ inventaire.validated_at.strftime('%d/%m/%Y à %H:%M') }} par {{ inventaire.validated_by.nom }} {{ inventaire.validated_by.prenom }}
+                {% endif %}
+            </p>
+        </div>
+        
+        <div class="d-flex flex-wrap gap-2">
+            <!-- PDF Exports -->
+            <a href="{{ url_for('admin.export_fiche_comptage_pdf', id=inventaire.id) }}" class="btn btn-outline-danger">
+                <i class="fas fa-file-pdf me-1"></i> Fiche de Comptage (Avant)
+            </a>
+            {% if inventaire.statut == 'valide' or scanned_count > 0 %}
+            <a href="{{ url_for('admin.export_rapport_inventaire_pdf', id=inventaire.id) }}" class="btn btn-outline-success">
+                <i class="fas fa-file-pdf me-1"></i> Rapport d'Inventaire (Après)
+            </a>
+            {% endif %}
+            
+            {% if inventaire.statut == 'en_cours' %}
+            <a href="{{ url_for('admin.scan_inventaire_qrcode', id=inventaire.id) }}" class="btn btn-success">
+                <i class="fas fa-qrcode me-1"></i> Scanner Mobile (QR Code)
+            </a>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#validateModal">
+                <i class="fas fa-check-double me-1"></i> Valider l'inventaire
+            </button>
+            <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                <i class="fas fa-trash me-1"></i> Annuler
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if inventaire.statut == 'en_cours' %}
+<!-- Barre de progression -->
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body">
+        <h6 class="fw-bold mb-2"><i class="fas fa-tasks me-2 text-primary"></i>Avancement de la saisie</h6>
+        {% set pct = (scanned_count / total_count * 100)|round|int if total_count > 0 else 0 %}
+        <div class="progress mb-2" style="height: 20px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" 
+                 id="stat-progress-bar" style="width: {{ pct }}%;" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                {{ pct }}%
+            </div>
+        </div>
+        <div class="d-flex justify-content-between small text-muted">
+            <span id="stat-scanned-count">{{ scanned_count }} lots saisis / constatés</span>
+            <span id="stat-pending-count">{{ total_count - scanned_count }} lots restants en attente</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filtres et Recherche Instantanée en JS -->
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light rounded">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-7">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="js-search-input" class="form-control border-start-0 form-control-lg" placeholder="Recherche instantanée par lot, produit, rayon ou BL...">
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="fas fa-filter text-muted"></i></span>
+                    <select id="js-status-select" class="form-select form-select-lg">
+                        <option value="all">Tous les articles</option>
+                        <option value="scanned">Saisis / Constatés</option>
+                        <option value="pending">Non saisis (En attente)</option>
+                        <option value="decalage">Avec écart (différence)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Liste des lignes d'inventaire -->
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-bold"><i class="fas fa-list me-2 text-dark"></i>Lignes d'inventaire</h5>
+        <span class="badge bg-secondary" id="js-visible-count">Affichage de tous les articles</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="inventory-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code de Suivi / Lot</th>
+                        <th>Produit</th>
+                        <th>Rayon</th>
+                        <th>Stock Théorique (Avant)</th>
+                        <th>Stock Constaté (Après)</th>
+                        <th>Écart (Différence)</th>
+                        {% if inventaire.statut == 'en_cours' %}
+                        <th class="text-center">Action</th>
+                        {% else %}
+                        <th>Modifié par</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody id="inventory-tbody">
+                    {% if lines %}
+                        {% for line in lines %}
+                        {% set cond = line.produit.conditionnement %}
+                        <tr id="row-{{ line.id }}" 
+                            class="inventory-row {% if line.is_scanned %}table-success-light{% endif %}"
+                            data-search="{{ line.code_suivi|lower }} {{ line.produit.nom|lower }} {{ line.produit.code_produit|lower }} {{ line.numero_bl|lower }} {{ (line.produit.rayon.nom if line.produit.rayon else '')|lower }}"
+                            data-scanned="{% if line.is_scanned %}true{% else %}false{% endif %}"
+                            data-decalage="{% if line.a_decalage %}true{% else %}false{% endif %}"
+                            data-u-avant="{{ line.quantite_unites_avant }}"
+                            data-su-avant="{{ line.quantite_sous_unites_avant }}"
+                            data-ssu-avant="{{ line.quantite_sous_sous_unites_avant }}">
+                            <td>
+                                <div class="fw-bold">{{ line.code_suivi }}</div>
+                                <span class="badge bg-light text-dark border">BL: {{ line.numero_bl }}</span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-dark">{{ line.produit.nom }}</div>
+                                <small class="text-muted">Code: {{ line.produit.code_produit }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary">{{ line.produit.rayon.nom if line.produit.rayon else '-' }}</span>
+                            </td>
+                            <td>
+                                <div class="small fw-bold text-secondary">
+                                    U: {{ line.quantite_unites_avant }}
+                                    {% if cond >= 2 %}| SU: {{ line.quantite_sous_unites_avant }}{% endif %}
+                                    {% if cond == 3 %}| SSU: {{ line.quantite_sous_sous_unites_avant }}{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if inventaire.statut == 'en_cours' %}
+                                <!-- Saisie rapide en ligne -->
+                                <form action="{{ url_for('admin.save_inventaire_line', id=inventaire.id, line_id=line.id) }}" 
+                                      method="POST" class="ajax-save-form" data-line-id="{{ line.id }}" data-cond="{{ cond }}">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <div class="input-group input-group-sm" style="width: 70px;">
+                                            <span class="input-group-text p-1">U</span>
+                                            <input type="number" name="quantite_unites" class="form-control px-1 text-center" 
+                                                   value="{{ line.quantite_unites_apres if line.quantite_unites_apres is not none else '' }}" min="0" required>
+                                        </div>
+                                        
+                                        {% if cond >= 2 %}
+                                        <div class="input-group input-group-sm" style="width: 75px;">
+                                            <span class="input-group-text p-1">SU</span>
+                                            <input type="number" name="quantite_sous_unites" class="form-control px-1 text-center" 
+                                                   value="{{ line.quantite_sous_unites_apres if line.quantite_sous_unites_apres is not none else '' }}" min="0">
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if cond == 3 %}
+                                        <div class="input-group input-group-sm" style="width: 80px;">
+                                            <span class="input-group-text p-1">SSU</span>
+                                            <input type="number" name="quantite_sous_sous_unites" class="form-control px-1 text-center" 
+                                                   value="{{ line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not none else '' }}" min="0">
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <button type="submit" class="btn btn-sm btn-success p-1 ms-1" title="Enregistrer">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </div>
+                                </form>
+                                {% else %}
+                                <!-- Affichage statique -->
+                                <div class="small fw-bold text-dark">
+                                    {% if line.quantite_unites_apres is not none %}
+                                        U: {{ line.quantite_unites_apres }}
+                                        {% if cond >= 2 %}| SU: {{ line.quantite_sous_unites_apres }}{% endif %}
+                                        {% if cond == 3 %}| SSU: {{ line.quantite_sous_sous_unites_apres }}{% endif %}
+                                    {% else %}
+                                        <span class="text-muted italic">Non saisi</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td id="diff-cell-{{ line.id }}">
+                                {% if line.quantite_unites_apres is not none %}
+                                    {% set diff_u = line.quantite_unites_apres - line.quantite_unites_avant %}
+                                    {% set diff_su = line.quantite_sous_unites_apres - line.quantite_sous_unites_avant if cond >= 2 else 0 %}
+                                    {% set diff_ssu = line.quantite_sous_sous_unites_apres - line.quantite_sous_sous_unites_avant if cond == 3 else 0 %}
+                                    
+                                    {% if diff_u == 0 and diff_su == 0 and diff_ssu == 0 %}
+                                        <span class="text-muted small"><i class="fas fa-equals me-1"></i>Conforme</span>
+                                    {% else %}
+                                        <div class="small fw-bold">
+                                            {% if diff_u != 0 %}
+                                                <span class="{{ 'text-success' if diff_u > 0 else 'text-danger' }}">
+                                                    U: {{ '+' if diff_u > 0 else '' }}{{ diff_u }}
+                                                </span>
+                                            {% endif %}
+                                            {% if cond >= 2 and diff_su != 0 %}
+                                                <span class="{{ 'text-success' if diff_su > 0 else 'text-danger' }}">
+                                                    SU: {{ '+' if diff_su > 0 else '' }}{{ diff_su }}
+                                                </span>
+                                            {% endif %}
+                                            {% if cond == 3 and diff_ssu != 0 %}
+                                                <span class="{{ 'text-success' if diff_ssu > 0 else 'text-danger' }}">
+                                                    SSU: {{ '+' if diff_ssu > 0 else '' }}{{ diff_ssu }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                            {% if inventaire.statut == 'en_cours' %}
+                            <td class="text-center">
+                                <span class="badge bg-{% if line.is_scanned %}success{% else %}secondary{% endif %}-subtle text-{% if line.is_scanned %}success{% else %}secondary{% endif %}-emphasis border btn-status" id="badge-{{ line.id }}">
+                                    {% if line.is_scanned %}
+                                    <i class="fas fa-check-circle me-1"></i>Saisi
+                                    {% else %}
+                                    <i class="fas fa-hourglass me-1"></i>Attente
+                                    {% endif %}
+                                </span>
+                            </td>
+                            {% else %}
+                            <td>
+                                {% if line.constate_by %}
+                                    <small>{{ line.constate_by.nom }} {{ line.constate_by.prenom }}</small>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
+                    <tr id="empty-search-row" class="d-none">
+                        <td colspan="7" class="p-5 text-center text-muted">
+                            <i class="fas fa-search fa-2x mb-3 text-light"></i>
+                            <p class="mb-0">Aucun lot de stock ne correspond aux critères de recherche.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if inventaire.statut == 'en_cours' %}
+<!-- Modal Validation -->
+<div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="validateModalLabel"><i class="fas fa-check-double me-2"></i>Validation de l'inventaire</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('admin.validate_inventaire', id=inventaire.id) }}" method="POST">
+                <div class="modal-body">
+                    <p class="fw-semibold">Voulez-vous vraiment valider et clôturer cet inventaire ?</p>
+                    <p class="text-danger small mb-4">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Cette action mettra à jour définitivement les quantités en stock et générera des logs de modification de stock.
+                    </p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Traitement des lots non saisis / non comptés :</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="non_saisis" id="non_saisis_theorique" value="theorique" checked>
+                            <label class="form-check-label" for="non_saisis_theorique">
+                                <span class="fw-bold">Conserver le stock théorique</span> (aucune anomalie sur ces lots)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="non_saisis" id="non_saisis_zero" value="zero">
+                            <label class="form-check-label" for="non_saisis_zero">
+                                <span class="fw-bold text-danger">Mettre le stock à zéro (0)</span> (considérer ces lots comme manquants)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Valider & Clôturer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Annulation -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="cancelModalLabel"><i class="fas fa-trash-alt me-2"></i>Annuler l'inventaire</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('admin.cancel_inventaire', id=inventaire.id) }}" method="POST">
+                <div class="modal-body">
+                    <p class="fw-semibold">Voulez-vous vraiment annuler cette session d'inventaire ?</p>
+                    <p class="text-danger small mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Toutes les données saisies lors de cet inventaire seront conservées dans l'historique sous le statut "Annulé", mais <strong>le stock physique ne sera pas modifié</strong>.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Retour</button>
+                    <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Javascript de Filtrage et Recherche Instantanée -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('js-search-input');
+    const statusSelect = document.getElementById('js-status-select');
+    const rows = document.querySelectorAll('.inventory-row');
+    const emptyRow = document.getElementById('empty-search-row');
+    const visibleCountBadge = document.getElementById('js-visible-count');
+    
+    // Fonction de filtrage client
+    function filterRows() {
+        const query = searchInput.value.toLowerCase().trim();
+        const status = statusSelect.value;
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const searchText = row.dataset.search || '';
+            const isScanned = row.dataset.scanned === 'true';
+            const hasDecalage = row.dataset.decalage === 'true';
+            
+            let matchesSearch = searchText.includes(query);
+            let matchesStatus = true;
+            
+            if (status === 'scanned') {
+                matchesStatus = isScanned;
+            } else if (status === 'pending') {
+                matchesStatus = !isScanned;
+            } else if (status === 'decalage') {
+                matchesStatus = isScanned && hasDecalage;
+            }
+            
+            if (matchesSearch && matchesStatus) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        // Affichage du message si aucun résultat
+        if (emptyRow) {
+            if (visibleCount === 0) {
+                emptyRow.classList.remove('d-none');
+            } else {
+                emptyRow.classList.add('d-none');
+            }
+        }
+        
+        // Mettre à jour le badge de comptage visible
+        if (visibleCountBadge) {
+            visibleCountBadge.textContent = `${visibleCount} article${visibleCount > 1 ? 's' : ''} affiché${visibleCount > 1 ? 's' : ''} sur ${rows.length}`;
+        }
+    }
+    
+    // Event listeners
+    if (searchInput && statusSelect) {
+        searchInput.addEventListener('input', filterRows);
+        statusSelect.addEventListener('change', filterRows);
+    }
+    
+    // Exécuter le filtre initial
+    filterRows();
+
+    // LOGIQUE AJAX D'ENREGISTREMENT EN DIRECT
+    const forms = document.querySelectorAll('.ajax-save-form');
+    
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const lineId = this.dataset.lineId;
+            const cond = parseInt(this.dataset.cond || 1);
+            const row = document.getElementById('row-' + lineId);
+            const badge = document.getElementById('badge-' + lineId);
+            const diffCell = document.getElementById('diff-cell-' + lineId);
+            
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Mettre à jour le statut dans les datasets de la ligne
+                    row.dataset.scanned = 'true';
+                    row.dataset.decalage = data.a_decalage ? 'true' : 'false';
+                    
+                    // Appliquer la couleur de ligne saisie
+                    row.classList.add('table-success-light');
+                    
+                    // Mettre à jour le badge d'état
+                    if (badge) {
+                        badge.className = 'badge bg-success-subtle text-success-emphasis border';
+                        badge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Saisi';
+                    }
+                    
+                    // Calcul et affichage de la différence
+                    const uAvant = parseInt(row.dataset.uAvant || 0);
+                    const suAvant = parseInt(row.dataset.suAvant || 0);
+                    const ssuAvant = parseInt(row.dataset.ssuAvant || 0);
+                    
+                    const uVal = parseInt(formData.get('quantite_unites') || 0);
+                    const suVal = parseInt(formData.get('quantite_sous_unites') || 0);
+                    const ssuVal = parseInt(formData.get('quantite_sous_sous_unites') || 0);
+                    
+                    const diff_u = uVal - uAvant;
+                    const diff_su = suVal - suAvant;
+                    const diff_ssu = ssuVal - ssuAvant;
+                    
+                    if (diff_u === 0 && diff_su === 0 && diff_ssu === 0) {
+                        diffCell.innerHTML = '<span class="text-muted small"><i class="fas fa-equals me-1"></i>Conforme</span>';
+                    } else {
+                        let html = '<div class="small fw-bold">';
+                        if (diff_u !== 0) {
+                            html += `<span class="${diff_u > 0 ? 'text-success' : 'text-danger'}">U: ${diff_u > 0 ? '+' : ''}${diff_u}</span> `;
+                        }
+                        if (cond >= 2 && diff_su !== 0) {
+                            html += `<span class="${diff_su > 0 ? 'text-success' : 'text-danger'}">SU: ${diff_su > 0 ? '+' : ''}${diff_su}</span> `;
+                        }
+                        if (cond === 3 && diff_ssu !== 0) {
+                            html += `<span class="${diff_ssu > 0 ? 'text-success' : 'text-danger'}">SSU: ${diff_ssu > 0 ? '+' : ''}${diff_ssu}</span>`;
+                        }
+                        html += '</div>';
+                        diffCell.innerHTML = html;
+                    }
+                    
+                    // Recalculer les stats globales en haut de page
+                    let totalCount = document.querySelectorAll('.inventory-row').length;
+                    let scannedCount = document.querySelectorAll('.inventory-row[data-scanned="true"]').length;
+                    let pendingCount = totalCount - scannedCount;
+                    let pct = totalCount > 0 ? Math.round((scannedCount / totalCount) * 100) : 0;
+                    
+                    const statScanned = document.getElementById('stat-scanned-count');
+                    const statPending = document.getElementById('stat-pending-count');
+                    const statProgress = document.getElementById('stat-progress-bar');
+                    
+                    if (statScanned) statScanned.textContent = scannedCount + ' lots saisis / constatés';
+                    if (statPending) statPending.textContent = pendingCount + ' lots restants en attente';
+                    if (statProgress) {
+                        statProgress.style.width = pct + '%';
+                        statProgress.setAttribute('aria-valuenow', pct);
+                        statProgress.textContent = pct + '%';
+                    }
+                    
+                    // Re-filtrer les lignes au cas où le filtre actif cache les lignes saisies
+                    filterRows();
+                    
+                    // Effet visuel flash vert
+                    row.style.transition = 'background-color 0.5s';
+                    row.style.backgroundColor = '#d1e7dd';
+                    setTimeout(() => {
+                        row.style.backgroundColor = '';
+                    }, 1000);
+                } else {
+                    alert('Erreur : ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Erreur de connexion au serveur.');
+            });
+        });
+    });
+});
+</script>
+
+<style>
+.table-success-light {
+    background-color: rgba(25, 135, 84, 0.05) !important;
+}
+</style>
+{% endblock %}

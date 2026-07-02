@@ -119,6 +119,23 @@
     </div>
     {% endif %}
 
+    {% if current_user.has_permission('gestion_inventaire') %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm border-info">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info me-3">
+                        <i class="fas fa-boxes fa-2x"></i>
+                    </div>
+                    <h5 class="card-title mb-0">Inventaire</h5>
+                </div>
+                <p class="card-text">Effectuez l'inventaire physique des produits, scannez les QR codes et comparez les écarts.</p>
+                <a href="{{ url_for('admin.list_inventaires') }}" class="btn btn-outline-info btn-sm">Gérer l'inventaire</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if current_user.has_permission('gestion_modifications_stock') %}
     <div class="col-md-4 mb-4">
         <div class="card h-100 shadow-sm border-warning">

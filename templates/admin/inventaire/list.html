@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Inventaires - ReflexPharma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Inventaires</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-0"><i class="fas fa-boxes me-2 text-primary"></i>Gestion des Inventaires</h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Section Inventaire Actif / Nouveau -->
+    <div class="col-md-4 mb-4">
+        {% if active_inventaire %}
+        <div class="card border-warning shadow-sm h-100">
+            <div class="card-header bg-warning-subtle text-warning-emphasis fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-spinner fa-spin me-2"></i>Inventaire En Cours</span>
+                <span class="badge bg-warning">Actif</span>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title fw-bold text-dark">{{ active_inventaire.titre }}</h5>
+                <p class="card-text text-muted mb-4 small">
+                    <i class="fas fa-calendar-alt me-1"></i> Créé le {{ active_inventaire.created_at.strftime('%d/%m/%Y à %H:%M') }}<br>
+                    <i class="fas fa-user me-1"></i> Par : {{ active_inventaire.created_by.nom }} {{ active_inventaire.created_by.prenom }}
+                </p>
+                <div class="mt-auto d-grid gap-2">
+                    <a href="{{ url_for('admin.show_inventaire', id=active_inventaire.id) }}" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-2"></i>Accéder à l'inventaire
+                    </a>
+                    <a href="{{ url_for('admin.scan_inventaire_qrcode', id=active_inventaire.id) }}" class="btn btn-outline-success">
+                        <i class="fas fa-qrcode me-2"></i>Scanner Mobile
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card shadow-sm h-100 border-0">
+            <div class="card-header bg-success text-white fw-bold">
+                <i class="fas fa-plus me-2"></i>Nouvel Inventaire
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('admin.create_inventaire') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="titre" class="form-label fw-bold">Titre de l'inventaire</label>
+                        <input type="text" class="form-control form-control-lg" id="titre" name="titre" placeholder="Ex: Inventaire Fin de Mois" required>
+                        <div class="form-text">Ce titre permettra d'identifier cette session dans l'historique.</div>
+                    </div>
+                    <p class="text-muted small mb-4">
+                        <i class="fas fa-info-circle me-1 text-primary"></i> Le système fera un instantané (snapshot) des quantités actuelles de tout le stock pour servir de base théorique de comparaison.
+                    </p>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-play me-2"></i>Démarrer l'inventaire
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section Historique des Inventaires -->
+    <div class="col-md-8 mb-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-dark text-white fw-bold">
+                <i class="fas fa-history me-2"></i>Historique des sessions
+            </div>
+            <div class="card-body p-0">
+                {% if inventaires %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Titre / Date</th>
+                                <th class="text-center">Statut</th>
+                                <th>Créé par</th>
+                                <th>Validé par / Date</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inv in inventaires %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ inv.titre }}</div>
+                                    <small class="text-muted">{{ inv.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                </td>
+                                <td class="text-center">
+                                    {% if inv.statut == 'en_cours' %}
+                                    <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
+                                    {% elif inv.statut == 'valide' %}
+                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
+                                    {% else %}
+                                    <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Annulé</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="fw-semibold">{{ inv.created_by.nom }} {{ inv.created_by.prenom }}</small>
+                                </td>
+                                <td>
+                                    {% if inv.statut == 'valide' and inv.validated_by %}
+                                    <small class="fw-semibold">{{ inv.validated_by.nom }} {{ inv.validated_by.prenom }}</small><br>
+                                    <small class="text-muted">{{ inv.validated_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end px-3">
+                                    <a href="{{ url_for('admin.show_inventaire', id=inv.id) }}" class="btn btn-sm btn-outline-dark">
+                                        <i class="fas fa-eye me-1"></i> Détails
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-5 text-center text-muted">
+                    <i class="fas fa-clipboard-list fa-3x mb-3 text-light"></i>
+                    <p class="mb-0">Aucun inventaire n'a été enregistré.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
