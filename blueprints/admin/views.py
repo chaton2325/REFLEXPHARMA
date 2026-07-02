@@ -1233,13 +1233,23 @@ def consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
         remaining -= consumed
     return remaining <= 0.0001
 
-def get_filtered_ventes():
+def get_filtered_ventes(default_today=False):
     ventes = Vente.query.order_by(Vente.created_at.desc()).all()
     query = (request.args.get('q') or '').strip().lower()
     statut = (request.args.get('statut') or '').strip()
     mode_paiement = (request.args.get('mode_paiement') or '').strip()
-    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
-    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    
+    date_from_raw = (request.args.get('date_from') or '').strip()
+    date_to_raw = (request.args.get('date_to') or '').strip()
+    
+    date_from = parse_date_filter(date_from_raw)
+    date_to = parse_date_filter(date_to_raw)
+    
+    # If default_today is True and no specific filters are applied, default to today
+    if default_today and not date_from and not date_to and not query:
+        date_from = datetime.now().date()
+        date_to = datetime.now().date()
+        
     client_id = request.args.get('client_id', type=int)
     auteur_id = request.args.get('auteur_id', type=int)
     min_ttc = request.args.get('min_ttc', type=float)
@@ -1438,7 +1448,7 @@ def list_ventes():
     per_page = request.args.get('per_page', 150, type=int)
     
     # Get all filtered ventes
-    all_ventes = get_filtered_ventes()
+    all_ventes = get_filtered_ventes(default_today=True)
     total_count = len(all_ventes)
     
     # Slice the list for the current page
@@ -1449,6 +1459,14 @@ def list_ventes():
     # Calculate total pages
     total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
     
+    # Pre-fill date filters for the UI if they were defaulted to today
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    if not date_from and not date_to and not request.args.get('q'):
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        date_from = today_str
+        date_to = today_str
+    
     return render_template(
         'admin/ventes/list.html', 
         ventes=ventes_paginated,
@@ -1458,7 +1476,9 @@ def list_ventes():
         per_page=per_page,
         total_pages=total_pages,
         clients=Client.query.order_by(Client.nom.asc()).all(),
-        users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all()
+        users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all(),
+        date_from_val=date_from,
+        date_to_val=date_to
     )
 
 @admin.route('/ventes/all')
