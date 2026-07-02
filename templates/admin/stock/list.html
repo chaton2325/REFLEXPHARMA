@@ -524,6 +524,13 @@
           </button>
           <small class="text-muted ms-auto"><span id="stockVisibleCountMobile">{{ stocks|length }}</span>/{{ stocks|length }}</small>
         </div>
+        <div class="d-flex d-sm-none align-items-center gap-2 mt-2">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="toggleMobileRows" style="cursor:pointer;">
+            <label class="form-check-label small text-muted" for="toggleMobileRows" style="cursor:pointer;">Tout sélectionner</label>
+          </div>
+          <small class="text-muted ms-auto"><span id="selectedStockCountMobile">0</span> sélectionné(s)</small>
+        </div>
         <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
           <button type="button" id="selectVisibleQrRows" class="btn btn-sm btn-outline-secondary">
             Sélectionner visibles
@@ -544,7 +551,7 @@
              data-date-created="{{ stock.created_at.strftime('%Y-%m-%d') if stock.created_at else '' }}"
              data-date-updated="{{ stock.updated_at.strftime('%Y-%m-%d') if stock.updated_at else '' }}">
           <div class="d-flex align-items-start gap-3">
-            <input class="form-check-input mobile-check mt-1" type="checkbox" name="stock_ids" value="{{ stock.id }}" form="bulkQrForm" title="Sélectionner ce lot">
+            <input class="form-check-input mobile-check stock-qr-checkbox mt-1" type="checkbox" name="stock_ids" value="{{ stock.id }}" form="bulkQrForm" title="Sélectionner ce lot">
             <div style="flex:1;min-width:0;">
               <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ stock.produit.nom }}</div>
               <div class="text-muted" style="font-size:0.78rem;">{{ stock.produit.code_produit }} | {{ stock.produit.fournisseur.nom if stock.produit.fournisseur else 'N/A' }}</div>
@@ -1149,15 +1156,26 @@ document.addEventListener('DOMContentLoaded', function() {
         return stockRows.filter((row) => row.style.display !== 'none');
     }
 
-    function stockCheckboxes(rows = stockRows) {
-        return rows
+    function stockCheckboxes(rows) {
+        if (rows === undefined) {
+            return document.querySelectorAll('.stock-qr-checkbox');
+        }
+        return Array.from(rows)
             .map((row) => row.querySelector('.stock-qr-checkbox'))
             .filter(Boolean);
     }
 
+    function visibleMobileCheckboxes() {
+        const cards = document.querySelectorAll('#mobileStockList .mobile-card');
+        return Array.from(cards)
+            .filter(card => card.style.display !== 'none')
+            .map(card => card.querySelector('.stock-qr-checkbox'))
+            .filter(Boolean);
+    }
+
     function updateSelectionState() {
-        const selectedCount = stockCheckboxes().filter((checkbox) => checkbox.checked).length;
-        const visibleCheckboxes = stockCheckboxes(visibleStockRows());
+        const selectedCount = Array.from(stockCheckboxes()).filter((checkbox) => checkbox.checked).length;
+        const visibleCheckboxes = Array.from(stockCheckboxes(visibleStockRows())).concat(visibleMobileCheckboxes());
         const visibleSelectedCount = visibleCheckboxes.filter((checkbox) => checkbox.checked).length;
 
         if (selectedStockCount) {
@@ -1281,10 +1299,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    stockCheckboxes().forEach((checkbox) => {
-        checkbox.addEventListener('change', updateSelectionState);
-    });
-
     if (toggleVisibleQrRows) {
         toggleVisibleQrRows.addEventListener('change', () => {
             stockCheckboxes(visibleStockRows()).forEach((checkbox) => {
@@ -1297,6 +1311,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectVisibleQrRows) {
         selectVisibleQrRows.addEventListener('click', () => {
             stockCheckboxes(visibleStockRows()).forEach((checkbox) => {
+                checkbox.checked = true;
+            });
+            visibleMobileCheckboxes().forEach((checkbox) => {
                 checkbox.checked = true;
             });
             updateSelectionState();
@@ -1364,17 +1381,38 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // Mobile QR buttons
+    // Mobile QR buttons + select all
     const bulkQrButtonMobile = document.getElementById('bulkQrButtonMobile');
+    const toggleMobileRows = document.getElementById('toggleMobileRows');
+    const selectedStockCountMobile = document.getElementById('selectedStockCountMobile');
     if (bulkQrButtonMobile && bulkQrButton) {
         const origUpdate = updateSelectionState;
         updateSelectionState = function() {
             origUpdate();
-            const selectedCount = stockCheckboxes().filter(cb => cb.checked).length;
+            const selectedCount = Array.from(stockCheckboxes()).filter(cb => cb.checked).length;
             if (bulkQrButtonMobile) bulkQrButtonMobile.disabled = selectedCount === 0;
             document.querySelectorAll('.stock-export-button-mobile').forEach(b => b.disabled = selectedCount === 0);
+            if (selectedStockCountMobile) selectedStockCountMobile.textContent = selectedCount;
+            if (toggleMobileRows) {
+                const visibleMobile = visibleMobileCheckboxes();
+                const visibleChecks = stockCheckboxes(visibleStockRows()).concat(visibleMobile);
+                toggleMobileRows.checked = visibleChecks.length > 0 && visibleChecks.every(cb => cb.checked);
+                toggleMobileRows.indeterminate = visibleChecks.some(cb => cb.checked) && !toggleMobileRows.checked;
+            }
         };
     }
+    if (toggleMobileRows) {
+        toggleMobileRows.addEventListener('change', () => {
+            stockCheckboxes(visibleStockRows()).forEach(cb => cb.checked = toggleMobileRows.checked);
+            visibleMobileCheckboxes().forEach(cb => cb.checked = toggleMobileRows.checked);
+            updateSelectionState();
+        });
+    }
+
+    // Attach change listeners AFTER the override so they call the overridden updateSelectionState
+    stockCheckboxes().forEach((checkbox) => {
+        checkbox.addEventListener('change', updateSelectionState);
+    });
 
     refresh();
     updateVisibleCount();
