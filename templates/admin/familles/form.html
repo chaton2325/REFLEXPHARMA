@@ -2,41 +2,156 @@
 
 {% block title %}{{ title }} - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-form .card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    padding: 1rem 1.5rem;
+  }
+  .card-form .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+  }
+  .card-form .card-body {
+    padding: 1.5rem;
+  }
+
+  .form-custom .form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.4rem;
+  }
+  .form-custom .form-control,
+  .form-custom .form-select {
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+    background: #fff;
+  }
+  .form-custom .form-control:focus,
+  .form-custom .form-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+    background: #fff;
+  }
+
+  .section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #2c3e50;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 1rem;
+  }
+
+  .btn-rounded {
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+  }
+  .btn-rounded:hover {
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .card-form .card-body { padding: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_familles') }}">Familles</a></li>
-                <li class="breadcrumb-item active">{{ title }}</li>
-            </ol>
-        </nav>
-        
-        <div class="card shadow-sm">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">{{ title }}</h5>
-            </div>
-            <div class="card-body p-4">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Nom de la Famille</label>
-                        <input type="text" name="nom" class="form-control" value="{{ famille.nom if famille else '' }}" placeholder="ex: Antibiotiques, Analgésiques..." required>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Description</label>
-                        <textarea name="description" class="form-control" rows="3">{{ famille.description if famille else '' }}</textarea>
-                    </div>
-                    
-                    <div class="d-flex justify-content-end gap-2">
-                        <a href="{{ url_for('admin.list_familles') }}" class="btn btn-light border">Annuler</a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save me-1"></i> Enregistrer
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="page-header">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('admin.list_familles') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#2c3e50;" title="Retour">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h1><i class="fas fa-tags me-2"></i>{{ title }}</h1>
+      <p>{{ "Modifiez les informations de la famille" if famille else "Remplissez les informations pour créer une nouvelle famille" }}.</p>
     </div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-6">
+    <div class="card-form">
+      <div class="card-header">
+        <h5><i class="fas fa-info-circle me-2 text-primary"></i>{{ "Informations de la famille" if famille else "Nouvelle famille" }}</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="form-custom">
+          <div class="mb-3">
+            <label class="form-label">Nom de la Famille <span class="text-danger">*</span></label>
+            <input type="text" name="nom" class="form-control" value="{{ famille.nom if famille else '' }}" placeholder="ex: Antibiotiques, Analgésiques..." required>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="3" placeholder="Description optionnelle de la famille...">{{ famille.description if famille else '' }}</textarea>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{{ url_for('admin.list_familles') }}" class="btn btn-light border btn-rounded">Annuler</a>
+            <button type="submit" class="btn btn-primary btn-rounded">
+              <i class="fas fa-save me-1"></i> Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

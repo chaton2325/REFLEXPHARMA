@@ -2,230 +2,409 @@
 
 {% block title %}Dashboard - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .dashboard-welcome {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 2rem 2rem 0;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .dashboard-welcome::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .dashboard-welcome::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: 20%;
+    width: 200px;
+    height: 200px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .dashboard-welcome h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.75rem;
+    position: relative;
+    z-index: 1;
+  }
+  .dashboard-welcome p {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.95rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a2e;
+  }
+  .stat-card .stat-label {
+    font-size: 0.8rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .feature-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.25s, box-shadow 0.25s;
+    height: 100%;
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+  }
+  .feature-card .feature-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    margin-bottom: 1rem;
+  }
+  .feature-card h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin-bottom: 0.4rem;
+  }
+  .feature-card p {
+    font-size: 0.85rem;
+    color: #6c7a89;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+  .feature-card .btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .feature-card .btn:hover {
+    transform: scale(1.03);
+  }
+
+  .dashboard-section-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .dashboard-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, #e9ecef, transparent);
+  }
+
+  .fade-in {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeInUp 0.4s ease forwards;
+  }
+  @keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.3s; }
+  .stagger-7 { animation-delay: 0.35s; }
+  .stagger-8 { animation-delay: 0.4s; }
+  .stagger-9 { animation-delay: 0.45s; }
+  .stagger-10 { animation-delay: 0.5s; }
+  .stagger-11 { animation-delay: 0.55s; }
+
+  @media (max-width: 575.98px) {
+    .dashboard-welcome { padding: 1.5rem 1.25rem 0; border-radius: 12px; }
+    .dashboard-welcome h1 { font-size: 1.35rem; }
+    .stat-card { padding: 1rem; }
+    .stat-card .stat-number { font-size: 1.35rem; }
+    .stat-card .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+    .feature-card { padding: 1.25rem; }
+    .feature-card .feature-icon { width: 44px; height: 44px; font-size: 1.2rem; }
+    .feature-card h5 { font-size: 0.95rem; }
+    .feature-card p { font-size: 0.8rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-12 mb-4">
-        <h1 class="h3">Bienvenue, {{ current_user.prenom }} !</h1>
-        <p class="text-muted">Tableau de bord de gestion de la pharmacie.</p>
+<div class="fade-in">
+  <div class="dashboard-welcome">
+    <div class="row align-items-end">
+      <div class="col-12 col-md-8">
+        <h1><i class="fas fa-prescription-bottle-alt me-2"></i>Bienvenue, {{ current_user.prenom }} !</h1>
+        <p>Tableau de bord de gestion de la pharmacie.</p>
+      </div>
     </div>
+  </div>
 </div>
 
-<div class="row">
-    {% if current_user.has_permission('gestion_employes') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary me-3">
-                        <i class="fas fa-users fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Gestion Employés</h5>
-                </div>
-                <p class="card-text">Gérez les comptes des pharmaciens, administrateurs et employés.</p>
-                <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-primary btn-sm">Gérer les utilisateurs</a>
-            </div>
-        </div>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-sm-6 col-xl-3 fade-in stagger-1">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-boxes"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ produits_count }}</div>
+        <div class="stat-label">Produits</div>
+      </div>
     </div>
-    {% endif %}
+  </div>
+  <div class="col-6 col-sm-6 col-xl-3 fade-in stagger-2">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-warehouse"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stock_count }}</div>
+        <div class="stat-label">Entrées Stock</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-6 col-xl-3 fade-in stagger-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e8,#fde0c5);color:#e37400;">
+        <i class="fas fa-shopping-cart"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ today_ventes_count }}</div>
+        <div class="stat-label">Ventes Aujourd'hui</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-6 col-xl-3 fade-in stagger-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#f3e8fd,#e4d0f7);color:#7c3aed;">
+        <i class="fas fa-users"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ clients_count }}</div>
+        <div class="stat-label">Clients</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-    {% if current_user.has_permission('gestion_postes') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info me-3">
-                        <i class="fas fa-briefcase fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Gestion Postes</h5>
-                </div>
-                <p class="card-text">Configurez les types de postes et métiers de la pharmacie.</p>
-                <a href="{{ url_for('admin.list_postes') }}" class="btn btn-outline-info btn-sm">Gérer les postes</a>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+<div class="dashboard-section-title fade-in stagger-5">
+  <i class="fas fa-th-large" style="color:#3498db;"></i> Modules
+</div>
 
-    {% if current_user.has_permission('gestion_fournisseurs') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning me-3">
-                        <i class="fas fa-cog fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Paramètres</h5>
-                </div>
-                <p class="card-text">Gérez les fournisseurs et les configurations générales.</p>
-                <a href="{{ url_for('admin.list_fournisseurs') }}" class="btn btn-outline-warning btn-sm">Gérer les fournisseurs</a>
-            </div>
-        </div>
+<div class="row g-3">
+  {% if current_user.has_permission('gestion_employes') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-6">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-users"></i>
+      </div>
+      <h5>Gestion Employés</h5>
+      <p>Gérez les comptes des pharmaciens, administrateurs et employés.</p>
+      <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-primary">Gérer les utilisateurs</a>
     </div>
-    {% endif %}
-    
-    {% if current_user.has_permission('gestion_produits') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 border-primary shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary me-3">
-                        <i class="fas fa-boxes fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Catalogue Produits</h5>
-                </div>
-                <p class="card-text">Gérez le catalogue des médicaments et produits de parapharmacie.</p>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('admin.list_produits') }}" class="btn btn-primary btn-sm">Gérer les produits</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_rayons') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">
-                        <i class="fas fa-layer-group fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Organisation</h5>
-                </div>
-                <p class="card-text">Configurez les rayons, familles et sections de stockage.</p>
-                <div class="btn-group w-100">
-                    <a href="{{ url_for('admin.list_rayons') }}" class="btn btn-outline-success btn-sm">Rayons</a>
-                    <a href="{{ url_for('admin.list_familles') }}" class="btn btn-outline-success btn-sm">Familles</a>
-                    <a href="{{ url_for('admin.list_sections') }}" class="btn btn-outline-success btn-sm">Sections</a>
-                </div>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_postes') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-7">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-briefcase"></i>
+      </div>
+      <h5>Gestion Postes</h5>
+      <p>Configurez les types de postes et métiers de la pharmacie.</p>
+      <a href="{{ url_for('admin.list_postes') }}" class="btn btn-outline-success">Gérer les postes</a>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_stock') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-success">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">
-                        <i class="fas fa-warehouse fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Gestion Stock</h5>
-                </div>
-                <p class="card-text">Entrez les produits en stock et suivez les quantités, TTC et bénéfices.</p>
-                <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-success btn-sm">Gérer le stock</a>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_fournisseurs') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-8">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fef3e8,#fde0c5);color:#e37400;">
+        <i class="fas fa-cog"></i>
+      </div>
+      <h5>Paramètres</h5>
+      <p>Gérez les fournisseurs et les configurations générales.</p>
+      <a href="{{ url_for('admin.list_fournisseurs') }}" class="btn btn-outline-warning">Gérer les fournisseurs</a>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_inventaire') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-info">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info me-3">
-                        <i class="fas fa-boxes fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Inventaire</h5>
-                </div>
-                <p class="card-text">Effectuez l'inventaire physique des produits, scannez les QR codes et comparez les écarts.</p>
-                <a href="{{ url_for('admin.list_inventaires') }}" class="btn btn-outline-info btn-sm">Gérer l'inventaire</a>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_produits') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-9">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-boxes"></i>
+      </div>
+      <h5>Catalogue Produits</h5>
+      <p>Gérez le catalogue des médicaments et produits de parapharmacie.</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin.list_produits') }}" class="btn btn-primary">Gérer les produits</a>
+      </div>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_modifications_stock') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-warning">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning me-3">
-                        <i class="fas fa-clipboard-list fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Modifications Stock</h5>
-                </div>
-                <p class="card-text">Consultez l'historique des changements de stock et leurs raisons.</p>
-                <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-warning btn-sm">Voir l'historique</a>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_rayons') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-10">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-layer-group"></i>
+      </div>
+      <h5>Organisation</h5>
+      <p>Configurez les rayons, familles et sections de stockage.</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin.list_rayons') }}" class="btn btn-outline-success btn-sm">Rayons</a>
+        <a href="{{ url_for('admin.list_familles') }}" class="btn btn-outline-success btn-sm">Familles</a>
+        <a href="{{ url_for('admin.list_sections') }}" class="btn btn-outline-success btn-sm">Sections</a>
+      </div>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-info">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info me-3">
-                        <i class="fas fa-address-book fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Clients</h5>
-                </div>
-                <p class="card-text">Gérez les clients, leurs groupes et les soldes associés.</p>
-                <div class="d-flex gap-2">
-                    {% if current_user.has_permission('gestion_clients') %}
-                    <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-info btn-sm">Clients</a>
-                    {% endif %}
-                    {% if current_user.has_permission('gestion_groupes_clients') %}
-                    <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-info btn-sm">Groupes</a>
-                    {% endif %}
-                    {% if current_user.has_permission('historique_clients') %}
-                    <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary btn-sm">Historique</a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_stock') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-11">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-warehouse"></i>
+      </div>
+      <h5>Gestion Stock</h5>
+      <p>Entrez les produits en stock et suivez les quantités, TTC et bénéfices.</p>
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-success">Gérer le stock</a>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('stats_sorties_stock') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-danger">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-danger bg-opacity-10 p-3 rounded-circle text-danger me-3">
-                        <i class="fas fa-chart-line fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Statistiques Sorties</h5>
-                </div>
-                <p class="card-text">Analysez les sorties, pertes, fournisseurs, raisons et utilisateurs.</p>
-                <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-danger btn-sm">Voir les statistiques</a>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_inventaire') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-1">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#f3e8fd,#e4d0f7);color:#7c3aed;">
+        <i class="fas fa-clipboard-list"></i>
+      </div>
+      <h5>Inventaire</h5>
+      <p>Effectuez l'inventaire physique des produits, scannez les QR codes et comparez les écarts.</p>
+      <a href="{{ url_for('admin.list_inventaires') }}" class="btn btn-outline-purple" style="border-color:#7c3aed;color:#7c3aed;">Gérer l'inventaire</a>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    {% if current_user.has_permission('gestion_ventes') %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm border-primary">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary me-3">
-                        <i class="fas fa-shopping-cart fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Ventes</h5>
-                </div>
-                <p class="card-text">Enregistrez les ventes simples, clients, produits et totaux TTC.</p>
-                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-primary btn-sm">Ouvrir les ventes</a>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_modifications_stock') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-2">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fef3e8,#fde0c5);color:#e37400;">
+        <i class="fas fa-pen-to-square"></i>
+      </div>
+      <h5>Modifications Stock</h5>
+      <p>Consultez l'historique des changements de stock et leurs raisons.</p>
+      <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-warning">Voir l'historique</a>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    <div class="col-md-4 mb-4 d-none">
-        <div class="card h-100 bg-light border-0 d-none">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">
-                        <i class="fas fa-shopping-cart fa-2x"></i>
-                    </div>
-                    <h5 class="card-title mb-0">Ventes (Bientôt)</h5>
-                </div>
-                <p class="card-text text-muted">Le module de caisse sera disponible dans la Phase 2.</p>
-            </div>
-        </div>
+  {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-3">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#f3e8fd,#e4d0f7);color:#7c3aed;">
+        <i class="fas fa-address-book"></i>
+      </div>
+      <h5>Clients</h5>
+      <p>Gérez les clients, leurs groupes et les soldes associés.</p>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if current_user.has_permission('gestion_clients') %}
+        <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-purple btn-sm" style="border-color:#7c3aed;color:#7c3aed;">Clients</a>
+        {% endif %}
+        {% if current_user.has_permission('gestion_groupes_clients') %}
+        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-purple btn-sm" style="border-color:#7c3aed;color:#7c3aed;">Groupes</a>
+        {% endif %}
+        {% if current_user.has_permission('historique_clients') %}
+        <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary btn-sm">Historique</a>
+        {% endif %}
+      </div>
     </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.has_permission('stats_sorties_stock') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-4">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-chart-line"></i>
+      </div>
+      <h5>Statistiques Sorties</h5>
+      <p>Analysez les sorties, pertes, fournisseurs, raisons et utilisateurs.</p>
+      <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-danger">Voir les statistiques</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.has_permission('gestion_ventes') %}
+  <div class="col-12 col-sm-6 col-lg-4 fade-in stagger-5">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-shopping-cart"></i>
+      </div>
+      <h5>Ventes</h5>
+      <p>Enregistrez les ventes simples, clients, produits et totaux TTC.</p>
+      <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-primary">Ouvrir les ventes</a>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

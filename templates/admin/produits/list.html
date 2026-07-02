@@ -2,207 +2,528 @@
 
 {% block title %}Catalogue Produits - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a2e;
+  }
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+
+  .search-wrapper {
+    position: relative;
+  }
+  .search-wrapper .form-control {
+    padding-left: 2.5rem;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    background: #f8f9fa;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+  }
+  .search-wrapper .form-control:focus {
+    background: #fff;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .search-wrapper .search-icon {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #adb5bd;
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+
+  .table-custom {
+    margin-bottom: 0;
+  }
+  .table-custom thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef;
+    white-space: nowrap;
+  }
+  .table-custom tbody td {
+    padding: 0.85rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 0.88rem;
+  }
+  .table-custom tbody tr {
+    transition: background 0.15s;
+  }
+  .table-custom tbody tr:hover {
+    background: #f8faff;
+  }
+
+  .btn-action {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .btn-action:hover {
+    transform: translateY(-1px);
+  }
+
+  .action-group {
+    display: flex;
+    gap: 0.3rem;
+    justify-content: flex-end;
+  }
+
+  .badge-produit {
+    font-weight: 500;
+    padding: 0.3rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+  }
+
+  .mobile-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid #f0f2f5;
+    transition: transform 0.15s;
+  }
+  .mobile-card:active {
+    transform: scale(0.99);
+  }
+  .mobile-card .mobile-check {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #3498db;
+  }
+
+  .filter-select {
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    background: #f8f9fa;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.7rem;
+    transition: all 0.2s;
+  }
+  .filter-select:focus {
+    background: #fff;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+
+  .btn-rounded {
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+  }
+  .btn-rounded:hover {
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .stat-card { padding: 0.9rem 1rem; }
+    .stat-card .stat-number { font-size: 1.2rem; }
+    .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Catalogue</li>
-                <li class="breadcrumb-item active">Produits</li>
-            </ol>
-        </nav>
-        <h1 class="h3">Catalogue Produits</h1>
+      <h1><i class="fas fa-pills me-2"></i>Catalogue Produits</h1>
+      <p>Gérez l'ensemble des produits pharmaceutiques et paramédicaux.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('admin.export_produits_excel') }}" class="btn btn-outline-success">
-            <i class="fas fa-file-excel me-1"></i> Excel
-        </a>
-        <a href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-outline-danger">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </a>
+      <a href="{{ url_for('admin.export_produits_excel') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <a href="{{ url_for('admin.create_produit') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+        <i class="fas fa-plus me-1"></i> Nouveau Produit
+      </a>
     </div>
-    <div class="d-flex gap-3">
-        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
-            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
-        </button>
-        <div class="input-group" style="width: 300px;">
-            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un produit...">
-        </div>
-        <a href="{{ url_for('admin.create_produit') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Nouveau Produit
-        </a>
-    </div>
+  </div>
 </div>
 
-<div class="d-flex gap-3 mb-3">
-    <select id="filterFournisseur" class="form-select form-select-sm" style="width: 150px;">
+<div class="row g-3 mb-4">
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-pills"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ produits|length }}</div>
+        <div class="stat-label">Total Produits</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-boxes"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ fournisseurs_list|length }}</div>
+        <div class="stat-label">Fournisseurs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e2,#fde4b3);color:#e37400;">
+        <i class="fas fa-tags"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ rayons_list|length }}</div>
+        <div class="stat-label">Rayons</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal" style="border-radius:8px;font-weight:600;">
+        <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
+      </button>
+      <select id="filterFournisseur" class="filter-select" style="width:140px;">
         <option value="">Tous Fournisseurs</option>
         {% for f in fournisseurs_list %}
         <option value="{{ f.nom }}">{{ f.nom }}</option>
         {% endfor %}
-    </select>
-    <select id="filterRayon" class="form-select form-select-sm" style="width: 150px;">
+      </select>
+      <select id="filterRayon" class="filter-select" style="width:130px;">
         <option value="">Tous Rayons</option>
         {% for r in rayons_list %}
         <option value="{{ r.nom }}">{{ r.nom }}</option>
         {% endfor %}
-    </select>
-    <select id="filterFamille" class="form-select form-select-sm" style="width: 150px;">
+      </select>
+      <select id="filterFamille" class="filter-select" style="width:130px;">
         <option value="">Toutes Familles</option>
         {% for f in familles_list %}
         <option value="{{ f.nom }}">{{ f.nom }}</option>
         {% endfor %}
-    </select>
-    <select id="filterCond" class="form-select form-select-sm" style="width: 150px;">
+      </select>
+      <select id="filterCond" class="filter-select" style="width:110px;">
         <option value="">Tout Cond.</option>
         <option value="Cond 1">Cond 1</option>
         <option value="Cond 2">Cond 2</option>
         <option value="Cond 3">Cond 3</option>
-    </select>
+      </select>
+    </div>
+    <div class="search-wrapper" style="width:100%;max-width:300px;">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" id="searchInput" class="form-control" placeholder="Rechercher un produit...">
+    </div>
+  </div>
+
+  <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_produits') }}" method="POST">
+    <!-- Mobile cards (xs only) -->
+    <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileList">
+      {% for p in produits %}
+      <div class="mobile-card" data-search="{{ p.nom }} {{ p.code_produit }} {{ p.fournisseur.nom }} {{ p.rayon.nom if p.rayon else '' }} {{ p.famille.nom if p.famille else '' }} Cond {{ p.conditionnement }}">
+        <div class="d-flex align-items-start gap-3">
+          <input class="form-check-input mobile-check mt-1 row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}">
+          <div style="flex:1;min-width:0;">
+            <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ p.nom }}</div>
+            <div class="text-muted" style="font-size:0.78rem;">
+              <span class="badge bg-secondary" style="font-weight:500;">{{ p.code_produit }}</span>
+              <span class="badge bg-info text-dark" style="font-weight:500;">Cond {{ p.conditionnement }}</span>
+            </div>
+            <div style="font-size:0.82rem;color:#495057;margin-top:0.3rem;">
+              <i class="fas fa-building text-muted me-1" style="width:14px;"></i>{{ p.fournisseur.nom }}
+              {% if p.rayon or p.famille %}
+              <br><i class="fas fa-tag text-muted me-1" style="width:14px;"></i>{{ p.rayon.nom if p.rayon else 'N/A' }} / {{ p.famille.nom if p.famille else 'N/A' }}
+              {% endif %}
+            </div>
+            <div style="font-size:0.85rem;margin-top:0.3rem;">
+              <span class="fw-semibold">{{ "%.2f"|format(p.prix_unite or 0) }} €</span>
+              <small class="text-success ms-1">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if produits|length == 0 %}
+      <div class="text-center py-4">
+        <i class="fas fa-pills" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+        <p class="text-muted mb-0">Aucun produit trouvé.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Desktop table (sm+) -->
+    <div class="table-responsive d-none d-sm-block">
+      <table class="table table-custom" id="produitTable">
+        <thead>
+          <tr>
+            <th style="width:36px;">
+              <div class="form-check" style="padding-left:1.5rem;">
+                <input class="form-check-input" type="checkbox" id="selectAll" style="cursor:pointer;">
+              </div>
+            </th>
+            <th onclick="sortTable(1)" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable(2)" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
+            <th>Fournisseur</th>
+            <th>Rayon/Famille</th>
+            <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable(6)" style="cursor:pointer">Prix HT / TTC <i class="fas fa-sort"></i></th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in produits %}
+          <tr>
+            <td>
+              <div class="form-check" style="padding-left:1.5rem;">
+                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}" style="cursor:pointer;">
+              </div>
+            </td>
+            <td><span class="badge bg-secondary badge-produit">{{ p.code_produit }}</span></td>
+            <td><div class="fw-semibold" style="color:#1a1a2e;">{{ p.nom }}</div></td>
+            <td style="color:#495057;">{{ p.fournisseur.nom }}</td>
+            <td>
+              <span class="small text-muted">{{ p.rayon.nom if p.rayon else 'Sans Rayon' }}</span><br>
+              <span class="badge badge-produit bg-light text-dark border">{{ p.famille.nom if p.famille else 'N/A' }}</span>
+            </td>
+            <td><span class="badge bg-info text-dark badge-produit">Cond {{ p.conditionnement }}</span></td>
+            <td>
+              <div class="fw-semibold" style="color:#1a1a2e;">{{ "%.2f"|format(p.prix_unite or 0) }} € HT</div>
+              <small class="text-success">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
+            </td>
+            <td>
+              <div class="action-group">
+                <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-outline-primary btn-action" title="Modifier">
+                  <i class="fas fa-edit"></i>
+                </a>
+                <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ p.id }}" title="Supprimer">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
 </div>
 
-<div class="card">
-    <div class="table-responsive">
-        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_produits') }}" method="POST">
-            <table class="table table-hover align-middle mb-0" id="produitTable">
-                <thead class="bg-light">
-                    <tr>
-                        <th><div class="form-check"><input class="form-check-input" type="checkbox" id="selectAll"></div></th>
-                        <th onclick="sortTable(1)" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(2)" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
-                        <th>Fournisseur</th>
-                        <th>Rayon/Famille</th>
-                        <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(6)" style="cursor:pointer">Prix HT / TTC <i class="fas fa-sort"></i></th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in produits %}
-                    <tr>
-                        <td>
-                            <div class="form-check">
-                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}">
-                            </div>
-                        </td>
-                        <td><span class="badge bg-secondary">{{ p.code_produit }}</span></td>
-                        <td><div class="fw-bold">{{ p.nom }}</div></td>
-                        <td>{{ p.fournisseur.nom }}</td>
-                        <td>
-                            <span class="small text-muted">{{ p.rayon.nom if p.rayon else 'Sans Rayon' }}</span><br>
-                            <span class="badge bg-light text-dark small">{{ p.famille.nom if p.famille else 'N/A' }}</span>
-                        </td>
-                        <td><span class="badge bg-info text-dark">Cond {{ p.conditionnement }}</span></td>
-                        <td>
-                            <div class="fw-semibold">{{ "%.2f"|format(p.prix_unite or 0) }} € HT</div>
-                            <small class="text-success">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ p.id }}" title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-
-                            <!-- Details Modal -->
-                            <div class="modal fade" id="detailsModal{{ p.id }}" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header bg-light">
-                                            <h5 class="modal-title"><i class="fas fa-pills me-2 text-primary"></i>Détails du Produit</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            <div class="row g-4">
-                                                <div class="col-md-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">Informations G?n?rales</h6>
-                                                    <p class="mb-2"><strong>Nom:</strong> {{ p.nom }}</p>
-                                                    <p class="mb-2"><strong>Code produit:</strong> <span class="badge bg-secondary">{{ p.code_produit }}</span></p>
-                                                    <p class="mb-2"><strong>Fournisseur:</strong> {{ p.fournisseur.nom if p.fournisseur else 'N/A' }}</p>
-                                                    <p class="mb-0"><strong>Conditionnement:</strong> Cond {{ p.conditionnement }}</p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">Classement</h6>
-                                                    <p class="mb-2"><strong>Rayon:</strong> {{ p.rayon.nom if p.rayon else 'Sans rayon' }}</p>
-                                                    <p class="mb-2"><strong>Famille:</strong> {{ p.famille.nom if p.famille else 'N/A' }}</p>
-                                                    <p class="mb-0"><strong>Section:</strong> {{ p.section.nom if p.section else 'N/A' }}</p>
-                                                </div>
-                                                <div class="col-12">
-                                                    <hr class="my-0">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">Tarification</h6>
-                                                    <p class="mb-2"><strong>Prix unité HT:</strong> {{ "%.2f"|format(p.prix_unite or 0) }} €</p>
-                                                    <p class="mb-2"><strong>Prix unité TTC:</strong> {{ "%.2f"|format(p.prix_unite_ttc or 0) }} €</p>
-                                                    <p class="mb-2"><strong>Prix sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_unite) ~ ' €' if p.prix_sous_unite is not none else 'N/A' }}</p>
-                                                    <p class="mb-2"><strong>Prix sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_unite_ttc) ~ ' €' if p.prix_sous_unite_ttc is not none else 'N/A' }}</p>
-                                                    <p class="mb-2"><strong>Prix sous-sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite) ~ ' €' if p.prix_sous_sous_unite is not none else 'N/A' }}</p>
-                                                    <p class="mb-0"><strong>Prix sous-sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite_ttc) ~ ' €' if p.prix_sous_sous_unite_ttc is not none else 'N/A' }}</p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">Param?tres Financiers</h6>
-                                                    <p class="mb-2"><strong>Coefficient effectif:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
-                                                    <p class="mb-2"><strong>TVA effective:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
-                                                    <p class="mb-0"><strong>Surcharge produit:</strong> {{ 'Oui' if p.coefficient is not none or p.tva is not none else 'Non' }}</p>
-                                                </div>
-                                                <div class="col-12">
-                                                    <hr class="my-0">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <p class="mb-1 text-muted small"><strong>Crée le:</strong> {{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else 'N/A' }}</p>
-                                                </div>
-                                                <div class="col-md-6 text-md-end">
-                                                    <p class="mb-1 text-muted small"><strong>Mis à jour le:</strong> {{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else 'N/A' }}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-primary">Modifier</a>
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Delete Modal -->
-                            <div class="modal fade" id="deleteModal{{ p.id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Confirmer la suppression</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            Êtes-vous sûr de vouloir supprimer le produit <strong>{{ p.nom }}</strong> ?
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                            <form action="{{ url_for('admin.delete_produit', id=p.id) }}" method="POST" class="d-inline">
-                                                <button type="submit" class="btn btn-danger">Supprimer</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">Aucun produit dans le catalogue.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </form>
+<!-- Modals -->
+{% for p in produits %}
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal{{ p.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-pills me-2"></i>Détails du Produit</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 class="text-muted text-uppercase small fw-semibold mb-3" style="letter-spacing:0.5px;">Informations Générales</h6>
+            <div class="mb-3">
+              <div class="fw-bold" style="font-size:1.1rem;">{{ p.nom }}</div>
+              <span class="badge bg-secondary badge-produit mt-1">{{ p.code_produit }}</span>
+            </div>
+            <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-building me-2 text-muted" style="width:18px;"></i>{{ p.fournisseur.nom if p.fournisseur else 'N/A' }}</p>
+            <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-box me-2 text-muted" style="width:18px;"></i>Conditionnement: Cond {{ p.conditionnement }}</p>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted text-uppercase small fw-semibold mb-3" style="letter-spacing:0.5px;">Classement</h6>
+            <div class="mb-2" style="font-size:0.88rem;"><span class="text-muted">Rayon:</span> {{ p.rayon.nom if p.rayon else 'Sans rayon' }}</div>
+            <div class="mb-2" style="font-size:0.88rem;"><span class="text-muted">Famille:</span> {{ p.famille.nom if p.famille else 'N/A' }}</div>
+            <div class="mb-2" style="font-size:0.88rem;"><span class="text-muted">Section:</span> {{ p.section.nom if p.section else 'N/A' }}</div>
+          </div>
+          <div class="col-12"><hr class="my-0"></div>
+          <div class="col-md-6">
+            <h6 class="text-muted text-uppercase small fw-semibold mb-3" style="letter-spacing:0.5px;">Tarification</h6>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix unité HT:</strong> {{ "%.2f"|format(p.prix_unite or 0) }} €</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix unité TTC:</strong> {{ "%.2f"|format(p.prix_unite_ttc or 0) }} €</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_unite) ~ ' €' if p.prix_sous_unite is not none else 'N/A' }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_unite_ttc) ~ ' €' if p.prix_sous_unite_ttc is not none else 'N/A' }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix sous-sous-unité HT:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite) ~ ' €' if p.prix_sous_sous_unite is not none else 'N/A' }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Prix sous-sous-unité TTC:</strong> {{ "%.2f"|format(p.prix_sous_sous_unite_ttc) ~ ' €' if p.prix_sous_sous_unite_ttc is not none else 'N/A' }}</p>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted text-uppercase small fw-semibold mb-3" style="letter-spacing:0.5px;">Paramètres Financiers</h6>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Coefficient effectif:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>TVA effective:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Surcharge produit:</strong> {{ 'Oui' if p.coefficient is not none or p.tva is not none else 'Non' }}</p>
+          </div>
+          <div class="col-12"><hr class="my-0"></div>
+          <div class="col-md-6">
+            <small class="text-muted"><i class="fas fa-calendar-plus me-1"></i> Créé le {{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else 'N/A' }}</small>
+          </div>
+          <div class="col-md-6 text-md-end">
+            <small class="text-muted"><i class="fas fa-calendar-check me-1"></i> Mis à jour le {{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else 'N/A' }}</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pt-0 d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.edit_produit', id=p.id) }}" class="btn btn-primary" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-edit me-1"></i> Modifier
+        </a>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ p.id }}" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-trash me-1"></i> Supprimer
+        </button>
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;margin-left:auto;">Fermer</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal{{ p.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Êtes-vous sûr de vouloir supprimer le produit <strong>{{ p.nom }}</strong> ?<br>
+          Cette action est irréversible.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_produit', id=p.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Bulk Delete Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression groupée</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> produits sélectionnés ?<br>
+          Cette action est irréversible.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -213,21 +534,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectedCountSpan = document.getElementById('selectedCount');
     const modalSelectedCountSpan = document.getElementById('modalSelectedCount');
 
-    function updateUI() {
-        const count = document.querySelectorAll('.row-checkbox:checked').length;
-        bulkDeleteBtn.classList.toggle('d-none', count === 0);
-        selectedCountSpan.textContent = count;
-        modalSelectedCountSpan.textContent = count;
+    function updateBulkDeleteUI() {
+        const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        if (selectedCount > 0) {
+            bulkDeleteBtn.classList.remove('d-none');
+            selectedCountSpan.textContent = selectedCount;
+            modalSelectedCountSpan.textContent = selectedCount;
+        } else {
+            bulkDeleteBtn.classList.add('d-none');
+        }
     }
 
     if (selectAll) {
-        selectAll.addEventListener('change', () => {
-            checkboxes.forEach(cb => cb.checked = selectAll.checked);
-            updateUI();
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => {
+                if (!cb.disabled) {
+                    cb.checked = selectAll.checked;
+                }
+            });
+            updateBulkDeleteUI();
         });
     }
 
-    checkboxes.forEach(cb => cb.addEventListener('change', updateUI));
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkDeleteUI);
+    });
 
     function filterTable() {
         const query = document.getElementById('searchInput').value.toLowerCase();
@@ -236,8 +567,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const fFamille = document.getElementById('filterFamille').value.toLowerCase();
         const fCond = document.getElementById('filterCond').value.toLowerCase();
         
-        const rows = document.querySelectorAll('#produitTable tbody tr');
-        rows.forEach(row => {
+        const table = document.getElementById('produitTable');
+        const tbody = table ? table.querySelector('tbody') : null;
+        const rows = tbody ? tbody.getElementsByTagName('tr') : [];
+        
+        const mobileList = document.getElementById('mobileList');
+        const mobileCards = mobileList ? mobileList.querySelectorAll('.mobile-card') : [];
+        
+        let visibleCount = 0;
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.cells.length < 8) continue;
             const textContent = row.textContent.toLowerCase();
             const four = row.cells[3].textContent.toLowerCase();
             const rayonFam = row.cells[4].textContent.toLowerCase();
@@ -249,8 +590,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const matchFamille = !fFamille || rayonFam.includes(fFamille);
             const matchCond = !fCond || cond.includes(fCond);
             
-            row.style.display = (matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond) ? '' : 'none';
-        });
+            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond;
+            row.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        }
+
+        for (let i = 0; i < mobileCards.length; i++) {
+            const card = mobileCards[i];
+            const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
+            const show = text.includes(query);
+            card.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        }
+
+        let noResultMsg = document.getElementById('noResultMsg');
+        if (visibleCount === 0) {
+            if (!noResultMsg) {
+                noResultMsg = document.createElement('div');
+                noResultMsg.id = 'noResultMsg';
+                noResultMsg.className = 'text-center py-5 text-muted';
+                noResultMsg.innerHTML = '<i class="fas fa-search" style="font-size:2rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>Aucun produit trouvé';
+                var target = mobileList || (table ? table.parentNode : null);
+                if (target) target.parentNode.appendChild(noResultMsg);
+            }
+        } else if (noResultMsg) {
+            noResultMsg.remove();
+        }
     }
 
     document.getElementById('searchInput').addEventListener('input', filterTable);
@@ -262,6 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function sortTable(n) {
     let table = document.getElementById("produitTable");
+    if (!table) return;
     let rows = Array.from(table.rows).slice(1);
     let dir = table.getAttribute("data-sort-dir") === "asc" ? "desc" : "asc";
     table.setAttribute("data-sort-dir", dir);

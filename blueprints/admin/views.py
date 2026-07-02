@@ -281,7 +281,24 @@ def build_stock_qr_report_rows(stocks):
 @admin.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('admin/dashboard.html')
+    today = datetime.utcnow().date()
+    today_start = datetime(today.year, today.month, today.day)
+
+    produits_count = Produit.query.count()
+    stock_count = Stock.query.count()
+    clients_count = Client.query.count()
+    today_ventes_count = Vente.query.filter(Vente.created_at >= today_start).count()
+    today_ventes_total = db.session.query(
+        db.func.coalesce(db.func.sum(Vente.total_ttc), 0)
+    ).filter(Vente.created_at >= today_start).scalar()
+
+    return render_template('admin/dashboard.html',
+        produits_count=produits_count,
+        stock_count=stock_count,
+        clients_count=clients_count,
+        today_ventes_count=today_ventes_count,
+        today_ventes_total=today_ventes_total
+    )
 
 # --- GESTION DES POSTES (METIERS) ---
 @admin.route('/postes')
@@ -371,7 +388,15 @@ def bulk_delete_postes():
 @permission_required('gestion_employes')
 def list_users():
     users = User.query.all()
-    return render_template('admin/users/list.html', users=users)
+    total_users = len(users)
+    active_users = sum(1 for u in users if u.is_active)
+    inactive_users = total_users - active_users
+    return render_template('admin/users/list.html',
+        users=users,
+        total_users=total_users,
+        active_users=active_users,
+        inactive_users=inactive_users
+    )
 
 @admin.route('/users/create', methods=['GET', 'POST'])
 @login_required
@@ -2374,7 +2399,8 @@ def bulk_delete_groupes_fournisseurs():
 @permission_required('gestion_rayons')
 def list_rayons():
     rayons = Rayon.query.all()
-    return render_template('admin/rayons/list.html', rayons=rayons)
+    total_produits = sum(len(r.produits) for r in rayons)
+    return render_template('admin/rayons/list.html', rayons=rayons, total_produits=total_produits)
 
 @admin.route('/rayons/create', methods=['GET', 'POST'])
 @login_required
@@ -2436,7 +2462,8 @@ def delete_rayon(id):
 @permission_required('gestion_familles')
 def list_familles():
     familles = Famille.query.all()
-    return render_template('admin/familles/list.html', familles=familles)
+    total_produits = sum(len(f.produits) for f in familles)
+    return render_template('admin/familles/list.html', familles=familles, total_produits=total_produits)
 
 @admin.route('/familles/create', methods=['GET', 'POST'])
 @login_required
@@ -2498,7 +2525,8 @@ def delete_famille(id):
 @permission_required('gestion_sections')
 def list_sections():
     sections = Section.query.all()
-    return render_template('admin/sections/list.html', sections=sections)
+    total_produits = sum(len(s.produits) for s in sections)
+    return render_template('admin/sections/list.html', sections=sections, total_produits=total_produits)
 
 @admin.route('/sections/create', methods=['GET', 'POST'])
 @login_required

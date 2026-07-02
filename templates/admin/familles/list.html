@@ -2,167 +2,430 @@
 
 {% block title %}Gestion des Familles - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a2e;
+  }
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+
+  .search-wrapper {
+    position: relative;
+  }
+  .search-wrapper .form-control {
+    padding-left: 2.5rem;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    background: #f8f9fa;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+  }
+  .search-wrapper .form-control:focus {
+    background: #fff;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .search-wrapper .search-icon {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #adb5bd;
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+
+  .table-custom {
+    margin-bottom: 0;
+  }
+  .table-custom thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef;
+  }
+  .table-custom tbody td {
+    padding: 0.85rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 0.88rem;
+  }
+  .table-custom tbody tr {
+    transition: background 0.15s;
+  }
+  .table-custom tbody tr:hover {
+    background: #f8faff;
+  }
+
+  .btn-action {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .btn-action:hover {
+    transform: translateY(-1px);
+  }
+
+  .action-group {
+    display: flex;
+    gap: 0.3rem;
+    justify-content: flex-end;
+  }
+
+  .mobile-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid #f0f2f5;
+    transition: transform 0.15s;
+  }
+  .mobile-card:active {
+    transform: scale(0.99);
+  }
+  .mobile-card .mobile-check {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #3498db;
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .stat-card { padding: 0.9rem 1rem; }
+    .stat-card .stat-number { font-size: 1.2rem; }
+    .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Paramètres</li>
-                <li class="breadcrumb-item active">Familles</li>
-            </ol>
-        </nav>
-        <h1 class="h3">Familles de Produits</h1>
+      <h1><i class="fas fa-tags me-2"></i>Gestion des Familles</h1>
+      <p>Gérez les familles de produits pharmaceutiques.</p>
     </div>
-    <div class="d-flex gap-3">
-        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
-            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
-        </button>
-        <div class="input-group" style="width: 300px;">
-            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher une famille...">
+    <a href="{{ url_for('admin.create_famille') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+      <i class="fas fa-plus me-1"></i> Nouvelle Famille
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-tags"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ familles|length }}</div>
+        <div class="stat-label">Total Familles</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-boxes"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_produits }}</div>
+        <div class="stat-label">Produits</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e2,#fde4b3);color:#e37400;">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ familles|selectattr('produits')|list|length }}</div>
+        <div class="stat-label">Avec Produits</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+    <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal" style="border-radius:8px;font-weight:600;">
+      <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
+    </button>
+    <div class="search-wrapper ms-sm-auto" style="width:100%;max-width:300px;">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" id="searchInput" class="form-control" placeholder="Rechercher une famille...">
+    </div>
+  </div>
+
+  <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_familles') }}" method="POST">
+    <!-- Mobile cards (xs only) -->
+    <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileList">
+      {% for f in familles %}
+      <div class="mobile-card" data-search="{{ f.nom }} {{ f.description or '' }}">
+        <div class="d-flex align-items-start gap-3">
+          <input class="form-check-input mobile-check mt-1 row-checkbox" type="checkbox" name="ids[]" value="{{ f.id }}">
+          <div style="flex:1;min-width:0;">
+            <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ f.nom }}</div>
+            <div class="text-muted" style="font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ f.description or 'Aucune description' }}</div>
+            <div class="mt-2">
+              <span class="badge bg-info text-dark" style="font-weight:500;">{{ f.produits|length }} produit(s)</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ f.id }}" title="Détails">
+            <i class="fas fa-eye"></i>
+          </button>
         </div>
-        <a href="{{ url_for('admin.create_famille') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Nouvelle Famille
+      </div>
+      {% endfor %}
+      {% if familles|length == 0 %}
+      <div class="text-center py-4">
+        <i class="fas fa-tags" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+        <p class="text-muted mb-0">Aucune famille trouvée.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Desktop table (sm+) -->
+    <div class="table-responsive d-none d-sm-block">
+      <table class="table table-custom" id="itemTable">
+        <thead>
+          <tr>
+            <th style="width:36px;">
+              <div class="form-check" style="padding-left:1.5rem;">
+                <input class="form-check-input" type="checkbox" id="selectAll" style="cursor:pointer;">
+              </div>
+            </th>
+            <th>Nom de la Famille</th>
+            <th>Description</th>
+            <th>Produits</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in familles %}
+          <tr>
+            <td>
+              <div class="form-check" style="padding-left:1.5rem;">
+                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ f.id }}" style="cursor:pointer;">
+              </div>
+            </td>
+            <td><div class="fw-semibold" style="color:#1a1a2e;">{{ f.nom }}</div></td>
+            <td style="color:#495057;">{{ f.description or 'N/A' }}</td>
+            <td><span class="badge bg-info text-dark" style="font-weight:500;">{{ f.produits|length }}</span></td>
+            <td>
+              <div class="action-group">
+                <a href="{{ url_for('admin.list_produits_by_famille', id=f.id) }}" class="btn btn-outline-success btn-action" title="Voir les produits">
+                  <i class="fas fa-box-open"></i>
+                </a>
+                <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ f.id }}" title="Détails">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <a href="{{ url_for('admin.edit_famille', id=f.id) }}" class="btn btn-outline-primary btn-action" title="Modifier">
+                  <i class="fas fa-edit"></i>
+                </a>
+                <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ f.id }}" title="Supprimer">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+</div>
+
+<!-- Modals -->
+{% for f in familles %}
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal{{ f.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-tags me-2"></i>Détails de la Famille</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="mb-3">
+          <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Nom de la Famille</h6>
+          <p class="fs-5 fw-bold" style="color:#1a1a2e;">{{ f.nom }}</p>
+        </div>
+        <div class="mb-3">
+          <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Description</h6>
+          <p style="font-size:0.9rem;">{{ f.description or 'Aucune description.' }}</p>
+        </div>
+        <div class="mb-3">
+          <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Produits associés ({{ f.produits|length }})</h6>
+          {% if f.produits %}
+            <ul class="list-group list-group-flush">
+            {% for p in f.produits %}
+              <li class="list-group-item px-0 py-2 d-flex justify-content-between">
+                <span style="font-size:0.88rem;">{{ p.nom }}</span>
+                <span class="badge bg-secondary" style="font-weight:500;">{{ p.code_produit }}</span>
+              </li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted small">Aucun produit dans cette famille.</p>
+          {% endif %}
+        </div>
+        <hr class="my-3">
+        <small class="text-muted"><i class="fas fa-calendar-plus me-1"></i> Créé le {{ f.created_at.strftime('%d/%m/%Y %H:%M') if f.created_at else 'N/A' }}</small>
+      </div>
+      <div class="modal-footer border-top-0 pt-0 d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.list_produits_by_famille', id=f.id) }}" class="btn btn-outline-success" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-box-open me-1"></i> Voir les produits
         </a>
+        <a href="{{ url_for('admin.edit_famille', id=f.id) }}" class="btn btn-primary" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-edit me-1"></i> Modifier
+        </a>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ f.id }}" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-trash me-1"></i> Supprimer
+        </button>
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;margin-left:auto;">Fermer</button>
+      </div>
     </div>
+  </div>
 </div>
 
-<div class="card">
-    <div class="table-responsive">
-        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_familles') }}" method="POST">
-            <table class="table table-hover align-middle mb-0" id="itemTable">
-                <thead class="bg-light">
-                    <tr>
-                        <th style="width: 40px;">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="selectAll">
-                            </div>
-                        </th>
-                        <th>Nom de la Famille</th>
-                        <th>Description</th>
-                        <th>Produits</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for f in familles %}
-                    <tr>
-                        <td>
-                            <div class="form-check">
-                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ f.id }}">
-                            </div>
-                        </td>
-                        <td><div class="fw-bold">{{ f.nom }}</div></td>
-                        <td>{{ f.description or 'N/A' }}</td>
-                        <td><span class="badge bg-info text-dark">{{ f.produits|length }}</span></td>
-                        <td class="text-end">
-                            <div class="btn-group">
-                                <a href="{{ url_for('admin.list_produits_by_famille', id=f.id) }}" class="btn btn-sm btn-outline-success" title="Voir les produits">
-                                    <i class="fas fa-box-open"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ f.id }}" title="Détails">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <a href="{{ url_for('admin.edit_famille', id=f.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ f.id }}" title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-
-                            <!-- Details Modal -->
-                            <div class="modal fade" id="detailsModal{{ f.id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header bg-light">
-                                            <h5 class="modal-title"><i class="fas fa-tags me-2 text-primary"></i>Détails de la Famille</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Nom de la Famille</h6>
-                                                <p class="fs-5 fw-bold text-primary">{{ f.nom }}</p>
-                                            </div>
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Description</h6>
-                                                <p>{{ f.description or 'Aucune description.' }}</p>
-                                            </div>
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Produits associés ({{ f.produits|length }})</h6>
-                                                {% if f.produits %}
-                                                    <ul class="list-group list-group-flush">
-                                                    {% for p in f.produits %}
-                                                        <li class="list-group-item px-0 py-2 d-flex justify-content-between">
-                                                            <span>{{ p.nom }}</span>
-                                                            <span class="badge bg-secondary">{{ p.code_produit }}</span>
-                                                        </li>
-                                                    {% endfor %}
-                                                    </ul>
-                                                {% else %}
-                                                    <p class="text-muted small italic">Aucun produit dans cette famille.</p>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <a href="{{ url_for('admin.edit_famille', id=f.id) }}" class="btn btn-primary">Modifier</a>
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Delete Modal -->
-                            <div class="modal fade" id="deleteModal{{ f.id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Confirmer la suppression</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            Êtes-vous sûr de vouloir supprimer la famille <strong>{{ f.nom }}</strong> ?
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                            <form action="{{ url_for('admin.delete_famille', id=f.id) }}" method="POST" class="d-inline">
-                                                <button type="submit" class="btn btn-danger">Supprimer</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">Aucune famille enregistrée.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal{{ f.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Êtes-vous sûr de vouloir supprimer la famille <strong>{{ f.nom }}</strong> ?<br>
+          Cette action est irréversible.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_famille', id=f.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
         </form>
+      </div>
     </div>
+  </div>
 </div>
+{% endfor %}
 
 <!-- Bulk Delete Modal -->
 <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirmer la suppression</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                Supprimer les <strong id="modalSelectedCount"></strong> familles sélectionnées ?
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();">Supprimer</button>
-            </div>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
         </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression groupée</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Êtes-vous sûr de vouloir supprimer les <strong id="modalSelectedCount"></strong> familles sélectionnées ?<br>
+          Cette action est irréversible.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <button type="button" class="btn btn-danger" onclick="document.getElementById('bulkDeleteForm').submit();" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>
@@ -180,21 +443,63 @@ document.addEventListener('DOMContentLoaded', function() {
         modalSelectedCountSpan.textContent = count;
     }
 
-    selectAll.addEventListener('change', () => {
-        checkboxes.forEach(cb => cb.checked = selectAll.checked);
-        updateUI();
-    });
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateUI();
+        });
+    }
 
     checkboxes.forEach(cb => cb.addEventListener('change', updateUI));
 
     const searchInput = document.getElementById('searchInput');
-    const rows = document.querySelectorAll('#itemTable tbody tr');
-    searchInput.addEventListener('input', () => {
-        const filter = searchInput.value.toLowerCase();
-        rows.forEach(row => {
-            row.style.display = row.textContent.toLowerCase().includes(filter) ? '' : 'none';
+    const table = document.getElementById('itemTable');
+    const tableRows = table ? (table.querySelector('tbody') ? table.querySelector('tbody').getElementsByTagName('tr') : []) : [];
+    const mobileList = document.getElementById('mobileList');
+    const mobileCards = mobileList ? mobileList.querySelectorAll('.mobile-card') : [];
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const filter = searchInput.value.toLowerCase();
+            let visibleCount = 0;
+
+            for (let i = 0; i < tableRows.length; i++) {
+                const row = tableRows[i];
+                const text = row.textContent.toLowerCase();
+                if (text.includes(filter)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+
+            for (let i = 0; i < mobileCards.length; i++) {
+                const card = mobileCards[i];
+                const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
+                if (text.includes(filter)) {
+                    card.style.display = '';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            }
+
+            let noResultMsg = document.getElementById('noResultMsg');
+            if (visibleCount === 0) {
+                if (!noResultMsg) {
+                    noResultMsg = document.createElement('div');
+                    noResultMsg.id = 'noResultMsg';
+                    noResultMsg.className = 'text-center py-5 text-muted';
+                    noResultMsg.innerHTML = '<i class="fas fa-search" style="font-size:2rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>Aucune famille trouvée';
+                    var target = mobileList || (table ? table.parentNode : null);
+                    if (target) target.parentNode.appendChild(noResultMsg);
+                }
+            } else if (noResultMsg) {
+                noResultMsg.remove();
+            }
         });
-    });
+    }
 });
 </script>
 {% endblock %}

@@ -386,6 +386,7 @@
             .mobile-bottom-nav { display: flex; }
         }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     {% if current_user.is_authenticated %}
