@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 <style>
+  body { background-color: #fdf2f2 !important; }
   .page-header {
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
     border-radius: 16px;
@@ -111,7 +112,6 @@
     border-radius: 14px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     border: 1px solid rgba(0,0,0,0.03);
-    overflow: hidden;
   }
 
   .search-wrapper {
@@ -120,37 +120,133 @@
 
   .table-custom {
     margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .table-custom thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
   .table-custom thead th {
-    background: #f8f9fa;
-    color: #495057;
-    font-size: 0.78rem;
-    font-weight: 600;
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    padding: 0.85rem 1rem;
-    border-bottom: 2px solid #e9ecef;
+    letter-spacing: 0.5px;
+    padding: 0.9rem 1rem;
+    border: none;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap;
+    position: relative;
   }
+  .table-custom thead th:last-child { border-right: none; }
+  .table-custom thead th .sort-icon {
+    opacity: 0.4;
+    transition: opacity 0.15s;
+  }
+  .table-custom thead th:hover .sort-icon { opacity: 0.8; }
+
   .table-custom tbody td {
     padding: 0.85rem 1rem;
     vertical-align: middle;
-    border-bottom: 1px solid #f0f2f5;
-    font-size: 0.88rem;
-  }
-  .table-custom tbody tr {
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.85rem;
     transition: background 0.15s;
   }
-  .table-custom tbody tr:hover {
-    background: #f8faff;
+  .table-custom tbody tr {
+    transition: background 0.08s;
+  }
+  .table-custom tbody tr:hover td {
+    background-color: #eef3fc !important;
   }
 
+  /* Alternating row backgrounds: rose + jaune */
+  .table-custom tbody tr:nth-child(odd) td {
+    background-color: #fef0f0;
+  }
+  .table-custom tbody tr:nth-child(even) td {
+    background-color: #fefce8;
+  }
+  /* First & last column keep the row color */
+  .table-custom tbody td:first-child,
+  .table-custom tbody td:last-child {
+    background-color: inherit !important;
+  }
+
+  /* Hover overrides with a brighter tone */
+  .table-custom tbody tr:nth-child(odd):hover td {
+    background-color: #fde2e2 !important;
+  }
+  .table-custom tbody tr:nth-child(even):hover td {
+    background-color: #fef9c7 !important;
+  }
+
+  /* Better row borders */
+  .table-custom tbody tr:not(:last-child) td {
+    border-bottom: 1px solid #e8edf4;
+  }
+
+  /* Sticky header inset shadow effect */
+  .table-custom thead th {
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+
+  /* Table container styling */
+  .table-responsive-custom {
+    border-radius: 12px;
+    border: 1px solid #e8edf4;
+  }
+
+  /* Refined action buttons */
+  .table-actions .btn-sm {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .table-actions .btn-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  /* Badge in table */
+  .table-custom .badge-code {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    padding: 0.25em 0.65em;
+    background: #f0f2f5;
+    color: #2c3e50;
+    border-radius: 6px;
+    border: 1px solid #e0e4ea;
+  }
+  .table-custom .badge-qr {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 5px;
+  }
+
+  #mobileStockList > .mobile-card:nth-child(odd) {
+    background: #fef0f0;
+  }
+  #mobileStockList > .mobile-card:nth-child(even) {
+    background: #fefce8;
+  }
   .mobile-card {
-    background: #fff;
     border-radius: 12px;
     padding: 1rem;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     border: 1px solid #f0f2f5;
-    transition: transform 0.15s;
+    transition: transform 0.15s, background 0.15s;
   }
   .mobile-card:active {
     transform: scale(0.99);
@@ -269,12 +365,6 @@
   </div>
 </div>
 
-<div class="alert alert-warning d-none d-sm-flex align-items-start gap-2" role="alert">
-  <i class="fas fa-exclamation-triangle mt-1"></i>
-  <div>
-    Toute modification effectuée sur les saisies de stock engendre une raison à spécifier. Chaque ligne de stock correspond à un lot identifié par le produit, le BL et la date de péremption.
-  </div>
-</div>
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
@@ -324,111 +414,12 @@
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card-form d-none d-lg-block">
-      <div class="card-header">
-        <h5><i class="fas fa-plus-circle me-2 text-primary"></i>Entrée en Stock</h5>
-      </div>
-      <div class="card-body">
-        <form method="POST" id="stockForm" class="form-custom">
-          <div class="mb-3">
-            <label for="produit_id" class="form-label">Produit du catalogue <span class="text-danger">*</span></label>
-            <select name="produit_id" id="produit_id" class="form-select" required>
-              <option value="">Choisir un produit...</option>
-              {% for produit in produits %}
-              <option value="{{ produit.id }}"
-                      data-product-code="{{ produit.code_produit }}"
-                      data-conditionnement="{{ produit.conditionnement }}"
-                      data-prix-unite-ht="{{ produit.prix_unite or 0 }}"
-                      data-prix-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
-                      data-taxe-unite="{{ (produit.prix_unite_ttc or 0) - (produit.prix_unite or 0) }}"
-                      data-prix-sous-unite-ht="{{ produit.prix_sous_unite or 0 }}"
-                      data-prix-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or 0 }}"
-                      data-taxe-sous-unite="{{ (produit.prix_sous_unite_ttc or 0) - (produit.prix_sous_unite or 0) if produit.prix_sous_unite is not none else 0 }}"
-                      data-prix-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or 0 }}"
-                      data-prix-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or 0 }}"
-                      data-taxe-sous-sous-unite="{{ (produit.prix_sous_sous_unite_ttc or 0) - (produit.prix_sous_sous_unite or 0) if produit.prix_sous_sous_unite is not none else 0 }}">
-                {{ produit.nom }} - {{ produit.code_produit }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label for="numero_bl" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
-            <input type="text" name="numero_bl" id="numero_bl" class="form-control" required placeholder="Ex: BL-2026-000154">
-          </div>
-
-          <div class="mb-3">
-            <label for="date_peremption" class="form-label">Date de péremption <span class="text-danger">*</span></label>
-            <input type="date" name="date_peremption" id="date_peremption" class="form-control" required>
-          </div>
-
-          <div class="mb-3">
-            <label for="code_suivi_preview" class="form-label">Code de suivi généré</label>
-            <input type="text" id="code_suivi_preview" class="form-control" readonly placeholder="Calculé automatiquement à partir du produit, du BL et de la péremption">
-          </div>
-
-          <div class="border rounded p-3 bg-light mb-3">
-            <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
-            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfo">0.00 € HT / 0.00 € TTC / TVA 0.00 €</span></div>
-            <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfo">N/A</span></div>
-            <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfo">N/A</span></div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Quantité unités</label>
-            <input type="number" min="0" name="quantite_unites" id="quantite_unites" class="form-control" value="0" required>
-          </div>
-
-          <div class="mb-3" id="groupSousUnites">
-            <label class="form-label">Quantité sous-unités</label>
-            <input type="number" min="0" name="quantite_sous_unites" id="quantite_sous_unites" class="form-control" value="0">
-          </div>
-
-          <div class="mb-3" id="groupSousSousUnites">
-            <label class="form-label">Quantité sous-sous-unités</label>
-            <input type="number" min="0" name="quantite_sous_sous_unites" id="quantite_sous_sous_unites" class="form-control" value="0">
-          </div>
-
-          <div class="border rounded p-3 bg-success bg-opacity-10 mb-3">
-            <div class="small text-muted mb-2">Estimation de la saisie</div>
-            <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHt">0.00 €</span></div>
-            <div class="small mb-1"><strong>Total TTC:</strong> <span id="totalTtc">0.00 €</span></div>
-            <div class="small"><strong>TVA:</strong> <span id="totalTaxe">0.00 €</span></div>
-          </div>
-
-          <div class="mb-3">
-            <label for="reason_id" class="form-label">Raison de l'entrée (pré-définie)</label>
-            <select name="reason_id" id="reason_id" class="form-select">
-              <option value="">-- Choisir une raison --</option>
-              {% for r in reasons %}
-              <option value="{{ r.id }}">{{ r.nom }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label for="reason" class="form-label">Commentaire / Raison libre</label>
-            <textarea name="reason" id="reason" class="form-control" rows="2" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire, retour interne..."></textarea>
-          </div>
-
-          <button type="submit" class="btn btn-primary w-100" style="border-radius:10px;font-weight:600;">
-            <i class="fas fa-plus-circle me-1"></i> Enregistrer l'entrée
-          </button>
-        </form>
-      </div>
+  <div class="col-12">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#stockEntryModal" style="border-radius:10px;font-weight:600;padding:0.5rem 1.5rem;box-shadow:0 4px 12px rgba(52,152,219,0.25);">
+        <i class="fas fa-plus-circle me-2"></i> Nouvelle entrée en stock
+      </button>
     </div>
-  </div>
-
-  <!-- Mobile entry button -->
-  <div class="d-lg-none mb-3">
-    <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#stockEntryModal" style="border-radius:12px;font-weight:600;padding:0.7rem;">
-      <i class="fas fa-plus-circle me-2"></i> Nouvelle entrée en stock
-    </button>
-  </div>
-
-  <div class="col-lg-8">
     <form id="bulkQrForm" method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}"></form>
     <div class="card-custom">
       <div class="p-3 p-sm-4 border-bottom">
@@ -576,24 +567,22 @@
       </div>
 
       <!-- Desktop table (sm+) -->
-      <div class="table-responsive d-none d-sm-block">
+      <div class="table-responsive table-responsive-custom d-none d-sm-block">
         <table class="table table-custom" id="stockTable">
           <thead>
             <tr>
               <th style="width: 42px;">
                 <input type="checkbox" class="form-check-input" id="toggleVisibleQrRows" title="Sélectionner les lignes visibles">
               </th>
-              <th data-sort-type="text" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="text" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="text" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="text" style="cursor:pointer">Péremption <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">QR tiré <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="text" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="text" style="cursor:pointer">Derniére modif. <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">Quantités <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">Total HT <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">Total TTC <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">TVA <i class="fas fa-sort small text-muted"></i></th>
+              <th data-sort-type="text" style="cursor:pointer">Produit <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="text" style="cursor:pointer">Code suivi <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="text" style="cursor:pointer">BL <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="text" style="cursor:pointer">Péremption <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="number" style="cursor:pointer">QR <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="text" style="cursor:pointer">Entrée <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="number" style="cursor:pointer">Qté <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="number" style="cursor:pointer">TTC <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="number" style="cursor:pointer">TVA <i class="fas fa-sort sort-icon"></i></th>
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -617,33 +606,27 @@
                 <small class="text-muted">{{ stock.produit.code_produit }} | {{ stock.produit.fournisseur.nom if stock.produit.fournisseur else 'N/A' }}</small>
               </td>
               <td data-sort-value="{{ stock.code_suivi|lower }}">
-                <span class="badge bg-dark-subtle text-dark border">{{ stock.code_suivi }}</span>
+                <span class="badge badge-code" style="font-family:Consolas,monospace;">{{ stock.code_suivi }}</span>
               </td>
               <td data-sort-value="{{ stock.numero_bl|lower }}">{{ stock.numero_bl }}</td>
               <td data-sort-value="{{ stock.date_peremption.strftime('%Y-%m-%d') }}">{{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</td>
               <td data-sort-value="{{ 1 if stock.qr_tire else 0 }}">
-                <span class="badge {% if stock.qr_tire %}bg-success{% else %}bg-secondary{% endif %}">
+                <span class="badge badge-qr {% if stock.qr_tire %}bg-success{% else %}bg-secondary{% endif %}">
                   {{ 'Oui' if stock.qr_tire else 'Non' }}
                 </span>
               </td>
-              <td data-sort-value="{{ stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else '' }}">
-                {{ stock.created_at.strftime('%d/%m/%Y %H:%M') if stock.created_at else 'N/A' }}
+              <td data-sort-value="{{ stock.created_at.strftime('%Y-%m-%d') if stock.created_at else '' }}">
+                {{ stock.created_at.strftime('%d/%m/%Y') if stock.created_at else 'N/A' }}
               </td>
-              <td data-sort-value="{{ stock.updated_at.strftime('%Y-%m-%d %H:%M:%S') if stock.updated_at else '' }}">
-                {{ stock.updated_at.strftime('%d/%m/%Y %H:%M') if stock.updated_at else 'N/A' }}
+              <td data-sort-value="{{ stock.quantite_totale }}" class="text-nowrap fw-semibold" style="font-family:Consolas,monospace;">
+                {{ stock.quantite_unites }}U{% if stock.quantite_sous_unites %} + {{ stock.quantite_sous_unites }}S/U{% endif %}{% if stock.quantite_sous_sous_unites %} + {{ stock.quantite_sous_sous_unites }}SS/U{% endif %}
               </td>
-              <td data-sort-value="{{ stock.quantite_totale }}">
-                <div>U: {{ stock.quantite_unites }}</div>
-                <div>S/U: {{ stock.quantite_sous_unites }}</div>
-                <div>SS/U: {{ stock.quantite_sous_sous_unites }}</div>
-              </td>
-              <td data-sort-value="{{ stock.prix_ht_total }}">{{ "%.2f"|format(stock.prix_ht_total) }} €</td>
-              <td data-sort-value="{{ stock.prix_ttc_total }}">{{ "%.2f"|format(stock.prix_ttc_total) }} €</td>
-              <td data-sort-value="{{ stock.taxe_total }}" class="{% if stock.taxe_total >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
-                {{ "%.2f"|format(stock.taxe_total) }} €
+              <td data-sort-value="{{ stock.prix_ttc_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">{{ "%.2f"|format(stock.prix_ttc_total) }} €</td>
+              <td data-sort-value="{{ stock.taxe_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">
+                <span class="{% if stock.taxe_total >= 0 %}text-success{% else %}text-danger{% endif %}">{{ "%.2f"|format(stock.taxe_total) }} €</span>
               </td>
               <td class="text-end">
-                <div class="btn-group">
+                <div class="table-actions btn-group">
                   {% if not stock.qr_tire %}
                   <a href="{{ url_for('admin.preview_stock_qr_codes', id=stock.id) }}" class="btn btn-sm btn-outline-dark" title="Prévisualiser les QR codes">
                     <i class="fas fa-qrcode"></i>
@@ -663,11 +646,11 @@
             </tr>
             {% else %}
             <tr id="emptyStockRow">
-              <td colspan="13" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
+              <td colspan="11" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
             </tr>
             {% endfor %}
             <tr id="noSearchResultsRow" class="d-none">
-              <td colspan="13" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
+              <td colspan="11" class="text-center py-4 text-muted">Aucun résultat pour cette recherche.</td>
             </tr>
           </tbody>
         </table>
@@ -948,15 +931,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const produitSelect = document.getElementById('produit_id');
-    const qtyUnites = document.getElementById('quantite_unites');
-    const qtySousUnites = document.getElementById('quantite_sous_unites');
-    const qtySousSousUnites = document.getElementById('quantite_sous_sous_unites');
-    const groupSousUnites = document.getElementById('groupSousUnites');
-    const groupSousSousUnites = document.getElementById('groupSousSousUnites');
-    const numeroBlInput = document.getElementById('numero_bl');
-    const datePeremptionInput = document.getElementById('date_peremption');
-    const codeSuiviPreview = document.getElementById('code_suivi_preview');
     const stockSearchInput = document.getElementById('stockSearchInput');
     const stockActivityIndicator = document.getElementById('stockActivityIndicator');
     const stockVisibleCount = document.getElementById('stockVisibleCount');
@@ -980,106 +954,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let stockRows = stockTableBody ? Array.from(stockTableBody.querySelectorAll('tr[data-search]')) : [];
     let currentSort = { index: null, direction: 'asc' };
     let searchTimer = null;
-
-    function formatCurrency(value) {
-        return `${Number(value || 0).toFixed(2)} €`;
-    }
-
-    function currentOption() {
-        return produitSelect.options[produitSelect.selectedIndex];
-    }
-
-    function normalizeBl(value) {
-        return String(value || '')
-            .trim()
-            .toUpperCase()
-            .replace(/\s+/g, '')
-            .replace(/[\\/]/g, '-');
-    }
-
-    function updateConditionnementVisibility() {
-        const option = currentOption();
-        const cond = Number(option?.dataset.conditionnement || 1);
-
-        groupSousUnites.style.display = cond >= 2 ? 'block' : 'none';
-        groupSousSousUnites.style.display = cond >= 3 ? 'block' : 'none';
-
-        if (cond < 2) {
-            qtySousUnites.value = 0;
-        }
-        if (cond < 3) {
-            qtySousSousUnites.value = 0;
-        }
-    }
-
-    function updatePriceInfo() {
-        const option = currentOption();
-        if (!option || !option.value) {
-            document.getElementById('prixUniteInfo').textContent = '0.00 € HT / 0.00 € TTC / TVA 0.00 €';
-            document.getElementById('prixSousUniteInfo').textContent = 'N/A';
-            document.getElementById('prixSousSousUniteInfo').textContent = 'N/A';
-            return;
-        }
-
-        document.getElementById('prixUniteInfo').textContent =
-            `${formatCurrency(option.dataset.prixUniteHt)} HT / ${formatCurrency(option.dataset.prixUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeUnite)}`;
-
-        document.getElementById('prixSousUniteInfo').textContent =
-            Number(option.dataset.conditionnement) >= 2
-                ? `${formatCurrency(option.dataset.prixSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeSousUnite)}`
-                : 'N/A';
-
-        document.getElementById('prixSousSousUniteInfo').textContent =
-            Number(option.dataset.conditionnement) >= 3
-                ? `${formatCurrency(option.dataset.prixSousSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousSousUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeSousSousUnite)}`
-                : 'N/A';
-    }
-
-    function updateTotals() {
-        const option = currentOption();
-        if (!option || !option.value) {
-            document.getElementById('totalHt').textContent = formatCurrency(0);
-            document.getElementById('totalTtc').textContent = formatCurrency(0);
-            document.getElementById('totalTaxe').textContent = formatCurrency(0);
-            return;
-        }
-
-        const totalHt =
-            Number(qtyUnites.value || 0) * Number(option.dataset.prixUniteHt || 0) +
-            Number(qtySousUnites.value || 0) * Number(option.dataset.prixSousUniteHt || 0) +
-            Number(qtySousSousUnites.value || 0) * Number(option.dataset.prixSousSousUniteHt || 0);
-
-        const totalTtc =
-            Number(qtyUnites.value || 0) * Number(option.dataset.prixUniteTtc || 0) +
-            Number(qtySousUnites.value || 0) * Number(option.dataset.prixSousUniteTtc || 0) +
-            Number(qtySousSousUnites.value || 0) * Number(option.dataset.prixSousSousUniteTtc || 0);
-
-        document.getElementById('totalHt').textContent = formatCurrency(totalHt);
-        document.getElementById('totalTtc').textContent = formatCurrency(totalTtc);
-        document.getElementById('totalTaxe').textContent = formatCurrency(totalTtc - totalHt);
-    }
-
-    function refresh() {
-        updateConditionnementVisibility();
-        updatePriceInfo();
-        updateTotals();
-        updateTrackingCodePreview();
-    }
-
-    function updateTrackingCodePreview() {
-        if (!codeSuiviPreview) {
-            return;
-        }
-
-        const option = currentOption();
-        const produitCode = option?.dataset.productCode || '';
-        const numeroBl = normalizeBl(numeroBlInput?.value);
-        const peremption = datePeremptionInput?.value || '';
-
-        codeSuiviPreview.value = produitCode && numeroBl && peremption
-            ? `${produitCode}-${numeroBl}-${peremption}`
-            : '';
-    }
 
     function setActivityIndicator(isVisible) {
         if (stockActivityIndicator) {
@@ -1235,17 +1109,6 @@ document.addEventListener('DOMContentLoaded', function() {
             task();
             setActivityIndicator(false);
         }, 0);
-    }
-
-    produitSelect.addEventListener('change', refresh);
-    qtyUnites.addEventListener('input', updateTotals);
-    qtySousUnites.addEventListener('input', updateTotals);
-    qtySousSousUnites.addEventListener('input', updateTotals);
-    if (numeroBlInput) {
-        numeroBlInput.addEventListener('input', updateTrackingCodePreview);
-    }
-    if (datePeremptionInput) {
-        datePeremptionInput.addEventListener('input', updateTrackingCodePreview);
     }
 
     if (stockSearchInput) {
@@ -1414,7 +1277,6 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', updateSelectionState);
     });
 
-    refresh();
     updateVisibleCount();
 
     // Mobile modal form initialization (once)
