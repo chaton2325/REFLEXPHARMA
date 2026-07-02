@@ -199,13 +199,37 @@
     background: #fff;
   }
 
+  details.d-sm-none summary::-webkit-details-marker { display: none; }
+  details.d-sm-none[open] summary .fa-chevron-down { transform: rotate(180deg); }
+
+  .filter-group-mobile {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .filter-group-mobile .form-select,
+  .filter-group-mobile .form-control {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.5rem;
+    min-width: 0;
+    width: auto;
+    flex: 1 1 auto;
+  }
+  .filter-group-mobile .btn {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+  }
+
   @media (max-width: 575.98px) {
     .page-header { padding: 1.25rem; border-radius: 12px; }
     .page-header h1 { font-size: 1.25rem; }
-    .stat-card { padding: 0.9rem 1rem; }
-    .stat-card .stat-number { font-size: 1.2rem; }
-    .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
-    .card-form .card-body { padding: 1.25rem; }
+    .page-header .d-flex.gap-2.flex-wrap { gap: 0.4rem !important; }
+    .page-header .btn-light { font-size: 0.75rem; padding: 0.3rem 0.7rem; }
+    .stat-card { padding: 0.7rem 0.85rem; }
+    .stat-card .stat-number { font-size: 1.1rem; }
+    .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.9rem; }
+    .stat-card .stat-label { font-size: 0.65rem; }
+    .card-form .card-body { padding: 1rem; }
   }
 </style>
 {% endblock %}
@@ -215,7 +239,7 @@
   <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
       <h1><i class="fas fa-boxes me-2"></i>Gestion du Stock</h1>
-      <p>Entrée en stock des produits du catalogue par lot avec BL, péremption, TTC et bénéfice.</p>
+      <p>Entrée en stock des produits du catalogue par lot avec BL, péremption, TTC et TVA.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       {% if current_user.has_permission('gestion_raisons_stock') %}
@@ -245,7 +269,7 @@
   </div>
 </div>
 
-<div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+<div class="alert alert-warning d-none d-sm-flex align-items-start gap-2" role="alert">
   <i class="fas fa-exclamation-triangle mt-1"></i>
   <div>
     Toute modification effectuée sur les saisies de stock engendre une raison à spécifier. Chaque ligne de stock correspond à un lot identifié par le produit, le BL et la date de péremption.
@@ -301,7 +325,7 @@
 
 <div class="row g-4">
   <div class="col-lg-4">
-    <div class="card-form">
+    <div class="card-form d-none d-lg-block">
       <div class="card-header">
         <h5><i class="fas fa-plus-circle me-2 text-primary"></i>Entrée en Stock</h5>
       </div>
@@ -317,13 +341,13 @@
                       data-conditionnement="{{ produit.conditionnement }}"
                       data-prix-unite-ht="{{ produit.prix_unite or 0 }}"
                       data-prix-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
-                      data-benefice-unite="{{ (produit.prix_unite_ttc or 0) - (produit.prix_unite or 0) }}"
+                      data-taxe-unite="{{ (produit.prix_unite_ttc or 0) - (produit.prix_unite or 0) }}"
                       data-prix-sous-unite-ht="{{ produit.prix_sous_unite or 0 }}"
                       data-prix-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or 0 }}"
-                      data-benefice-sous-unite="{{ (produit.prix_sous_unite_ttc or 0) - (produit.prix_sous_unite or 0) if produit.prix_sous_unite is not none else 0 }}"
+                      data-taxe-sous-unite="{{ (produit.prix_sous_unite_ttc or 0) - (produit.prix_sous_unite or 0) if produit.prix_sous_unite is not none else 0 }}"
                       data-prix-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or 0 }}"
                       data-prix-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or 0 }}"
-                      data-benefice-sous-sous-unite="{{ (produit.prix_sous_sous_unite_ttc or 0) - (produit.prix_sous_sous_unite or 0) if produit.prix_sous_sous_unite is not none else 0 }}">
+                      data-taxe-sous-sous-unite="{{ (produit.prix_sous_sous_unite_ttc or 0) - (produit.prix_sous_sous_unite or 0) if produit.prix_sous_sous_unite is not none else 0 }}">
                 {{ produit.nom }} - {{ produit.code_produit }}
               </option>
               {% endfor %}
@@ -347,7 +371,7 @@
 
           <div class="border rounded p-3 bg-light mb-3">
             <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
-            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfo">0.00 € HT / 0.00 € TTC / bénéfice 0.00 €</span></div>
+            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfo">0.00 € HT / 0.00 € TTC / TVA 0.00 €</span></div>
             <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfo">N/A</span></div>
             <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfo">N/A</span></div>
           </div>
@@ -371,7 +395,7 @@
             <div class="small text-muted mb-2">Estimation de la saisie</div>
             <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHt">0.00 €</span></div>
             <div class="small mb-1"><strong>Total TTC:</strong> <span id="totalTtc">0.00 €</span></div>
-            <div class="small"><strong>Bénéfice:</strong> <span id="totalBenefice">0.00 €</span></div>
+            <div class="small"><strong>TVA:</strong> <span id="totalTaxe">0.00 €</span></div>
           </div>
 
           <div class="mb-3">
@@ -397,70 +421,108 @@
     </div>
   </div>
 
+  <!-- Mobile entry button -->
+  <div class="d-lg-none mb-3">
+    <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#stockEntryModal" style="border-radius:12px;font-weight:600;padding:0.7rem;">
+      <i class="fas fa-plus-circle me-2"></i> Nouvelle entrée en stock
+    </button>
+  </div>
+
   <div class="col-lg-8">
     <form id="bulkQrForm" method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}"></form>
     <div class="card-custom">
       <div class="p-3 p-sm-4 border-bottom">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
           <h5 class="mb-0" style="font-size:1rem;font-weight:600;color:#2c3e50;">Stock Courant</h5>
-          <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
-            <select id="qrTireFilter" class="form-select form-select-sm" style="min-width: 150px;">
-              <option value="all">QR tiré: Tous</option>
-              <option value="non">QR tiré: Non</option>
-              <option value="oui">QR tiré: Oui</option>
+          <div class="d-none d-sm-flex flex-row align-items-center gap-2 flex-wrap">
+            <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:130px;width:auto;">
+              <option value="all">QR: Tous</option>
+              <option value="non">QR: Non</option>
+              <option value="oui">QR: Oui</option>
             </select>
-            <select id="stockDateSortField" class="form-select form-select-sm" style="min-width: 165px;">
+            <select id="stockDateSortField" class="form-select form-select-sm" style="min-width:145px;width:auto;">
               <option value="peremption">Date péremption</option>
               <option value="created">Date mise en stock</option>
               <option value="updated">Date derniére modif.</option>
             </select>
-            <select id="stockDateSortDirection" class="form-select form-select-sm" style="min-width: 125px;">
+            <select id="stockDateSortDirection" class="form-select form-select-sm" style="min-width:110px;width:auto;">
               <option value="asc">Plus ancien</option>
               <option value="desc">Plus récent</option>
             </select>
             <button type="button" id="applyStockDateSort" class="btn btn-sm btn-outline-secondary">
-              <i class="fas fa-sort-amount-down-alt me-1"></i> Trier date
+              <i class="fas fa-sort-amount-down-alt"></i>
             </button>
-            <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width: 150px;">
-            <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary">
-              Aujourd'hui
-            </button>
-            <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">
-              Date: toutes
-            </button>
-            <div class="input-group input-group-sm" style="min-width: 280px;">
+            <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width:130px;width:auto;">
+            <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary">Auj.</button>
+            <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">Toutes</button>
+            <div class="input-group input-group-sm" style="min-width:200px;width:auto;">
               <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-              <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher un produit, lot, BL, péremption ou fournisseur...">
-            </div>
-            <div id="stockActivityIndicator" class="small text-muted d-none">
-              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-              Traitement...
-            </div>
-            <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
-              <i class="fas fa-qrcode me-1"></i> Tirer QR sélection
-            </button>
-            <button
-              type="submit"
-              form="bulkQrForm"
-              formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}"
-              formmethod="POST"
-              class="btn btn-sm btn-outline-danger stock-export-button"
-              disabled>
-              <i class="fas fa-file-pdf me-1"></i> PDF
-            </button>
-            <button
-              type="submit"
-              form="bulkQrForm"
-              formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}"
-              formmethod="POST"
-              class="btn btn-sm btn-outline-success stock-export-button"
-              disabled>
-              <i class="fas fa-file-excel me-1"></i> Excel
-            </button>
-            <div class="small text-muted">
-              <span id="stockVisibleCount">{{ stocks|length }}</span> / {{ stocks|length }} résultat(s)
+              <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher...">
             </div>
           </div>
+          <div class="d-flex d-sm-none align-items-center gap-2 w-100">
+            <div class="input-group input-group-sm" style="flex:1;">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="stockSearchInputMobile" class="form-control" placeholder="Rechercher...">
+            </div>
+            <details style="position:relative;">
+              <summary style="list-style:none;cursor:pointer;font-size:0.75rem;padding:0.3rem 0.6rem;border:1px solid #dee2e6;border-radius:8px;background:#fff;white-space:nowrap;">
+                <i class="fas fa-sliders-h"></i> Filtres
+              </summary>
+              <div style="position:absolute;top:100%;right:0;z-index:1050;background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:0.75rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);width:260px;display:flex;flex-direction:column;gap:0.5rem;">
+                <select id="qrTireFilterMobile" class="form-select form-select-sm">
+                  <option value="all">QR: Tous</option>
+                  <option value="non">QR: Non</option>
+                  <option value="oui">QR: Oui</option>
+                </select>
+                <select id="stockDateSortFieldMobile" class="form-select form-select-sm">
+                  <option value="peremption">Date péremption</option>
+                  <option value="created">Date mise en stock</option>
+                  <option value="updated">Date derniére modif.</option>
+                </select>
+                <select id="stockDateSortDirectionMobile" class="form-select form-select-sm">
+                  <option value="asc">Plus ancien</option>
+                  <option value="desc">Plus récent</option>
+                </select>
+                <button type="button" id="applyStockDateSortMobile" class="btn btn-sm btn-outline-secondary w-100">
+                  <i class="fas fa-sort-amount-down-alt me-1"></i> Trier par date
+                </button>
+                <input type="date" id="stockDateFilterMobile" class="form-control form-control-sm">
+                <div class="d-flex gap-2">
+                  <button type="button" id="stockTodayFilterMobile" class="btn btn-sm btn-outline-primary flex-1">Auj.</button>
+                  <button type="button" id="clearStockDateFilterMobile" class="btn btn-sm btn-outline-secondary flex-1">Toutes</button>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div id="stockActivityIndicator" class="small text-muted d-none d-sm-block">
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            Traitement...
+          </div>
+          <div class="d-none d-sm-flex align-items-center gap-2 flex-shrink-0">
+            <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
+              <i class="fas fa-qrcode me-1"></i> QR
+            </button>
+            <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}" formmethod="POST" class="btn btn-sm btn-outline-danger stock-export-button" disabled>
+              <i class="fas fa-file-pdf"></i>
+            </button>
+            <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}" formmethod="POST" class="btn btn-sm btn-outline-success stock-export-button" disabled>
+              <i class="fas fa-file-excel"></i>
+            </button>
+            <small class="text-muted text-nowrap"><span id="stockVisibleCount">{{ stocks|length }}</span>/{{ stocks|length }}</small>
+          </div>
+        </div>
+        <div class="d-flex d-sm-none align-items-center gap-2 mt-2">
+          <button type="submit" form="bulkQrForm" id="bulkQrButtonMobile" class="btn btn-sm btn-dark" disabled style="font-size:0.75rem;padding:0.3rem 0.6rem;">
+            <i class="fas fa-qrcode me-1"></i> QR
+          </button>
+          <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}" formmethod="POST" class="btn btn-sm btn-outline-danger stock-export-button stock-export-button-mobile" disabled style="font-size:0.75rem;padding:0.3rem 0.6rem;">
+            <i class="fas fa-file-pdf"></i>
+          </button>
+          <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}" formmethod="POST" class="btn btn-sm btn-outline-success stock-export-button stock-export-button-mobile" disabled style="font-size:0.75rem;padding:0.3rem 0.6rem;">
+            <i class="fas fa-file-excel"></i>
+          </button>
+          <small class="text-muted ms-auto"><span id="stockVisibleCountMobile">{{ stocks|length }}</span>/{{ stocks|length }}</small>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
           <button type="button" id="selectVisibleQrRows" class="btn btn-sm btn-outline-secondary">
@@ -469,7 +531,7 @@
           <button type="button" id="clearQrSelection" class="btn btn-sm btn-outline-secondary">
             Effacer sélection
           </button>
-          <span class="small text-muted"><span id="selectedStockCount">0</span> ligne(s) sélectionnée(s)</span>
+          <span class="small text-muted"><span id="selectedStockCount">0</span> ligne(s)</span>
         </div>
       </div>
 
@@ -491,32 +553,10 @@
                 <span class="badge {% if stock.qr_tire %}bg-success{% else %}bg-secondary{% endif %}" style="font-size:0.7rem;">{{ 'Oui' if stock.qr_tire else 'Non' }}</span>
               </div>
               <div class="small text-muted mt-1">BL: {{ stock.numero_bl }} | Péremp: {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
-              <div class="small mt-1">
-                U: {{ stock.quantite_unites }} | S/U: {{ stock.quantite_sous_unites }} | SS/U: {{ stock.quantite_sous_sous_unites }}
-              </div>
-              <div class="small mt-1">
-                HT: {{ "%.2f"|format(stock.prix_ht_total) }} € | TTC: {{ "%.2f"|format(stock.prix_ttc_total) }} €
-                <span class="{% if stock.benefice_total >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
-                  B: {{ "%.2f"|format(stock.benefice_total) }} €
-                </span>
-              </div>
             </div>
-            <div class="d-flex flex-column gap-1">
-              {% if not stock.qr_tire %}
-              <a href="{{ url_for('admin.preview_stock_qr_codes', id=stock.id) }}" class="btn btn-outline-dark btn-action" title="Prévisualiser les QR codes">
-                <i class="fas fa-qrcode"></i>
-              </a>
-              {% endif %}
-              <a href="{{ url_for('admin.stock_exit', stock_id=stock.id) }}" class="btn btn-outline-warning btn-action" title="Sortie de stock">
-                <i class="fas fa-sign-out-alt"></i>
-              </a>
-              <button type="button" class="btn btn-outline-primary btn-action" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteStockModal{{ stock.id }}">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
+            <button type="button" class="btn btn-outline-info btn-action flex-shrink-0" data-bs-toggle="modal" data-bs-target="#viewStockModal{{ stock.id }}" title="Voir les détails">
+              <i class="fas fa-eye"></i>
+            </button>
           </div>
         </div>
         {% endfor %}
@@ -546,7 +586,7 @@
               <th data-sort-type="number" style="cursor:pointer">Quantités <i class="fas fa-sort small text-muted"></i></th>
               <th data-sort-type="number" style="cursor:pointer">Total HT <i class="fas fa-sort small text-muted"></i></th>
               <th data-sort-type="number" style="cursor:pointer">Total TTC <i class="fas fa-sort small text-muted"></i></th>
-              <th data-sort-type="number" style="cursor:pointer">Bénéfice <i class="fas fa-sort small text-muted"></i></th>
+              <th data-sort-type="number" style="cursor:pointer">TVA <i class="fas fa-sort small text-muted"></i></th>
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -557,7 +597,7 @@
                 data-quantite="{{ stock.quantite_totale }}"
                 data-total-ht="{{ stock.prix_ht_total }}"
                 data-total-ttc="{{ stock.prix_ttc_total }}"
-                data-benefice="{{ stock.benefice_total }}"
+                data-taxe="{{ stock.taxe_total }}"
                 data-qr-tire="{{ 'oui' if stock.qr_tire else 'non' }}"
                 data-date-peremption="{{ stock.date_peremption.strftime('%Y-%m-%d') if stock.date_peremption else '' }}"
                 data-date-created="{{ stock.created_at.strftime('%Y-%m-%d') if stock.created_at else '' }}"
@@ -592,8 +632,8 @@
               </td>
               <td data-sort-value="{{ stock.prix_ht_total }}">{{ "%.2f"|format(stock.prix_ht_total) }} €</td>
               <td data-sort-value="{{ stock.prix_ttc_total }}">{{ "%.2f"|format(stock.prix_ttc_total) }} €</td>
-              <td data-sort-value="{{ stock.benefice_total }}" class="{% if stock.benefice_total >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
-                {{ "%.2f"|format(stock.benefice_total) }} €
+              <td data-sort-value="{{ stock.taxe_total }}" class="{% if stock.taxe_total >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
+                {{ "%.2f"|format(stock.taxe_total) }} €
               </td>
               <td class="text-end">
                 <div class="btn-group">
@@ -680,6 +720,100 @@
   </div>
 </div>
 
+<!-- View details modal -->
+<div class="modal fade" id="viewStockModal{{ stock.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-eye me-2"></i>Détails du stock</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="fw-bold mb-2" style="font-size:1.05rem;">{{ stock.produit.nom }}</div>
+        <div class="text-muted small mb-3">{{ stock.produit.code_produit }} | {{ stock.produit.fournisseur.nom if stock.produit.fournisseur else 'N/A' }}</div>
+        <div class="info-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div>
+            <div class="text-muted small">Code suivi</div>
+            <div><span class="badge bg-dark-subtle text-dark border">{{ stock.code_suivi }}</span></div>
+          </div>
+          <div>
+            <div class="text-muted small">QR tiré</div>
+            <div><span class="badge {% if stock.qr_tire %}bg-success{% else %}bg-secondary{% endif %}">{{ 'Oui' if stock.qr_tire else 'Non' }}</span></div>
+          </div>
+          <div>
+            <div class="text-muted small">Numéro BL</div>
+            <div class="fw-semibold">{{ stock.numero_bl }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Date péremption</div>
+            <div class="fw-semibold">{{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Mise en stock</div>
+            <div class="fw-semibold">{{ stock.created_at.strftime('%d/%m/%Y %H:%M') if stock.created_at else 'N/A' }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Dernière modif.</div>
+            <div class="fw-semibold">{{ stock.updated_at.strftime('%d/%m/%Y %H:%M') if stock.updated_at else 'N/A' }}</div>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="text-muted small mb-2">Quantités</div>
+        <div class="info-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+          <div class="border rounded p-2 text-center">
+            <div class="fw-bold" style="font-size:1.1rem;">{{ stock.quantite_unites }}</div>
+            <div class="text-muted small">Unités</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="fw-bold" style="font-size:1.1rem;">{{ stock.quantite_sous_unites }}</div>
+            <div class="text-muted small">Sous-unités</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="fw-bold" style="font-size:1.1rem;">{{ stock.quantite_sous_sous_unites }}</div>
+            <div class="text-muted small">Sous-sous-unités</div>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="text-muted small mb-2">Tarification</div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Total HT</span>
+          <span class="fw-semibold">{{ "%.2f"|format(stock.prix_ht_total) }} €</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Total TTC</span>
+          <span class="fw-semibold">{{ "%.2f"|format(stock.prix_ttc_total) }} €</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">TVA</span>
+          <span class="fw-semibold {% if stock.taxe_total >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ "%.2f"|format(stock.taxe_total) }} €
+          </span>
+        </div>
+        <hr class="my-3">
+        <div class="d-flex flex-wrap gap-2">
+          {% if not stock.qr_tire %}
+          <a href="{{ url_for('admin.preview_stock_qr_codes', id=stock.id) }}" class="btn btn-outline-dark flex-fill" style="border-radius:10px;font-size:0.85rem;">
+            <i class="fas fa-qrcode me-1"></i> QR
+          </a>
+          {% endif %}
+          <a href="{{ url_for('admin.stock_exit', stock_id=stock.id) }}" class="btn btn-outline-warning flex-fill" style="border-radius:10px;font-size:0.85rem;">
+            <i class="fas fa-sign-out-alt me-1"></i> Sortie
+          </a>
+          <button type="button" class="btn btn-outline-primary flex-fill" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}" style="border-radius:10px;font-size:0.85rem;">
+            <i class="fas fa-edit me-1"></i> Modifier
+          </button>
+          <button type="button" class="btn btn-outline-danger flex-fill" data-bs-toggle="modal" data-bs-target="#deleteStockModal{{ stock.id }}" style="border-radius:10px;font-size:0.85rem;">
+            <i class="fas fa-trash me-1"></i> Supprimer
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pt-0">
+        <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal" style="border-radius:10px;font-weight:600;">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="deleteStockModal{{ stock.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:14px;border:none;">
@@ -714,6 +848,96 @@
   </div>
 </div>
 {% endfor %}
+
+<!-- Mobile Stock Entry Modal -->
+<div class="modal fade" id="stockEntryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Entrée en Stock</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4 form-custom">
+        <form method="POST" id="stockFormMobile" class="form-custom">
+          <div class="mb-3">
+            <label for="produit_id_mobile" class="form-label">Produit du catalogue <span class="text-danger">*</span></label>
+            <select name="produit_id" id="produit_id_mobile" class="form-select" required>
+              <option value="">Choisir un produit...</option>
+              {% for produit in produits %}
+              <option value="{{ produit.id }}"
+                      data-product-code="{{ produit.code_produit }}"
+                      data-conditionnement="{{ produit.conditionnement }}"
+                      data-prix-unite-ht="{{ produit.prix_unite or 0 }}"
+                      data-prix-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
+                      data-taxe-unite="{{ (produit.prix_unite_ttc or 0) - (produit.prix_unite or 0) }}"
+                      data-prix-sous-unite-ht="{{ produit.prix_sous_unite or 0 }}"
+                      data-prix-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or 0 }}"
+                      data-taxe-sous-unite="{{ (produit.prix_sous_unite_ttc or 0) - (produit.prix_sous_unite or 0) if produit.prix_sous_unite is not none else 0 }}"
+                      data-prix-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or 0 }}"
+                      data-prix-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or 0 }}"
+                      data-taxe-sous-sous-unite="{{ (produit.prix_sous_sous_unite_ttc or 0) - (produit.prix_sous_sous_unite or 0) if produit.prix_sous_sous_unite is not none else 0 }}">
+                {{ produit.nom }} - {{ produit.code_produit }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="numero_bl_mobile" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
+            <input type="text" name="numero_bl" id="numero_bl_mobile" class="form-control" required placeholder="Ex: BL-2026-000154">
+          </div>
+          <div class="mb-3">
+            <label for="date_peremption_mobile" class="form-label">Date de péremption <span class="text-danger">*</span></label>
+            <input type="date" name="date_peremption" id="date_peremption_mobile" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
+            <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
+          </div>
+          <div class="border rounded p-3 bg-light mb-3">
+            <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
+            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 € HT / 0.00 € TTC / TVA 0.00 €</span></div>
+            <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
+            <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Quantité unités</label>
+            <input type="number" min="0" name="quantite_unites" id="quantite_unites_mobile" class="form-control" value="0" required>
+          </div>
+          <div class="mb-3" id="groupSousUnitesMobile">
+            <label class="form-label">Quantité sous-unités</label>
+            <input type="number" min="0" name="quantite_sous_unites" id="quantite_sous_unites_mobile" class="form-control" value="0">
+          </div>
+          <div class="mb-3" id="groupSousSousUnitesMobile">
+            <label class="form-label">Quantité sous-sous-unités</label>
+            <input type="number" min="0" name="quantite_sous_sous_unites" id="quantite_sous_sous_unites_mobile" class="form-control" value="0">
+          </div>
+          <div class="border rounded p-3 bg-success bg-opacity-10 mb-3">
+            <div class="small text-muted mb-2">Estimation de la saisie</div>
+            <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 €</span></div>
+            <div class="small mb-1"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 €</span></div>
+            <div class="small"><strong>TVA:</strong> <span id="totalTaxeMobile">0.00 €</span></div>
+          </div>
+          <div class="mb-3">
+            <label for="reason_id_mobile" class="form-label">Raison de l'entrée (pré-définie)</label>
+            <select name="reason_id" id="reason_id_mobile" class="form-select">
+              <option value="">-- Choisir une raison --</option>
+              {% for r in reasons %}
+              <option value="{{ r.id }}">{{ r.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="reason_mobile" class="form-label">Commentaire / Raison libre</label>
+            <textarea name="reason" id="reason_mobile" class="form-control" rows="2" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100" style="border-radius:10px;font-weight:600;">
+            <i class="fas fa-plus-circle me-1"></i> Enregistrer l'entrée
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -784,23 +1008,23 @@ document.addEventListener('DOMContentLoaded', function() {
     function updatePriceInfo() {
         const option = currentOption();
         if (!option || !option.value) {
-            document.getElementById('prixUniteInfo').textContent = '0.00 € HT / 0.00 € TTC / bénéfice 0.00 €';
+            document.getElementById('prixUniteInfo').textContent = '0.00 € HT / 0.00 € TTC / TVA 0.00 €';
             document.getElementById('prixSousUniteInfo').textContent = 'N/A';
             document.getElementById('prixSousSousUniteInfo').textContent = 'N/A';
             return;
         }
 
         document.getElementById('prixUniteInfo').textContent =
-            `${formatCurrency(option.dataset.prixUniteHt)} HT / ${formatCurrency(option.dataset.prixUniteTtc)} TTC / bénéfice ${formatCurrency(option.dataset.beneficeUnite)}`;
+            `${formatCurrency(option.dataset.prixUniteHt)} HT / ${formatCurrency(option.dataset.prixUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeUnite)}`;
 
         document.getElementById('prixSousUniteInfo').textContent =
             Number(option.dataset.conditionnement) >= 2
-                ? `${formatCurrency(option.dataset.prixSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousUniteTtc)} TTC / bénéfice ${formatCurrency(option.dataset.beneficeSousUnite)}`
+                ? `${formatCurrency(option.dataset.prixSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeSousUnite)}`
                 : 'N/A';
 
         document.getElementById('prixSousSousUniteInfo').textContent =
             Number(option.dataset.conditionnement) >= 3
-                ? `${formatCurrency(option.dataset.prixSousSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousSousUniteTtc)} TTC / bénéfice ${formatCurrency(option.dataset.beneficeSousSousUnite)}`
+                ? `${formatCurrency(option.dataset.prixSousSousUniteHt)} HT / ${formatCurrency(option.dataset.prixSousSousUniteTtc)} TTC / TVA ${formatCurrency(option.dataset.taxeSousSousUnite)}`
                 : 'N/A';
     }
 
@@ -809,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!option || !option.value) {
             document.getElementById('totalHt').textContent = formatCurrency(0);
             document.getElementById('totalTtc').textContent = formatCurrency(0);
-            document.getElementById('totalBenefice').textContent = formatCurrency(0);
+            document.getElementById('totalTaxe').textContent = formatCurrency(0);
             return;
         }
 
@@ -825,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.getElementById('totalHt').textContent = formatCurrency(totalHt);
         document.getElementById('totalTtc').textContent = formatCurrency(totalTtc);
-        document.getElementById('totalBenefice').textContent = formatCurrency(totalTtc - totalHt);
+        document.getElementById('totalTaxe').textContent = formatCurrency(totalTtc - totalHt);
     }
 
     function refresh() {
@@ -1094,8 +1318,132 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Mobile search sync
+    const stockSearchInputMobile = document.getElementById('stockSearchInputMobile');
+    if (stockSearchInputMobile && stockSearchInput) {
+        stockSearchInputMobile.addEventListener('input', () => {
+            stockSearchInput.value = stockSearchInputMobile.value;
+            stockSearchInput.dispatchEvent(new Event('input'));
+        });
+        stockSearchInput.addEventListener('input', () => {
+            stockSearchInputMobile.value = stockSearchInput.value;
+        });
+    }
+
+    // Mobile filter sync
+    function syncMobileFilter(mobileId, desktopId) {
+        const mobileEl = document.getElementById(mobileId);
+        const desktopEl = document.getElementById(desktopId);
+        if (mobileEl && desktopEl) {
+            mobileEl.addEventListener('change', () => {
+                desktopEl.value = mobileEl.value;
+                desktopEl.dispatchEvent(new Event('change'));
+            });
+        }
+    }
+    syncMobileFilter('qrTireFilterMobile', 'qrTireFilter');
+    syncMobileFilter('stockDateSortFieldMobile', 'stockDateSortField');
+    syncMobileFilter('stockDateSortDirectionMobile', 'stockDateSortDirection');
+    syncMobileFilter('stockDateFilterMobile', 'stockDateFilter');
+    syncMobileFilter('stockTodayFilterMobile', 'stockTodayFilter');
+    syncMobileFilter('clearStockDateFilterMobile', 'clearStockDateFilter');
+
+    const applyStockDateSortMobile = document.getElementById('applyStockDateSortMobile');
+    if (applyStockDateSortMobile && applyStockDateSort) {
+        applyStockDateSortMobile.addEventListener('click', () => applyStockDateSort.click());
+    }
+
+    // Mobile visible count
+    const stockVisibleCountMobile = document.getElementById('stockVisibleCountMobile');
+    if (stockVisibleCountMobile && stockVisibleCount) {
+        const origUpdate = updateVisibleCount;
+        updateVisibleCount = function() {
+            origUpdate();
+            const visible = stockRows.filter(r => r.style.display !== 'none').length;
+            stockVisibleCountMobile.textContent = visible;
+        };
+    }
+
+    // Mobile QR buttons
+    const bulkQrButtonMobile = document.getElementById('bulkQrButtonMobile');
+    if (bulkQrButtonMobile && bulkQrButton) {
+        const origUpdate = updateSelectionState;
+        updateSelectionState = function() {
+            origUpdate();
+            const selectedCount = stockCheckboxes().filter(cb => cb.checked).length;
+            if (bulkQrButtonMobile) bulkQrButtonMobile.disabled = selectedCount === 0;
+            document.querySelectorAll('.stock-export-button-mobile').forEach(b => b.disabled = selectedCount === 0);
+        };
+    }
+
     refresh();
     updateVisibleCount();
+
+    // Mobile modal form initialization (once)
+    const mProduit = document.getElementById('produit_id_mobile');
+    const mBl = document.getElementById('numero_bl_mobile');
+    const mPeremption = document.getElementById('date_peremption_mobile');
+    const mCodePreview = document.getElementById('code_suivi_preview_mobile');
+    const mQtyUnites = document.getElementById('quantite_unites_mobile');
+    const mQtySous = document.getElementById('quantite_sous_unites_mobile');
+    const mQtySousSous = document.getElementById('quantite_sous_sous_unites_mobile');
+    const mGroupSous = document.getElementById('groupSousUnitesMobile');
+    const mGroupSousSous = document.getElementById('groupSousSousUnitesMobile');
+
+    if (mProduit) {
+        function mOption() { return mProduit.options[mProduit.selectedIndex]; }
+        function mNormalizeBl(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[\\/]/g, '-'); }
+        function mFormat(v) { return Number(v || 0).toFixed(2) + ' €'; }
+
+        function mUpdateCond() {
+            const cond = Number(mOption()?.dataset.conditionnement || 1);
+            mGroupSous.style.display = cond >= 2 ? 'block' : 'none';
+            mGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+            if (cond < 2) mQtySous.value = 0;
+            if (cond < 3) mQtySousSous.value = 0;
+        }
+
+        function mUpdatePrice() {
+            const opt = mOption();
+            const ue = document.getElementById('prixUniteInfoMobile');
+            const se = document.getElementById('prixSousUniteInfoMobile');
+            const sse = document.getElementById('prixSousSousUniteInfoMobile');
+            if (!opt || !opt.value) { ue.textContent = '0.00 € HT / 0.00 € TTC / TVA 0.00 €'; se.textContent = 'N/A'; sse.textContent = 'N/A'; return; }
+            const cond = Number(opt.dataset.conditionnement);
+            ue.textContent = mFormat(opt.dataset.prixUniteHt) + ' HT / ' + mFormat(opt.dataset.prixUniteTtc) + ' TTC / TVA ' + mFormat(opt.dataset.taxeUnite);
+            se.textContent = cond >= 2 ? mFormat(opt.dataset.prixSousUniteHt) + ' HT / ' + mFormat(opt.dataset.prixSousUniteTtc) + ' TTC / TVA ' + mFormat(opt.dataset.taxeSousUnite) : 'N/A';
+            sse.textContent = cond >= 3 ? mFormat(opt.dataset.prixSousSousUniteHt) + ' HT / ' + mFormat(opt.dataset.prixSousSousUniteTtc) + ' TTC / TVA ' + mFormat(opt.dataset.taxeSousSousUnite) : 'N/A';
+        }
+
+        function mUpdateTotals() {
+            const opt = mOption();
+            const htE = document.getElementById('totalHtMobile');
+            const ttcE = document.getElementById('totalTtcMobile');
+            const bE = document.getElementById('totalTaxeMobile');
+            if (!opt || !opt.value) { htE.textContent = mFormat(0); ttcE.textContent = mFormat(0); bE.textContent = mFormat(0); return; }
+            const ht = Number(mQtyUnites.value || 0) * Number(opt.dataset.prixUniteHt || 0) + Number(mQtySous.value || 0) * Number(opt.dataset.prixSousUniteHt || 0) + Number(mQtySousSous.value || 0) * Number(opt.dataset.prixSousSousUniteHt || 0);
+            const ttc = Number(mQtyUnites.value || 0) * Number(opt.dataset.prixUniteTtc || 0) + Number(mQtySous.value || 0) * Number(opt.dataset.prixSousUniteTtc || 0) + Number(mQtySousSous.value || 0) * Number(opt.dataset.prixSousSousUniteTtc || 0);
+            htE.textContent = mFormat(ht); ttcE.textContent = mFormat(ttc); bE.textContent = mFormat(ttc - ht);
+        }
+
+        function mUpdateCode() {
+            const opt = mOption();
+            const pCode = opt?.dataset.productCode || '';
+            const bl = mNormalizeBl(mBl?.value);
+            const per = mPeremption?.value || '';
+            mCodePreview.value = pCode && bl && per ? pCode + '-' + bl + '-' + per : '';
+        }
+
+        function mRefresh() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }
+
+        mProduit.addEventListener('change', mRefresh);
+        mQtyUnites.addEventListener('input', mUpdateTotals);
+        mQtySous.addEventListener('input', mUpdateTotals);
+        mQtySousSous.addEventListener('input', mUpdateTotals);
+        mBl.addEventListener('input', mUpdateCode);
+        mPeremption.addEventListener('input', mUpdateCode);
+        document.getElementById('stockEntryModal').addEventListener('shown.bs.modal', mRefresh);
+    }
 });
 </script>
 {% endblock %}

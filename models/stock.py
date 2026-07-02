@@ -60,7 +60,7 @@ class Stock(db.Model):
         )
 
     @property
-    def benefice_total(self):
+    def taxe_total(self):
         return self.prix_ttc_total - self.prix_ht_total
 
     @property
