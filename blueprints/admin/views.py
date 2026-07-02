@@ -1901,7 +1901,11 @@ def validate_vente_password():
 @permission_required('gestion_ventes')
 def detail_vente(id):
     vente = Vente.query.get_or_404(id)
-    return render_template('admin/ventes/detail.html', vente=vente)
+    return render_template(
+        'admin/ventes/detail.html', 
+        vente=vente,
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    )
 
 @admin.route('/clients/<int:id>/achats')
 @login_required

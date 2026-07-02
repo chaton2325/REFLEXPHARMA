@@ -15,9 +15,143 @@
         <h1 class="h3 mb-1">{{ vente.numero_vente }}</h1>
         <p class="text-muted mb-0">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</p>
     </div>
-    <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-1"></i> Retour
-    </a>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#receiptModal">
+            <i class="fas fa-receipt me-1"></i> Voir le Ticket
+        </button>
+        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Retour
+        </a>
+    </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Ticket de Caisse - {{ vente.numero_vente }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light overflow-auto">
+                <style>
+                    .receipt-preview-container {
+                        width: 100%;
+                        max-width: 80mm;
+                        margin: 0 auto;
+                        padding: 15px;
+                        background-color: white;
+                        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+                        font-family: 'Courier New', Courier, monospace;
+                        font-size: 13px;
+                        color: #000;
+                        border: 1px solid #eee;
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    .reprint-watermark {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%) rotate(-45deg);
+                        font-size: 40px;
+                        font-weight: bold;
+                        color: rgba(0, 0, 0, 0.1);
+                        white-space: nowrap;
+                        pointer-events: none;
+                        z-index: 10;
+                        border: 4px solid rgba(0, 0, 0, 0.1);
+                        padding: 10px;
+                        text-transform: uppercase;
+                    }
+                    .receipt-header { text-align: center; margin-bottom: 15px; }
+                    .receipt-header h4 { margin: 0; font-weight: bold; text-transform: uppercase; font-size: 18px; }
+                    .receipt-info { margin-bottom: 10px; line-height: 1.4; font-size: 12px; }
+                    .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
+                    .receipt-table th { border-bottom: 1px dashed #000; border-top: 1px dashed #000; text-align: left; padding: 6px 0; text-transform: uppercase; }
+                    .receipt-table td { padding: 4px 0; vertical-align: top; word-break: break-word; }
+                    .receipt-totals { margin-bottom: 10px; border-top: 1px dashed #000; padding-top: 5px; }
+                    .receipt-footer { text-align: center; margin-top: 25px; font-size: 11px; border-top: 1px dashed #000; padding-top: 10px; }
+
+                    @media print {
+                        body * { visibility: hidden; }
+                        #receiptModal .modal-content, #receiptModal .modal-body, #receiptContent, #receiptContent * { visibility: visible; }
+                        #receiptModal { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+                        #receiptModal .modal-header, #receiptModal .modal-footer, .btn, .navbar, .breadcrumb, .h3, .text-muted, .card { display: none !important; }
+                        .receipt-preview-container { box-shadow: none; width: 100%; margin: 0; padding: 0; border: none; }
+                        .reprint-watermark { color: rgba(0, 0, 0, 0.15) !important; border-color: rgba(0, 0, 0, 0.15) !important; }
+                    }
+                </style>
+                <div id="receiptContent" class="receipt-preview-container">
+                    <div class="reprint-watermark">RÉ-IMPRESSION</div>
+                    <div class="receipt-header">
+                        <h4>{{ pharmacy_name }}</h4>
+                        <p class="mb-0">Pharmacie - Parapharmacie</p>
+                        <p class="small">Vente No: {{ vente.numero_vente }}</p>
+                    </div>
+                    <div class="receipt-info small">
+                        <div class="d-flex justify-content-between">
+                            <span>Date: {{ vente.created_at.strftime('%d/%m/%Y') }}</span>
+                            <span>Heure: {{ vente.created_at.strftime('%H:%M') }}</span>
+                        </div>
+                        <div>Vendeur: {{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
+                        <div>Client: {{ vente.client_label }}</div>
+                    </div>
+                    <table class="receipt-table small">
+                        <thead>
+                            <tr>
+                                <th>Désignation</th>
+                                <th class="text-end">Qté</th>
+                                <th class="text-end">P.U (TTC)</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ligne in vente.lignes %}
+                            <tr>
+                                <td>{{ ligne.produit_nom }} ({% if ligne.unite == 'sous_unite' %}SU{% elif ligne.unite == 'sous_sous_unite' %}SSU{% else %}U{% endif %})</td>
+                                <td class="text-end">{{ "{:,.2f}".format(ligne.quantite).replace(',', ' ').replace('.', ',') }}</td>
+                                <td class="text-end">{{ "{:,.2f}".format(ligne.prix_unitaire_ttc).replace(',', ' ').replace('.', ',') }}</td>
+                                <td class="text-end">{{ "{:,.2f}".format(ligne.total_ttc).replace(',', ' ').replace('.', ',') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="receipt-totals small">
+                        <div class="d-flex justify-content-between fw-bold h5 mt-2">
+                            <span>NET À PAYER (TTC)</span>
+                            <span>{{ "{:,.2f}".format(vente.total_ttc).replace(',', ' ').replace('.', ',') }}</span>
+                        </div>
+                    </div>
+                    <hr style="border-top: 1px dashed #000;">
+                    <div class="receipt-payment small">
+                        <div class="d-flex justify-content-between">
+                            <span>Mode de paiement:</span>
+                            <span class="text-capitalize">{{ vente.mode_paiement.replace('_', ' ') }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Montant reçu:</span>
+                            <span>{{ "{:,.2f}".format(vente.montant_recu).replace(',', ' ').replace('.', ',') }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Monnaie rendue:</span>
+                            <span>{{ "{:,.2f}".format(vente.monnaie_rendue).replace(',', ' ').replace('.', ',') }}</span>
+                        </div>
+                    </div>
+                    <div class="receipt-footer">
+                        <p class="mb-1">Merci de votre confiance !</p>
+                        <p>Logiciel ReflexPharma</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i> Imprimer
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row g-3 mb-3">
