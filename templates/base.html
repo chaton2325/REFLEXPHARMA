@@ -4,169 +4,706 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ReflexPharma{% endblock %}</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar-brand { font-weight: bold; color: #2c3e50; }
-        .card { border-radius: 10px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn-primary { background-color: #3498db; border: none; }
+        :root {
+            --sidebar-w: 62px;
+            --sidebar-exp: 230px;
+            --sidebar-bg: #ffffff;
+            --accent: #3498db;
+            --nav-h: 44px;
+            --bottom-h: 62px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-w);
+            background: var(--sidebar-bg);
+            box-shadow: 2px 0 8px rgba(0,0,0,0.07);
+            z-index: 1030;
+            transition: width 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar:hover {
+            width: var(--sidebar-exp);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            height: 56px;
+            padding: 0 14px;
+            border-bottom: 1px solid #e9ecef;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand i {
+            font-size: 1.3rem;
+            color: var(--accent);
+            min-width: 34px;
+            text-align: center;
+        }
+
+        .sidebar-brand span {
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 1.05rem;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .sidebar:hover .sidebar-brand span { opacity: 1; }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 6px 0;
+        }
+
+        .sidebar-nav a,
+        .sidebar-nav .nav-link {
+            display: flex;
+            align-items: center;
+            height: var(--nav-h);
+            padding: 0 14px;
+            white-space: nowrap;
+            color: #5a6775;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav .nav-link:hover {
+            background: #f0f4ff;
+            color: var(--accent);
+        }
+
+        .sidebar-nav a.active,
+        .sidebar-nav .nav-link.active {
+            color: var(--accent);
+            background: #eef2ff;
+            border-right: 3px solid var(--accent);
+        }
+
+        .sidebar-nav a i,
+        .sidebar-nav .nav-link i {
+            font-size: 1.1rem;
+            min-width: 34px;
+            text-align: center;
+        }
+
+        .sidebar-nav a .nav-label,
+        .sidebar-nav .nav-link .nav-label {
+            opacity: 0;
+            transition: opacity 0.15s;
+            margin-left: 2px;
+        }
+
+        .sidebar:hover .nav-label { opacity: 1; }
+
+        .sidebar-nav .collapse-indicator {
+            margin-left: auto;
+            font-size: 0.7rem;
+            opacity: 0;
+            transition: opacity 0.15s, transform 0.2s;
+        }
+
+        .sidebar:hover .collapse-indicator { opacity: 1; }
+
+        .sidebar-nav .collapse-indicator.rotated {
+            transform: rotate(180deg);
+        }
+
+        /* Sub-menu */
+        .sidebar-nav .sub-menu {
+            background: #f5f7fa;
+        }
+
+        .sidebar-nav .sub-menu a {
+            padding-left: 48px;
+            height: 38px;
+            font-size: 0.85rem;
+        }
+
+        .sidebar-nav .sub-menu a .nav-label { margin-left: 0; }
+
+        /* Divider */
+        .sidebar-nav .nav-divider {
+            height: 1px;
+            background: #e9ecef;
+            margin: 6px 14px;
+        }
+
+        /* Sidebar footer */
+        .sidebar-footer {
+            border-top: 1px solid #e9ecef;
+            padding: 6px 0;
+            flex-shrink: 0;
+        }
+
+        .sidebar-footer .nav-link {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            padding: 0 14px;
+            white-space: nowrap;
+            color: #5a6775;
+            text-decoration: none;
+            font-size: 0.87rem;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .sidebar-footer .nav-link:hover {
+            background: #f0f4ff;
+            color: var(--accent);
+        }
+
+        .sidebar-footer .nav-link i {
+            font-size: 1rem;
+            min-width: 34px;
+            text-align: center;
+        }
+
+        .sidebar-footer .nav-link .nav-label {
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .sidebar:hover .sidebar-footer .nav-link .nav-label { opacity: 1; }
+
+        .sidebar-footer .user-block {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            white-space: nowrap;
+        }
+
+        .sidebar-footer .user-block i {
+            font-size: 1.1rem;
+            min-width: 34px;
+            text-align: center;
+            color: var(--accent);
+        }
+
+        .sidebar-footer .user-block .user-details {
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .sidebar:hover .user-block .user-details { opacity: 1; }
+
+        .sidebar-footer .user-block .user-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.88rem;
+            line-height: 1.2;
+        }
+
+        .sidebar-footer .user-block .user-role {
+            color: #8a9aa8;
+            font-size: 0.75rem;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.2s ease;
+        }
+
+        .main-content .container {
+            flex: 1;
+            padding-top: 1.2rem;
+        }
+
+        .card {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            border: none;
+        }
+
         .btn-primary:hover { background-color: #2980b9; }
+
+        /* ===== MOBILE BOTTOM NAV ===== */
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: var(--bottom-h);
+            background: #fff;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.07);
+            z-index: 1030;
+            justify-content: space-around;
+            align-items: center;
+            padding: 4px 0 2px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .mobile-bottom-nav a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #7a8896;
+            text-decoration: none;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 8px;
+            min-width: 48px;
+            transition: color 0.12s;
+        }
+
+        .mobile-bottom-nav a i {
+            font-size: 1.2rem;
+            margin-bottom: 1px;
+        }
+
+        .mobile-bottom-nav a.active,
+        .mobile-bottom-nav a:active { color: var(--accent); }
+
+        .mobile-bottom-nav .nav-more-btn {
+            background: none;
+            border: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #7a8896;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            min-width: 48px;
+        }
+
+        .mobile-bottom-nav .nav-more-btn i {
+            font-size: 1.2rem;
+            margin-bottom: 1px;
+        }
+
+        .mobile-bottom-nav .nav-more-btn:active { color: var(--accent); }
+
+        /* Offcanvas mobile */
+        .offcanvas-sidebar .offcanvas-body {
+            padding: 0;
+        }
+
+        .offcanvas-sidebar .offcanvas-body a {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: #2c3e50;
+            text-decoration: none;
+            font-size: 0.93rem;
+            border-bottom: 1px solid #f0f2f5;
+            transition: background 0.12s;
+        }
+
+        .offcanvas-sidebar .offcanvas-body a:hover,
+        .offcanvas-sidebar .offcanvas-body a:active {
+            background: #f0f4ff;
+            color: var(--accent);
+        }
+
+        .offcanvas-sidebar .offcanvas-body a i {
+            width: 28px;
+            text-align: center;
+            margin-right: 14px;
+            color: var(--accent);
+            font-size: 1.05rem;
+        }
+
+        .offcanvas-sidebar .offcanvas-body a .chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+        }
+
+        .offcanvas-sidebar .offcanvas-body a .chevron.open {
+            transform: rotate(180deg);
+        }
+
+        .offcanvas-sidebar .offcanvas-body .sub-menu a {
+            padding-left: 62px;
+            border-bottom: none;
+            font-size: 0.88rem;
+        }
+
+        .offcanvas-sidebar .offcanvas-body .oc-divider {
+            height: 8px;
+            background: #f5f6f8;
+        }
+
+        .offcanvas-sidebar .offcanvas-body .oc-user {
+            padding: 16px 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .offcanvas-sidebar .offcanvas-body .oc-user strong {
+            color: #2c3e50;
+        }
+
+        .offcanvas-sidebar .offcanvas-body .oc-user small {
+            color: #8a9aa8;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 767.98px) {
+            .sidebar { display: none; }
+
+            .main-content {
+                margin-left: 0;
+                padding-bottom: calc(var(--bottom-h) + 10px);
+            }
+
+            .mobile-bottom-nav { display: flex; }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <i class="fas fa-prescription-bottle-alt me-2 text-primary"></i>ReflexPharma
+    {% if current_user.is_authenticated %}
+    {# ===== DESKTOP SIDEBAR ===== #}
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <i class="fas fa-prescription-bottle-alt"></i>
+            <span>ReflexPharma</span>
+        </div>
+
+        <div class="sidebar-nav">
+            <a href="{{ url_for('admin.dashboard') }}" class="nav-link">
+                <i class="fas fa-gauge-high"></i>
+                <span class="nav-label">Tableau de bord</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.dashboard') }}">Tableau de bord</a>
-                    </li>
-                    {% if current_user.has_permission('gestion_employes') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_users') }}">Employés</a>
-                    </li>
+
+            {% if current_user.has_permission('gestion_employes') %}
+            <a href="{{ url_for('admin.list_users') }}" class="nav-link">
+                <i class="fas fa-users"></i>
+                <span class="nav-label">Employés</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_produits') %}
+            <div class="nav-group">
+                <a class="nav-link" data-bs-toggle="collapse" href="#catCollapse" role="button">
+                    <i class="fas fa-book"></i>
+                    <span class="nav-label">Catalogue</span>
+                    <i class="fas fa-chevron-down collapse-indicator"></i>
+                </a>
+                <div class="collapse sub-menu" id="catCollapse">
+                    <a href="{{ url_for('admin.list_produits') }}"><span class="nav-label">Produits</span></a>
+                    {% if current_user.has_permission('gestion_rayons') %}
+                    <a href="{{ url_for('admin.list_rayons') }}"><span class="nav-label">Rayons</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_produits') %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="catalogueDropdown" role="button" data-bs-toggle="dropdown">
-                            Catalogue
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_produits') }}">Produits</a></li>
-                            {% if current_user.has_permission('gestion_rayons') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_rayons') }}">Rayons</a></li>
-                            {% endif %}
-                            {% if current_user.has_permission('gestion_familles') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_familles') }}">Familles</a></li>
-                            {% endif %}
-                            {% if current_user.has_permission('gestion_sections') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_sections') }}">Sections</a></li>
-                            {% endif %}
-                        </ul>
-                    </li>
+                    {% if current_user.has_permission('gestion_familles') %}
+                    <a href="{{ url_for('admin.list_familles') }}"><span class="nav-label">Familles</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_stock') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.manage_stock') }}">Stock</a>
-                    </li>
+                    {% if current_user.has_permission('gestion_sections') %}
+                    <a href="{{ url_for('admin.list_sections') }}"><span class="nav-label">Sections</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_inventaire') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_inventaires') }}">Inventaire</a>
-                    </li>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_stock') %}
+            <a href="{{ url_for('admin.manage_stock') }}" class="nav-link">
+                <i class="fas fa-warehouse"></i>
+                <span class="nav-label">Stock</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_inventaire') %}
+            <a href="{{ url_for('admin.list_inventaires') }}" class="nav-link">
+                <i class="fas fa-clipboard-list"></i>
+                <span class="nav-label">Inventaire</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_ventes') %}
+            <a href="{{ url_for('admin.list_ventes') }}" class="nav-link">
+                <i class="fas fa-cash-register"></i>
+                <span class="nav-label">Ventes</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+            <div class="nav-group">
+                <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button">
+                    <i class="fas fa-user-friends"></i>
+                    <span class="nav-label">Clients</span>
+                    <i class="fas fa-chevron-down collapse-indicator"></i>
+                </a>
+                <div class="collapse sub-menu" id="clientCollapse">
+                    {% if current_user.has_permission('gestion_clients') %}
+                    <a href="{{ url_for('admin.list_clients') }}"><span class="nav-label">Clients</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_ventes') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_ventes') }}">Ventes</a>
-                    </li>
+                    {% if current_user.has_permission('gestion_groupes_clients') %}
+                    <a href="{{ url_for('admin.list_groupes_clients') }}"><span class="nav-label">Groupes clients</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="clientsDropdown" role="button" data-bs-toggle="dropdown">
-                            Clients
-                        </a>
-                        <ul class="dropdown-menu">
-                            {% if current_user.has_permission('gestion_clients') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_clients') }}">Clients</a></li>
-                            {% endif %}
-                            {% if current_user.has_permission('gestion_groupes_clients') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_groupes_clients') }}">Groupes clients</a></li>
-                            {% endif %}
-                            {% if current_user.has_permission('historique_clients') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_client_modification_logs') }}">Historique clients</a></li>
-                            {% endif %}
-                        </ul>
-                    </li>
+                    {% if current_user.has_permission('historique_clients') %}
+                    <a href="{{ url_for('admin.list_client_modification_logs') }}"><span class="nav-label">Historique clients</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('gestion_modifications_stock') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_stock_modifications') }}">Modifications Stock</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.list_stock_exit_logs') }}">Sorties Stock</a>
-                    </li>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_modifications_stock') %}
+            <a href="{{ url_for('admin.list_stock_modifications') }}" class="nav-link">
+                <i class="fas fa-pen-to-square"></i>
+                <span class="nav-label">Modifications Stock</span>
+            </a>
+            <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="nav-link">
+                <i class="fas fa-right-from-bracket"></i>
+                <span class="nav-label">Sorties Stock</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('stats_sorties_stock') %}
+            <a href="{{ url_for('admin.stock_exit_stats') }}" class="nav-link">
+                <i class="fas fa-chart-bar"></i>
+                <span class="nav-label">Stats Sorties</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_fournisseurs') %}
+            <div class="nav-group">
+                <a class="nav-link" data-bs-toggle="collapse" href="#paramCollapse" role="button">
+                    <i class="fas fa-gear"></i>
+                    <span class="nav-label">Paramètres</span>
+                    <i class="fas fa-chevron-down collapse-indicator"></i>
+                </a>
+                <div class="collapse sub-menu" id="paramCollapse">
+                    <a href="{{ url_for('admin.list_fournisseurs') }}"><span class="nav-label">Fournisseurs</span></a>
+                    {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
+                    <a href="{{ url_for('admin.list_groupes_fournisseurs') }}"><span class="nav-label">Groupes de Fournisseurs</span></a>
                     {% endif %}
-                    {% if current_user.has_permission('stats_sorties_stock') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.stock_exit_stats') }}">Stats Sorties</a>
-                    </li>
+                    {% if current_user.has_permission('gestion_postes') %}
+                    <a href="{{ url_for('admin.list_postes') }}"><span class="nav-label">Postes</span></a>
                     {% endif %}
-                    
-                    {% if current_user.has_permission('gestion_fournisseurs') %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown">
-                            Paramètres
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a></li>
-                            {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_groupes_fournisseurs') }}">Groupes de Fournisseurs</a></li>
-                            {% endif %}
-                            <li class="dropdown-divider"></li>
-                            {% if current_user.has_permission('gestion_postes') %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.list_postes') }}">Postes</a></li>
-                            {% endif %}
-                            {% if current_user.has_permission('gestion_parametres') %}
-                            <li class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin.app_settings') }}"><i class="fas fa-cog me-2 text-primary"></i>Paramètres App</a></li>
-                            {% endif %}
-                        </ul>
-                    </li>
+                    {% if current_user.has_permission('gestion_parametres') %}
+                    <a href="{{ url_for('admin.app_settings') }}"><span class="nav-label">Paramètres App</span></a>
                     {% endif %}
-                    {% endif %}
-                </ul>
-                <ul class="navbar-nav">
-                    {% if current_user.is_authenticated %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-circle me-1"></i> {{ current_user.prenom }} ({{ current_user.role }})
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}"><i class="fas fa-key me-2"></i>Changer le mot de passe</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Déconnexion</a></li>
-                        </ul>
-                    </li>
-                    {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}">Connexion</a>
-                    </li>
-                    {% endif %}
-                </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="{{ url_for('auth.change_password') }}" class="nav-link">
+                <i class="fas fa-key"></i>
+                <span class="nav-label">Mot de passe</span>
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color:#dc3545;">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="nav-label">Déconnexion</span>
+            </a>
+            <div class="user-block">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ current_user.prenom }}</div>
+                    <div class="user-role">{{ current_user.role }}</div>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    {# ===== MOBILE BOTTOM NAV ===== #}
+    <nav class="mobile-bottom-nav">
+        <a href="{{ url_for('admin.dashboard') }}">
+            <i class="fas fa-gauge-high"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('admin.manage_stock') }}">
+            <i class="fas fa-warehouse"></i>
+            <span>Stock</span>
+        </a>
+        <a href="{{ url_for('admin.list_ventes') }}">
+            <i class="fas fa-cash-register"></i>
+            <span>Ventes</span>
+        </a>
+        <a href="{{ url_for('admin.list_produits') }}">
+            <i class="fas fa-capsules"></i>
+            <span>Produits</span>
+        </a>
+        <button class="nav-more-btn" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
+            <i class="fas fa-bars"></i>
+            <span>Menu</span>
+        </button>
+    </nav>
 
-        {% block content %}{% endblock %}
+    {# ===== OFF CANVAS MOBILE ===== #}
+    <div class="offcanvas offcanvas-start offcanvas-sidebar" tabindex="-1" id="mobileMenu">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">
+                <i class="fas fa-prescription-bottle-alt me-2 text-primary"></i>ReflexPharma
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-gauge-high"></i>Tableau de bord</a>
+
+            {% if current_user.has_permission('gestion_employes') %}
+            <a href="{{ url_for('admin.list_users') }}"><i class="fas fa-users"></i>Employés</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_produits') %}
+            <a data-bs-toggle="collapse" href="#ocCatCollapse" role="button">
+                <i class="fas fa-book"></i>Catalogue
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="collapse sub-menu" id="ocCatCollapse">
+                <a href="{{ url_for('admin.list_produits') }}">Produits</a>
+                {% if current_user.has_permission('gestion_rayons') %}
+                <a href="{{ url_for('admin.list_rayons') }}">Rayons</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_familles') %}
+                <a href="{{ url_for('admin.list_familles') }}">Familles</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_sections') %}
+                <a href="{{ url_for('admin.list_sections') }}">Sections</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_stock') %}
+            <a href="{{ url_for('admin.manage_stock') }}"><i class="fas fa-warehouse"></i>Stock</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_inventaire') %}
+            <a href="{{ url_for('admin.list_inventaires') }}"><i class="fas fa-clipboard-list"></i>Inventaire</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_ventes') %}
+            <a href="{{ url_for('admin.list_ventes') }}"><i class="fas fa-cash-register"></i>Ventes</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+            <a data-bs-toggle="collapse" href="#ocClientCollapse" role="button">
+                <i class="fas fa-user-friends"></i>Clients
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="collapse sub-menu" id="ocClientCollapse">
+                {% if current_user.has_permission('gestion_clients') %}
+                <a href="{{ url_for('admin.list_clients') }}">Clients</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_groupes_clients') %}
+                <a href="{{ url_for('admin.list_groupes_clients') }}">Groupes clients</a>
+                {% endif %}
+                {% if current_user.has_permission('historique_clients') %}
+                <a href="{{ url_for('admin.list_client_modification_logs') }}">Historique clients</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_modifications_stock') %}
+            <a href="{{ url_for('admin.list_stock_modifications') }}"><i class="fas fa-pen-to-square"></i>Modifications Stock</a>
+            <a href="{{ url_for('admin.list_stock_exit_logs') }}"><i class="fas fa-right-from-bracket"></i>Sorties Stock</a>
+            {% endif %}
+
+            {% if current_user.has_permission('stats_sorties_stock') %}
+            <a href="{{ url_for('admin.stock_exit_stats') }}"><i class="fas fa-chart-bar"></i>Stats Sorties</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_fournisseurs') %}
+            <a data-bs-toggle="collapse" href="#ocParamCollapse" role="button">
+                <i class="fas fa-gear"></i>Paramètres
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="collapse sub-menu" id="ocParamCollapse">
+                <a href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a>
+                {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
+                <a href="{{ url_for('admin.list_groupes_fournisseurs') }}">Groupes de Fournisseurs</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_postes') %}
+                <a href="{{ url_for('admin.list_postes') }}">Postes</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_parametres') %}
+                <a href="{{ url_for('admin.app_settings') }}">Paramètres App</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="oc-divider"></div>
+
+            <a href="{{ url_for('auth.change_password') }}"><i class="fas fa-key"></i>Changer le mot de passe</a>
+            <a href="{{ url_for('auth.logout') }}" style="color:#dc3545;"><i class="fas fa-sign-out-alt"></i>Déconnexion</a>
+
+            <div class="oc-user">
+                <strong>{{ current_user.prenom }}</strong><br>
+                <small>{{ current_user.role }}</small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ===== MAIN CONTENT ===== #}
+    <div class="main-content">
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+
+        <footer class="mt-5 py-3 text-center text-muted border-top">
+            <p>&copy; 2026 ReflexPharma - Gestion de Pharmacie</p>
+        </footer>
     </div>
 
-    <footer class="mt-5 py-3 text-center text-muted border-top">
-        <p>&copy; 2026 ReflexPharma - Gestion de Pharmacie</p>
-    </footer>
-
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function() {
+            var current = window.location.pathname;
+            function activate(links) {
+                links.forEach(function(el) {
+                    var h = el.getAttribute('href');
+                    if (h && h !== '#' && current === h.split('?')[0]) {
+                        el.classList.add('active');
+                        var parent = el.closest('.collapse');
+                        if (parent) {
+                            var bs = bootstrap.Collapse.getInstance(parent);
+                            if (!bs) new bootstrap.Collapse(parent, {toggle: false}).show();
+                            else bs.show();
+                        }
+                    }
+                });
+            }
+            activate(document.querySelectorAll('.sidebar-nav a[href], .offcanvas-body a[href]'));
+        })();
+    </script>
 </body>
 </html>
