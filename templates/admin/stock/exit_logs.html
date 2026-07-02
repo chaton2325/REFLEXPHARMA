@@ -2,556 +2,770 @@
 
 {% block title %}Historique des sorties de stock - ReflexPharma{% endblock %}
 
-{% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-    <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
-                <li class="breadcrumb-item active">Sorties</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Historique des sorties de stock</h1>
-        <p class="text-muted mb-0">Suivi des produits sortis avec auteur, motif, lot et quantites avant/apres.</p>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-        {% if current_user.has_permission('stats_sorties_stock') %}
-        <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-dark">
-            <i class="fas fa-chart-line me-1"></i> Statistiques
-        </a>
-        {% endif %}
-        <a href="{{ url_for('admin.export_stock_exit_logs_excel') }}" class="btn btn-outline-success" id="exportExitExcel">
-            <i class="fas fa-file-excel me-1"></i> Excel
-        </a>
-        <a href="{{ url_for('admin.export_stock_exit_logs_pdf') }}" class="btn btn-outline-danger" id="exportExitPdf">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </a>
-        <a href="{{ url_for('admin.stock_exit') }}" class="btn btn-warning">
-            <i class="fas fa-sign-out-alt me-1"></i> Nouvelle sortie
-        </a>
-        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-primary">
-            <i class="fas fa-arrow-left me-1"></i> Retour au stock
-        </a>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header bg-white">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-            <div class="input-group" style="max-width: 520px;">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="exitSearchInput" class="form-control" placeholder="Rechercher date, produit, lot, auteur, raison...">
-            </div>
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <select id="exitSortField" class="form-select form-select-sm" style="width: 180px;">
-                    <option value="date">Date sortie</option>
-                    <option value="produit">Produit</option>
-                    <option value="fournisseur">Fournisseur</option>
-                    <option value="groupe">Groupe fournisseur</option>
-                    <option value="code">Code suivi</option>
-                    <option value="bl">BL</option>
-                    <option value="peremption">Peremption</option>
-                    <option value="mise_stock">Date mise en stock</option>
-                    <option value="mis_par">Mis en stock par</option>
-                    <option value="auteur">Auteur</option>
-                    <option value="raison">Raison</option>
-                    <option value="perte">Perte TTC</option>
-                </select>
-                <select id="exitSortDirection" class="form-select form-select-sm" style="width: 135px;">
-                    <option value="desc">Decroissant</option>
-                    <option value="asc">Croissant</option>
-                </select>
-                <button type="button" id="applyExitSort" class="btn btn-sm btn-outline-secondary">
-                    <i class="fas fa-sort me-1"></i> Trier
-                </button>
-                <button type="button" id="clearExitSearch" class="btn btn-sm btn-outline-secondary">
-                    Effacer
-                </button>
-                <span class="small text-muted"><span id="exitVisibleCount">{{ exits|length }}</span> / {{ exits|length }} sortie(s)</span>
-            </div>
-        </div>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" id="exitLogsTable">
-            <thead class="bg-light">
-                <tr>
-                    <th data-sort-field="date" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="produit" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="groupe" style="cursor:pointer">Groupe fournisseur <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="code" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="bl" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="peremption" style="cursor:pointer">Peremption <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="mise_stock" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="mis_par" style="cursor:pointer">Mis en stock par <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="auteur" style="cursor:pointer">Sorti par <i class="fas fa-sort small text-muted"></i></th>
-                    <th data-sort-field="raison" style="cursor:pointer">Raison <i class="fas fa-sort small text-muted"></i></th>
-                    <th>Quantite sortie</th>
-                    <th>TVA</th>
-                    <th>Prix unitaires</th>
-                    <th data-sort-field="perte" style="cursor:pointer">Perte / valeur <i class="fas fa-sort small text-muted"></i></th>
-                    <th>Avant</th>
-                    <th>Apres</th>
-                </tr>
-            </thead>
-            <tbody id="exitLogsBody">
-                {% for item in exits %}
-                {% set prices = exit_prices[item.id] %}
-                {% set supplier = exit_suppliers[item.id] %}
-                {% set fournisseur = supplier.fournisseur %}
-                {% set groupe_fournisseur = supplier.groupe_fournisseur %}
-                <tr class="exit-log-row"
-                    data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc))|lower }}"
-                    data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
-                    data-produit="{{ item.produit_nom|lower }}"
-                    data-fournisseur="{{ fournisseur|lower }}"
-                    data-groupe="{{ groupe_fournisseur|lower }}"
-                    data-code="{{ item.code_suivi|lower }}"
-                    data-bl="{{ item.numero_bl|lower }}"
-                    data-peremption="{{ item.date_peremption.strftime('%Y%m%d') if item.date_peremption else '' }}"
-                    data-mise_stock="{{ item.mise_en_stock_at.strftime('%Y%m%d%H%M%S') if item.mise_en_stock_at else '' }}"
-                    data-mis_par="{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or ''))|lower }}"
-                    data-auteur="{{ (item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email)|lower }}"
-                    data-raison="{{ item.reason_nom|lower }}"
-                    data-perte="{{ '%.2f'|format(prices.total_ttc) }}">
-                    <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
-                    <td>
-                        <div class="fw-bold">{{ item.produit_nom }}</div>
-                        <small class="text-muted">{{ item.produit_code }}</small>
-                        <div class="mt-2">
-                            <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}">
-                                <span class="life-path-pulse"></span>
-                                <i class="fas fa-route me-1"></i> Chemin de vie
-                            </button>
-                        </div>
-                        <div class="modal fade life-path-modal" id="lifePathModal{{ item.id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-                                <div class="modal-content">
-                                    <div class="modal-header border-0 pb-0">
-                                        <div>
-                                            <div class="small text-muted">Trajectoire produit</div>
-                                            <h5 class="modal-title mb-0">{{ item.produit_nom }}</h5>
-                                            <div class="small text-muted">{{ item.produit_code }} | {{ item.code_suivi }}</div>
-                                        </div>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div class="life-hero">
-                                            <div>
-                                                <div class="life-hero-label">Valeur sortie TTC</div>
-                                                <div class="life-hero-value">{{ "%.2f"|format(prices.total_ttc) }}</div>
-                                                <div class="life-hero-sub">HT {{ "%.2f"|format(prices.total_ht) }} | TVA {{ "%.2f"|format(prices.tva_pourcentage) }}%</div>
-                                            </div>
-                                            <div class="life-orbit" aria-hidden="true">
-                                                <span></span><span></span><span></span>
-                                            </div>
-                                        </div>
-
-                                        <div class="life-path-track">
-                                            <div class="life-step life-step-in">
-                                                <div class="life-step-icon"><i class="fas fa-box-open"></i></div>
-                                                <div class="life-step-body">
-                                                    <div class="life-step-title">Mise en stock</div>
-                                                    <div>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</div>
-                                                    <div class="text-muted small">
-                                                        {{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}
-                                                        {% if item.mise_en_stock_user_email %} | {{ item.mise_en_stock_user_email }}{% endif %}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="life-step life-step-stock">
-                                                <div class="life-step-icon"><i class="fas fa-warehouse"></i></div>
-                                                <div class="life-step-body">
-                                                    <div class="life-step-title">Lot en stock</div>
-                                                    <div>BL {{ item.numero_bl }} | Peremption {{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '-' }}</div>
-                                                    <div class="text-muted small">{{ fournisseur }} | {{ groupe_fournisseur }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="life-step life-step-out">
-                                                <div class="life-step-icon"><i class="fas fa-sign-out-alt"></i></div>
-                                                <div class="life-step-body">
-                                                    <div class="life-step-title">Sortie de stock</div>
-                                                    <div>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '-' }}</div>
-                                                    <div class="text-muted small">{{ item.user_prenom }} {{ item.user_nom }} | {{ item.reason_nom }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="row g-3 mt-3">
-                                            <div class="col-md-4">
-                                                <div class="life-metric">
-                                                    <div class="life-metric-label">Quantites sorties</div>
-                                                    <div>U: {{ item.quantite_unites_sortie }}</div>
-                                                    <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
-                                                    <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="life-metric">
-                                                    <div class="life-metric-label">Avant sortie</div>
-                                                    <div>U: {{ item.old_quantite_unites }}</div>
-                                                    <div>S/U: {{ item.old_quantite_sous_unites }}</div>
-                                                    <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="life-metric">
-                                                    <div class="life-metric-label">Apres sortie</div>
-                                                    <div>U: {{ item.new_quantite_unites }}</div>
-                                                    <div>S/U: {{ item.new_quantite_sous_unites }}</div>
-                                                    <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </td>
-                    <td>{{ fournisseur }}</td>
-                    <td>{{ groupe_fournisseur }}</td>
-                    <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
-                    <td>{{ item.numero_bl }}</td>
-                    <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
-                    <td>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</td>
-                    <td>
-                        <div>{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}</div>
-                        <small class="text-muted">{{ item.mise_en_stock_user_email or '-' }}</small>
-                    </td>
-                    <td>
-                        <div>{{ item.user_prenom }} {{ item.user_nom }}</div>
-                        <small class="text-muted">{{ item.user_email }}</small>
-                    </td>
-                    <td>{{ item.reason_nom }}</td>
-                    <td>
-                        <div>U: {{ item.quantite_unites_sortie }}</div>
-                        <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
-                        <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
-                    </td>
-                    <td>{{ "%.2f"|format(prices.tva_pourcentage) }}%</td>
-                    <td>
-                        <div class="small text-muted">HT</div>
-                        <div>U: {{ "%.2f"|format(prices.prix_unite_ht) }}</div>
-                        <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ht) }}</div>
-                        <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
-                        <div class="small text-muted mt-1">TTC</div>
-                        <div>U: {{ "%.2f"|format(prices.prix_unite_ttc) }}</div>
-                        <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ttc) }}</div>
-                        <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
-                    </td>
-                    <td>
-                        <div>HT: {{ "%.2f"|format(prices.total_ht) }}</div>
-                        <div class="fw-bold text-danger">TTC: {{ "%.2f"|format(prices.total_ttc) }}</div>
-                    </td>
-                    <td>
-                        <div>U: {{ item.old_quantite_unites }}</div>
-                        <div>S/U: {{ item.old_quantite_sous_unites }}</div>
-                        <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
-                    </td>
-                    <td>
-                        <div>U: {{ item.new_quantite_unites }}</div>
-                        <div>S/U: {{ item.new_quantite_sous_unites }}</div>
-                        <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
-                    </td>
-                </tr>
-                {% else %}
-                <tr id="emptyExitLogsRow">
-                    <td colspan="17" class="text-center py-4 text-muted">Aucune sortie de stock enregistree.</td>
-                </tr>
-                {% endfor %}
-                <tr id="noExitSearchResultsRow" class="d-none">
-                    <td colspan="17" class="text-center py-4 text-muted">Aucune sortie ne correspond a la recherche.</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
+{% block extra_head %}
 <style>
-    .life-path-button {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        border: 1px solid rgba(13, 110, 253, 0.28);
-        background: linear-gradient(135deg, #ffffff, #eef6ff);
-        color: #0b5ed7;
-        border-radius: 999px;
-        padding: 5px 11px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        overflow: hidden;
-        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-    }
-    .life-path-button:hover {
-        transform: translateY(-1px);
-        border-color: rgba(13, 110, 253, 0.58);
-        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.18);
-    }
-    .life-path-button::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        transform: translateX(-120%);
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
-        animation: lifeShine 2.8s infinite;
-    }
-    .life-path-pulse {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #20c997;
-        box-shadow: 0 0 0 rgba(32, 201, 151, .5);
-        animation: lifePulse 1.6s infinite;
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header .btn-light {
+    color: #2c3e50;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.5rem 1.2rem;
+  }
+  .page-header .btn-light:hover {
+    transform: translateY(-1px);
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a2e;
+  }
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+
+  .search-wrapper {
+    position: relative;
+  }
+  .search-wrapper .form-control {
+    padding-left: 2.5rem;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    background: #f8f9fa;
+    font-size: 0.88rem;
+    transition: all 0.2s;
+  }
+  .search-wrapper .form-control:focus {
+    background: #fff;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .search-wrapper .search-icon {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #adb5bd;
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+
+  .table-custom {
+    margin-bottom: 0;
+  }
+  .table-custom thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef;
+  }
+  .table-custom tbody td {
+    padding: 0.85rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 0.88rem;
+  }
+  .table-custom tbody tr {
+    transition: background 0.15s;
+  }
+  .table-custom tbody tr:hover {
+    background: #f8faff;
+  }
+
+  .mobile-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid #f0f2f5;
+    transition: transform 0.15s;
+  }
+  .mobile-card:active {
+    transform: scale(0.99);
+  }
+
+  .life-path-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(13, 110, 253, 0.28);
+    background: linear-gradient(135deg, #ffffff, #eef6ff);
+    color: #0b5ed7;
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    overflow: hidden;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .life-path-button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(13, 110, 253, 0.58);
+    box-shadow: 0 8px 20px rgba(13, 110, 253, 0.18);
+  }
+  .life-path-button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
+    animation: lifeShine 2.8s infinite;
+  }
+  .life-path-pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #20c997;
+    box-shadow: 0 0 0 rgba(32, 201, 151, .5);
+    animation: lifePulse 1.6s infinite;
+  }
+  .life-path-modal .modal-content {
+    border: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(17, 24, 39, .28);
+  }
+  .life-path-modal .modal-body {
+    overflow-x: hidden;
+  }
+  .life-hero {
+    position: relative;
+    min-height: 132px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #0f172a, #164e63);
+    color: #fff;
+    overflow: hidden;
+  }
+  .life-hero::before {
+    content: "";
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    right: -70px;
+    top: -80px;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 50%;
+    animation: lifeRotate 8s linear infinite;
+  }
+  .life-hero-label {
+    font-size: .8rem;
+    opacity: .78;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .life-hero-value {
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .life-hero-sub {
+    opacity: .82;
+    font-size: .9rem;
+  }
+  .life-orbit {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 50%;
+    animation: lifeRotate 7s linear infinite;
+  }
+  .life-orbit span {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffc107;
+  }
+  .life-orbit span:nth-child(1) { top: -7px; left: 38px; }
+  .life-orbit span:nth-child(2) { bottom: 9px; right: 1px; background: #20c997; }
+  .life-orbit span:nth-child(3) { bottom: 8px; left: 2px; background: #0dcaf0; }
+  .life-path-track {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .life-path-track::before {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: 31px;
+    height: 3px;
+    background: linear-gradient(90deg, #198754, #0d6efd, #dc3545);
+    border-radius: 999px;
+    animation: lifeFlow 2.2s ease-in-out infinite;
+  }
+  .life-step {
+    position: relative;
+    z-index: 1;
+    padding: 18px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: rgba(255,255,255,.95);
+    animation: lifeRise .55s ease both;
+  }
+  .life-step:nth-child(2) { animation-delay: .12s; }
+  .life-step:nth-child(3) { animation-delay: .24s; }
+  .life-step-icon {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    margin-bottom: 10px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.14);
+  }
+  .life-step-in .life-step-icon { background: #198754; }
+  .life-step-stock .life-step-icon { background: #0d6efd; }
+  .life-step-out .life-step-icon { background: #dc3545; }
+  .life-step-title {
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  .life-metric {
+    height: 100%;
+    padding: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+  .life-metric-label {
+    font-weight: 800;
+    color: #334155;
+    margin-bottom: 6px;
+  }
+  @keyframes lifePulse {
+    0% { box-shadow: 0 0 0 0 rgba(32, 201, 151, .55); }
+    70% { box-shadow: 0 0 0 8px rgba(32, 201, 151, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(32, 201, 151, 0); }
+  }
+  @keyframes lifeShine {
+    0% { transform: translateX(-120%); }
+    45%, 100% { transform: translateX(120%); }
+  }
+  @keyframes lifeRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes lifeFlow {
+    0%, 100% { opacity: .45; transform: scaleX(.94); }
+    50% { opacity: 1; transform: scaleX(1); }
+  }
+  @keyframes lifeRise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .stat-card { padding: 0.9rem 1rem; }
+    .stat-card .stat-number { font-size: 1.2rem; }
+    .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
+  }
+
+  @media (max-width: 768px) {
+    .life-path-modal .modal-dialog {
+      margin: 10px;
+      max-width: calc(100% - 20px);
     }
     .life-path-modal .modal-content {
-        border: 0;
-        border-radius: 18px;
-        overflow: hidden;
-        box-shadow: 0 24px 70px rgba(17, 24, 39, .28);
+      border-radius: 14px;
+    }
+    .life-path-modal .modal-header {
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .life-path-modal .modal-title {
+      font-size: 1rem;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
     .life-path-modal .modal-body {
-        overflow-x: hidden;
+      padding: 14px;
     }
     .life-hero {
-        position: relative;
-        min-height: 132px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 22px;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #0f172a, #164e63);
-        color: #fff;
-        overflow: hidden;
-    }
-    .life-hero::before {
-        content: "";
-        position: absolute;
-        width: 220px;
-        height: 220px;
-        right: -70px;
-        top: -80px;
-        border: 1px solid rgba(255,255,255,.2);
-        border-radius: 50%;
-        animation: lifeRotate 8s linear infinite;
-    }
-    .life-hero-label {
-        font-size: .8rem;
-        opacity: .78;
-        text-transform: uppercase;
-        letter-spacing: .06em;
+      min-height: 0;
+      padding: 16px;
     }
     .life-hero-value {
-        font-size: 2.3rem;
-        font-weight: 800;
-        line-height: 1.1;
+      font-size: 1.7rem;
+      overflow-wrap: anywhere;
     }
     .life-hero-sub {
-        opacity: .82;
-        font-size: .9rem;
+      font-size: .78rem;
+      overflow-wrap: anywhere;
     }
     .life-orbit {
-        position: relative;
-        width: 90px;
-        height: 90px;
-        border: 1px solid rgba(255,255,255,.25);
-        border-radius: 50%;
-        animation: lifeRotate 7s linear infinite;
+      width: 58px;
+      height: 58px;
     }
-    .life-orbit span {
-        position: absolute;
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        background: #ffc107;
-    }
-    .life-orbit span:nth-child(1) { top: -7px; left: 38px; }
-    .life-orbit span:nth-child(2) { bottom: 9px; right: 1px; background: #20c997; }
-    .life-orbit span:nth-child(3) { bottom: 8px; left: 2px; background: #0dcaf0; }
+    .life-orbit span:nth-child(1) { left: 22px; }
     .life-path-track {
-        position: relative;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-        margin-top: 20px;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 14px;
     }
     .life-path-track::before {
-        content: "";
-        position: absolute;
-        left: 10%;
-        right: 10%;
-        top: 31px;
-        height: 3px;
-        background: linear-gradient(90deg, #198754, #0d6efd, #dc3545);
-        border-radius: 999px;
-        animation: lifeFlow 2.2s ease-in-out infinite;
+      left: 21px;
+      right: auto;
+      top: 36px;
+      bottom: 36px;
+      width: 3px;
+      height: auto;
     }
     .life-step {
-        position: relative;
-        z-index: 1;
-        padding: 18px;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        background: rgba(255,255,255,.95);
-        animation: lifeRise .55s ease both;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 10px;
+      padding: 14px;
     }
-    .life-step:nth-child(2) { animation-delay: .12s; }
-    .life-step:nth-child(3) { animation-delay: .24s; }
     .life-step-icon {
-        width: 44px;
-        height: 44px;
-        display: grid;
-        place-items: center;
-        border-radius: 50%;
-        color: #fff;
-        margin-bottom: 10px;
-        box-shadow: 0 10px 24px rgba(0,0,0,.14);
+      margin-bottom: 0;
     }
-    .life-step-in .life-step-icon { background: #198754; }
-    .life-step-stock .life-step-icon { background: #0d6efd; }
-    .life-step-out .life-step-icon { background: #dc3545; }
+    .life-step-body {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
     .life-step-title {
-        font-weight: 800;
-        margin-bottom: 3px;
+      font-size: .95rem;
     }
     .life-metric {
-        height: 100%;
-        padding: 14px;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        background: #f8fafc;
+      padding: 12px;
+      font-size: .9rem;
     }
-    .life-metric-label {
-        font-weight: 800;
-        color: #334155;
-        margin-bottom: 6px;
+    .life-hero {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 16px;
     }
-    @keyframes lifePulse {
-        0% { box-shadow: 0 0 0 0 rgba(32, 201, 151, .55); }
-        70% { box-shadow: 0 0 0 8px rgba(32, 201, 151, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(32, 201, 151, 0); }
+  }
+  @media (max-width: 420px) {
+    .life-path-modal .modal-dialog {
+      margin: 6px;
+      max-width: calc(100% - 12px);
     }
-    @keyframes lifeShine {
-        0% { transform: translateX(-120%); }
-        45%, 100% { transform: translateX(120%); }
+    .life-path-modal .modal-body {
+      padding: 10px;
     }
-    @keyframes lifeRotate {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+    .life-hero {
+      padding: 14px;
     }
-    @keyframes lifeFlow {
-        0%, 100% { opacity: .45; transform: scaleX(.94); }
-        50% { opacity: 1; transform: scaleX(1); }
+    .life-hero-value {
+      font-size: 1.45rem;
     }
-    @keyframes lifeRise {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
+    .life-step {
+      grid-template-columns: 38px minmax(0, 1fr);
+      padding: 12px;
     }
-    @media (max-width: 768px) {
-        .life-path-modal .modal-dialog {
-            margin: 10px;
-            max-width: calc(100% - 20px);
-        }
-        .life-path-modal .modal-content {
-            border-radius: 14px;
-        }
-        .life-path-modal .modal-header {
-            align-items: flex-start;
-            gap: 10px;
-        }
-        .life-path-modal .modal-title {
-            font-size: 1rem;
-            line-height: 1.25;
-            overflow-wrap: anywhere;
-        }
-        .life-path-modal .modal-body {
-            padding: 14px;
-        }
-        .life-hero {
-            min-height: 0;
-            padding: 16px;
-        }
-        .life-hero-value {
-            font-size: 1.7rem;
-            overflow-wrap: anywhere;
-        }
-        .life-hero-sub {
-            font-size: .78rem;
-            overflow-wrap: anywhere;
-        }
-        .life-orbit {
-            width: 58px;
-            height: 58px;
-        }
-        .life-orbit span:nth-child(1) { left: 22px; }
-        .life-path-track {
-            grid-template-columns: 1fr;
-            gap: 12px;
-            margin-top: 14px;
-        }
-        .life-path-track::before {
-            left: 21px;
-            right: auto;
-            top: 36px;
-            bottom: 36px;
-            width: 3px;
-            height: auto;
-        }
-        .life-step {
-            display: grid;
-            grid-template-columns: 44px minmax(0, 1fr);
-            gap: 10px;
-            padding: 14px;
-        }
-        .life-step-icon {
-            margin-bottom: 0;
-        }
-        .life-step-body {
-            min-width: 0;
-            overflow-wrap: anywhere;
-        }
-        .life-step-title {
-            font-size: .95rem;
-        }
-        .life-metric {
-            padding: 12px;
-            font-size: .9rem;
-        }
-        .life-hero {
-            align-items: flex-start;
-            flex-direction: column;
-            gap: 16px;
-        }
+    .life-step-icon {
+      width: 38px;
+      height: 38px;
     }
-    @media (max-width: 420px) {
-        .life-path-modal .modal-dialog {
-            margin: 6px;
-            max-width: calc(100% - 12px);
-        }
-        .life-path-modal .modal-body {
-            padding: 10px;
-        }
-        .life-hero {
-            padding: 14px;
-        }
-        .life-hero-value {
-            font-size: 1.45rem;
-        }
-        .life-step {
-            grid-template-columns: 38px minmax(0, 1fr);
-            padding: 12px;
-        }
-        .life-step-icon {
-            width: 38px;
-            height: 38px;
-        }
-        .life-path-track::before {
-            left: 18px;
-        }
+    .life-path-track::before {
+      left: 18px;
     }
+  }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-clipboard-list me-2"></i>Historique des sorties de stock</h1>
+      <p>Suivi des produits sortis avec auteur, motif, lot et quantités avant/après.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if current_user.has_permission('stats_sorties_stock') %}
+      <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-chart-line me-1"></i> Statistiques
+      </a>
+      {% endif %}
+      <a href="{{ url_for('admin.export_stock_exit_logs_excel') }}" class="btn btn-light btn-sm" id="exportExitExcel">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_stock_exit_logs_pdf') }}" class="btn btn-light btn-sm" id="exportExitPdf">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <a href="{{ url_for('admin.stock_exit') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-sign-out-alt me-1"></i> Nouvelle sortie
+      </a>
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Retour au stock
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-sm-4 col-md-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-sign-out-alt"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ exits|length }}</div>
+        <div class="stat-label">Total sorties</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+    <div class="search-wrapper" style="width:100%;max-width:360px;">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" id="exitSearchInput" class="form-control" placeholder="Rechercher date, produit, lot, auteur, raison...">
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <select id="exitSortField" class="form-select form-select-sm" style="width: 180px;">
+        <option value="date">Date sortie</option>
+        <option value="produit">Produit</option>
+        <option value="fournisseur">Fournisseur</option>
+        <option value="groupe">Groupe fournisseur</option>
+        <option value="code">Code suivi</option>
+        <option value="bl">BL</option>
+        <option value="peremption">Peremption</option>
+        <option value="mise_stock">Date mise en stock</option>
+        <option value="mis_par">Mis en stock par</option>
+        <option value="auteur">Auteur</option>
+        <option value="raison">Raison</option>
+        <option value="perte">Perte TTC</option>
+      </select>
+      <select id="exitSortDirection" class="form-select form-select-sm" style="width: 135px;">
+        <option value="desc">Decroissant</option>
+        <option value="asc">Croissant</option>
+      </select>
+      <button type="button" id="applyExitSort" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-sort me-1"></i> Trier
+      </button>
+      <button type="button" id="clearExitSearch" class="btn btn-sm btn-outline-secondary">
+        Effacer
+      </button>
+      <span class="small text-muted"><span id="exitVisibleCount">{{ exits|length }}</span> / {{ exits|length }} sortie(s)</span>
+    </div>
+  </div>
+
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-custom" id="exitLogsTable">
+      <thead>
+        <tr>
+          <th data-sort-field="date" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="produit" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="groupe" style="cursor:pointer">Groupe fournisseur <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="code" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="bl" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="peremption" style="cursor:pointer">Peremption <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="mise_stock" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="mis_par" style="cursor:pointer">Mis en stock par <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="auteur" style="cursor:pointer">Sorti par <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="raison" style="cursor:pointer">Raison <i class="fas fa-sort small text-muted"></i></th>
+          <th>Quantite sortie</th>
+          <th>TVA</th>
+          <th>Prix unitaires</th>
+          <th data-sort-field="perte" style="cursor:pointer">Perte / valeur <i class="fas fa-sort small text-muted"></i></th>
+          <th>Avant</th>
+          <th>Apres</th>
+        </tr>
+      </thead>
+      <tbody id="exitLogsBody">
+        {% for item in exits %}
+        {% set prices = exit_prices[item.id] %}
+        {% set supplier = exit_suppliers[item.id] %}
+        {% set fournisseur = supplier.fournisseur %}
+        {% set groupe_fournisseur = supplier.groupe_fournisseur %}
+        <tr class="exit-log-row"
+            data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc))|lower }}"
+            data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
+            data-produit="{{ item.produit_nom|lower }}"
+            data-fournisseur="{{ fournisseur|lower }}"
+            data-groupe="{{ groupe_fournisseur|lower }}"
+            data-code="{{ item.code_suivi|lower }}"
+            data-bl="{{ item.numero_bl|lower }}"
+            data-peremption="{{ item.date_peremption.strftime('%Y%m%d') if item.date_peremption else '' }}"
+            data-mise_stock="{{ item.mise_en_stock_at.strftime('%Y%m%d%H%M%S') if item.mise_en_stock_at else '' }}"
+            data-mis_par="{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or ''))|lower }}"
+            data-auteur="{{ (item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email)|lower }}"
+            data-raison="{{ item.reason_nom|lower }}"
+            data-perte="{{ '%.2f'|format(prices.total_ttc) }}">
+          <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
+          <td>
+            <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit_nom }}</div>
+            <small class="text-muted">{{ item.produit_code }}</small>
+            <div class="mt-2">
+              <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}">
+                <span class="life-path-pulse"></span>
+                <i class="fas fa-route me-1"></i> Chemin de vie
+              </button>
+            </div>
+            <div class="modal fade life-path-modal" id="lifePathModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                  <div class="modal-header border-0 pb-0">
+                    <div>
+                      <div class="small text-muted">Trajectoire produit</div>
+                      <h5 class="modal-title mb-0">{{ item.produit_nom }}</h5>
+                      <div class="small text-muted">{{ item.produit_code }} | {{ item.code_suivi }}</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="life-hero">
+                      <div>
+                        <div class="life-hero-label">Valeur sortie TTC</div>
+                        <div class="life-hero-value">{{ "%.2f"|format(prices.total_ttc) }}</div>
+                        <div class="life-hero-sub">HT {{ "%.2f"|format(prices.total_ht) }} | TVA {{ "%.2f"|format(prices.tva_pourcentage) }}%</div>
+                      </div>
+                      <div class="life-orbit" aria-hidden="true">
+                        <span></span><span></span><span></span>
+                      </div>
+                    </div>
+
+                    <div class="life-path-track">
+                      <div class="life-step life-step-in">
+                        <div class="life-step-icon"><i class="fas fa-box-open"></i></div>
+                        <div class="life-step-body">
+                          <div class="life-step-title">Mise en stock</div>
+                          <div>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</div>
+                          <div class="text-muted small">
+                            {{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}
+                            {% if item.mise_en_stock_user_email %} | {{ item.mise_en_stock_user_email }}{% endif %}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="life-step life-step-stock">
+                        <div class="life-step-icon"><i class="fas fa-warehouse"></i></div>
+                        <div class="life-step-body">
+                          <div class="life-step-title">Lot en stock</div>
+                          <div>BL {{ item.numero_bl }} | Peremption {{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else '-' }}</div>
+                          <div class="text-muted small">{{ fournisseur }} | {{ groupe_fournisseur }}</div>
+                        </div>
+                      </div>
+                      <div class="life-step life-step-out">
+                        <div class="life-step-icon"><i class="fas fa-sign-out-alt"></i></div>
+                        <div class="life-step-body">
+                          <div class="life-step-title">Sortie de stock</div>
+                          <div>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else '-' }}</div>
+                          <div class="text-muted small">{{ item.user_prenom }} {{ item.user_nom }} | {{ item.reason_nom }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="row g-3 mt-3">
+                      <div class="col-md-4">
+                        <div class="life-metric">
+                          <div class="life-metric-label">Quantites sorties</div>
+                          <div>U: {{ item.quantite_unites_sortie }}</div>
+                          <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
+                          <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="life-metric">
+                          <div class="life-metric-label">Avant sortie</div>
+                          <div>U: {{ item.old_quantite_unites }}</div>
+                          <div>S/U: {{ item.old_quantite_sous_unites }}</div>
+                          <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="life-metric">
+                          <div class="life-metric-label">Apres sortie</div>
+                          <div>U: {{ item.new_quantite_unites }}</div>
+                          <div>S/U: {{ item.new_quantite_sous_unites }}</div>
+                          <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td>{{ fournisseur }}</td>
+          <td>{{ groupe_fournisseur }}</td>
+          <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
+          <td>{{ item.numero_bl }}</td>
+          <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
+          <td>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</td>
+          <td>
+            <div>{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}</div>
+            <small class="text-muted">{{ item.mise_en_stock_user_email or '-' }}</small>
+          </td>
+          <td>
+            <div>{{ item.user_prenom }} {{ item.user_nom }}</div>
+            <small class="text-muted">{{ item.user_email }}</small>
+          </td>
+          <td>{{ item.reason_nom }}</td>
+          <td>
+            <div>U: {{ item.quantite_unites_sortie }}</div>
+            <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
+            <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
+          </td>
+          <td>{{ "%.2f"|format(prices.tva_pourcentage) }}%</td>
+          <td>
+            <div class="small text-muted">HT</div>
+            <div>U: {{ "%.2f"|format(prices.prix_unite_ht) }}</div>
+            <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ht) }}</div>
+            <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
+            <div class="small text-muted mt-1">TTC</div>
+            <div>U: {{ "%.2f"|format(prices.prix_unite_ttc) }}</div>
+            <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ttc) }}</div>
+            <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
+          </td>
+          <td>
+            <div>HT: {{ "%.2f"|format(prices.total_ht) }}</div>
+            <div class="fw-bold text-danger">TTC: {{ "%.2f"|format(prices.total_ttc) }}</div>
+          </td>
+          <td>
+            <div>U: {{ item.old_quantite_unites }}</div>
+            <div>S/U: {{ item.old_quantite_sous_unites }}</div>
+            <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
+          </td>
+          <td>
+            <div>U: {{ item.new_quantite_unites }}</div>
+            <div>S/U: {{ item.new_quantite_sous_unites }}</div>
+            <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="emptyExitLogsRow">
+          <td colspan="17" class="text-center py-4">Aucune sortie de stock enregistree.</td>
+        </tr>
+        {% endfor %}
+        <tr id="noExitSearchResultsRow" class="d-none">
+          <td colspan="17" class="text-center py-4">Aucune sortie ne correspond a la recherche.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-sm-none p-3 d-flex flex-column gap-2">
+    {% for item in exits %}
+    {% set prices = exit_prices[item.id] %}
+    {% set supplier = exit_suppliers[item.id] %}
+    {% set fournisseur = supplier.fournisseur %}
+    {% set groupe_fournisseur = supplier.groupe_fournisseur %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit_nom }}</div>
+          <small class="text-muted">{{ item.produit_code }}</small>
+        </div>
+        <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}" style="flex-shrink:0;">
+          <span class="life-path-pulse"></span>
+          <i class="fas fa-route"></i>
+        </button>
+      </div>
+      <div class="row g-1 small">
+        <div class="col-5 text-muted">Date:</div>
+        <div class="col-7">{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</div>
+        <div class="col-5 text-muted">Code suivi:</div>
+        <div class="col-7"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></div>
+        <div class="col-5 text-muted">BL:</div>
+        <div class="col-7">{{ item.numero_bl }}</div>
+        <div class="col-5 text-muted">Fournisseur:</div>
+        <div class="col-7">{{ fournisseur }}</div>
+        <div class="col-5 text-muted">Sorti par:</div>
+        <div class="col-7">{{ item.user_prenom }} {{ item.user_nom }}</div>
+        <div class="col-5 text-muted">Raison:</div>
+        <div class="col-7">{{ item.reason_nom }}</div>
+        <div class="col-5 text-muted">Quantité:</div>
+        <div class="col-7">U:{{ item.quantite_unites_sortie }} S/U:{{ item.quantite_sous_unites_sortie }} SS/U:{{ item.quantite_sous_sous_unites_sortie }}</div>
+        <div class="col-5 text-muted">Perte TTC:</div>
+        <div class="col-7 fw-bold text-danger">{{ "%.2f"|format(prices.total_ttc) }} €</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-clipboard-list" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucune sortie de stock enregistree.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

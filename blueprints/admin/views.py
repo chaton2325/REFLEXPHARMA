@@ -2777,7 +2777,17 @@ def manage_stock():
         return redirect(url_for('admin.manage_stock'))
 
     stocks = Stock.query.join(Produit).order_by(Produit.nom.asc(), Stock.date_peremption.asc()).all()
-    return render_template('admin/stock/list.html', produits=produits, stocks=stocks, reasons=reasons)
+    total_stock_entries = len(stocks)
+    total_produits_en_stock = len(set(s.produit_id for s in stocks))
+    total_quantite = sum(s.quantite_totale for s in stocks)
+    qr_non_tires = sum(1 for s in stocks if not s.qr_tire)
+    return render_template('admin/stock/list.html',
+        produits=produits, stocks=stocks, reasons=reasons,
+        total_stock_entries=total_stock_entries,
+        total_produits_en_stock=total_produits_en_stock,
+        total_quantite=total_quantite,
+        qr_non_tires=qr_non_tires
+    )
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
 @login_required
