@@ -88,6 +88,115 @@
         height: 28px;
         padding: 0;
     }
+
+    /* Receipt Styles */
+    .receipt-preview-container {
+        width: 100%;
+        max-width: 80mm;
+        margin: 0 auto;
+        padding: 15px;
+        background-color: white;
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 13px;
+        color: #000;
+        border: 1px solid #eee;
+    }
+
+    @media (max-width: 576px) {
+        .receipt-preview-container {
+            padding: 10px;
+            font-size: 11px;
+            max-width: 100%;
+        }
+        .receipt-header h4 {
+            font-size: 16px;
+        }
+    }
+
+    .receipt-header {
+        text-align: center;
+        margin-bottom: 15px;
+    }
+
+    .receipt-header h4 {
+        margin: 0;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 18px;
+    }
+
+    .receipt-info {
+        margin-bottom: 10px;
+        line-height: 1.4;
+        font-size: 12px;
+    }
+
+    .receipt-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+        font-size: 12px;
+    }
+
+    .receipt-table th {
+        border-bottom: 1px dashed #000;
+        border-top: 1px dashed #000;
+        text-align: left;
+        padding: 6px 0;
+        text-transform: uppercase;
+    }
+
+    .receipt-table td {
+        padding: 4px 0;
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .receipt-totals {
+        margin-bottom: 10px;
+        border-top: 1px dashed #000;
+        padding-top: 5px;
+    }
+
+    .receipt-footer {
+        text-align: center;
+        margin-top: 25px;
+        font-size: 11px;
+        border-top: 1px dashed #000;
+        padding-top: 10px;
+    }
+
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #receiptPreviewModal .modal-content,
+        #receiptPreviewModal .modal-body,
+        #receiptPreviewContent,
+        #receiptPreviewContent * {
+            visibility: visible;
+        }
+        #receiptPreviewModal {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #receiptPreviewModal .modal-header,
+        #receiptPreviewModal .modal-footer,
+        .btn, .navbar, .breadcrumb, .h3, .text-muted, form, #productInfoModal {
+            display: none !important;
+        }
+        .receipt-preview-container {
+            box-shadow: none;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -386,10 +495,6 @@
         </div>
 
         <div class="d-flex flex-column flex-md-row justify-content-end gap-2">
-            <div>
-                <input type="password" name="validation_password" id="validationPassword" class="form-control" required autocomplete="current-password" placeholder="Mot de passe pour valider">
-                <div class="invalid-feedback">Mot de passe incorrect.</div>
-            </div>
             <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">Annuler</a>
             <button type="submit" class="btn btn-primary">
                 <i class="fas fa-save me-1"></i> Enregistrer
@@ -397,6 +502,85 @@
         </div>
     </div>
 </form>
+
+<div class="modal fade" id="receiptPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Prévisualisation du Ticket de Caisse</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div id="receiptPreviewContent" class="receipt-preview-container">
+                    <div class="receipt-header">
+                        <h4>{{ pharmacy_name }}</h4>
+                        <p class="mb-0">Pharmacie - Parapharmacie</p>
+                        <p class="small">Vente No: <span id="previewNumeroVente">{{ suggested_numero }}</span></p>
+                    </div>
+                    <div class="receipt-info small">
+                        <div class="d-flex justify-content-between">
+                            <span>Date: <span id="previewDate"></span></span>
+                            <span>Heure: <span id="previewTime"></span></span>
+                        </div>
+                        <div>Vendeur: <span id="previewVendeur">{{ current_user.prenom }} {{ current_user.nom }}</span></div>
+                        <div>Client: <span id="previewClient"></span></div>
+                    </div>
+                    <table class="receipt-table small">
+                        <thead>
+                            <tr>
+                                <th>Désignation</th>
+                                <th class="text-end">Qté</th>
+                                <th class="text-end">P.U (TTC)</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewLines">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                    <div class="receipt-totals small">
+                        <div class="d-flex justify-content-between fw-bold h5 mt-2">
+                            <span>NET À PAYER (TTC)</span>
+                            <span id="previewTotalTtc">0.00</span>
+                        </div>
+                    </div>
+                    <hr style="border-top: 1px dashed #000;">
+                    <div class="receipt-payment small">
+                        <div class="d-flex justify-content-between">
+                            <span>Mode de paiement:</span>
+                            <span id="previewModePaiement"></span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Montant reçu:</span>
+                            <span id="previewMontantRecu">0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Monnaie rendue:</span>
+                            <span id="previewMonnaieRendue">0.00</span>
+                        </div>
+                    </div>
+                    <div class="receipt-footer">
+                        <p class="mb-1">Merci de votre confiance !</p>
+                        <p>Logiciel ReflexPharma</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex flex-column align-items-stretch">
+                <div class="mb-3">
+                    <label for="modalValidationPassword" class="form-label small fw-bold">Confirmer avec votre mot de passe pour enregistrer</label>
+                    <input type="password" id="modalValidationPassword" class="form-control" placeholder="Entrez votre mot de passe" autocomplete="current-password">
+                    <div id="modalPasswordError" class="invalid-feedback">Mot de passe incorrect.</div>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Modifier la vente</button>
+                    <button type="button" class="btn btn-primary" id="confirmAndPrintBtn">
+                        <i class="fas fa-print me-1"></i> Imprimer et Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="productInfoModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -422,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const clientSearchInput = document.getElementById('clientSearchInput');
     const clientResults = document.getElementById('clientResults');
     const moneyFormatter = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    document.querySelectorAll('[aria-hidden="true"] input, [aria-hidden="true"] button').forEach((element) => {
+    document.querySelectorAll('[aria-hidden="true"]:not(.modal) input, [aria-hidden="true"]:not(.modal) button').forEach((element) => {
         element.disabled = true;
     });
 
@@ -432,6 +616,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function toNumber(value) {
+        if (typeof value === 'string') {
+            value = value.replace(/[\s\u00A0\u202F]/g, '').replace(',', '.');
+        }
         const parsed = parseFloat(value);
         return Number.isFinite(parsed) ? parsed : 0;
     }
@@ -867,6 +1054,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function showReceiptPreview() {
+        const now = new Date();
+        document.getElementById('previewDate').textContent = now.toLocaleDateString('fr-FR');
+        document.getElementById('previewTime').textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+        document.getElementById('previewClient').textContent = selectedClient.value ? (selectedClient.dataset.clientName || selectedClient.textContent) : 'Client comptoir';
+
+        const linesBody = document.getElementById('previewLines');
+        linesBody.innerHTML = '';
+
+        document.querySelectorAll('.sale-line').forEach((line) => {
+            const productSelect = line.querySelector('select[name="produit_id[]"]');
+            const unitSelect = line.querySelector('select[name="unite[]"]');
+            const quantityInput = line.querySelector('input[name="quantite[]"]');
+            const option = productSelect.options[productSelect.selectedIndex];
+
+            if (!option || !option.value) return;
+
+            const name = option.textContent.split(' - ')[0];
+            const qty = toNumber(quantityInput.value);
+            const unitLabel = unitSelect.value === 'sous_unite' ? 'SU' : unitSelect.value === 'sous_sous_unite' ? 'SSU' : 'U';
+            const price = getSelectedPrice(option, unitSelect.value, 'Ttc');
+            const total = price * qty;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHtml(name)} (${unitLabel})</td>
+                <td class="text-end">${formatMoney(qty)}</td>
+                <td class="text-end">${formatMoney(price)}</td>
+                <td class="text-end">${formatMoney(total)}</td>
+            `;
+            linesBody.appendChild(tr);
+        });
+
+        document.getElementById('previewTotalTtc').textContent = fieldById('paymentTotalTtc').textContent;
+        document.getElementById('previewModePaiement').textContent = venteForm.querySelector('select[name="mode_paiement"]').value.replace('_', ' ');
+        
+        // Recalculate directly from inputs for maximum reliability
+        const amountExternal = toNumber(fieldById('amountExternal').value);
+        const amountReceived = toNumber(fieldById('amountReceived').value);
+        const changeDue = Math.max(amountReceived - amountExternal, 0);
+        
+        document.getElementById('previewMontantRecu').textContent = formatMoney(amountReceived);
+        document.getElementById('previewMonnaieRendue').textContent = formatMoney(changeDue);
+
+        // Reset password field
+        const pwdInput = document.getElementById('modalValidationPassword');
+        pwdInput.value = '';
+        pwdInput.classList.remove('is-invalid');
+
+        const modalElement = document.getElementById('receiptPreviewModal');
+        
+        // Ensure buttons are enabled (fixing the non-clickable issue)
+        modalElement.querySelectorAll('button, input').forEach(el => el.disabled = false);
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+        modal.show();
+    }
+
+    document.getElementById('confirmAndPrintBtn').addEventListener('click', function() {
+        const passwordInput = document.getElementById('modalValidationPassword');
+        const passwordError = document.getElementById('modalPasswordError');
+        
+        if (!passwordInput.value) {
+            passwordInput.classList.add('is-invalid');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('validation_password', passwordInput.value);
+
+        fetch('{{ url_for("admin.validate_vente_password") }}', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                window.print();
+                const modalElement = document.getElementById('receiptPreviewModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) modal.hide();
+                
+                setTimeout(() => {
+                    // Create a hidden input for the password to include it in the final submission
+                    const hiddenPwd = document.createElement('input');
+                    hiddenPwd.type = 'hidden';
+                    hiddenPwd.name = 'validation_password';
+                    hiddenPwd.value = passwordInput.value;
+                    venteForm.appendChild(hiddenPwd);
+
+                    venteForm.dataset.passwordChecked = '1';
+                    venteForm.submit();
+                }, 500);
+            } else {
+                passwordInput.classList.add('is-invalid');
+            }
+        })
+        .catch(error => {
+            console.error('Error validating password:', error);
+            passwordInput.classList.add('is-invalid');
+        });
+    });
+
     function selectClientFromTree(optionValue) {
         if (!optionValue) {
             clientSelect.selectedIndex = 0;
@@ -996,29 +1289,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fieldById('amountRemaining').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
-        const passwordInput = document.getElementById('validationPassword');
-        const formData = new FormData();
-        formData.append('validation_password', passwordInput.value || '');
-        fetch('{{ url_for("admin.validate_vente_password") }}', {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin'
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (!data.valid) {
-                    passwordInput.classList.add('is-invalid');
-                    passwordInput.focus();
-                    return;
-                }
-                passwordInput.classList.remove('is-invalid');
-                venteForm.dataset.passwordChecked = '1';
-                venteForm.submit();
-            })
-            .catch(() => {
-                passwordInput.classList.add('is-invalid');
-                passwordInput.focus();
-            });
+        showReceiptPreview();
     });
     filterSelectOptions(clientSelect, '');
     document.querySelectorAll('.product-select').forEach((select) => filterSelectOptions(select, '', true));

@@ -18,6 +18,7 @@ from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
+from models.setting import Setting
 from extensions import db
 from functools import wraps
 from datetime import datetime
@@ -1884,7 +1885,8 @@ def create_vente():
         stock_totals=stock_totals,
         stock_tracking_codes=stock_tracking_codes,
         stock_expiry_dates=stock_expiry_dates,
-        suggested_numero=generate_numero_vente()
+        suggested_numero=generate_numero_vente(),
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     )
 
 @admin.route('/ventes/validate-password', methods=['POST'])
@@ -4122,3 +4124,21 @@ def export_produits_pdf():
     doc.build(elements)
     output.seek(0)
     return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf', as_attachment=True)
+
+# --- GESTION DES PARAMÈTRES ---
+@admin.route('/settings', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_parametres')
+def app_settings():
+    if request.method == 'POST':
+        pharmacy_name = request.form.get('pharmacy_name')
+        if pharmacy_name:
+            Setting.set_value('pharmacy_name', pharmacy_name)
+            flash('Paramètres mis à jour avec succès.', 'success')
+        return redirect(url_for('admin.app_settings'))
+    
+    settings = {
+        'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    }
+    return render_template('admin/settings.html', settings=settings)
+

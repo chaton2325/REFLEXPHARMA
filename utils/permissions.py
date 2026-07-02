@@ -16,7 +16,8 @@ FEATURES = {
     'gestion_groupes_clients': 'GÃ©rer les groupes clients',
     'historique_clients': 'Voir l historique des clients',
     'gestion_ventes': 'Gerer les ventes',
-    'stats_ventes': 'Voir les statistiques des ventes'
+    'stats_ventes': 'Voir les statistiques des ventes',
+    'gestion_parametres': 'Gérer les paramètres de l\'application'
 }
 
 def get_feature_label(feature):

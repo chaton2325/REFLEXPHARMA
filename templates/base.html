@@ -111,6 +111,10 @@
                             {% if current_user.has_permission('gestion_postes') %}
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_postes') }}">Postes</a></li>
                             {% endif %}
+                            {% if current_user.has_permission('gestion_parametres') %}
+                            <li class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.app_settings') }}"><i class="fas fa-cog me-2 text-primary"></i>Paramètres App</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     {% endif %}

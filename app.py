@@ -22,12 +22,17 @@ from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
+from models.setting import Setting
 
 from config import config
 
 def ensure_database_schema(app):
     with app.app_context():
         db.create_all()
+
+        # Initialize default settings if they don't exist
+        if not Setting.query.filter_by(key='pharmacy_name').first():
+            Setting.set_value('pharmacy_name', 'REFLEXPHARMA', 'Nom de la pharmacie affiché sur les tickets')
 
         columns_to_check = {
             'ventes': [
