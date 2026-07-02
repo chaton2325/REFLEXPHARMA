@@ -3,18 +3,16 @@
 {% block title %}Statistiques ventes - ReflexPharma{% endblock %}
 
 {% block content %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
     .stat-bar-track { height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-    .stat-bar-fill { height: 100%; background: #198754; }
+    .stat-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+    .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    .trend-up { color: #10b981; }
+    .trend-down { color: #ef4444; }
     .stat-row { border-bottom: 1px solid var(--bs-border-color); padding: .55rem 0; }
-    .chart-box { width: 100%; height: 260px; }
-    .chart-axis { stroke: #d1d5db; stroke-width: 1; }
-    .chart-line { fill: none; stroke: #0d6efd; stroke-width: 2.5; }
-    .chart-point { fill: #0d6efd; }
-    .chart-bar { fill: #198754; }
-    .chart-bar-alt { fill: #0dcaf0; }
-    .chart-label { fill: #6b7280; font-size: 10px; }
-    .chart-value { fill: #111827; font-size: 10px; font-weight: 700; }
 </style>
 
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
@@ -26,41 +24,62 @@
                 <li class="breadcrumb-item active">Statistiques</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1">Statistiques ventes</h1>
-        <p class="text-muted mb-0">Analyse des ventes selon les filtres appliqués.</p>
+        <h1 class="h3 mb-0">Analyse des Ventes</h1>
+        <p class="text-muted mb-0">Rapports détaillés, tendances et prévisions du chiffre d'affaires.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('admin.export_ventes_stats_excel', **export_query) }}" class="btn btn-outline-success">
-            <i class="fas fa-file-excel me-1"></i> Excel
-        </a>
-        <a href="{{ url_for('admin.export_ventes_stats_pdf', **export_query) }}" class="btn btn-outline-danger">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </a>
-        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-1"></i> Retour
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-1"></i> Exporter
+            </button>
+            <ul class="dropdown-menu shadow border-0">
+                <li><a class="dropdown-item" href="{{ url_for('admin.export_ventes_stats_excel', **export_query) }}"><i class="fas fa-file-excel me-2 text-success"></i>Format Excel</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('admin.export_ventes_stats_pdf', **export_query) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>Format PDF</a></li>
+            </ul>
+        </div>
+        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-primary">
+            <i class="fas fa-list me-1"></i> Liste des ventes
         </a>
     </div>
 </div>
 
-<form method="GET" class="card mb-3">
+<!-- Filters -->
+<form method="GET" class="card mb-4 bg-light shadow-none border">
     <div class="card-body">
-        <div class="row g-2 align-items-end">
+        <div class="row g-3 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">Recherche</label>
-                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
+                <label class="form-label small fw-bold">Recherche libre</label>
+                <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numéro, notes...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Période</label>
+                <div class="input-group input-group-sm">
+                    <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+                    <span class="input-group-text">au</span>
+                    <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+                </div>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Statut</label>
-                <select name="statut" class="form-select">
-                    <option value="">Tous</option>
-                    <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
-                    <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
-                    <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
+                <label class="form-label small fw-bold">Client</label>
+                <select name="client_id" class="form-select form-select-sm">
+                    <option value="">Tous les clients</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}" {% if request.args.get('client_id')|int == c.id %}selected{% endif %}>{{ c.nom_complet }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Paiement</label>
-                <select name="mode_paiement" class="form-select">
+                <label class="form-label small fw-bold">Auteur</label>
+                <select name="auteur_id" class="form-select form-select-sm">
+                    <option value="">Tous les auteurs</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.args.get('auteur_id')|int == u.id %}selected{% endif %}>{{ u.prenom }} {{ u.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Mode Paiement</label>
+                <select name="mode_paiement" class="form-select form-select-sm">
                     <option value="">Tous</option>
                     <option value="especes" {% if request.args.get('mode_paiement') == 'especes' %}selected{% endif %}>Especes</option>
                     <option value="mobile_money" {% if request.args.get('mode_paiement') == 'mobile_money' %}selected{% endif %}>Mobile money</option>
@@ -69,178 +88,368 @@
                     <option value="mixte" {% if request.args.get('mode_paiement') == 'mixte' %}selected{% endif %}>Mixte</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Date debut</label>
-                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Date fin</label>
-                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
-            </div>
             <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-fill">
-                    <i class="fas fa-filter me-1"></i> Filtrer
+                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                    <i class="fas fa-filter me-1"></i> Appliquer les filtres
                 </button>
-                <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
+                <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-rotate-left me-1"></i> Réinitialiser
                 </a>
             </div>
         </div>
     </div>
 </form>
 
-<div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Ventes</div><div class="h4 mb-0">{{ stats.totals.count }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total TTC</div><div class="h4 mb-0 text-success">{{ "%.2f"|format(stats.totals.ttc) }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Panier moyen</div><div class="h4 mb-0">{{ "%.2f"|format(stats.totals.panier_moyen) }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Employé du mois</div><div class="h5 mb-0">{{ stats.employee_of_month.label if stats.employee_of_month else '-' }}</div><div class="small text-muted">{{ stats.employee_of_month_period or '-' }}</div></div></div></div>
-</div>
-
-<div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">HT</div><div class="h5 mb-0">{{ "%.2f"|format(stats.totals.ht) }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">TVA</div><div class="h5 mb-0">{{ "%.2f"|format(stats.totals.tva) }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Solde client</div><div class="h5 mb-0">{{ "%.2f"|format(stats.totals.solde_client) }}</div></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Solde groupe</div><div class="h5 mb-0">{{ "%.2f"|format(stats.totals.solde_groupe) }}</div></div></div></div>
-</div>
-
-<div class="row g-3 mb-3">
-    <div class="col-lg-8">
-        <div class="card h-100">
-            <div class="card-header bg-white fw-bold">Courbe des ventes TTC</div>
-            <div class="card-body">
-                {% set line_rows = stats.daily[-14:] %}
-                {% set max_ttc = (line_rows|max(attribute='ttc')).ttc if line_rows else 0 %}
-                <svg class="chart-box" viewBox="0 0 700 260" role="img" aria-label="Courbe des ventes TTC">
-                    <line x1="45" y1="210" x2="670" y2="210" class="chart-axis" />
-                    <line x1="45" y1="25" x2="45" y2="210" class="chart-axis" />
-                    {% if line_rows %}
-                    {% set step = 625 / ((line_rows|length - 1) if line_rows|length > 1 else 1) %}
-                    {% for row in line_rows %}
-                        {% set x = 45 + (loop.index0 * step) %}
-                        {% set y = 210 - ((row.ttc / max_ttc * 170) if max_ttc else 0) %}
-                        {% if not loop.first %}
-                            {% set prev = line_rows[loop.index0 - 1] %}
-                            {% set px = 45 + ((loop.index0 - 1) * step) %}
-                            {% set py = 210 - ((prev.ttc / max_ttc * 170) if max_ttc else 0) %}
-                            <line x1="{{ px }}" y1="{{ py }}" x2="{{ x }}" y2="{{ y }}" class="chart-line" />
-                        {% endif %}
-                        <circle cx="{{ x }}" cy="{{ y }}" r="4" class="chart-point" />
-                        <text x="{{ x }}" y="232" text-anchor="middle" class="chart-label">{{ row.label[5:] }}</text>
-                    {% endfor %}
-                    {% else %}
-                    <text x="350" y="130" text-anchor="middle" class="chart-label">Aucune donnée</text>
-                    {% endif %}
-                </svg>
+<!-- Key Metrics -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100 p-3">
+            <div class="text-muted small text-uppercase fw-bold mb-1">Chiffre d'Affaires (TTC)</div>
+            <div class="h3 mb-0 text-success">{{ "{:,.2f}".format(stats.totals.ttc).replace(',', ' ').replace('.', ',') }}</div>
+            <div class="small mt-2">
+                <span class="text-muted">HT: {{ "{:,.2f}".format(stats.totals.ht).replace(',', ' ').replace('.', ',') }}</span>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
-        <div class="card h-100">
-            <div class="card-header bg-white fw-bold">Répartition paiement</div>
-            <div class="card-body">
-                {% set pay_total = stats.totals.hors_solde + stats.totals.solde_client + stats.totals.solde_groupe %}
-                {% set rows = [
-                    ('Hors solde', stats.totals.hors_solde, '#198754'),
-                    ('Solde client', stats.totals.solde_client, '#0d6efd'),
-                    ('Solde groupe', stats.totals.solde_groupe, '#ffc107')
-                ] %}
-                {% for label, value, color in rows %}
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between small"><span>{{ label }}</span><strong>{{ "%.2f"|format(value) }}</strong></div>
-                    <div class="stat-bar-track"><div style="height:100%; width: {{ (value / pay_total * 100) if pay_total else 0 }}%; background: {{ color }}"></div></div>
+    <div class="col-md-3">
+        <div class="card h-100 p-3">
+            <div class="text-muted small text-uppercase fw-bold mb-1">Volume de Ventes</div>
+            <div class="h3 mb-0">{{ stats.totals.count }}</div>
+            <div class="small mt-2">
+                <span class="text-muted">Panier moyen: {{ "{:,.2f}".format(stats.totals.panier_moyen).replace(',', ' ').replace('.', ',') }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 p-3">
+            <div class="text-muted small text-uppercase fw-bold mb-1">Recouvrement Solde</div>
+            <div class="h3 mb-0 text-primary">{{ "{:,.2f}".format(stats.totals.solde_client + stats.totals.solde_groupe).replace(',', ' ').replace('.', ',') }}</div>
+            <div class="small mt-2">
+                <span class="text-muted">Part Client: {{ "{:,.2f}".format(stats.totals.solde_client).replace(',', ' ').replace('.', ',') }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 p-3">
+            <div class="text-muted small text-uppercase fw-bold mb-1">Employé du mois</div>
+            <div class="h3 mb-0">{{ stats.employee_of_month.label if stats.employee_of_month else '-' }}</div>
+            <div class="small mt-2">
+                <span class="text-muted">{{ stats.employee_of_month_period or '-' }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Regression Chart -->
+<div class="card mb-4">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution et Prédiction du CA</h5>
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small fw-bold text-muted mb-0">Apprentissage :</label>
+                    <select id="trainingPeriod" class="form-select form-select-sm" style="width: auto;">
+                        <option value="4">Derniers 4 jours</option>
+                        <option value="7">Dernière semaine</option>
+                        <option value="30" selected>Dernier mois</option>
+                        <option value="90">Derniers 3 mois</option>
+                        <option value="180">Derniers 6 mois</option>
+                        <option value="365">Dernière année</option>
+                        <option value="0">Toute la période</option>
+                    </select>
                 </div>
-                {% endfor %}
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small fw-bold text-muted mb-0">Horizon :</label>
+                    <select id="predictionHorizon" class="form-select form-select-sm" style="width: auto;">
+                        <option value="4" selected>Prochains 4 jours</option>
+                        <option value="7">Une semaine</option>
+                        <option value="30">Un mois</option>
+                        <option value="90">3 mois</option>
+                        <option value="180">6 mois</option>
+                        <option value="365">12 mois</option>
+                    </select>
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="toggleRegression" checked>
+                    <label class="form-check-label small fw-bold" for="toggleRegression">Ligne de régression</label>
+                </div>
             </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="chartContainer" style="height: 400px;">
+            <canvas id="regressionChart"></canvas>
+        </div>
+        <div id="regressionError" class="alert alert-warning d-none">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Il faut au moins <strong>4 jours de ventes</strong> sur la période d'apprentissage pour afficher la ligne de régression.
+        </div>
+        <div class="mt-3 p-3 bg-light rounded border border-info border-start-4" id="predictionResult">
+            <!-- Prediction text will be injected here -->
         </div>
     </div>
 </div>
 
-<div class="row g-3 mb-3">
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header bg-white fw-bold">Top employés</div>
-            <div class="card-body">
-                {% set top = stats.employees[:8] %}
-                {% set max_value = top[0].ttc if top else 0 %}
-                <svg class="chart-box" viewBox="0 0 600 260" role="img" aria-label="Top employés">
-                    {% for row in top %}
-                    {% set y = 20 + loop.index0 * 28 %}
-                    {% set w = (row.ttc / max_value * 360) if max_value else 0 %}
-                    <text x="5" y="{{ y + 16 }}" class="chart-label">{{ row.label[:20] }}</text>
-                    <rect x="160" y="{{ y }}" width="{{ w }}" height="18" class="chart-bar" rx="3"></rect>
-                    <text x="{{ 170 + w }}" y="{{ y + 14 }}" class="chart-value">{{ "%.0f"|format(row.ttc) }}</text>
-                    {% endfor %}
-                </svg>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header bg-white fw-bold">Top produits</div>
-            <div class="card-body">
-                {% set top = stats.products[:8] %}
-                {% set max_value = top[0].ttc if top else 0 %}
-                <svg class="chart-box" viewBox="0 0 600 260" role="img" aria-label="Top produits">
-                    {% for row in top %}
-                    {% set y = 20 + loop.index0 * 28 %}
-                    {% set w = (row.ttc / max_value * 360) if max_value else 0 %}
-                    <text x="5" y="{{ y + 16 }}" class="chart-label">{{ row.label[:20] }}</text>
-                    <rect x="160" y="{{ y }}" width="{{ w }}" height="18" class="chart-bar-alt" rx="3"></rect>
-                    <text x="{{ 170 + w }}" y="{{ y + 14 }}" class="chart-value">{{ "%.0f"|format(row.ttc) }}</text>
-                    {% endfor %}
-                </svg>
-            </div>
-        </div>
-    </div>
-</div>
-
-{% macro ranking(title, rows, quantity=False) %}
+{% macro ranking_card(title, rows, color='primary', quantity=False) %}
 <div class="card h-100">
-    <div class="card-header bg-white fw-bold">{{ title }}</div>
+    <div class="card-header bg-white py-3">
+        <h5 class="card-title mb-0">{{ title }}</h5>
+    </div>
     <div class="card-body">
         {% set max_value = rows[0].ttc if rows else 0 %}
         {% for row in rows[:10] %}
         <div class="stat-row">
-            <div class="d-flex justify-content-between gap-2">
-                <div class="fw-bold text-truncate">{{ row.label }}</div>
-                <div>{{ "%.2f"|format(row.ttc) }}</div>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small fw-bold text-truncate" style="max-width: 70%;">{{ row.label }}</span>
+                <span class="small text-muted">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</span>
             </div>
-            <div class="small text-muted">{{ row.count }} vente(s){% if quantity %} | Qté {{ "%.2f"|format(row.quantity) }}{% endif %}</div>
-            <div class="stat-bar-track mt-1"><div class="stat-bar-fill" style="width: {{ (row.ttc / max_value * 100) if max_value else 0 }}%"></div></div>
+            <div class="stat-bar-track">
+                {% set pct = (row.ttc / max_value * 100) if max_value else 0 %}
+                <div class="stat-bar-fill bg-{{ color }}" style="width: {{ pct }}%"></div>
+            </div>
+            <div class="small text-muted mt-1" style="font-size: 0.7rem;">
+                {{ row.count }} vente(s) {% if quantity %}| Qté: {{ "{:,.2g}".format(row.quantity) }}{% endif %}
+            </div>
         </div>
         {% else %}
-        <div class="text-muted">Aucune donnée.</div>
+        <div class="text-center text-muted py-3">Aucune donnée.</div>
         {% endfor %}
     </div>
 </div>
 {% endmacro %}
 
-<div class="row g-3 mb-3">
-    <div class="col-lg-6">{{ ranking('Qui a le plus vendu', stats.employees) }}</div>
-    <div class="col-lg-6">{{ ranking('Top produits', stats.products, True) }}</div>
-</div>
-<div class="row g-3 mb-3">
-    <div class="col-lg-6">{{ ranking('Top clients', stats.clients) }}</div>
-    <div class="col-lg-6">{{ ranking('Modes de paiement', stats.modes) }}</div>
-</div>
-<div class="row g-3 mb-3">
-    <div class="col-lg-6">{{ ranking('Top fournisseurs', stats.suppliers, True) }}</div>
-    <div class="col-lg-6">{{ ranking('Top familles', stats.families, True) }}</div>
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">{{ ranking_card('Top Employés (CA)', stats.employees, 'primary') }}</div>
+    <div class="col-lg-6">{{ ranking_card('Top Produits (CA)', stats.products, 'success', True) }}</div>
 </div>
 
-<div class="card mb-3">
-    <div class="card-header bg-white fw-bold">Evolution par jour</div>
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">{{ ranking_card('Top Clients (CA)', stats.clients, 'info') }}</div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0">Répartition des Paiements</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th class="text-end">Ventes</th>
+                                <th class="text-end">TTC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in stats.modes %}
+                            <tr>
+                                <td class="text-capitalize">{{ row.label.replace('_', ' ') }}</td>
+                                <td class="text-end">{{ row.count }}</td>
+                                <td class="text-end fw-bold text-success">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">{{ ranking_card('Top Fournisseurs', stats.suppliers, 'warning', True) }}</div>
+    <div class="col-lg-6">{{ ranking_card('Top Familles Produits', stats.families, 'danger', True) }}</div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-white py-3">
+        <h5 class="card-title mb-0">Historique Quotidien (30 derniers jours)</h5>
+    </div>
     <div class="table-responsive">
-        <table class="table table-sm mb-0">
-            <thead><tr><th>Date</th><th>Ventes</th><th class="text-end">HT</th><th class="text-end">TVA</th><th class="text-end">TTC</th></tr></thead>
+        <table class="table table-sm table-hover mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th>Date</th>
+                    <th class="text-center">Ventes</th>
+                    <th class="text-end">HT</th>
+                    <th class="text-end">TVA</th>
+                    <th class="text-end">TTC</th>
+                </tr>
+            </thead>
             <tbody>
-                {% for row in stats.daily[-30:] %}
-                <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td class="text-end">{{ "%.2f"|format(row.ht) }}</td><td class="text-end">{{ "%.2f"|format(row.tva) }}</td><td class="text-end fw-bold">{{ "%.2f"|format(row.ttc) }}</td></tr>
-                {% else %}
-                <tr><td colspan="5" class="text-center text-muted py-3">Aucune donnée.</td></tr>
+                {% for row in stats.daily[-30:]|reverse %}
+                <tr>
+                    <td>{{ row.label }}</td>
+                    <td class="text-center">{{ row.count }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end fw-bold">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fullDailyData = {{ stats.daily|tojson }};
+        let regressionChart = null;
+
+        function updateChart() {
+            const trainingDays = parseInt(document.getElementById('trainingPeriod').value);
+            const predictionDays = parseInt(document.getElementById('predictionHorizon').value);
+            
+            // Filter training data
+            let trainingData = [...fullDailyData];
+            if (trainingDays > 0) {
+                trainingData = trainingData.slice(-trainingDays);
+            }
+
+            const errorEl = document.getElementById('regressionError');
+            const chartEl = document.getElementById('chartContainer');
+            const predictionEl = document.getElementById('predictionResult');
+
+            if (trainingData.length < 4) {
+                errorEl.classList.remove('d-none');
+                chartEl.classList.add('d-none');
+                predictionEl.classList.add('d-none');
+                return;
+            } else {
+                errorEl.classList.add('d-none');
+                chartEl.classList.remove('d-none');
+                predictionEl.classList.remove('d-none');
+            }
+
+            const labels = trainingData.map(d => d.label);
+            const ttcValues = trainingData.map(d => d.ttc);
+
+            // Linear Regression calculation
+            function calculateRegression(x, y) {
+                const n = x.length;
+                let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+                for (let i = 0; i < n; i++) {
+                    sumX += x[i];
+                    sumY += y[i];
+                    sumXY += x[i] * y[i];
+                    sumX2 += x[i] * x[i];
+                }
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+                return { slope, intercept };
+            }
+
+            const xIndexes = Array.from({ length: labels.length }, (_, i) => i);
+            const { slope, intercept } = calculateRegression(xIndexes, ttcValues);
+
+            // Create future labels and regression points
+            const extendedLabels = [...labels];
+            const regressionValues = xIndexes.map(x => slope * x + intercept);
+            
+            const lastDateStr = labels[labels.length - 1];
+            const lastDate = new Date(lastDateStr);
+
+            for (let i = 1; i <= predictionDays; i++) {
+                const nextDate = new Date(lastDate);
+                nextDate.setDate(nextDate.getDate() + i);
+                extendedLabels.push(nextDate.toISOString().split('T')[0]);
+                regressionValues.push(slope * (labels.length - 1 + i) + intercept);
+            }
+
+            const ctx = document.getElementById('regressionChart').getContext('2d');
+            
+            if (regressionChart) {
+                regressionChart.destroy();
+            }
+
+            regressionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: extendedLabels,
+                    datasets: [
+                        {
+                            label: 'CA Quotidien (TTC)',
+                            data: [...ttcValues, ...Array(predictionDays).fill(null)],
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.05)',
+                            borderWidth: 2.5,
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#0d6efd'
+                        },
+                        {
+                            label: 'Ligne de Régression (Prédiction)',
+                            data: regressionValues.map(v => Math.max(v, 0)),
+                            borderColor: '#ffc107',
+                            borderDash: [6, 4],
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0,
+                            hidden: !document.getElementById('toggleRegression').checked
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6 } }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return value.toLocaleString('fr-FR') + ' €'; }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Summary text
+            const targetDate = new Date(lastDate);
+            targetDate.setDate(lastDate.getDate() + predictionDays);
+            const dateStr = targetDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const predictedValue = Math.max(slope * (labels.length - 1 + predictionDays) + intercept, 0);
+            
+            const trend = slope > 0 ? 'favorable (croissante)' : 'défavorable (décroissante)';
+            const trendClass = slope > 0 ? 'text-success' : 'text-danger';
+            const trendIcon = slope > 0 ? '<i class="fas fa-arrow-trend-up ms-1"></i>' : '<i class="fas fa-arrow-trend-down ms-1"></i>';
+            
+            predictionEl.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <div class="bg-info bg-opacity-10 p-3 rounded-circle">
+                            <i class="fas fa-robot text-info fa-lg"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h6 class="mb-1 fw-bold">Analyse Prédictive Avancée</h6>
+                        <p class="mb-0 small text-muted">
+                            Basé sur l'apprentissage des <strong>${trainingData.length} derniers jours</strong>, 
+                            la tendance est <strong class="${trendClass}">${trend}${trendIcon}</strong>.
+                        </p>
+                        <div class="mt-2">
+                            Chiffre d'affaires estimé pour le <strong>${dateStr}</strong> : 
+                            <span class="h5 mb-0 ms-2 fw-bold text-primary">${predictedValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        document.getElementById('trainingPeriod').addEventListener('change', updateChart);
+        document.getElementById('predictionHorizon').addEventListener('change', updateChart);
+        document.getElementById('toggleRegression').addEventListener('change', function(e) {
+            if (regressionChart) {
+                regressionChart.setDatasetVisibility(1, e.target.checked);
+                regressionChart.update();
+            }
+        });
+
+        updateChart();
+    });
+</script>
 {% endblock %}

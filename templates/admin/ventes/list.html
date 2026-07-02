@@ -15,6 +15,9 @@
         <p class="text-muted mb-0">Premiere base du module vente : enregistrement, totaux et suivi des ventes.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-outline-primary">
+            <i class="fas fa-list me-1"></i> Voir toutes les ventes
+        </a>
         {% if current_user.has_permission('stats_ventes') %}
         <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-outline-info">
             <i class="fas fa-chart-line me-1"></i> Statistiques
@@ -26,16 +29,16 @@
     </div>
 </div>
 
-<form method="GET" class="card mb-3">
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
+<form method="GET" class="card mb-3 shadow-sm border-0">
+    <div class="card-body bg-light rounded">
+        <div class="row g-3 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">Recherche</label>
-                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
+                <label class="form-label small fw-bold">Recherche</label>
+                <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Statut</label>
-                <select name="statut" class="form-select">
+                <label class="form-label small fw-bold">Statut</label>
+                <select name="statut" class="form-select form-select-sm">
                     <option value="">Tous</option>
                     <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
                     <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
@@ -43,8 +46,8 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Paiement</label>
-                <select name="mode_paiement" class="form-select">
+                <label class="form-label small fw-bold">Paiement</label>
+                <select name="mode_paiement" class="form-select form-select-sm">
                     <option value="">Tous</option>
                     <option value="especes" {% if request.args.get('mode_paiement') == 'especes' %}selected{% endif %}>Especes</option>
                     <option value="mobile_money" {% if request.args.get('mode_paiement') == 'mobile_money' %}selected{% endif %}>Mobile money</option>
@@ -54,16 +57,42 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Date debut</label>
-                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+                <label class="form-label small fw-bold">Client</label>
+                <select name="client_id" class="form-select form-select-sm">
+                    <option value="">Tous les clients</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}" {% if request.args.get('client_id')|int == c.id %}selected{% endif %}>{{ c.nom_complet }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Date fin</label>
-                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+                <label class="form-label small fw-bold">Auteur</label>
+                <select name="auteur_id" class="form-select form-select-sm">
+                    <option value="">Tous les auteurs</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.args.get('auteur_id')|int == u.id %}selected{% endif %}>{{ u.prenom }} {{ u.nom }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Trier par</label>
-                <select name="sort" class="form-select">
+                <label class="form-label small fw-bold">Date debut</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Date fin</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Montant Min (TTC)</label>
+                <input type="number" name="min_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('min_ttc', '') }}" placeholder="Min">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Montant Max (TTC)</label>
+                <input type="number" name="max_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('max_ttc', '') }}" placeholder="Max">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Trier par</label>
+                <select name="sort" class="form-select form-select-sm">
                     {% set selected_sort = request.args.get('sort', 'created_at') %}
                     <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Date</option>
                     <option value="numero_vente" {% if selected_sort == 'numero_vente' %}selected{% endif %}>Numero</option>
@@ -75,19 +104,23 @@
                     <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Ordre</label>
-                <select name="direction" class="form-select">
-                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
-                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
+            <div class="col-md-1">
+                <label class="form-label small fw-bold">Ordre</label>
+                <select name="direction" class="form-select form-select-sm">
+                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Desc</option>
+                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Asc</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-fill">
+            <div class="col-md-1">
+                <label class="form-label small fw-bold">Page</label>
+                <input type="number" name="per_page" class="form-control form-control-sm" value="{{ per_page }}" min="1" max="1000">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill">
                     <i class="fas fa-filter me-1"></i> Filtrer
                 </button>
-                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
+                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-rotate-left"></i>
                 </a>
             </div>
         </div>
@@ -99,29 +132,29 @@
         <div class="card h-100">
             <div class="card-body">
                 <div class="text-muted small">Ventes affichees</div>
-                <div class="h4 mb-0">{{ ventes|length }}</div>
+                <div class="h4 mb-0">{{ total_count }} (page {{ page }}/{{ total_pages }})</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <div class="text-muted small">Total TVA</div>
-                <div class="h4 mb-0">{{ "%.2f"|format(ventes|sum(attribute='total_tva')) }}</div>
+                <div class="text-muted small">Total TVA (liste complete)</div>
+                <div class="h4 mb-0">{{ "%.2f"|format(all_ventes|sum(attribute='total_tva')) }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <div class="text-muted small">Total TTC</div>
-                <div class="h4 mb-0 text-success">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div>
+                <div class="text-muted small">Total TTC (liste complete)</div>
+                <div class="h4 mb-0 text-success">{{ "%.2f"|format(all_ventes|sum(attribute='total_ttc')) }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
+<div class="card mb-3">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
@@ -175,4 +208,45 @@
         </table>
     </div>
 </div>
+
+{% if total_pages > 1 %}
+<nav aria-label="Pagination des ventes">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.list_ventes', page=page-1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">Précédent</a>
+        </li>
+        
+        {% set start_page = [1, page - 2]|max %}
+        {% set end_page = [total_pages, page + 2]|min %}
+        
+        {% if start_page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin.list_ventes', page=1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">1</a>
+        </li>
+        {% if start_page > 2 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endif %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.list_ventes', page=p, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        
+        {% if end_page < total_pages %}
+        {% if end_page < total_pages - 1 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin.list_ventes', page=total_pages, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">{{ total_pages }}</a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.list_ventes', page=page+1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">Suivant</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
 {% endblock %}

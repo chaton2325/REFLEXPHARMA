@@ -21,7 +21,7 @@ from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from extensions import db
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 import secrets
 import json
@@ -1240,6 +1240,10 @@ def get_filtered_ventes():
     mode_paiement = (request.args.get('mode_paiement') or '').strip()
     date_from = parse_date_filter((request.args.get('date_from') or '').strip())
     date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    client_id = request.args.get('client_id', type=int)
+    auteur_id = request.args.get('auteur_id', type=int)
+    min_ttc = request.args.get('min_ttc', type=float)
+    max_ttc = request.args.get('max_ttc', type=float)
     sort = (request.args.get('sort') or 'created_at').strip()
     direction = (request.args.get('direction') or 'desc').strip()
 
@@ -1267,6 +1271,14 @@ def get_filtered_ventes():
         ventes = [vente for vente in ventes if vente.created_at and vente.created_at.date() >= date_from]
     if date_to:
         ventes = [vente for vente in ventes if vente.created_at and vente.created_at.date() <= date_to]
+    if client_id:
+        ventes = [vente for vente in ventes if vente.client_id == client_id]
+    if auteur_id:
+        ventes = [vente for vente in ventes if vente.auteur_id == auteur_id]
+    if min_ttc is not None:
+        ventes = [vente for vente in ventes if vente.total_ttc >= min_ttc]
+    if max_ttc is not None:
+        ventes = [vente for vente in ventes if vente.total_ttc <= max_ttc]
 
     sorters = {
         'numero_vente': lambda vente: vente.numero_vente or '',
@@ -1382,6 +1394,20 @@ def build_vente_stats(ventes):
             if vente.created_at and vente.created_at.strftime('%Y-%m') == latest_month:
                 add_stat_bucket(month_employee_buckets, sale_employee_label(vente), vente)
 
+    # Fill gaps in daily stats with zeros
+    if daily_buckets:
+        all_dates = sorted(daily_buckets.keys())
+        first_date = datetime.strptime(all_dates[0], '%Y-%m-%d').date()
+        last_date = datetime.strptime(all_dates[-1], '%Y-%m-%d').date()
+        
+        curr = first_date
+        while curr <= last_date:
+            d_str = curr.strftime('%Y-%m-%d')
+            if d_str not in daily_buckets:
+                daily_buckets[d_str] = base_bucket()
+                daily_buckets[d_str]['label'] = d_str
+            curr += timedelta(days=1)
+
     daily_rows = sorted(daily_buckets.values(), key=lambda row: row['label'])
     monthly_rows = sorted(monthly_buckets.values(), key=lambda row: row['label'])
     employee_rows = sorted_stat_rows(employee_buckets)
@@ -1407,8 +1433,41 @@ def build_vente_stats(ventes):
 @login_required
 @permission_required('gestion_ventes')
 def list_ventes():
+    # Use request.args to get pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 150, type=int)
+    
+    # Get all filtered ventes
+    all_ventes = get_filtered_ventes()
+    total_count = len(all_ventes)
+    
+    # Slice the list for the current page
+    start = (page - 1) * per_page
+    end = start + per_page
+    ventes_paginated = all_ventes[start:end]
+    
+    # Calculate total pages
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    
+    return render_template(
+        'admin/ventes/list.html', 
+        ventes=ventes_paginated,
+        all_ventes=all_ventes, # Keep this for totals in the UI if needed
+        total_count=total_count,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        clients=Client.query.order_by(Client.nom.asc()).all(),
+        users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all()
+    )
+
+@admin.route('/ventes/all')
+@login_required
+@permission_required('gestion_ventes')
+def list_all_ventes():
     ventes = get_filtered_ventes()
-    return render_template('admin/ventes/list.html', ventes=ventes)
+    return render_template('admin/ventes/all.html', ventes=ventes)
+
 
 @admin.route('/ventes/stats')
 @login_required
@@ -1416,7 +1475,14 @@ def list_ventes():
 def ventes_stats():
     ventes = get_filtered_ventes()
     stats = build_vente_stats(ventes)
-    return render_template('admin/ventes/stats.html', ventes=ventes, stats=stats, export_query=request.args.to_dict())
+    return render_template(
+        'admin/ventes/stats.html', 
+        ventes=ventes, 
+        stats=stats, 
+        export_query=request.args.to_dict(),
+        clients=Client.query.order_by(Client.nom.asc()).all(),
+        users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all()
+    )
 
 @admin.route('/ventes/stats/export/excel')
 @login_required
