@@ -2,8 +2,79 @@
 
 {% block title %}Vente {{ vente.numero_vente }} - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  body { background-color: #fdf2f2 !important; }
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+  .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.75) !important; }
+  .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; font-size: 0.85rem; }
+
+  .card-custom { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.6rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+  }
+  .table-custom tbody td {
+    padding: 0.5rem 0.7rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.8rem;
+  }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #fef0f0; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #fefce8; }
+  .cell-sub { font-size: 0.68rem; color: #7a8896; }
+  .rate-badge {
+    display: inline-block;
+    font-size: 0.64rem;
+    font-weight: 600;
+    padding: 0.05em 0.4em;
+    border-radius: 4px;
+    letter-spacing: 0.2px;
+  }
+  .rate-badge-coef { background: #eef3fc; color: #1a5fb4; }
+  .rate-badge-tva { background: #fdf1e0; color: #a5670a; }
+  .amount-benefice { color: #1e8e3e; }
+  .amount-tva { color: #a5670a; }
+
+  .mobile-card {
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #f0f2f5;
+    background: #fef0f0;
+  }
+  .mobile-card:nth-child(even) { background: #fefce8; }
+
+  @media (max-width: 767.98px) {
+    .table-custom .col-detail { display: none !important; }
+  }
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.1rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.15rem; }
+    .card-custom .p-3 { padding: 0.75rem !important; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
     <div>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-1">
@@ -12,17 +83,18 @@
                 <li class="breadcrumb-item active">{{ vente.numero_vente }}</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1">{{ vente.numero_vente }}</h1>
-        <p class="text-muted mb-0">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</p>
+        <h1 class="mb-1"><i class="fas fa-receipt me-2"></i>{{ vente.numero_vente }}</h1>
+        <p class="mb-0">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</p>
     </div>
-    <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#receiptModal">
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#receiptModal">
             <i class="fas fa-receipt me-1"></i> Voir le Ticket
         </button>
-        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">
+        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-light btn-sm">
             <i class="fas fa-arrow-left me-1"></i> Retour
         </a>
     </div>
+  </div>
 </div>
 
 <!-- Receipt Modal -->
@@ -156,52 +228,82 @@
 
 <div class="row g-3 mb-3">
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
+        <div class="card-custom h-100">
+            <div class="p-3">
                 <div class="text-muted small">Client</div>
                 <div class="fw-bold">{{ vente.client_label }}</div>
-                <div class="small text-muted">{{ vente.client_matricule or 'Client comptoir' }}</div>
+                <div class="cell-sub">{{ vente.client_matricule or 'Client comptoir' }}</div>
                 {% if vente.groupe_client_nom %}
-                <div class="small text-muted">Groupe : {{ vente.groupe_client_nom }} / absorption {{ "%.2f"|format(vente.groupe_absorption_pourcentage) }}%</div>
+                <div class="cell-sub">Groupe : {{ vente.groupe_client_nom }} / absorption {{ "%.2f"|format(vente.groupe_absorption_pourcentage) }}%</div>
                 {% endif %}
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
+        <div class="card-custom h-100">
+            <div class="p-3">
                 <div class="text-muted small">Paiement</div>
                 <div class="fw-bold">{{ vente.mode_paiement }}</div>
-                <div class="small text-muted">Statut : {{ vente.statut }}</div>
-                <div class="small text-muted">Reçu : {{ "%.2f"|format(vente.montant_recu) }} / Rendu : {{ "%.2f"|format(vente.monnaie_rendue) }}</div>
-                <div class="small text-muted">Hors solde : {{ "%.2f"|format(vente.montant_hors_solde) }}</div>
-                <div class="small text-muted">Solde client : {{ "%.2f"|format(vente.montant_solde_client) }}</div>
-                <div class="small text-muted">Solde groupe : {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
-                <div class="small text-muted">Après vente client/groupe : {{ "%.2f"|format(vente.solde_client_apres) }} / {{ "%.2f"|format(vente.solde_groupe_apres) }}</div>
+                <div class="cell-sub">Statut : {{ vente.statut }}</div>
+                <div class="cell-sub">Reçu : {{ "%.2f"|format(vente.montant_recu) }} / Rendu : {{ "%.2f"|format(vente.monnaie_rendue) }}</div>
+                <div class="cell-sub">Hors solde : {{ "%.2f"|format(vente.montant_hors_solde) }}</div>
+                <div class="cell-sub">Solde client : {{ "%.2f"|format(vente.montant_solde_client) }}</div>
+                <div class="cell-sub">Solde groupe : {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
+                <div class="cell-sub">Après vente client/groupe : {{ "%.2f"|format(vente.solde_client_apres) }} / {{ "%.2f"|format(vente.solde_groupe_apres) }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
+        <div class="card-custom h-100">
+            <div class="p-3">
                 <div class="text-muted small">Auteur</div>
                 <div class="fw-bold">{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
-                <div class="small text-muted">{{ vente.auteur_email or '-' }}</div>
+                <div class="cell-sub">{{ vente.auteur_email or '-' }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card mb-3">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
+<div class="card-custom mb-3">
+    <!-- Mobile cards: no horizontal scroll -->
+    <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for ligne in vente.lignes %}
+        <div class="mobile-card">
+            <div class="fw-bold" style="font-size:0.85rem;">{{ ligne.produit_nom }}</div>
+            <div class="cell-sub">{{ ligne.produit_code or '-' }} | {{ ligne.unite }} x {{ "%.2f"|format(ligne.quantite) }}</div>
+            <div class="mt-1 d-flex gap-1">
+                <span class="rate-badge rate-badge-coef">x{{ "%.2f"|format(ligne.coefficient_applique) }}</span>
+                <span class="rate-badge rate-badge-tva">TVA {{ "%g"|format(ligne.tva_pourcentage) }}%</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
+                <span>PU HT <strong>{{ "%.2f"|format(ligne.prix_unitaire_ht) }}</strong></span>
+                <span class="amount-benefice">Bénéf <strong>{{ "%.2f"|format(ligne.benefice) }}</strong></span>
+                <span class="amount-tva">TVA <strong>{{ "%.2f"|format(ligne.tva_reelle) }}</strong></span>
+                <span class="fw-bold">TTC <strong>{{ "%.2f"|format(ligne.total_ttc) }}</strong></span>
+            </div>
+        </div>
+        {% endfor %}
+        <div class="mobile-card" style="background:#eef3fc;">
+            <div class="d-flex flex-wrap gap-2" style="font-size:0.78rem;">
+                <span>Total HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
+                <span class="amount-benefice">Bénéfice <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
+                <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
+                <span class="text-success fw-bold">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop table -->
+    <div class="table-responsive d-none d-sm-block">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
                 <tr>
                     <th>Produit</th>
-                    <th>Unite</th>
-                    <th class="text-end">Quantite</th>
+                    <th class="col-detail">Détails</th>
+                    <th>Unité</th>
+                    <th class="text-end">Qté</th>
                     <th class="text-end">PU HT</th>
-                    <th class="text-end">PU TTC</th>
+                    <th class="text-end">Bénéfice</th>
                     <th class="text-end">TVA</th>
                     <th class="text-end">Total TTC</th>
                 </tr>
@@ -211,41 +313,39 @@
                 <tr>
                     <td>
                         <div class="fw-bold">{{ ligne.produit_nom }}</div>
-                        <small class="text-muted">{{ ligne.produit_code or '-' }}</small>
-                        <div class="small text-muted">Fournisseur : {{ ligne.produit_fournisseur or '-' }}</div>
-                        <div class="small text-muted">Péremption : {{ ligne.produit_dates_peremption or '-' }}</div>
-                        <div class="small text-muted">
-                            Rayon : {{ ligne.produit_rayon or '-' }} |
-                            Famille : {{ ligne.produit_famille or '-' }} |
-                            Section : {{ ligne.produit_section or '-' }}
+                        <div class="cell-sub">{{ ligne.produit_code or '-' }} | {{ ligne.produit_fournisseur or '-' }}</div>
+                        <div class="mt-1 d-flex gap-1">
+                            <span class="rate-badge rate-badge-coef" title="Coefficient applique au moment de la vente">x{{ "%.2f"|format(ligne.coefficient_applique) }}</span>
+                            <span class="rate-badge rate-badge-tva" title="TVA effective appliquee">TVA {{ "%g"|format(ligne.tva_pourcentage) }}%</span>
                         </div>
-                        <div class="small text-muted">
-                            Stock avant vente :
-                            U {{ "%.2f"|format(ligne.stock_unite_avant) }},
-                            SU {{ "%.2f"|format(ligne.stock_sous_unite_avant) }},
-                            SSU {{ "%.2f"|format(ligne.stock_sous_sous_unite_avant) }}
-                        </div>
+                    </td>
+                    <td class="cell-sub col-detail">
+                        <div>Péremption : {{ ligne.produit_dates_peremption or '-' }}</div>
+                        <div>Rayon : {{ ligne.produit_rayon or '-' }} | Famille : {{ ligne.produit_famille or '-' }}</div>
+                        <div>Stock avant : U {{ "%.2f"|format(ligne.stock_unite_avant) }}, SU {{ "%.2f"|format(ligne.stock_sous_unite_avant) }}, SSU {{ "%.2f"|format(ligne.stock_sous_sous_unite_avant) }}</div>
                     </td>
                     <td>{{ ligne.unite }}</td>
                     <td class="text-end">{{ "%.2f"|format(ligne.quantite) }}</td>
                     <td class="text-end">{{ "%.2f"|format(ligne.prix_unitaire_ht) }}</td>
-                    <td class="text-end">{{ "%.2f"|format(ligne.prix_unitaire_ttc) }}</td>
-                    <td class="text-end">{{ "%.2f"|format(ligne.total_tva) }}</td>
+                    <td class="text-end amount-benefice">{{ "%.2f"|format(ligne.benefice) }}</td>
+                    <td class="text-end amount-tva">{{ "%.2f"|format(ligne.tva_reelle) }}</td>
                     <td class="text-end fw-bold">{{ "%.2f"|format(ligne.total_ttc) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
-            <tfoot class="bg-light">
+            <tfoot>
                 <tr>
                     <th colspan="4"></th>
                     <th class="text-end">Total HT</th>
-                    <th class="text-end">TVA</th>
+                    <th class="text-end amount-benefice">Bénéfice</th>
+                    <th class="text-end amount-tva">TVA</th>
                     <th class="text-end">TTC</th>
                 </tr>
                 <tr>
                     <th colspan="4"></th>
                     <th class="text-end">{{ "%.2f"|format(vente.total_ht) }}</th>
-                    <th class="text-end">{{ "%.2f"|format(vente.total_tva) }}</th>
+                    <th class="text-end amount-benefice">{{ "%.2f"|format(vente.total_benefice) }}</th>
+                    <th class="text-end amount-tva">{{ "%.2f"|format(vente.total_tva_reelle) }}</th>
                     <th class="text-end text-success">{{ "%.2f"|format(vente.total_ttc) }}</th>
                 </tr>
             </tfoot>

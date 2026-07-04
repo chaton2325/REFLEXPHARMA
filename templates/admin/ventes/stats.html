@@ -2,20 +2,84 @@
 
 {% block title %}Statistiques ventes - ReflexPharma{% endblock %}
 
-{% block content %}
+{% block extra_head %}
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+    body { background-color: #fdf2f2 !important; }
+    .page-header {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.75) !important; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+    .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; font-size: 0.85rem; }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+
+    .card-custom { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-custom .card-header-custom {
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px 14px 0 0;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; }
+    .stat-card .stat-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.2rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.68rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e);
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 0.5rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.4rem 0.65rem; vertical-align: middle; font-size: 0.78rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fef0f0; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #fefce8; }
+    .amount-benefice { color: #1e8e3e; }
+    .amount-tva { color: #a5670a; }
+    .cell-sub { font-size: 0.68rem; color: #7a8896; }
+
+    .mobile-card { border-radius: 10px; padding: 0.6rem 0.7rem; border: 1px solid #f0f2f5; background: #fef0f0; }
+    .mobile-card:nth-child(even) { background: #fefce8; }
+
     .stat-bar-track { height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
     .stat-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
-    .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); border-radius: 14px; }
     .trend-up { color: #10b981; }
     .trend-down { color: #ef4444; }
     .stat-row { border-bottom: 1px solid var(--bs-border-color); padding: .55rem 0; }
-</style>
 
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    @media (max-width: 575.98px) {
+        .page-header { padding: 1.1rem; border-radius: 12px; }
+        .page-header h1 { font-size: 1.15rem; }
+        .stat-card { padding: 0.7rem 0.85rem; }
+        .stat-card .stat-number { font-size: 1rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
     <div>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-1">
@@ -24,12 +88,12 @@
                 <li class="breadcrumb-item active">Statistiques</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-0">Analyse des Ventes</h1>
-        <p class="text-muted mb-0">Rapports détaillés, tendances et prévisions du chiffre d'affaires.</p>
+        <h1 class="mb-1"><i class="fas fa-chart-line me-2"></i>Analyse des Ventes</h1>
+        <p class="mb-0">Rapports détaillés, tendances et prévisions — HT, bénéfice et TVA séparés.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
         <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <button class="btn btn-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
                 <i class="fas fa-download me-1"></i> Exporter
             </button>
             <ul class="dropdown-menu shadow border-0">
@@ -37,15 +101,16 @@
                 <li><a class="dropdown-item" href="{{ url_for('admin.export_ventes_stats_pdf', **export_query) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>Format PDF</a></li>
             </ul>
         </div>
-        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-primary">
+        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-light btn-sm">
             <i class="fas fa-list me-1"></i> Liste des ventes
         </a>
     </div>
+  </div>
 </div>
 
 <!-- Filters -->
-<form method="GET" class="card mb-4 bg-light shadow-none border">
-    <div class="card-body">
+<form method="GET" class="card-form mb-4">
+    <div class="p-3 p-sm-4">
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label small fw-bold">Recherche libre</label>
@@ -101,41 +166,75 @@
 </form>
 
 <!-- Key Metrics -->
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card h-100 p-3">
-            <div class="text-muted small text-uppercase fw-bold mb-1">Chiffre d'Affaires (TTC)</div>
-            <div class="h3 mb-0 text-success">{{ "{:,.2f}".format(stats.totals.ttc).replace(',', ' ').replace('.', ',') }}</div>
-            <div class="small mt-2">
-                <span class="text-muted">HT: {{ "{:,.2f}".format(stats.totals.ht).replace(',', ' ').replace('.', ',') }}</span>
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-3 row-cols-xl-6">
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;"><i class="fas fa-sack-dollar"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats.totals.ttc).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Chiffre d'affaires (TTC)</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card h-100 p-3">
-            <div class="text-muted small text-uppercase fw-bold mb-1">Volume de Ventes</div>
-            <div class="h3 mb-0">{{ stats.totals.count }}</div>
-            <div class="small mt-2">
-                <span class="text-muted">Panier moyen: {{ "{:,.2f}".format(stats.totals.panier_moyen).replace(',', ' ').replace('.', ',') }}</span>
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;"><i class="fas fa-file-invoice"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats.totals.ht).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Total HT</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card h-100 p-3">
-            <div class="text-muted small text-uppercase fw-bold mb-1">Recouvrement Solde</div>
-            <div class="h3 mb-0 text-primary">{{ "{:,.2f}".format(stats.totals.solde_client + stats.totals.solde_groupe).replace(',', ' ').replace('.', ',') }}</div>
-            <div class="small mt-2">
-                <span class="text-muted">Part Client: {{ "{:,.2f}".format(stats.totals.solde_client).replace(',', ' ').replace('.', ',') }}</span>
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats.totals.benefice).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Bénéfice</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card h-100 p-3">
-            <div class="text-muted small text-uppercase fw-bold mb-1">Employé du mois</div>
-            <div class="h3 mb-0">{{ stats.employee_of_month.label if stats.employee_of_month else '-' }}</div>
-            <div class="small mt-2">
-                <span class="text-muted">{{ stats.employee_of_month_period or '-' }}</span>
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;"><i class="fas fa-percent"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats.totals.tva).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">TVA effective</div>
             </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-receipt"></i></div>
+            <div>
+                <div class="stat-number">{{ stats.totals.count }}</div>
+                <div class="stat-label">Ventes (panier {{ "{:,.2f}".format(stats.totals.panier_moyen).replace(',', ' ').replace('.', ',') }})</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#f0e8fe,#d9c5fc);color:#7c3aed;"><i class="fas fa-user-clock"></i></div>
+            <div>
+                <div class="stat-number" style="font-size:0.95rem;">{{ stats.employee_of_month.label if stats.employee_of_month else '-' }}</div>
+                <div class="stat-label">Employé du mois</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4 row-cols-1 row-cols-md-2">
+    <div class="col">
+        <div class="stat-card">
+            <div class="stat-label mb-1">Recouvrement Solde</div>
+            <div class="stat-number text-primary">{{ "{:,.2f}".format(stats.totals.solde_client + stats.totals.solde_groupe).replace(',', ' ').replace('.', ',') }}</div>
+            <div class="small text-muted mt-1">Part Client: {{ "{:,.2f}".format(stats.totals.solde_client).replace(',', ' ').replace('.', ',') }} · Part Groupe: {{ "{:,.2f}".format(stats.totals.solde_groupe).replace(',', ' ').replace('.', ',') }}</div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-card">
+            <div class="stat-label mb-1">Employé du mois — période</div>
+            <div class="stat-number" style="font-size:1rem;">{{ stats.employee_of_month_period or '-' }}</div>
         </div>
     </div>
 </div>
@@ -209,6 +308,8 @@
             </div>
             <div class="small text-muted mt-1" style="font-size: 0.7rem;">
                 {{ row.count }} vente(s) {% if quantity %}| Qté: {{ "{:,.2g}".format(row.quantity) }}{% endif %}
+                | <span class="amount-benefice">Bénéf: {{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</span>
+                | <span class="amount-tva">TVA: {{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</span>
             </div>
         </div>
         {% else %}
@@ -230,13 +331,37 @@
             <div class="card-header bg-white py-3">
                 <h5 class="card-title mb-0">Répartition des Paiements</h5>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle">
+            <div class="card-body p-0">
+                <!-- Mobile cards: no horizontal scroll -->
+                <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;">
+                    {% for row in stats.modes %}
+                    <div class="mobile-card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-capitalize" style="font-size:0.82rem;">{{ row.label.replace('_', ' ') }}</span>
+                            <span class="cell-sub">{{ row.count }} vente(s)</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
+                            <span>HT <strong>{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
+                            <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                            <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
+                            <span class="text-success fw-bold">TTC <strong>{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">Aucune donnée.</div>
+                    {% endfor %}
+                </div>
+
+                <!-- Desktop table -->
+                <div class="table-responsive d-none d-sm-block">
+                    <table class="table table-custom align-middle mb-0">
                         <thead>
                             <tr>
                                 <th>Mode</th>
                                 <th class="text-end">Ventes</th>
+                                <th class="text-end">HT</th>
+                                <th class="text-end">Bénéfice</th>
+                                <th class="text-end">TVA</th>
                                 <th class="text-end">TTC</th>
                             </tr>
                         </thead>
@@ -245,6 +370,9 @@
                             <tr>
                                 <td class="text-capitalize">{{ row.label.replace('_', ' ') }}</td>
                                 <td class="text-end">{{ row.count }}</td>
+                                <td class="text-end">{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</td>
+                                <td class="text-end amount-benefice">{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</td>
+                                <td class="text-end amount-tva">{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</td>
                                 <td class="text-end fw-bold text-success">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</td>
                             </tr>
                             {% endfor %}
@@ -261,17 +389,38 @@
     <div class="col-lg-6">{{ ranking_card('Top Familles Produits', stats.families, 'danger', True) }}</div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header bg-white py-3">
-        <h5 class="card-title mb-0">Historique Quotidien (30 derniers jours)</h5>
+<div class="card-custom mb-4">
+    <div class="card-header-custom">Historique Quotidien (30 derniers jours)</div>
+
+    <!-- Mobile cards: no horizontal scroll -->
+    <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for row in stats.daily[-30:]|reverse %}
+        <div class="mobile-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold" style="font-size:0.8rem;">{{ row.label }}</span>
+                <span class="cell-sub">{{ row.count }} vente(s)</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
+                <span>HT <strong>{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3">Aucune donnée.</div>
+        {% endfor %}
     </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="bg-light">
+
+    <!-- Desktop table -->
+    <div class="table-responsive d-none d-sm-block">
+        <table class="table table-custom mb-0">
+            <thead>
                 <tr>
                     <th>Date</th>
                     <th class="text-center">Ventes</th>
                     <th class="text-end">HT</th>
+                    <th class="text-end">Bénéfice</th>
                     <th class="text-end">TVA</th>
                     <th class="text-end">TTC</th>
                 </tr>
@@ -282,7 +431,8 @@
                     <td>{{ row.label }}</td>
                     <td class="text-center">{{ row.count }}</td>
                     <td class="text-end">{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</td>
-                    <td class="text-end">{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-benefice">{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-tva">{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</td>
                     <td class="text-end fw-bold">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</td>
                 </tr>
                 {% endfor %}

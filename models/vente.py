@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import cached_property
 
 from extensions import db
 
@@ -41,7 +42,7 @@ class Vente(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    @property
+    @cached_property
     def lignes(self):
         return VenteLigne.query.filter_by(numero_vente=self.numero_vente).order_by(VenteLigne.id.asc()).all()
 
@@ -49,6 +50,16 @@ class Vente(db.Model):
     def client_label(self):
         label = f'{self.client_prenom or ""} {self.client_nom or ""}'.strip()
         return label or 'Client comptoir'
+
+    @cached_property
+    def total_tva_reelle(self):
+        """TVA effective (hors marge/coefficient), calculee ligne par ligne."""
+        return sum(ligne.tva_reelle for ligne in self.lignes)
+
+    @cached_property
+    def total_benefice(self):
+        """Marge liee au coefficient produit, distincte de la TVA."""
+        return sum(ligne.benefice for ligne in self.lignes)
 
     def __repr__(self):
         return f'<Vente {self.numero_vente}>'
@@ -83,6 +94,23 @@ class VenteLigne(db.Model):
     total_tva = db.Column(db.Float, nullable=False, default=0.0)
     total_ttc = db.Column(db.Float, nullable=False, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    @property
+    def tva_reelle(self):
+        """Montant de TVA effective (basee sur le taux applique a la vente), hors marge."""
+        return self.total_ht * (self.tva_pourcentage / 100)
+
+    @property
+    def benefice(self):
+        """Marge (coefficient) residuelle : ce que total_tva stocke en trop de la TVA reelle."""
+        return max(self.total_ttc - self.total_ht - self.tva_reelle, 0)
+
+    @property
+    def coefficient_applique(self):
+        """Coefficient tel qu'applique au moment de la vente, deduit du benefice constate."""
+        if not self.total_ht:
+            return 1.0
+        return (self.total_ht + self.benefice) / self.total_ht
 
     def __repr__(self):
         return f'<VenteLigne {self.produit_nom} x {self.quantite}>'

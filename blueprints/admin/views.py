@@ -1330,6 +1330,38 @@ def get_filtered_ventes(default_today=False):
     ventes.sort(key=sorters.get(sort, sorters['created_at']), reverse=direction != 'asc')
     return ventes
 
+def compute_ventes_totals_reels(ventes):
+    """Agrege benefice (marge coefficient) et TVA effective sur un ensemble de ventes,
+    en une seule requete SQL plutot que ligne par ligne en Python."""
+    numero_list = [vente.numero_vente for vente in ventes]
+    if not numero_list:
+        return {'tva_reelle': 0.0, 'benefice': 0.0}
+    tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
+    benefice_expr = db.func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+    tva_sum, benefice_sum = db.session.query(
+        db.func.coalesce(db.func.sum(tva_expr), 0.0),
+        db.func.coalesce(db.func.sum(benefice_expr), 0.0)
+    ).filter(VenteLigne.numero_vente.in_(numero_list)).one()
+    return {'tva_reelle': float(tva_sum or 0), 'benefice': float(benefice_sum or 0)}
+
+def compute_tva_breakdown(ventes):
+    """Regroupe les lignes de vente par taux de TVA - utile pour la declaration fiscale."""
+    numero_list = [vente.numero_vente for vente in ventes]
+    if not numero_list:
+        return []
+    tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
+    rows = db.session.query(
+        VenteLigne.tva_pourcentage,
+        db.func.coalesce(db.func.sum(VenteLigne.total_ht), 0.0),
+        db.func.coalesce(db.func.sum(tva_expr), 0.0)
+    ).filter(
+        VenteLigne.numero_vente.in_(numero_list)
+    ).group_by(VenteLigne.tva_pourcentage).order_by(VenteLigne.tva_pourcentage).all()
+    return [
+        {'taux': float(taux or 0), 'ht': float(ht or 0), 'tva': float(tva or 0)}
+        for taux, ht, tva in rows
+    ]
+
 def money_value(value):
     return float(value or 0)
 
@@ -1344,7 +1376,8 @@ def add_stat_bucket(buckets, key, vente):
     bucket['label'] = key
     bucket['count'] += 1
     bucket['ht'] += money_value(vente.total_ht)
-    bucket['tva'] += money_value(vente.total_tva)
+    bucket['benefice'] += money_value(vente.total_benefice)
+    bucket['tva'] += money_value(vente.total_tva_reelle)
     bucket['ttc'] += money_value(vente.total_ttc)
     bucket['hors_solde'] += money_value(vente.montant_hors_solde)
     bucket['solde_client'] += money_value(vente.montant_solde_client)
@@ -1359,21 +1392,23 @@ def build_vente_stats(ventes):
         'label': '',
         'count': 0,
         'ht': 0.0,
+        'benefice': 0.0,
         'tva': 0.0,
         'ttc': 0.0,
         'hors_solde': 0.0,
         'solde_client': 0.0,
         'solde_groupe': 0.0
     }
+    product_bucket = lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'benefice': 0.0, 'tva': 0.0, 'ttc': 0.0}
     employee_buckets = defaultdict(base_bucket)
     client_buckets = defaultdict(base_bucket)
     mode_buckets = defaultdict(base_bucket)
     status_buckets = defaultdict(base_bucket)
     daily_buckets = defaultdict(base_bucket)
     monthly_buckets = defaultdict(base_bucket)
-    product_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
-    supplier_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
-    family_buckets = defaultdict(lambda: {'label': '', 'count': 0, 'quantity': 0.0, 'ht': 0.0, 'tva': 0.0, 'ttc': 0.0})
+    product_buckets = defaultdict(product_bucket)
+    supplier_buckets = defaultdict(product_bucket)
+    family_buckets = defaultdict(product_bucket)
     weekday_buckets = defaultdict(base_bucket)
     month_employee_buckets = defaultdict(base_bucket)
     latest_month = None
@@ -1381,7 +1416,8 @@ def build_vente_stats(ventes):
     totals = {
         'count': len(ventes),
         'ht': sum(money_value(vente.total_ht) for vente in ventes),
-        'tva': sum(money_value(vente.total_tva) for vente in ventes),
+        'benefice': sum(money_value(vente.total_benefice) for vente in ventes),
+        'tva': sum(money_value(vente.total_tva_reelle) for vente in ventes),
         'ttc': sum(money_value(vente.total_ttc) for vente in ventes),
         'hors_solde': sum(money_value(vente.montant_hors_solde) for vente in ventes),
         'solde_client': sum(money_value(vente.montant_solde_client) for vente in ventes),
@@ -1422,7 +1458,8 @@ def build_vente_stats(ventes):
                 bucket['count'] += 1
                 bucket['quantity'] += money_value(ligne.quantite)
                 bucket['ht'] += money_value(ligne.total_ht)
-                bucket['tva'] += money_value(ligne.total_tva)
+                bucket['benefice'] += money_value(ligne.benefice)
+                bucket['tva'] += money_value(ligne.tva_reelle)
                 bucket['ttc'] += money_value(ligne.total_ttc)
 
     if latest_month:
@@ -1493,8 +1530,10 @@ def list_ventes():
         date_from = today_str
         date_to = today_str
     
+    totals_reels = compute_ventes_totals_reels(all_ventes)
+
     return render_template(
-        'admin/ventes/list.html', 
+        'admin/ventes/list.html',
         ventes=ventes_paginated,
         all_ventes=all_ventes, # Keep this for totals in the UI if needed
         total_count=total_count,
@@ -1504,7 +1543,9 @@ def list_ventes():
         clients=Client.query.order_by(Client.nom.asc()).all(),
         users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all(),
         date_from_val=date_from,
-        date_to_val=date_to
+        date_to_val=date_to,
+        page_total_benefice=totals_reels['benefice'],
+        page_total_tva_reelle=totals_reels['tva_reelle']
     )
 
 @admin.route('/ventes/all')
@@ -1512,7 +1553,13 @@ def list_ventes():
 @permission_required('gestion_ventes')
 def list_all_ventes():
     ventes = get_filtered_ventes()
-    return render_template('admin/ventes/all.html', ventes=ventes)
+    totals_reels = compute_ventes_totals_reels(ventes)
+    return render_template(
+        'admin/ventes/all.html',
+        ventes=ventes,
+        total_benefice=totals_reels['benefice'],
+        total_tva_reelle=totals_reels['tva_reelle']
+    )
 
 
 @admin.route('/ventes/stats')
@@ -1552,6 +1599,7 @@ def export_ventes_stats_excel():
                 'Libelle': row['label'],
                 'Ventes': row.get('count', 0),
                 'HT': row.get('ht', 0),
+                'Benefice': row.get('benefice', 0),
                 'TVA': row.get('tva', 0),
                 'TTC': row.get('ttc', 0)
             }
@@ -1568,7 +1616,8 @@ def export_ventes_stats_excel():
         summary_rows = [
             {'Indicateur': 'Nombre de ventes', 'Valeur': stats['totals']['count']},
             {'Indicateur': 'Total HT', 'Valeur': stats['totals']['ht']},
-            {'Indicateur': 'Total TVA', 'Valeur': stats['totals']['tva']},
+            {'Indicateur': 'Total Benefice', 'Valeur': stats['totals']['benefice']},
+            {'Indicateur': 'Total TVA effective', 'Valeur': stats['totals']['tva']},
             {'Indicateur': 'Total TTC', 'Valeur': stats['totals']['ttc']},
             {'Indicateur': 'Panier moyen', 'Valeur': stats['totals']['panier_moyen']},
             {'Indicateur': 'Hors solde', 'Valeur': stats['totals']['hors_solde']},
@@ -1691,9 +1740,10 @@ def export_ventes_stats_pdf():
 
     summary = [
         ['Ventes', stats['totals']['count'], 'Total TTC', f"{stats['totals']['ttc']:.2f}"],
-        ['Panier moyen', f"{stats['totals']['panier_moyen']:.2f}", 'TVA', f"{stats['totals']['tva']:.2f}"],
-        ['Hors solde', f"{stats['totals']['hors_solde']:.2f}", 'Solde client', f"{stats['totals']['solde_client']:.2f}"],
-        ['Solde groupe', f"{stats['totals']['solde_groupe']:.2f}", 'Employe du mois', stats['employee_of_month']['label'] if stats['employee_of_month'] else '-']
+        ['Panier moyen', f"{stats['totals']['panier_moyen']:.2f}", 'Benefice', f"{stats['totals']['benefice']:.2f}"],
+        ['TVA effective', f"{stats['totals']['tva']:.2f}", 'Solde client', f"{stats['totals']['solde_client']:.2f}"],
+        ['Hors solde', f"{stats['totals']['hors_solde']:.2f}", 'Solde groupe', f"{stats['totals']['solde_groupe']:.2f}"],
+        ['Employe du mois', stats['employee_of_month']['label'] if stats['employee_of_month'] else '-', '', '']
     ]
     elements.append(Table(summary, colWidths=[90, 100, 90, 200], style=[
         ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),

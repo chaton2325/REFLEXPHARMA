@@ -2,223 +2,455 @@
 
 {% block title %}Ventes - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  body { background-color: #fdf2f2 !important; }
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header .btn-light {
+    color: #2c3e50;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.5rem 1.2rem;
+    font-size: 0.85rem;
+  }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label {
+    font-size: 0.72rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select {
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    font-size: 0.85rem;
+  }
+  .card-form .form-control:focus, .card-form .form-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td {
+    padding: 0.45rem 0.7rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.8rem;
+    line-height: 1.25;
+  }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #fef0f0; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #fefce8; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+
+  .cell-sub { font-size: 0.68rem; color: #7a8896; }
+  .badge-code {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    padding: 0.25em 0.65em;
+    background: #f0f2f5;
+    color: #2c3e50;
+    border-radius: 6px;
+    border: 1px solid #e0e4ea;
+  }
+  .amount-benefice { color: #1e8e3e; }
+  .amount-tva { color: #a5670a; }
+
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  #mobileVenteList > .mobile-card:nth-child(odd) { background: #fef0f0; }
+  #mobileVenteList > .mobile-card:nth-child(even) { background: #fefce8; }
+  .mobile-card {
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #f0f2f5;
+  }
+
+  /* Reduce clutter on smaller screens: secondary columns hide first */
+  @media (max-width: 1199.98px) {
+    .table-custom .col-soldes { display: none !important; }
+  }
+  @media (max-width: 991.98px) {
+    .table-custom .col-rendu, .table-custom .col-auteur { display: none !important; }
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .stat-card { padding: 0.7rem 0.85rem; }
+    .stat-card .stat-number { font-size: 1.05rem; }
+    .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.9rem; }
+    .stat-card .stat-label { font-size: 0.62rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Ventes</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Ventes</h1>
-        <p class="text-muted mb-0">Premiere base du module vente : enregistrement, totaux et suivi des ventes.</p>
+      <h1><i class="fas fa-cash-register me-2"></i>Ventes</h1>
+      <p>Enregistrement, totaux et suivi des ventes — HT, bénéfice et TVA séparés.</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-outline-primary">
-            <i class="fas fa-list me-1"></i> Voir toutes les ventes
-        </a>
-        {% if current_user.has_permission('stats_ventes') %}
-        <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-outline-info">
-            <i class="fas fa-chart-line me-1"></i> Statistiques
-        </a>
-        {% endif %}
-        <a href="{{ url_for('admin.create_vente') }}" class="btn btn-primary">
-            <i class="fas fa-cash-register me-1"></i> Nouvelle vente
-        </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-list me-1"></i> Toutes les ventes
+      </a>
+      {% if current_user.has_permission('stats_ventes') %}
+      <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-chart-line me-1"></i> Statistiques
+      </a>
+      {% endif %}
+      <a href="{{ url_for('admin.create_vente') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-plus-circle me-1"></i> Nouvelle vente
+      </a>
     </div>
+  </div>
 </div>
 
-<form method="GET" class="card mb-3 shadow-sm border-0">
-    <div class="card-body bg-light rounded">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label small fw-bold">Recherche</label>
-                <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Statut</label>
-                <select name="statut" class="form-select form-select-sm">
-                    <option value="">Tous</option>
-                    <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
-                    <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
-                    <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Paiement</label>
-                <select name="mode_paiement" class="form-select form-select-sm">
-                    <option value="">Tous</option>
-                    <option value="especes" {% if request.args.get('mode_paiement') == 'especes' %}selected{% endif %}>Especes</option>
-                    <option value="mobile_money" {% if request.args.get('mode_paiement') == 'mobile_money' %}selected{% endif %}>Mobile money</option>
-                    <option value="carte" {% if request.args.get('mode_paiement') == 'carte' %}selected{% endif %}>Carte</option>
-                    <option value="solde_client" {% if request.args.get('mode_paiement') == 'solde_client' %}selected{% endif %}>Solde client</option>
-                    <option value="mixte" {% if request.args.get('mode_paiement') == 'mixte' %}selected{% endif %}>Mixte</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Client</label>
-                <select name="client_id" class="form-select form-select-sm">
-                    <option value="">Tous les clients</option>
-                    {% for c in clients %}
-                    <option value="{{ c.id }}" {% if request.args.get('client_id')|int == c.id %}selected{% endif %}>{{ c.nom_complet }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Auteur</label>
-                <select name="auteur_id" class="form-select form-select-sm">
-                    <option value="">Tous les auteurs</option>
-                    {% for u in users %}
-                    <option value="{{ u.id }}" {% if request.args.get('auteur_id')|int == u.id %}selected{% endif %}>{{ u.prenom }} {{ u.nom }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Date debut</label>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from_val or request.args.get('date_from', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Date fin</label>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to_val or request.args.get('date_to', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Montant Min (TTC)</label>
-                <input type="number" name="min_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('min_ttc', '') }}" placeholder="Min">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Montant Max (TTC)</label>
-                <input type="number" name="max_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('max_ttc', '') }}" placeholder="Max">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Trier par</label>
-                <select name="sort" class="form-select form-select-sm">
-                    {% set selected_sort = request.args.get('sort', 'created_at') %}
-                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Date</option>
-                    <option value="numero_vente" {% if selected_sort == 'numero_vente' %}selected{% endif %}>Numero</option>
-                    <option value="client" {% if selected_sort == 'client' %}selected{% endif %}>Client</option>
-                    <option value="total_ht" {% if selected_sort == 'total_ht' %}selected{% endif %}>Total HT</option>
-                    <option value="total_tva" {% if selected_sort == 'total_tva' %}selected{% endif %}>TVA</option>
-                    <option value="total_ttc" {% if selected_sort == 'total_ttc' %}selected{% endif %}>Total TTC</option>
-                    <option value="mode_paiement" {% if selected_sort == 'mode_paiement' %}selected{% endif %}>Paiement</option>
-                    <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
-                </select>
-            </div>
-            <div class="col-md-1">
-                <label class="form-label small fw-bold">Ordre</label>
-                <select name="direction" class="form-select form-select-sm">
-                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Desc</option>
-                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Asc</option>
-                </select>
-            </div>
-            <div class="col-md-1">
-                <label class="form-label small fw-bold">Page</label>
-                <input type="number" name="per_page" class="form-control form-control-sm" value="{{ per_page }}" min="1" max="1000">
-            </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
-                    <i class="fas fa-filter me-1"></i> Filtrer
-                </button>
-                <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-rotate-left"></i>
-                </a>
-            </div>
-        </div>
+{% set page_total_ht = all_ventes|sum(attribute='total_ht') %}
+{% set page_total_ttc = all_ventes|sum(attribute='total_ttc') %}
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-5">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-receipt"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_count }}</div>
+        <div class="stat-label">Ventes (page {{ page }}/{{ total_pages }})</div>
+      </div>
     </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-file-invoice"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(page_total_ht) }}</div>
+        <div class="stat-label">Total HT</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-chart-line"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(page_total_benefice) }}</div>
+        <div class="stat-label">Bénéfice (période filtrée)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-percent"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(page_total_tva_reelle) }}</div>
+        <div class="stat-label">TVA effective (période filtrée)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-sack-dollar"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(page_total_ttc) }}</div>
+        <div class="stat-label">Total TTC</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form method="GET" class="card-form mb-3">
+  <div class="p-3 p-sm-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Recherche</label>
+        <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Statut</label>
+        <select name="statut" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
+          <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
+          <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Paiement</label>
+        <select name="mode_paiement" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="especes" {% if request.args.get('mode_paiement') == 'especes' %}selected{% endif %}>Especes</option>
+          <option value="mobile_money" {% if request.args.get('mode_paiement') == 'mobile_money' %}selected{% endif %}>Mobile money</option>
+          <option value="carte" {% if request.args.get('mode_paiement') == 'carte' %}selected{% endif %}>Carte</option>
+          <option value="solde_client" {% if request.args.get('mode_paiement') == 'solde_client' %}selected{% endif %}>Solde client</option>
+          <option value="mixte" {% if request.args.get('mode_paiement') == 'mixte' %}selected{% endif %}>Mixte</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Client</label>
+        <select name="client_id" class="form-select form-select-sm">
+          <option value="">Tous les clients</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}" {% if request.args.get('client_id')|int == c.id %}selected{% endif %}>{{ c.nom_complet }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Auteur</label>
+        <select name="auteur_id" class="form-select form-select-sm">
+          <option value="">Tous les auteurs</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if request.args.get('auteur_id')|int == u.id %}selected{% endif %}>{{ u.prenom }} {{ u.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Date debut</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from_val or request.args.get('date_from', '') }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Date fin</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to_val or request.args.get('date_to', '') }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Montant Min (TTC)</label>
+        <input type="number" name="min_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('min_ttc', '') }}" placeholder="Min">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Montant Max (TTC)</label>
+        <input type="number" name="max_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('max_ttc', '') }}" placeholder="Max">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Trier par</label>
+        <select name="sort" class="form-select form-select-sm">
+          {% set selected_sort = request.args.get('sort', 'created_at') %}
+          <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Date</option>
+          <option value="numero_vente" {% if selected_sort == 'numero_vente' %}selected{% endif %}>Numero</option>
+          <option value="client" {% if selected_sort == 'client' %}selected{% endif %}>Client</option>
+          <option value="total_ht" {% if selected_sort == 'total_ht' %}selected{% endif %}>Total HT</option>
+          <option value="total_tva" {% if selected_sort == 'total_tva' %}selected{% endif %}>TVA</option>
+          <option value="total_ttc" {% if selected_sort == 'total_ttc' %}selected{% endif %}>Total TTC</option>
+          <option value="mode_paiement" {% if selected_sort == 'mode_paiement' %}selected{% endif %}>Paiement</option>
+          <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Ordre</label>
+        <select name="direction" class="form-select form-select-sm">
+          <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Desc</option>
+          <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Asc</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Page</label>
+        <input type="number" name="per_page" class="form-control form-control-sm" value="{{ per_page }}" min="1" max="1000">
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="fas fa-filter me-1"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </a>
+      </div>
+    </div>
+  </div>
 </form>
 
-<div class="row g-3 mb-3">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Ventes affichees</div>
-                <div class="h4 mb-0">{{ total_count }} (page {{ page }}/{{ total_pages }})</div>
-            </div>
+<div class="card-custom mb-3">
+  <!-- Mobile cards: no horizontal scroll -->
+  <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileVenteList">
+    {% for vente in ventes %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ vente.numero_vente }}</div>
+          <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%y %H:%M') if vente.created_at else '-' }} · {{ vente.client_label }}</div>
         </div>
+        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info flex-shrink-0" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+        </a>
+      </div>
+      <div class="d-flex align-items-center gap-1 mt-1">
+        <span class="badge-code">{{ vente.mode_paiement }}</span>
+        <span class="badge bg-dark-subtle text-dark border" style="font-size:0.65rem;">{{ vente.statut }}</span>
+      </div>
+      <div class="mt-1 d-flex flex-wrap gap-2" style="font-size:0.72rem;">
+        <span>HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
+        <span class="amount-benefice">Bénéf <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
+        <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
+        <span class="text-success">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
+      </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Total TVA (liste complete)</div>
-                <div class="h4 mb-0">{{ "%.2f"|format(all_ventes|sum(attribute='total_tva')) }}</div>
-            </div>
-        </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-receipt" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucune vente enregistrée.</p>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Total TTC (liste complete)</div>
-                <div class="h4 mb-0 text-success">{{ "%.2f"|format(all_ventes|sum(attribute='total_ttc')) }}</div>
-            </div>
-        </div>
-    </div>
-</div>
+    {% endfor %}
+  </div>
 
-<div class="card mb-3">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
-                <tr>
-                    <th>Vente</th>
-                    <th>Client</th>
-                    <th>Paiement</th>
-                    <th class="text-end">HT</th>
-                    <th class="text-end">TVA</th>
-                    <th class="text-end">TTC</th>
-                    <th class="text-end">Soldes</th>
-                    <th class="text-end">Rendu</th>
-                    <th>Auteur</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for vente in ventes %}
-                <tr>
-                    <td>
-                        <div class="fw-bold">{{ vente.numero_vente }}</div>
-                        <small class="text-muted">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</small>
-                    </td>
-                    <td>
-                        <div>{{ vente.client_label }}</div>
-                        <small class="text-muted">{{ vente.groupe_client_nom or 'Client comptoir' }}</small>
-                    </td>
-                    <td>
-                        <span class="badge bg-dark-subtle text-dark border">{{ vente.mode_paiement }}</span>
-                        <div class="small text-muted">{{ vente.statut }}</div>
-                    </td>
-                    <td class="text-end">{{ "%.2f"|format(vente.total_ht) }}</td>
-                    <td class="text-end">{{ "%.2f"|format(vente.total_tva) }}</td>
-                    <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
-                    <td class="text-end">
-                        <div class="small">Client: {{ "%.2f"|format(vente.montant_solde_client) }}</div>
-                        <div class="small text-muted">Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
-                    </td>
-                    <td class="text-end">{{ "%.2f"|format(vente.monnaie_rendue) }}</td>
-                    <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
-                    <td class="text-end">
-                        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="10" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+  <!-- Desktop table -->
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Vente</th>
+          <th>Client</th>
+          <th>Paiement</th>
+          <th class="text-end">HT</th>
+          <th class="text-end" title="Marge liée au coefficient produit">Bénéfice</th>
+          <th class="text-end" title="TVA effective appliquée">TVA</th>
+          <th class="text-end">TTC</th>
+          <th class="text-end col-soldes">Soldes</th>
+          <th class="text-end col-rendu">Rendu</th>
+          <th class="col-auteur">Auteur</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vente in ventes %}
+        <tr>
+          <td>
+            <div class="fw-bold">{{ vente.numero_vente }}</div>
+            <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</div>
+          </td>
+          <td>
+            <div>{{ vente.client_label }}</div>
+            <div class="cell-sub">{{ vente.groupe_client_nom or 'Client comptoir' }}</div>
+          </td>
+          <td>
+            <span class="badge-code">{{ vente.mode_paiement }}</span>
+            <div class="cell-sub">{{ vente.statut }}</div>
+          </td>
+          <td class="text-end" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_ht) }}</td>
+          <td class="text-end fw-semibold amount-benefice" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_benefice) }}</td>
+          <td class="text-end fw-semibold amount-tva" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_tva_reelle) }}</td>
+          <td class="text-end fw-bold text-success" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_ttc) }}</td>
+          <td class="text-end col-soldes">
+            <div class="cell-sub">Client: {{ "%.2f"|format(vente.montant_solde_client) }}</div>
+            <div class="cell-sub">Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
+          </td>
+          <td class="text-end col-rendu">{{ "%.2f"|format(vente.monnaie_rendue) }}</td>
+          <td class="col-auteur">{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
+              <i class="fas fa-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="11" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {% if total_pages > 1 %}
 <nav aria-label="Pagination des ventes">
-    <ul class="pagination justify-content-center">
+    <ul class="pagination justify-content-center flex-wrap">
         <li class="page-item {% if page <= 1 %}disabled{% endif %}">
             <a class="page-link" href="{{ url_for('admin.list_ventes', page=page-1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">Précédent</a>
         </li>
-        
+
         {% set start_page = [1, page - 2]|max %}
         {% set end_page = [total_pages, page + 2]|min %}
-        
+
         {% if start_page > 1 %}
         <li class="page-item">
             <a class="page-link" href="{{ url_for('admin.list_ventes', page=1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">1</a>
@@ -227,13 +459,13 @@
         <li class="page-item disabled"><span class="page-link">...</span></li>
         {% endif %}
         {% endif %}
-        
+
         {% for p in range(start_page, end_page + 1) %}
         <li class="page-item {% if p == page %}active{% endif %}">
             <a class="page-link" href="{{ url_for('admin.list_ventes', page=p, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">{{ p }}</a>
         </li>
         {% endfor %}
-        
+
         {% if end_page < total_pages %}
         {% if end_page < total_pages - 1 %}
         <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -242,7 +474,7 @@
             <a class="page-link" href="{{ url_for('admin.list_ventes', page=total_pages, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">{{ total_pages }}</a>
         </li>
         {% endif %}
-        
+
         <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
             <a class="page-link" href="{{ url_for('admin.list_ventes', page=page+1, per_page=per_page, q=request.args.get('q', ''), statut=request.args.get('statut', ''), mode_paiement=request.args.get('mode_paiement', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), sort=request.args.get('sort', ''), direction=request.args.get('direction', '')) }}">Suivant</a>
         </li>

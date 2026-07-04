@@ -64,6 +64,18 @@ class Stock(db.Model):
         return self.prix_ttc_total - self.prix_ht_total
 
     @property
+    def benefice_total(self):
+        """Marge (bénéfice) liée au coefficient, hors TVA."""
+        coefficient = self._safe_price(self.produit.effectif_coefficient) or 1.0
+        return self.prix_ht_total * (coefficient - 1)
+
+    @property
+    def tva_total(self):
+        """Montant de TVA effective, distinct de la marge/bénéfice."""
+        tva = self._safe_price(self.produit.effectif_tva)
+        return self.prix_ht_total * (tva / 100)
+
+    @property
     def quantite_totale(self):
         return self.quantite_unites + self.quantite_sous_unites + self.quantite_sous_sous_unites
 
