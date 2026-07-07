@@ -166,6 +166,55 @@
     .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.9rem; }
     .stat-card .stat-label { font-size: 0.62rem; }
   }
+
+  /* --- Modal succès vente (animation) --- */
+  #venteSuccessModal .modal-content {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #venteSuccessModal.show .modal-dialog {
+    animation: venteSuccessPop 0.45s cubic-bezier(0.18, 1.25, 0.4, 1) both;
+  }
+  @keyframes venteSuccessPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .success-checkmark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: #e6f7ee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPulse 1.4s ease-out 0.3s;
+  }
+  @keyframes successPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(30,142,62,0.35); }
+    100% { box-shadow: 0 0 0 26px rgba(30,142,62,0); }
+  }
+  .success-svg { width: 58px; height: 58px; }
+  .success-circle {
+    stroke: #1e8e3e;
+    stroke-width: 2.5;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: venteDrawCircle 0.6s ease-out 0.15s forwards;
+  }
+  @keyframes venteDrawCircle { to { stroke-dashoffset: 0; } }
+  .success-check {
+    stroke: #1e8e3e;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: venteDrawCheck 0.35s ease-out 0.7s forwards;
+  }
+  @keyframes venteDrawCheck { to { stroke-dashoffset: 0; } }
 </style>
 {% endblock %}
 
@@ -481,4 +530,42 @@
     </ul>
 </nav>
 {% endif %}
+
+<!-- Modal succès après enregistrement d'une vente -->
+<div class="modal fade" id="venteSuccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <div class="success-checkmark mb-3">
+          <svg class="success-svg" viewBox="0 0 52 52" aria-hidden="true">
+            <circle class="success-circle" cx="26" cy="26" r="24" fill="none"/>
+            <path class="success-check" fill="none" d="M14 27l8 8 16-16"/>
+          </svg>
+        </div>
+        <h5 class="fw-bold mb-1">Vente enregistrée !</h5>
+        <p class="text-muted small mb-3" id="venteSuccessMessage">La vente a été validée avec succès.</p>
+        <div class="d-flex justify-content-center gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+          <a href="{{ url_for('admin.create_vente') }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i> Nouvelle vente
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const alerts = Array.from(document.querySelectorAll('.alert-success'));
+  const venteAlert = alerts.find((alert) => alert.textContent.includes('Vente') && alert.textContent.includes('enregistr'));
+  if (!venteAlert) return;
+  const message = venteAlert.textContent.trim();
+  venteAlert.remove();
+  if (message) {
+    document.getElementById('venteSuccessMessage').textContent = message;
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('venteSuccessModal')).show();
+});
+</script>
 {% endblock %}

@@ -2,509 +2,765 @@
 
 {% block title %}Nouvelle vente - ReflexPharma{% endblock %}
 
-{% block content %}
+{% block extra_head %}
 <style>
-    .treeview-panel {
-        max-height: 260px;
-        overflow-x: auto;
-        overflow-y: auto;
-        border: 1px solid var(--bs-border-color);
-        border-radius: .375rem;
-        background: var(--bs-body-bg);
+  body { background-color: #fdf2f2 !important; }
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header .numero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 0.15em 0.7em;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+  }
+  .page-header .btn-light {
+    color: #2c3e50;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.5rem 1.2rem;
+    font-size: 0.85rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-form .card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    padding: 0.85rem 1.25rem;
+  }
+  .card-form .card-header h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+  }
+  .card-form .form-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.3rem;
+  }
+  .card-form .form-control, .card-form .form-select {
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    font-size: 0.85rem;
+  }
+  .card-form .form-control:focus, .card-form .form-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+  }
+  .stat-card .stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-body { min-width: 0; }
+  .stat-card .stat-number {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a2e;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stat-card .stat-label {
+    font-size: 0.68rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .stat-card .stat-sub {
+    font-size: 0.68rem;
+    color: #7a8896;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meta-box {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.78rem;
+  }
+  .meta-box .text-muted { font-size: 0.74rem; }
+
+  /* --- Lignes de vente (cartes) --- */
+  #saleLinesBody { counter-reset: sale-line; }
+  .sale-line {
+    border: 1px solid #e8edf4;
+    border-radius: 12px;
+    padding: 0.85rem;
+  }
+  #saleLinesBody > .sale-line:nth-child(odd) { background: #fef0f0; }
+  #saleLinesBody > .sale-line:nth-child(even) { background: #fefce8; }
+  .sale-line .line-number::before {
+    counter-increment: sale-line;
+    content: "Ligne " counter(sale-line);
+  }
+  .sale-line .line-number {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #7a8896;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid #e8edf4;
+    border-radius: 20px;
+    padding: 0.2em 0.8em;
+  }
+  .sale-line .remove-line {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  /* --- Treeview (résultats recherche client / produit) --- */
+  .treeview-panel {
+    max-height: 260px;
+    overflow-x: auto;
+    overflow-y: auto;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .treeview-header,
+  .treeview-row {
+    display: grid;
+    gap: .28rem;
+    align-items: center;
+    min-width: 0;
+    padding: .36rem .45rem;
+  }
+  .treeview-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    border-bottom: 1px solid #e9ecef;
+    font-size: .64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .treeview-row {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #edf2f7;
+    background: transparent;
+    font-size: .78rem;
+    text-align: left;
+  }
+  .treeview-row:hover:not(:disabled) { background-color: #eef3fc; }
+  .treeview-row.active {
+    background-color: #eef3fc;
+    box-shadow: inset 3px 0 0 #3498db;
+    color: inherit;
+  }
+  .treeview-row:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+  }
+  .treeview-stockout { background-color: #f8f9fa; }
+  .treeview-row > div,
+  .treeview-header > div {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .treeview-empty {
+    padding: .8rem;
+    color: #7a8896;
+    font-size: .8rem;
+  }
+  .treeview-info-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .client-tree { grid-template-columns: minmax(180px, 1.4fr) 110px minmax(170px, 1fr) minmax(140px, .9fr); }
+  .product-tree { grid-template-columns: minmax(125px, 1.4fr) minmax(90px, .9fr) minmax(105px, 1fr) minmax(85px, .8fr) 44px 44px 44px 58px 54px 54px 54px 34px; }
+
+  /* Colonnes secondaires masquées progressivement : pas de scroll horizontal sur mobile */
+  @media (max-width: 1399.98px) {
+    .product-tree { grid-template-columns: minmax(120px, 1.4fr) minmax(85px, .9fr) minmax(80px, .8fr) 42px 42px 42px 58px 54px 34px; }
+    .product-tree .tvc-2, .product-tree .tvc-9, .product-tree .tvc-10 { display: none; }
+  }
+  @media (max-width: 991.98px) {
+    .product-tree { grid-template-columns: minmax(110px, 1.5fr) minmax(80px, 1fr) 42px 58px minmax(54px, .6fr) 32px; }
+    .product-tree .tvc-3, .product-tree .tvc-5, .product-tree .tvc-6 { display: none; }
+  }
+  @media (max-width: 767.98px) {
+    .client-tree { grid-template-columns: minmax(0, 1.4fr) minmax(90px, .7fr) minmax(90px, .8fr); }
+    .client-tree .tvc-2 { display: none; }
+  }
+  @media (max-width: 575.98px) {
+    .product-tree { grid-template-columns: minmax(0, 1.6fr) 40px minmax(52px, .6fr) 30px; }
+    .product-tree .tvc-1, .product-tree .tvc-7 { display: none; }
+    .product-tree .tvc-0, .client-tree .tvc-0 { white-space: normal; }
+    .client-tree { grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr); }
+    .client-tree .tvc-1 { display: none; }
+  }
+
+  /* --- Bloc paiement --- */
+  .pay-stat {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
+    height: 100%;
+  }
+  .pay-stat .pay-label {
+    font-size: 0.66rem;
+    color: #7a8896;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .pay-stat .pay-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .pay-stat .pay-sub { font-size: 0.68rem; color: #7a8896; }
+
+  /* Version mobile ultra-compacte : moins de scroll vertical */
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem; }
+    .page-header h1 { font-size: 1.1rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.74rem; }
+    .page-header .btn-light { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
+
+    .card-form { border-radius: 12px; }
+    .card-form.mb-3 { margin-bottom: 0.75rem !important; }
+    .card-form .mb-3 { margin-bottom: 0.6rem !important; }
+    .card-form .card-header { padding: 0.5rem 0.8rem; }
+    .card-form .card-header h5 { font-size: 0.85rem; }
+    .card-form .p-3 { padding: 0.7rem !important; }
+    .card-form .p-2 { padding: 0.5rem !important; }
+    .card-form .row { --bs-gutter-y: 0.5rem; --bs-gutter-x: 0.5rem; }
+    .card-form .form-label { margin-bottom: 0.15rem; font-size: 0.72rem; }
+    .card-form .form-control, .card-form .form-select {
+      font-size: 0.8rem;
+      padding: 0.32rem 0.55rem;
+    }
+    .card-form .form-text { display: none; }
+    .card-form .mt-3 { margin-top: 0.6rem !important; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; }
+    .stat-card .stat-number { font-size: 0.9rem; }
+    .stat-card .stat-icon { width: 26px; height: 26px; font-size: 0.75rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+    .stat-card .stat-sub { font-size: 0.6rem; }
+
+    .meta-box { padding: 0.4rem 0.55rem; font-size: 0.7rem; line-height: 1.35; }
+    .meta-box .text-muted { font-size: 0.66rem; }
+    /* Méta produit / client sur 2 colonnes pour réduire la hauteur */
+    .product-meta, #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.6rem; }
+    .product-meta > .fw-bold, #clientSelectedMeta > .fw-bold { grid-column: 1 / -1; }
+    .product-meta > div, #clientSelectedMeta > div {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    .treeview-header,
-    .treeview-row {
-        display: grid;
-        gap: .28rem;
-        align-items: center;
-        min-width: 0;
-        padding: .36rem .45rem;
-    }
+    .treeview-panel { max-height: 170px; }
+    .treeview-header { font-size: 0.58rem; padding: 0.26rem 0.4rem; }
+    .treeview-row { font-size: 0.72rem; padding: 0.28rem 0.4rem; }
+    .treeview-info-btn { width: 24px; height: 24px; font-size: 0.68rem; }
 
-    .treeview-header {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: var(--bs-light);
-        border-bottom: 1px solid var(--bs-border-color);
-        color: var(--bs-secondary-color);
-        font-size: .72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
+    .sale-line { padding: 0.55rem; border-radius: 10px; }
+    .sale-line .line-number { font-size: 0.6rem; padding: 0.15em 0.65em; }
+    .sale-line .remove-line { width: 26px; height: 26px; font-size: 0.72rem; }
+    .sale-line .stock-available { font-size: 0.66rem; margin-top: 0.15rem !important; }
+    .sale-line > .d-flex.mb-2 { margin-bottom: 0.35rem !important; }
 
-    .treeview-row {
-        width: 100%;
-        border: 0;
-        border-bottom: 1px solid var(--bs-border-color);
-        background: transparent;
-        font-size: .8rem;
-        text-align: left;
-    }
+    .pay-stat { padding: 0.38rem 0.55rem; border-radius: 8px; }
+    .pay-stat .pay-label { font-size: 0.56rem; }
+    .pay-stat .pay-value { font-size: 0.84rem; }
+    .pay-stat .pay-sub { font-size: 0.62rem; }
 
-    .treeview-row:hover:not(:disabled) {
-        background-color: var(--bs-primary-bg-subtle);
-    }
+    .payment-preset { font-size: 0.7rem; padding: 0.22rem 0.55rem; }
+  }
 
-    .treeview-row.active {
-        background-color: var(--bs-primary-bg-subtle);
-        box-shadow: inset 3px 0 0 var(--bs-primary);
-        color: var(--bs-body-color);
-    }
-
-    .treeview-row:disabled {
-        cursor: not-allowed;
-        opacity: .55;
-    }
-
-    .treeview-stockout {
-        background-color: var(--bs-light);
-    }
-
-    .client-tree {
-        grid-template-columns: minmax(180px, 1.4fr) 110px minmax(170px, 1fr) minmax(140px, .9fr);
-    }
-
-    .product-tree {
-        grid-template-columns: minmax(125px, 1.4fr) minmax(90px, .9fr) minmax(105px, 1fr) minmax(85px, .8fr) 44px 44px 44px 58px 54px 54px 54px 34px;
-    }
-
-    .treeview-row > div,
-    .treeview-header > div {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .treeview-empty {
-        padding: .8rem;
-        color: var(--bs-secondary-color);
-    }
-
-    .treeview-info-btn {
-        width: 28px;
-        height: 28px;
-        padding: 0;
-    }
-
-    /* Receipt Styles */
+  /* --- Ticket de caisse --- */
+  .receipt-preview-container {
+    width: 100%;
+    max-width: 80mm;
+    margin: 0 auto;
+    padding: 15px;
+    background-color: white;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    color: #000;
+    border: 1px solid #eee;
+  }
+  @media (max-width: 576px) {
     .receipt-preview-container {
-        width: 100%;
-        max-width: 80mm;
-        margin: 0 auto;
-        padding: 15px;
-        background-color: white;
-        box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 13px;
-        color: #000;
-        border: 1px solid #eee;
+      padding: 10px;
+      font-size: 11px;
+      max-width: 100%;
     }
+    .receipt-header h4 { font-size: 16px; }
+  }
+  .receipt-header { text-align: center; margin-bottom: 15px; }
+  .receipt-header h4 {
+    margin: 0;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 18px;
+  }
+  .receipt-info { margin-bottom: 10px; line-height: 1.4; font-size: 12px; }
+  .receipt-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .receipt-table th {
+    border-bottom: 1px dashed #000;
+    border-top: 1px dashed #000;
+    text-align: left;
+    padding: 6px 0;
+    text-transform: uppercase;
+  }
+  .receipt-table td {
+    padding: 4px 0;
+    vertical-align: top;
+    word-break: break-word;
+  }
+  .receipt-totals {
+    margin-bottom: 10px;
+    border-top: 1px dashed #000;
+    padding-top: 5px;
+  }
+  .receipt-footer {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 11px;
+    border-top: 1px dashed #000;
+    padding-top: 10px;
+  }
 
-    @media (max-width: 576px) {
-        .receipt-preview-container {
-            padding: 10px;
-            font-size: 11px;
-            max-width: 100%;
-        }
-        .receipt-header h4 {
-            font-size: 16px;
-        }
+  @media print {
+    body * { visibility: hidden; }
+    #receiptPreviewModal .modal-content,
+    #receiptPreviewModal .modal-body,
+    #receiptPreviewContent,
+    #receiptPreviewContent * { visibility: visible; }
+    #receiptPreviewModal {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      margin: 0;
+      padding: 0;
     }
-
-    .receipt-header {
-        text-align: center;
-        margin-bottom: 15px;
+    #receiptPreviewModal .modal-header,
+    #receiptPreviewModal .modal-footer,
+    .btn, .navbar, .page-header, .text-muted, form, #productInfoModal {
+      display: none !important;
     }
-
-    .receipt-header h4 {
-        margin: 0;
-        font-weight: bold;
-        text-transform: uppercase;
-        font-size: 18px;
+    .receipt-preview-container {
+      box-shadow: none;
+      width: 100%;
+      margin: 0;
+      padding: 0;
     }
-
-    .receipt-info {
-        margin-bottom: 10px;
-        line-height: 1.4;
-        font-size: 12px;
-    }
-
-    .receipt-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 10px;
-        font-size: 12px;
-    }
-
-    .receipt-table th {
-        border-bottom: 1px dashed #000;
-        border-top: 1px dashed #000;
-        text-align: left;
-        padding: 6px 0;
-        text-transform: uppercase;
-    }
-
-    .receipt-table td {
-        padding: 4px 0;
-        vertical-align: top;
-        word-break: break-word;
-    }
-
-    .receipt-totals {
-        margin-bottom: 10px;
-        border-top: 1px dashed #000;
-        padding-top: 5px;
-    }
-
-    .receipt-footer {
-        text-align: center;
-        margin-top: 25px;
-        font-size: 11px;
-        border-top: 1px dashed #000;
-        padding-top: 10px;
-    }
-
-    @media print {
-        body * {
-            visibility: hidden;
-        }
-        #receiptPreviewModal .modal-content,
-        #receiptPreviewModal .modal-body,
-        #receiptPreviewContent,
-        #receiptPreviewContent * {
-            visibility: visible;
-        }
-        #receiptPreviewModal {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        #receiptPreviewModal .modal-header,
-        #receiptPreviewModal .modal-footer,
-        .btn, .navbar, .breadcrumb, .h3, .text-muted, form, #productInfoModal {
-            display: none !important;
-        }
-        .receipt-preview-container {
-            box-shadow: none;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-    }
+  }
 </style>
+{% endblock %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_ventes') }}">Ventes</a></li>
-                <li class="breadcrumb-item active">Nouvelle vente</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Nouvelle vente</h1>
-        <p class="text-muted mb-0">Numero prevu : {{ suggested_numero }}</p>
+      <h1><i class="fas fa-cash-register me-2"></i>Nouvelle vente</h1>
+      <p><span class="d-none d-sm-inline">Enregistrer une vente au comptoir ou sur compte client. </span><span class="numero-badge ms-sm-1">N° prévu : {{ suggested_numero }}</span></p>
     </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Retour<span class="d-none d-sm-inline"> aux ventes</span>
+      </a>
+    </div>
+  </div>
 </div>
 
-<form method="POST" class="card" id="venteForm">
-    <div class="card-body">
-        <div class="row g-3 mb-3">
-            <div class="col-md-4">
-                <label class="form-label fw-bold">Client</label>
-                <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
-                <select name="client_id" class="form-select visually-hidden" id="clientSelect">
-                    <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-search="client comptoir">Client comptoir</option>
-                    {% for client in clients %}
-                    <option
-                        value="{{ client.id }}"
-                        data-client-name="{{ client.prenom }} {{ client.nom }}"
-                        data-client-matricule="{{ client.matricule }}"
-                        data-client-email="{{ client.email or '-' }}"
-                        data-client-phone="{{ client.telephone or '-' }}"
-                        data-solde="{{ client.solde or 0 }}"
-                        data-groupe="{{ client.groupe.nom if client.groupe else '' }}"
-                        data-groupe-solde="{{ client.groupe.solde if client.groupe else 0 }}"
-                        data-absorption="{{ client.groupe.pourcentage_absorption if client.groupe else 0 }}"
-                        data-search="{{ (client.prenom ~ ' ' ~ client.nom ~ ' ' ~ client.matricule ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}"
-                    >
-                        {{ client.prenom }} {{ client.nom }} - {{ client.matricule }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="treeview-panel client-results mb-2" id="clientResults"></div>
-                <div class="border rounded p-2 mt-2 bg-light small" id="clientSelectedMeta">
-                    <div class="fw-bold">Client comptoir</div>
-                    <div class="text-muted">Aucun compte client sélectionné.</div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label fw-bold">Mode de paiement</label>
-                <select name="mode_paiement" class="form-select" required>
-                    <option value="especes">Especes</option>
-                    <option value="mobile_money">Mobile money</option>
-                    <option value="carte">Carte</option>
-                    <option value="solde_client">Solde client</option>
-                    <option value="mixte">Mixte</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label fw-bold">Statut</label>
-                <select name="statut" class="form-select" required>
-                    <option value="validee">Validee</option>
-                    <option value="brouillon">Brouillon</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label fw-bold">Note</label>
-                <input type="text" name="note" class="form-control" placeholder="Observation...">
-            </div>
-        </div>
+<form method="POST" id="venteForm">
 
-        <div class="row g-3 mb-3">
-            <div class="col-md-3 client-account-section">
-                <div class="border rounded p-3 h-100 bg-light">
-                    <div class="text-muted small">Solde client</div>
-                    <div class="h5 mb-0" id="clientBalance">0.00</div>
-                </div>
-            </div>
-            <div class="col-md-3 client-account-section">
-                <div class="border rounded p-3 h-100 bg-light">
-                    <div class="text-muted small">Groupe client</div>
-                    <div class="fw-bold" id="clientGroupName">Aucun groupe</div>
-                    <div class="small text-muted">Solde : <span id="groupBalance">0.00</span></div>
-                </div>
-            </div>
-            <div class="col-md-3 client-account-section">
-                <div class="border rounded p-3 h-100 bg-light">
-                    <div class="text-muted small">Absorption groupe</div>
-                    <div class="h5 mb-0" id="groupAbsorption">0.00%</div>
-                    <div class="small text-muted">Client : <span id="clientAbsorption">100.00%</span></div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="border rounded p-3 h-100 bg-light">
-                    <div class="text-muted small">Total vente TTC</div>
-                    <div class="h5 mb-0 text-success" id="saleTotalTtc">0.00</div>
-                    <div class="small text-muted">HT : <span id="saleTotalHt">0.00</span> / TVA : <span id="saleTotalTax">0.00</span></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="border rounded p-3 mb-3 d-none" aria-hidden="true">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Payé hors solde</label>
-                    <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <label class="form-label fw-bold">Débiter solde client</label>
-                    <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <label class="form-label fw-bold">Débiter solde groupe</label>
-                    <input type="number" min="0" step="0.01" name="montant_solde_groupe" id="amountGroupBalance" class="form-control payment-input" value="0">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Montant reçu</label>
-                    <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
-                </div>
-            </div>
-            <div class="d-flex flex-wrap gap-2 mt-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="group">Tout solde groupe</button>
-                <button type="button" class="btn btn-sm btn-outline-info payment-preset client-account-section" data-preset="absorption">Appliquer % groupe</button>
-            </div>
-            <div class="row g-3 mt-1">
-                <div class="col-md-3">
-                    <div class="small text-muted">Montant couvert</div>
-                    <div class="fw-bold" id="amountCovered">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Reste à payer</div>
-                    <div class="fw-bold text-danger" id="amountRemaining">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Monnaie à rendre</div>
-                    <div class="fw-bold text-success" id="changeDue">0.00</div>
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <div class="small text-muted">Soldes après vente</div>
-                    <div class="small">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table align-middle" id="saleLinesTable">
-                <thead class="bg-light">
-                    <tr>
-                        <th>Produit</th>
-                        <th style="width: 180px;">Unités</th>
-                        <th style="width: 140px;">Quantite</th>
-                        <th style="width: 52px;"></th>
-                    </tr>
-                </thead>
-                <tbody id="saleLinesBody">
-                    <tr class="sale-line">
-                        <td>
-                            <input type="search" class="form-control mb-2 product-search" placeholder="Rechercher produit: nom, code suivi, fournisseur, groupe...">
-                            <select name="produit_id[]" class="form-select product-select visually-hidden" required>
-                                <option value="">Choisir un produit</option>
-                                {% for produit in produits %}
-                                <option
-                                    value="{{ produit.id }}"
-                                    data-product-code="{{ produit.code_produit }}"
-                                    data-tracking-codes="{{ stock_tracking_codes.get(produit.id, [])|join(' | ') }}"
-                                    data-expiry-dates="{{ stock_expiry_dates.get(produit.id, [])|join(' | ') }}"
-                                    data-fournisseur="{{ produit.fournisseur.nom if produit.fournisseur else '-' }}"
-                                    data-groupe-fournisseur="{{ produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '-' }}"
-                                    data-rayon="{{ produit.rayon.nom if produit.rayon else '-' }}"
-                                    data-famille="{{ produit.famille.nom if produit.famille else '-' }}"
-                                    data-section="{{ produit.section.nom if produit.section else '-' }}"
-                                    data-conditionnement="{{ [produit.conditionnement or 1, 3 if stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) > 0 else 2 if stock_totals.get(produit.id, {}).get('sous_unite', 0) > 0 else 1]|max }}"
-                                    data-stock-unite="{{ stock_totals.get(produit.id, {}).get('unite', 0) }}"
-                                    data-stock-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_unite', 0) }}"
-                                    data-stock-sous-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) }}"
-                                    data-unite-ht="{{ produit.prix_unite or 0 }}"
-                                    data-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
-                                    data-sous-unite-ht="{{ produit.prix_sous_unite or produit.prix_unite or 0 }}"
-                                    data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
-                                    data-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or produit.prix_unite or 0 }}"
-                                    data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
-                                    data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (stock_expiry_dates.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
-                                >
-                                    {{ produit.nom }} - {{ stock_tracking_codes.get(produit.id, [produit.code_produit])[0] }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <div class="treeview-panel product-results mb-2"></div>
-                            <div class="border rounded p-2 mt-2 bg-light small product-meta">
-                                <div class="fw-bold">Aucun produit sélectionné</div>
-                                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
-                            </div>
-                        </td>
-                        <td>
-                            <select name="unite[]" class="form-select unit-select">
-                                <option value="unite" data-min-conditionnement="1">Unités</option>
-                                <option value="sous_unite" data-min-conditionnement="2">Sous unités</option>
-                                <option value="sous_sous_unite" data-min-conditionnement="3">Sous sous unités</option>
-                            </select>
-                        </td>
-                        <td>
-                            <input type="number" min="1" step="1" name="quantite[]" class="form-control" value="1" required>
-                            <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
-                        </td>
-                        <td>
-                            <button type="button" class="btn btn-outline-danger btn-sm remove-line" title="Retirer">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="d-flex justify-content-start mb-3">
-            <button type="button" class="btn btn-outline-primary" id="addLineBtn">
-                <i class="fas fa-plus me-1"></i> Ajouter une ligne
-            </button>
-        </div>
-
-        <div class="border rounded p-3 mb-3">
-            <div class="row g-3 mb-2">
-                <div class="col-md-3">
-                    <div class="small text-muted">Total HT</div>
-                    <div class="fw-bold" id="paymentTotalHt">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">TVA</div>
-                    <div class="fw-bold" id="paymentTotalTax">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Total TTC</div>
-                    <div class="h5 mb-0 text-success" id="paymentTotalTtc">0.00</div>
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <div class="small text-muted">Part groupe calculée</div>
-                    <div class="fw-bold" id="paymentGroupShare">0.00</div>
-                    <div class="small text-muted"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <div class="small text-muted">Part client calculée</div>
-                    <div class="fw-bold" id="paymentClientShare">0.00</div>
-                    <div class="small text-muted"><span id="paymentClientPercent">100.00%</span> du TTC</div>
-                </div>
-            </div>
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3 client-account-section">
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input payment-input" id="useGroupBalance" name="use_group_balance" value="1">
-                        <label class="form-check-label fw-bold" for="useGroupBalance">Débiter la part groupe</label>
-                    </div>
-                    <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
-                    <div class="small text-muted">Montant groupe : <span id="groupDebitPreview">0.00</span></div>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Payé hors solde</label>
-                    <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <label class="form-label fw-bold">Débiter solde client</label>
-                    <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
-                    <div class="form-text">Le reste client peut être payé ici, hors solde, ou les deux.</div>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Montant reçu</label>
-                    <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
-                </div>
-            </div>
-            <div class="d-flex flex-wrap gap-2 mt-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
-            </div>
-            <div class="row g-3 mt-1">
-                <div class="col-md-3">
-                    <div class="small text-muted">Reste après groupe</div>
-                    <div class="fw-bold" id="remainingAfterGroup">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Payé + solde client</div>
-                    <div class="fw-bold" id="amountCovered">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Écart à corriger</div>
-                    <div class="fw-bold text-danger" id="amountRemaining">0.00</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="small text-muted">Monnaie à rendre</div>
-                    <div class="fw-bold text-success" id="changeDue">0.00</div>
-                </div>
-                <div class="col-md-3 client-account-section">
-                    <div class="small text-muted">Soldes après vente</div>
-                    <div class="small">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="d-flex flex-column flex-md-row justify-content-end gap-2">
-            <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary">Annuler</a>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save me-1"></i> Enregistrer
-            </button>
-        </div>
+  <!-- Client & informations -->
+  <div class="card-form mb-3">
+    <div class="card-header">
+      <h5><i class="fas fa-user me-2 text-primary"></i>Client & informations</h5>
     </div>
+    <div class="p-3 p-sm-4">
+      <div class="row g-3">
+        <div class="col-12 col-lg-5">
+          <label class="form-label">Client</label>
+          <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
+          <select name="client_id" class="form-select visually-hidden" id="clientSelect">
+            <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-search="client comptoir">Client comptoir</option>
+            {% for client in clients %}
+            <option
+                value="{{ client.id }}"
+                data-client-name="{{ client.prenom }} {{ client.nom }}"
+                data-client-matricule="{{ client.matricule }}"
+                data-client-email="{{ client.email or '-' }}"
+                data-client-phone="{{ client.telephone or '-' }}"
+                data-solde="{{ client.solde or 0 }}"
+                data-groupe="{{ client.groupe.nom if client.groupe else '' }}"
+                data-groupe-solde="{{ client.groupe.solde if client.groupe else 0 }}"
+                data-absorption="{{ client.groupe.pourcentage_absorption if client.groupe else 0 }}"
+                data-search="{{ (client.prenom ~ ' ' ~ client.nom ~ ' ' ~ client.matricule ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}"
+            >
+                {{ client.prenom }} {{ client.nom }} - {{ client.matricule }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="treeview-panel client-results mb-2" id="clientResults"></div>
+          <div class="meta-box mt-2" id="clientSelectedMeta">
+            <div class="fw-bold">Client comptoir</div>
+            <div class="text-muted">Aucun compte client sélectionné.</div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-7">
+          <div class="row g-3">
+            <div class="col-6 col-md-4">
+              <label class="form-label">Mode de paiement</label>
+              <select name="mode_paiement" class="form-select" required>
+                <option value="especes">Especes</option>
+                <option value="mobile_money">Mobile money</option>
+                <option value="carte">Carte</option>
+                <option value="solde_client">Solde client</option>
+                <option value="mixte">Mixte</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Statut</label>
+              <select name="statut" class="form-select" required>
+                <option value="validee">Validee</option>
+                <option value="brouillon">Brouillon</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5">
+              <label class="form-label">Note</label>
+              <input type="text" name="note" class="form-control" placeholder="Observation...">
+            </div>
+          </div>
+          <div class="row g-2 g-sm-3 mt-1">
+            <div class="col-6 client-account-section">
+              <div class="stat-card d-flex align-items-center gap-2">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+                  <i class="fas fa-wallet"></i>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-number" id="clientBalance">0.00</div>
+                  <div class="stat-label">Solde client</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 client-account-section">
+              <div class="stat-card d-flex align-items-center gap-2">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+                  <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-number" id="clientGroupName">Aucun groupe</div>
+                  <div class="stat-label">Groupe client</div>
+                  <div class="stat-sub">Solde : <span id="groupBalance">0.00</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 client-account-section">
+              <div class="stat-card d-flex align-items-center gap-2">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+                  <i class="fas fa-percent"></i>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-number" id="groupAbsorption">0.00%</div>
+                  <div class="stat-label">Absorption groupe</div>
+                  <div class="stat-sub">Client : <span id="clientAbsorption">100.00%</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="stat-card d-flex align-items-center gap-2">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+                  <i class="fas fa-sack-dollar"></i>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-number text-success" id="saleTotalTtc">0.00</div>
+                  <div class="stat-label">Total vente TTC</div>
+                  <div class="stat-sub">HT : <span id="saleTotalHt">0.00</span> · TVA : <span id="saleTotalTax">0.00</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Produits -->
+  <div class="card-form mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h5><i class="fas fa-pills me-2 text-primary"></i>Produits</h5>
+      <button type="button" class="btn btn-primary btn-sm" id="addLineBtn">
+        <i class="fas fa-plus me-1"></i> Ajouter<span class="d-none d-sm-inline"> une ligne</span>
+      </button>
+    </div>
+    <div class="p-2 p-sm-3">
+      <div id="saleLinesBody" class="d-flex flex-column gap-2 gap-sm-3">
+        <div class="sale-line">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="line-number"></span>
+            <button type="button" class="btn btn-outline-danger btn-sm remove-line" title="Retirer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          <div class="row g-2 g-sm-3">
+            <div class="col-12">
+              <input type="search" class="form-control mb-2 product-search" placeholder="Rechercher produit: nom, code suivi, fournisseur, groupe...">
+              <select name="produit_id[]" class="form-select product-select visually-hidden" required>
+                <option value="">Choisir un produit</option>
+                {% for produit in produits %}
+                <option
+                    value="{{ produit.id }}"
+                    data-product-code="{{ produit.code_produit }}"
+                    data-tracking-codes="{{ stock_tracking_codes.get(produit.id, [])|join(' | ') }}"
+                    data-expiry-dates="{{ stock_expiry_dates.get(produit.id, [])|join(' | ') }}"
+                    data-fournisseur="{{ produit.fournisseur.nom if produit.fournisseur else '-' }}"
+                    data-groupe-fournisseur="{{ produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '-' }}"
+                    data-rayon="{{ produit.rayon.nom if produit.rayon else '-' }}"
+                    data-famille="{{ produit.famille.nom if produit.famille else '-' }}"
+                    data-section="{{ produit.section.nom if produit.section else '-' }}"
+                    data-conditionnement="{{ [produit.conditionnement or 1, 3 if stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) > 0 else 2 if stock_totals.get(produit.id, {}).get('sous_unite', 0) > 0 else 1]|max }}"
+                    data-stock-unite="{{ stock_totals.get(produit.id, {}).get('unite', 0) }}"
+                    data-stock-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_unite', 0) }}"
+                    data-stock-sous-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) }}"
+                    data-unite-ht="{{ produit.prix_unite or 0 }}"
+                    data-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
+                    data-sous-unite-ht="{{ produit.prix_sous_unite or produit.prix_unite or 0 }}"
+                    data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
+                    data-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or produit.prix_unite or 0 }}"
+                    data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
+                    data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (stock_expiry_dates.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
+                >
+                    {{ produit.nom }} - {{ stock_tracking_codes.get(produit.id, [produit.code_produit])[0] }}
+                </option>
+                {% endfor %}
+              </select>
+              <div class="treeview-panel product-results mb-2"></div>
+              <div class="meta-box mt-2 product-meta">
+                <div class="fw-bold">Aucun produit sélectionné</div>
+                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
+              </div>
+            </div>
+            <div class="col-7 col-sm-6 col-lg-4">
+              <label class="form-label">Unités</label>
+              <select name="unite[]" class="form-select unit-select">
+                <option value="unite" data-min-conditionnement="1">Unités</option>
+                <option value="sous_unite" data-min-conditionnement="2">Sous unités</option>
+                <option value="sous_sous_unite" data-min-conditionnement="3">Sous sous unités</option>
+              </select>
+            </div>
+            <div class="col-5 col-sm-6 col-lg-4">
+              <label class="form-label">Quantité</label>
+              <input type="number" min="1" step="1" name="quantite[]" class="form-control" value="1" required>
+              <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paiement -->
+  <div class="card-form mb-3">
+    <div class="card-header">
+      <h5><i class="fas fa-money-bill-wave me-2 text-primary"></i>Paiement</h5>
+    </div>
+    <div class="p-3 p-sm-4">
+      <div class="row g-2 g-sm-3 mb-3">
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Total HT</div>
+            <div class="pay-value" id="paymentTotalHt">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">TVA</div>
+            <div class="pay-value" id="paymentTotalTax">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Total TTC</div>
+            <div class="pay-value text-success" id="paymentTotalTtc">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-6 col-xl client-account-section">
+          <div class="pay-stat">
+            <div class="pay-label">Part groupe calculée</div>
+            <div class="pay-value" id="paymentGroupShare">0.00</div>
+            <div class="pay-sub"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-6 col-xl client-account-section">
+          <div class="pay-stat">
+            <div class="pay-label">Part client calculée</div>
+            <div class="pay-value" id="paymentClientShare">0.00</div>
+            <div class="pay-sub"><span id="paymentClientPercent">100.00%</span> du TTC</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-xl-3 client-account-section">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input payment-input" id="useGroupBalance" name="use_group_balance" value="1">
+            <label class="form-check-label fw-bold small" for="useGroupBalance">Débiter la part groupe</label>
+          </div>
+          <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
+          <div class="small text-muted">Montant groupe : <span id="groupDebitPreview">0.00</span></div>
+        </div>
+        <div class="col-6 col-xl-3">
+          <label class="form-label">Payé hors solde</label>
+          <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
+        </div>
+        <div class="col-6 col-xl-3 client-account-section">
+          <label class="form-label">Débiter solde client</label>
+          <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
+          <div class="form-text">Le reste client peut être payé ici, hors solde, ou les deux.</div>
+        </div>
+        <div class="col-6 col-xl-3">
+          <label class="form-label">Montant reçu</label>
+          <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
+      </div>
+
+      <div class="row g-2 g-sm-3 mt-2">
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Reste après groupe</div>
+            <div class="pay-value" id="remainingAfterGroup">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Payé + solde client</div>
+            <div class="pay-value" id="amountCovered">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Écart à corriger</div>
+            <div class="pay-value text-danger" id="amountRemaining">0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-6 col-xl">
+          <div class="pay-stat">
+            <div class="pay-label">Monnaie à rendre</div>
+            <div class="pay-value text-success" id="changeDue">0.00</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl client-account-section">
+          <div class="pay-stat">
+            <div class="pay-label">Soldes après vente</div>
+            <div class="pay-sub">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex flex-row justify-content-sm-end gap-2 mb-3 mb-sm-4">
+    <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary flex-fill flex-sm-grow-0">Annuler</a>
+    <button type="submit" class="btn btn-primary flex-fill flex-sm-grow-0">
+      <i class="fas fa-save me-1"></i> Enregistrer
+    </button>
+  </div>
 </form>
 
 <div class="modal fade" id="receiptPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-light">
                 <h5 class="modal-title">Prévisualisation du Ticket de Caisse</h5>
@@ -571,7 +827,7 @@
                     <input type="password" id="modalValidationPassword" class="form-control" placeholder="Entrez votre mot de passe" autocomplete="current-password">
                     <div id="modalPasswordError" class="invalid-feedback">Mot de passe incorrect.</div>
                 </div>
-                <div class="d-flex justify-content-end gap-2">
+                <div class="d-flex flex-column flex-sm-row justify-content-sm-end gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Modifier la vente</button>
                     <button type="button" class="btn btn-primary" id="confirmAndPrintBtn">
                         <i class="fas fa-print me-1"></i> Imprimer et Enregistrer
@@ -583,7 +839,7 @@
 </div>
 
 <div class="modal fade" id="productInfoModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-light">
                 <h5 class="modal-title" id="productInfoTitle">Détails produit</h5>
@@ -706,7 +962,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const treeClass = isProduct ? 'product-tree' : 'client-tree';
         return `
             <div class="treeview-header ${treeClass}" role="row">
-                ${headers.map((label) => `<div role="columnheader">${escapeHtml(label)}</div>`).join('')}
+                ${headers.map((label, index) => `<div class="tvc-${index}" role="columnheader">${escapeHtml(label)}</div>`).join('')}
             </div>
         `;
     }
@@ -744,9 +1000,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${cells.map((value, index) => {
                     const stockStateClass = isProduct && index === 7 && isOutOfStock ? 'text-danger fw-bold' : '';
                     const nameClass = index === 0 ? 'fw-bold' : '';
-                    return `<div class="${nameClass} ${stockStateClass}">${escapeHtml(value)}</div>`;
+                    return `<div class="tvc-${index} ${nameClass} ${stockStateClass}">${escapeHtml(value)}</div>`;
                 }).join('')}
-                ${isProduct ? '<div><span class="btn btn-sm btn-outline-info treeview-info-btn" data-product-info="1" title="Voir les détails"><i class="fas fa-info"></i></span></div>' : ''}
+                ${isProduct ? '<div class="tvc-11"><span class="btn btn-sm btn-outline-info treeview-info-btn" data-product-info="1" title="Voir les détails"><i class="fas fa-info"></i></span></div>' : ''}
             </button>
         `;
         }).join('');
@@ -1091,12 +1347,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.getElementById('previewTotalTtc').textContent = fieldById('paymentTotalTtc').textContent;
         document.getElementById('previewModePaiement').textContent = venteForm.querySelector('select[name="mode_paiement"]').value.replace('_', ' ');
-        
+
         // Recalculate directly from inputs for maximum reliability
         const amountExternal = toNumber(fieldById('amountExternal').value);
         const amountReceived = toNumber(fieldById('amountReceived').value);
         const changeDue = Math.max(amountReceived - amountExternal, 0);
-        
+
         document.getElementById('previewMontantRecu').textContent = formatMoney(amountReceived);
         document.getElementById('previewMonnaieRendue').textContent = formatMoney(changeDue);
 
@@ -1106,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', function() {
         pwdInput.classList.remove('is-invalid');
 
         const modalElement = document.getElementById('receiptPreviewModal');
-        
+
         // Ensure buttons are enabled (fixing the non-clickable issue)
         modalElement.querySelectorAll('button, input').forEach(el => el.disabled = false);
 
@@ -1117,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('confirmAndPrintBtn').addEventListener('click', function() {
         const passwordInput = document.getElementById('modalValidationPassword');
         const passwordError = document.getElementById('modalPasswordError');
-        
+
         if (!passwordInput.value) {
             passwordInput.classList.add('is-invalid');
             return;
@@ -1138,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const modalElement = document.getElementById('receiptPreviewModal');
                 const modal = bootstrap.Modal.getInstance(modalElement);
                 if (modal) modal.hide();
-                
+
                 setTimeout(() => {
                     // Create a hidden input for the password to include it in the final submission
                     const hiddenPwd = document.createElement('input');
@@ -1192,6 +1448,7 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshRemoveButtons();
         updateAllUnitOptions();
         updateSaleSummary();
+        clone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
     body.addEventListener('click', function(event) {

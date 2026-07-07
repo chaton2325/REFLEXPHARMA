@@ -2037,7 +2037,7 @@ def create_vente():
         vente.solde_groupe_avant = group_balance_before
         vente.solde_groupe_apres = client.groupe.solde if client and client.groupe else 0
         db.session.commit()
-        flash('Vente enregistrÃ©e avec succÃ¨s.', 'success')
+        flash(f'Vente {numero_vente} enregistrée avec succès.', 'success')
         return redirect(url_for('admin.list_ventes'))
 
     return render_template(
