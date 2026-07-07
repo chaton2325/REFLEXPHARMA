@@ -158,13 +158,50 @@
     .table-custom .col-rendu, .table-custom .col-auteur { display: none !important; }
   }
 
+  /* Bouton d'ouverture des filtres (mobile uniquement) */
+  .filters-toggle {
+    width: 100%;
+    background: #f8f9fa;
+    border: 0;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #2c3e50;
+    padding: 0.55rem 0.85rem;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; }
+
+  /* Version mobile compacte : moins de scroll vertical */
   @media (max-width: 575.98px) {
-    .page-header { padding: 1.25rem; border-radius: 12px; }
-    .page-header h1 { font-size: 1.25rem; }
-    .stat-card { padding: 0.7rem 0.85rem; }
-    .stat-card .stat-number { font-size: 1.05rem; }
-    .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.9rem; }
-    .stat-card .stat-label { font-size: 0.62rem; }
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+    .page-header .btn-light { padding: 0.28rem 0.7rem; font-size: 0.75rem; }
+
+    .row.mb-4 { margin-bottom: 0.75rem !important; }
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .card-form.mb-3, .card-custom.mb-3 { margin-bottom: 0.75rem !important; }
+    .card-form .p-3 { padding: 0.7rem !important; }
+    .card-form .form-label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .card-form .form-control, .card-form .form-select { font-size: 0.78rem; padding: 0.28rem 0.5rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+
+    .pagination { margin-bottom: 0.5rem; }
+    .pagination .page-link { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
   }
 
   /* --- Modal succès vente (animation) --- */
@@ -227,11 +264,11 @@
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-light btn-sm">
-        <i class="fas fa-list me-1"></i> Toutes les ventes
+        <i class="fas fa-list me-1"></i> Toutes<span class="d-none d-sm-inline"> les ventes</span>
       </a>
       {% if current_user.has_permission('stats_ventes') %}
       <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-light btn-sm">
-        <i class="fas fa-chart-line me-1"></i> Statistiques
+        <i class="fas fa-chart-line me-1"></i> Stats<span class="d-none d-sm-inline">istiques</span>
       </a>
       {% endif %}
       <a href="{{ url_for('admin.create_vente') }}" class="btn btn-light btn-sm">
@@ -302,14 +339,20 @@
   </div>
 </div>
 
+{% set filters_active = request.args.get('q') or request.args.get('statut') or request.args.get('mode_paiement') or request.args.get('client_id') or request.args.get('auteur_id') or request.args.get('date_from') or request.args.get('date_to') or request.args.get('min_ttc') or request.args.get('max_ttc') %}
 <form method="GET" class="card-form mb-3">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#ventesFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="ventesFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres & tri{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="ventesFilters">
   <div class="p-3 p-sm-4">
     <div class="row g-3 align-items-end">
-      <div class="col-md-3">
+      <div class="col-12 col-md-3">
         <label class="form-label">Recherche</label>
         <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numero, client, auteur...">
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Statut</label>
         <select name="statut" class="form-select form-select-sm">
           <option value="">Tous</option>
@@ -318,7 +361,7 @@
           <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Paiement</label>
         <select name="mode_paiement" class="form-select form-select-sm">
           <option value="">Tous</option>
@@ -329,7 +372,7 @@
           <option value="mixte" {% if request.args.get('mode_paiement') == 'mixte' %}selected{% endif %}>Mixte</option>
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Client</label>
         <select name="client_id" class="form-select form-select-sm">
           <option value="">Tous les clients</option>
@@ -338,7 +381,7 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Auteur</label>
         <select name="auteur_id" class="form-select form-select-sm">
           <option value="">Tous les auteurs</option>
@@ -347,23 +390,23 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Date debut</label>
         <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from_val or request.args.get('date_from', '') }}">
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Date fin</label>
         <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to_val or request.args.get('date_to', '') }}">
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Montant Min (TTC)</label>
         <input type="number" name="min_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('min_ttc', '') }}" placeholder="Min">
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Montant Max (TTC)</label>
         <input type="number" name="max_ttc" step="0.01" class="form-control form-control-sm" value="{{ request.args.get('max_ttc', '') }}" placeholder="Max">
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Trier par</label>
         <select name="sort" class="form-select form-select-sm">
           {% set selected_sort = request.args.get('sort', 'created_at') %}
@@ -377,18 +420,18 @@
           <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
         </select>
       </div>
-      <div class="col-md-1">
+      <div class="col-6 col-md-1">
         <label class="form-label">Ordre</label>
         <select name="direction" class="form-select form-select-sm">
           <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Desc</option>
           <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Asc</option>
         </select>
       </div>
-      <div class="col-md-1">
+      <div class="col-6 col-md-1">
         <label class="form-label">Page</label>
         <input type="number" name="per_page" class="form-control form-control-sm" value="{{ per_page }}" min="1" max="1000">
       </div>
-      <div class="col-md-2 d-flex gap-2">
+      <div class="col-12 col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-primary btn-sm flex-fill">
           <i class="fas fa-filter me-1"></i> Filtrer
         </button>
@@ -397,6 +440,7 @@
         </a>
       </div>
     </div>
+  </div>
   </div>
 </form>
 

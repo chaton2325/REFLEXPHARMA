@@ -2038,7 +2038,7 @@ def create_vente():
         vente.solde_groupe_apres = client.groupe.solde if client and client.groupe else 0
         db.session.commit()
         flash(f'Vente {numero_vente} enregistrée avec succès.', 'success')
-        return redirect(url_for('admin.list_ventes'))
+        return redirect(url_for('admin.create_vente'))
 
     return render_template(
         'admin/ventes/form.html',

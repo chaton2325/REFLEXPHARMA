@@ -353,6 +353,55 @@
     .payment-preset { font-size: 0.7rem; padding: 0.22rem 0.55rem; }
   }
 
+  /* --- Modal succès vente (animation) --- */
+  #venteSuccessModal .modal-content {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #venteSuccessModal.show .modal-dialog {
+    animation: venteSuccessPop 0.45s cubic-bezier(0.18, 1.25, 0.4, 1) both;
+  }
+  @keyframes venteSuccessPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .success-checkmark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: #e6f7ee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPulse 1.4s ease-out 0.3s;
+  }
+  @keyframes successPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(30,142,62,0.35); }
+    100% { box-shadow: 0 0 0 26px rgba(30,142,62,0); }
+  }
+  .success-svg { width: 58px; height: 58px; }
+  .success-circle {
+    stroke: #1e8e3e;
+    stroke-width: 2.5;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: venteDrawCircle 0.6s ease-out 0.15s forwards;
+  }
+  @keyframes venteDrawCircle { to { stroke-dashoffset: 0; } }
+  .success-check {
+    stroke: #1e8e3e;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: venteDrawCheck 0.35s ease-out 0.7s forwards;
+  }
+  @keyframes venteDrawCheck { to { stroke-dashoffset: 0; } }
+
   /* --- Ticket de caisse --- */
   .receipt-preview-container {
     width: 100%;
@@ -836,6 +885,32 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Modal succès après enregistrement d'une vente -->
+<div class="modal fade" id="venteSuccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <div class="success-checkmark mb-3">
+          <svg class="success-svg" viewBox="0 0 52 52" aria-hidden="true">
+            <circle class="success-circle" cx="26" cy="26" r="24" fill="none"/>
+            <path class="success-check" fill="none" d="M14 27l8 8 16-16"/>
+          </svg>
+        </div>
+        <h5 class="fw-bold mb-1">Vente enregistrée !</h5>
+        <p class="text-muted small mb-3" id="venteSuccessMessage">La vente a été validée avec succès.</p>
+        <div class="d-flex justify-content-center gap-2">
+          <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-list me-1"></i> Voir les ventes
+          </a>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
+            <i class="fas fa-plus me-1"></i> Continuer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="productInfoModal" tabindex="-1">
@@ -1554,6 +1629,18 @@ document.addEventListener('DOMContentLoaded', function() {
     updateAllUnitOptions();
     updateClientAccountVisibility();
     updateSaleSummary();
+
+    // Après enregistrement, remplacer l'alerte flash par le modal succès animé
+    const successAlert = Array.from(document.querySelectorAll('.alert-success'))
+        .find((alert) => alert.textContent.includes('Vente') && alert.textContent.includes('enregistr'));
+    if (successAlert) {
+        const message = successAlert.textContent.trim();
+        successAlert.remove();
+        if (message) {
+            document.getElementById('venteSuccessMessage').textContent = message;
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('venteSuccessModal')).show();
+    }
 });
 </script>
 {% endblock %}
