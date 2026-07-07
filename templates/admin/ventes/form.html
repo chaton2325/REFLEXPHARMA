@@ -144,29 +144,75 @@
   }
   .meta-box .text-muted { font-size: 0.74rem; }
 
-  /* --- Lignes de vente (cartes) --- */
+  /* Panneaux colorés de la section Client & informations */
+  .client-pane {
+    background: #e8f1fb;
+    border: 1px solid #d3e4f7;
+    border-radius: 12px;
+    padding: 0.85rem;
+    height: 100%;
+  }
+  .client-pane .meta-box { background: #fff; border-color: #d3e4f7; }
+  .info-pane {
+    background: #fefce8;
+    border: 1px solid #f1ecc9;
+    border-radius: 12px;
+    padding: 0.85rem;
+    height: 100%;
+  }
+  .info-pane .stat-card { box-shadow: none; border: 1px solid #efe8c0; }
+
+  /* --- Panier : lignes de vente (cartes) --- */
   #saleLinesBody { counter-reset: sale-line; }
   .sale-line {
     border: 1px solid #e8edf4;
     border-radius: 12px;
-    padding: 0.85rem;
+    padding: 0.65rem 0.75rem;
   }
-  #saleLinesBody > .sale-line:nth-child(odd) { background: #fef0f0; }
-  #saleLinesBody > .sale-line:nth-child(even) { background: #fefce8; }
-  .sale-line .line-number::before {
+  .sale-line .product-meta { padding: 0.35rem 0.6rem; }
+  /* Alternance rouge doux / violet doux par article du panier */
+  #saleLinesBody > .sale-line:nth-child(odd) {
+    background: #fdecec;
+    border-color: #f3cccc;
+    border-left: 4px solid #e05e5e;
+  }
+  #saleLinesBody > .sale-line:nth-child(even) {
+    background: #f4eefc;
+    border-color: #e2d4f5;
+    border-left: 4px solid #8b5cf6;
+  }
+  .sale-line .line-number::after {
     counter-increment: sale-line;
-    content: "Ligne " counter(sale-line);
+    content: "Article " counter(sale-line);
   }
   .sale-line .line-number {
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: #7a8896;
-    background: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.75);
     border: 1px solid #e8edf4;
     border-radius: 20px;
     padding: 0.2em 0.8em;
+  }
+  #saleLinesBody > .sale-line:nth-child(odd) .line-number {
+    color: #b91c1c;
+    border-color: #f0bcbc;
+  }
+  #saleLinesBody > .sale-line:nth-child(even) .line-number {
+    color: #6f42c1;
+    border-color: #ddccf4;
+  }
+  #saleLinesBody > .sale-line:nth-child(odd) .meta-box { border-color: #f0c4c4; }
+  #saleLinesBody > .sale-line:nth-child(even) .meta-box { border-color: #ded0f0; }
+  .cart-count-badge {
+    background: linear-gradient(135deg, #e05e5e, #8b5cf6);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border-radius: 20px;
+    padding: 0.32em 0.85em;
   }
   .sale-line .remove-line {
     width: 30px;
@@ -248,14 +294,12 @@
   }
 
   .client-tree { grid-template-columns: minmax(180px, 1.4fr) 110px minmax(170px, 1fr) minmax(140px, .9fr); }
-  .product-tree { grid-template-columns: minmax(125px, 1.4fr) minmax(90px, .9fr) minmax(105px, 1fr) minmax(85px, .8fr) 44px 44px 44px 58px 54px 54px 54px 34px; }
 
-  /* Colonnes secondaires masquées progressivement : pas de scroll horizontal sur mobile */
+  /* Colonnes réduites par défaut (le panneau vit dans une demi-colonne) :
+     les détails complets restent accessibles via le modal ⓘ */
+  .product-tree { grid-template-columns: minmax(120px, 1.4fr) minmax(85px, .9fr) minmax(80px, .8fr) 42px 42px 42px 58px 54px 34px; }
+  .product-tree .tvc-2, .product-tree .tvc-9, .product-tree .tvc-10 { display: none; }
   @media (max-width: 1399.98px) {
-    .product-tree { grid-template-columns: minmax(120px, 1.4fr) minmax(85px, .9fr) minmax(80px, .8fr) 42px 42px 42px 58px 54px 34px; }
-    .product-tree .tvc-2, .product-tree .tvc-9, .product-tree .tvc-10 { display: none; }
-  }
-  @media (max-width: 991.98px) {
     .product-tree { grid-template-columns: minmax(110px, 1.5fr) minmax(80px, 1fr) 42px 58px minmax(54px, .6fr) 32px; }
     .product-tree .tvc-3, .product-tree .tvc-5, .product-tree .tvc-6 { display: none; }
   }
@@ -324,10 +368,11 @@
 
     .meta-box { padding: 0.4rem 0.55rem; font-size: 0.7rem; line-height: 1.35; }
     .meta-box .text-muted { font-size: 0.66rem; }
-    /* Méta produit / client sur 2 colonnes pour réduire la hauteur */
-    .product-meta, #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.6rem; }
-    .product-meta > .fw-bold, #clientSelectedMeta > .fw-bold { grid-column: 1 / -1; }
-    .product-meta > div, #clientSelectedMeta > div {
+    .client-pane, .info-pane { padding: 0.5rem; border-radius: 10px; }
+    /* Méta client sur 2 colonnes pour réduire la hauteur */
+    #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.6rem; }
+    #clientSelectedMeta > .fw-bold { grid-column: 1 / -1; }
+    #clientSelectedMeta > div {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -516,6 +561,7 @@
     <div class="p-3 p-sm-4">
       <div class="row g-3">
         <div class="col-12 col-lg-5">
+          <div class="client-pane">
           <label class="form-label">Client</label>
           <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
           <select name="client_id" class="form-select visually-hidden" id="clientSelect">
@@ -542,8 +588,10 @@
             <div class="fw-bold">Client comptoir</div>
             <div class="text-muted">Aucun compte client sélectionné.</div>
           </div>
+          </div>
         </div>
         <div class="col-12 col-lg-7">
+          <div class="info-pane">
           <div class="row g-3">
             <div class="col-6 col-md-4">
               <label class="form-label">Mode de paiement</label>
@@ -616,6 +664,7 @@
               </div>
             </div>
           </div>
+          </div>
         </div>
       </div>
     </div>
@@ -624,22 +673,25 @@
   <!-- Produits -->
   <div class="card-form mb-3">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <h5><i class="fas fa-pills me-2 text-primary"></i>Produits</h5>
+      <h5 class="d-flex align-items-center gap-2">
+        <i class="fas fa-shopping-cart text-primary"></i>Panier
+        <span class="cart-count-badge" id="cartCountBadge">1 article</span>
+      </h5>
       <button type="button" class="btn btn-primary btn-sm" id="addLineBtn">
-        <i class="fas fa-plus me-1"></i> Ajouter<span class="d-none d-sm-inline"> une ligne</span>
+        <i class="fas fa-cart-plus me-1"></i> Ajouter<span class="d-none d-sm-inline"> un article</span>
       </button>
     </div>
     <div class="p-2 p-sm-3">
       <div id="saleLinesBody" class="d-flex flex-column gap-2 gap-sm-3">
         <div class="sale-line">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="line-number"></span>
+            <span class="line-number"><i class="fas fa-shopping-basket me-1"></i></span>
             <button type="button" class="btn btn-outline-danger btn-sm remove-line" title="Retirer">
               <i class="fas fa-trash"></i>
             </button>
           </div>
           <div class="row g-2 g-sm-3">
-            <div class="col-12">
+            <div class="col-12 col-lg-6">
               <input type="search" class="form-control mb-2 product-search" placeholder="Rechercher produit: nom, code suivi, fournisseur, groupe...">
               <select name="produit_id[]" class="form-select product-select visually-hidden" required>
                 <option value="">Choisir un produit</option>
@@ -670,13 +722,12 @@
                 </option>
                 {% endfor %}
               </select>
-              <div class="treeview-panel product-results mb-2"></div>
-              <div class="meta-box mt-2 product-meta">
-                <div class="fw-bold">Aucun produit sélectionné</div>
-                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
+              <div class="treeview-panel product-results mb-2 d-none"></div>
+              <div class="meta-box product-meta">
+                <div class="text-muted">Aucun produit sélectionné</div>
               </div>
             </div>
-            <div class="col-7 col-sm-6 col-lg-4">
+            <div class="col-7 col-sm-6 col-lg-3">
               <label class="form-label">Unités</label>
               <select name="unite[]" class="form-select unit-select">
                 <option value="unite" data-min-conditionnement="1">Unités</option>
@@ -684,7 +735,7 @@
                 <option value="sous_sous_unite" data-min-conditionnement="3">Sous sous unités</option>
               </select>
             </div>
-            <div class="col-5 col-sm-6 col-lg-4">
+            <div class="col-5 col-sm-6 col-lg-3">
               <label class="form-label">Quantité</label>
               <input type="number" min="1" step="1" name="quantite[]" class="form-control" value="1" required>
               <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
@@ -1152,23 +1203,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const productSearch = line.querySelector('.product-search');
         const selectedProduct = productSelect.options[productSelect.selectedIndex];
         if (!selectedProduct || !selectedProduct.value) {
-            productMeta.innerHTML = `
-                <div class="fw-bold">Aucun produit sélectionné</div>
-                <div class="text-muted">Code suivi, fournisseur, famille, rayon et section apparaîtront ici.</div>
-            `;
+            productMeta.innerHTML = '<div class="text-muted">Aucun produit sélectionné</div>';
             productSearch.placeholder = 'Rechercher produit: nom, code suivi, fournisseur, groupe...';
             return;
         }
         productSearch.placeholder = getOptionTitle(selectedProduct);
         productMeta.innerHTML = `
-            <div class="fw-bold">${escapeHtml(selectedProduct.textContent.split(' - ')[0])}</div>
-            <div class="mt-1"><span class="text-muted">Code suivi :</span> ${escapeHtml(selectedProduct.dataset.trackingCodes || '-')}</div>
-            <div><span class="text-muted">Code produit :</span> ${escapeHtml(selectedProduct.dataset.productCode || '-')}</div>
-            <div><span class="text-muted">Fournisseur :</span> ${escapeHtml(selectedProduct.dataset.fournisseur || '-')}</div>
-            <div><span class="text-muted">Groupe fournisseur :</span> ${escapeHtml(selectedProduct.dataset.groupeFournisseur || '-')}</div>
-            <div><span class="text-muted">Famille :</span> ${escapeHtml(selectedProduct.dataset.famille || '-')}</div>
-            <div><span class="text-muted">Rayon :</span> ${escapeHtml(selectedProduct.dataset.rayon || '-')}</div>
-            <div><span class="text-muted">Section :</span> ${escapeHtml(selectedProduct.dataset.section || '-')}</div>
+            <div class="d-flex align-items-center gap-2" style="min-width:0;">
+                <span class="fw-bold text-truncate">${escapeHtml(selectedProduct.textContent.split(' - ')[0])}</span>
+                <span class="text-muted text-truncate d-none d-md-inline">${escapeHtml(selectedProduct.dataset.trackingCodes || selectedProduct.dataset.productCode || '-')}</span>
+                <span class="btn btn-sm btn-outline-info treeview-info-btn ms-auto flex-shrink-0" data-meta-info="1" title="Voir les détails"><i class="fas fa-info"></i></span>
+            </div>
         `;
     }
 
@@ -1510,6 +1555,10 @@ document.addEventListener('DOMContentLoaded', function() {
         buttons.forEach((button) => {
             button.disabled = buttons.length === 1;
         });
+        const cartBadge = document.getElementById('cartCountBadge');
+        if (cartBadge) {
+            cartBadge.textContent = `${buttons.length} article${buttons.length > 1 ? 's' : ''}`;
+        }
     }
 
     addLineBtn.addEventListener('click', function() {
@@ -1519,6 +1568,7 @@ document.addEventListener('DOMContentLoaded', function() {
         clone.querySelectorAll('.product-search').forEach((input) => input.value = '');
         clone.querySelector('input[name="quantite[]"]').value = '1';
         body.appendChild(clone);
+        clone.querySelector('.product-results').classList.add('d-none');
         filterSelectOptions(clone.querySelector('.product-select'), '', true);
         refreshRemoveButtons();
         updateAllUnitOptions();
@@ -1556,6 +1606,14 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSaleSummary();
     });
     body.addEventListener('click', function(event) {
+        const metaInfoTrigger = event.target.closest('[data-meta-info]');
+        if (metaInfoTrigger) {
+            const metaLine = metaInfoTrigger.closest('.sale-line');
+            const metaSelect = metaLine.querySelector('select[name="produit_id[]"]');
+            const metaOption = metaSelect.options[metaSelect.selectedIndex];
+            if (metaOption && metaOption.value) showProductInfo(metaOption);
+            return;
+        }
         const item = event.target.closest('.product-results [data-option-value]');
         if (!item) return;
         const line = item.closest('.sale-line');
@@ -1570,12 +1628,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedProduct = productSelect.options[productSelect.selectedIndex];
         productSearch.value = selectedProduct && selectedProduct.value ? getOptionTitle(selectedProduct) : '';
         filterSelectOptions(productSelect, productSearch.value, true);
+        line.querySelector('.product-results').classList.add('d-none');
         productSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    body.addEventListener('focusin', function(event) {
+        if (!event.target.classList.contains('product-search')) return;
+        event.target.closest('.sale-line').querySelector('.product-results').classList.remove('d-none');
     });
     body.addEventListener('input', function(event) {
         if (!event.target.classList.contains('product-search')) return;
         const line = event.target.closest('.sale-line');
         const productSelect = line.querySelector('select[name="produit_id[]"]');
+        line.querySelector('.product-results').classList.remove('d-none');
         filterSelectOptions(productSelect, event.target.value, true);
     });
     body.addEventListener('change', function(event) {
