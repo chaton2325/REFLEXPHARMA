@@ -4,12 +4,17 @@
 
 {% block extra_head %}
 <style>
-  body { background-color: #fdf2f2 !important; }
+  body {
+    background: linear-gradient(160deg, #16222f 0%, #2c3e50 30%, #3d6a96 65%, #cfe3f5 100%) !important;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
   .page-header {
+    border: 1px solid rgba(255,255,255,0.14);
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-    border-radius: 16px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 1.5rem;
+    border-radius: 12px;
+    padding: 0.5rem 0.9rem;
+    margin-bottom: 0.5rem;
     position: relative;
     overflow: hidden;
   }
@@ -27,13 +32,13 @@
   .page-header h1 {
     color: #fff;
     font-weight: 700;
-    font-size: 1.5rem;
+    font-size: 0.98rem;
     position: relative;
     z-index: 1;
   }
   .page-header p {
     color: rgba(255,255,255,0.7);
-    font-size: 0.9rem;
+    font-size: 0.66rem;
     margin: 0;
     position: relative;
     z-index: 1;
@@ -43,17 +48,17 @@
     background: rgba(255,255,255,0.15);
     color: #fff;
     font-weight: 600;
-    font-size: 0.8rem;
-    padding: 0.15em 0.7em;
+    font-size: 0.7rem;
+    padding: 0.1em 0.55em;
     border-radius: 20px;
     letter-spacing: 0.3px;
   }
   .page-header .btn-light {
     color: #2c3e50;
     font-weight: 600;
-    border-radius: 10px;
-    padding: 0.5rem 1.2rem;
-    font-size: 0.85rem;
+    border-radius: 7px;
+    padding: 0.22rem 0.65rem;
+    font-size: 0.7rem;
     position: relative;
     z-index: 1;
   }
@@ -69,24 +74,36 @@
   .card-form .card-header {
     background: #f8f9fa;
     border-bottom: 1px solid #e9ecef;
-    padding: 0.85rem 1.25rem;
+    padding: 0.35rem 0.7rem;
   }
   .card-form .card-header h5 {
-    font-size: 0.95rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #2c3e50;
     margin: 0;
   }
+  /* Corps des cartes plus compact, quel que soit le breakpoint Bootstrap */
+  .card-form .p-3.p-sm-4,
+  .card-form .p-2.p-sm-3 {
+    padding: 0.5rem !important;
+  }
+  .card-form .row.g-3,
+  .card-form .row.g-2.g-sm-3 {
+    --bs-gutter-x: 0.5rem;
+    --bs-gutter-y: 0.4rem;
+  }
   .card-form .form-label {
-    font-size: 0.78rem;
+    font-size: 0.68rem;
     font-weight: 600;
     color: #2c3e50;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.18rem;
   }
   .card-form .form-control, .card-form .form-select {
-    border-radius: 8px;
+    border-radius: 7px;
     border: 1px solid #e9ecef;
-    font-size: 0.85rem;
+    font-size: 0.76rem;
+    padding: 0.28rem 0.55rem;
+    min-height: 0;
   }
   .card-form .form-control:focus, .card-form .form-select:focus {
     border-color: #3498db;
@@ -95,24 +112,24 @@
 
   .stat-card {
     background: #fff;
-    border-radius: 14px;
-    padding: 0.9rem 1rem;
+    border-radius: 8px;
+    padding: 0.3rem 0.45rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     height: 100%;
   }
   .stat-card .stat-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.68rem;
     flex-shrink: 0;
   }
   .stat-card .stat-body { min-width: 0; }
   .stat-card .stat-number {
-    font-size: 1.15rem;
+    font-size: 0.8rem;
     font-weight: 700;
     line-height: 1.2;
     color: #1a1a2e;
@@ -121,14 +138,14 @@
     white-space: nowrap;
   }
   .stat-card .stat-label {
-    font-size: 0.68rem;
+    font-size: 0.54rem;
     color: #7a8896;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
   }
   .stat-card .stat-sub {
-    font-size: 0.68rem;
+    font-size: 0.54rem;
     color: #7a8896;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -138,26 +155,26 @@
   .meta-box {
     background: #f8f9fa;
     border: 1px solid #e9ecef;
-    border-radius: 10px;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.78rem;
+    border-radius: 7px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.68rem;
   }
-  .meta-box .text-muted { font-size: 0.74rem; }
+  .meta-box .text-muted { font-size: 0.62rem; }
 
   /* Panneaux colorés de la section Client & informations */
   .client-pane {
     background: #e8f1fb;
     border: 1px solid #d3e4f7;
-    border-radius: 12px;
-    padding: 0.85rem;
+    border-radius: 9px;
+    padding: 0.42rem;
     height: 100%;
   }
   .client-pane .meta-box { background: #fff; border-color: #d3e4f7; }
   .info-pane {
     background: #fefce8;
     border: 1px solid #f1ecc9;
-    border-radius: 12px;
-    padding: 0.85rem;
+    border-radius: 9px;
+    padding: 0.42rem;
     height: 100%;
   }
   .info-pane .stat-card { box-shadow: none; border: 1px solid #efe8c0; }
@@ -166,10 +183,12 @@
   #saleLinesBody { counter-reset: sale-line; }
   .sale-line {
     border: 1px solid #e8edf4;
-    border-radius: 12px;
-    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    padding: 0.4rem 0.5rem;
   }
-  .sale-line .product-meta { padding: 0.35rem 0.6rem; }
+  .sale-line .product-meta { padding: 0.22rem 0.42rem; }
+  .sale-line .mb-2 { margin-bottom: 0.3rem !important; }
+  .sale-line .form-label { margin-bottom: 0.12rem; }
   /* Alternance rouge doux / violet doux par article du panier */
   #saleLinesBody > .sale-line:nth-child(odd) {
     background: #fdecec;
@@ -186,14 +205,14 @@
     content: "Article " counter(sale-line);
   }
   .sale-line .line-number {
-    font-size: 0.68rem;
+    font-size: 0.6rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     background: rgba(255,255,255,0.75);
     border: 1px solid #e8edf4;
     border-radius: 20px;
-    padding: 0.2em 0.8em;
+    padding: 0.14em 0.6em;
   }
   #saleLinesBody > .sale-line:nth-child(odd) .line-number {
     color: #b91c1c;
@@ -208,38 +227,39 @@
   .cart-count-badge {
     background: linear-gradient(135deg, #e05e5e, #8b5cf6);
     color: #fff;
-    font-size: 0.66rem;
+    font-size: 0.58rem;
     font-weight: 700;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     border-radius: 20px;
-    padding: 0.32em 0.85em;
+    padding: 0.24em 0.65em;
   }
   .sale-line .remove-line {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 7px;
+    font-size: 0.7rem;
   }
 
   /* --- Treeview (résultats recherche client / produit) --- */
   .treeview-panel {
-    max-height: 260px;
+    max-height: 220px;
     overflow-x: auto;
     overflow-y: auto;
     border: 1px solid #e8edf4;
-    border-radius: 10px;
+    border-radius: 9px;
     background: #fff;
   }
   .treeview-header,
   .treeview-row {
     display: grid;
-    gap: .28rem;
+    gap: .22rem;
     align-items: center;
     min-width: 0;
-    padding: .36rem .45rem;
+    padding: .28rem .38rem;
   }
   .treeview-header {
     position: sticky;
@@ -248,17 +268,17 @@
     background: linear-gradient(135deg,#2c3e50,#34495e);
     color: #fff;
     border-bottom: 1px solid #e9ecef;
-    font-size: .64rem;
+    font-size: .58rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
   }
   .treeview-row {
     width: 100%;
     border: 0;
     border-bottom: 1px solid #edf2f7;
     background: transparent;
-    font-size: .78rem;
+    font-size: .7rem;
     text-align: left;
   }
   .treeview-row:hover:not(:disabled) { background-color: #eef3fc; }
@@ -280,14 +300,15 @@
     white-space: nowrap;
   }
   .treeview-empty {
-    padding: .8rem;
+    padding: .6rem;
     color: #7a8896;
-    font-size: .8rem;
+    font-size: .72rem;
   }
   .treeview-info-btn {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     padding: 0;
+    font-size: 0.68rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -319,58 +340,59 @@
   .pay-stat {
     background: #f8f9fa;
     border: 1px solid #e9ecef;
-    border-radius: 10px;
-    padding: 0.55rem 0.7rem;
+    border-radius: 7px;
+    padding: 0.26rem 0.4rem;
     height: 100%;
   }
   .pay-stat .pay-label {
-    font-size: 0.66rem;
+    font-size: 0.52rem;
     color: #7a8896;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
   }
   .pay-stat .pay-value {
-    font-size: 0.95rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    line-height: 1.25;
+    line-height: 1.2;
   }
-  .pay-stat .pay-sub { font-size: 0.68rem; color: #7a8896; }
+  .pay-stat .pay-sub { font-size: 0.54rem; color: #7a8896; }
+  .payment-preset { font-size: 0.68rem; padding: 0.2rem 0.55rem; }
 
-  /* Version mobile ultra-compacte : moins de scroll vertical */
+  /* Version mobile ultra-compacte : moins de scroll vertical, écritures réduites */
   @media (max-width: 575.98px) {
-    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem; }
-    .page-header h1 { font-size: 1.1rem; margin-bottom: 0.15rem; }
-    .page-header p { font-size: 0.74rem; }
-    .page-header .btn-light { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
+    .page-header { padding: 0.5rem 0.7rem; border-radius: 10px; margin-bottom: 0.4rem; }
+    .page-header h1 { font-size: 0.9rem; margin-bottom: 0.12rem; }
+    .page-header p { font-size: 0.62rem; }
+    .page-header .btn-light { padding: 0.2rem 0.55rem; font-size: 0.64rem; }
 
-    .card-form { border-radius: 12px; }
-    .card-form.mb-3 { margin-bottom: 0.75rem !important; }
-    .card-form .mb-3 { margin-bottom: 0.6rem !important; }
-    .card-form .card-header { padding: 0.5rem 0.8rem; }
-    .card-form .card-header h5 { font-size: 0.85rem; }
-    .card-form .p-3 { padding: 0.7rem !important; }
-    .card-form .p-2 { padding: 0.5rem !important; }
-    .card-form .row { --bs-gutter-y: 0.5rem; --bs-gutter-x: 0.5rem; }
-    .card-form .form-label { margin-bottom: 0.15rem; font-size: 0.72rem; }
+    .card-form { border-radius: 10px; }
+    .card-form.mb-3 { margin-bottom: 0.5rem !important; }
+    .card-form .mb-3 { margin-bottom: 0.4rem !important; }
+    .card-form .card-header { padding: 0.32rem 0.6rem; }
+    .card-form .card-header h5 { font-size: 0.68rem; }
+    .card-form .p-3 { padding: 0.45rem !important; }
+    .card-form .p-2 { padding: 0.4rem !important; }
+    .card-form .row { --bs-gutter-y: 0.4rem; --bs-gutter-x: 0.4rem; }
+    .card-form .form-label { margin-bottom: 0.1rem; font-size: 0.62rem; }
     .card-form .form-control, .card-form .form-select {
-      font-size: 0.8rem;
-      padding: 0.32rem 0.55rem;
+      font-size: 0.7rem;
+      padding: 0.24rem 0.45rem;
     }
     .card-form .form-text { display: none; }
-    .card-form .mt-3 { margin-top: 0.6rem !important; }
+    .card-form .mt-3 { margin-top: 0.45rem !important; }
 
-    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; }
-    .stat-card .stat-number { font-size: 0.9rem; }
-    .stat-card .stat-icon { width: 26px; height: 26px; font-size: 0.75rem; border-radius: 8px; }
-    .stat-card .stat-label { font-size: 0.56rem; }
-    .stat-card .stat-sub { font-size: 0.6rem; }
+    .stat-card { padding: 0.26rem 0.4rem; border-radius: 8px; box-shadow: none; border: 1px solid #e8edf4; }
+    .stat-card .stat-number { font-size: 0.72rem; }
+    .stat-card .stat-icon { width: 20px; height: 20px; font-size: 0.6rem; border-radius: 6px; }
+    .stat-card .stat-label { font-size: 0.48rem; }
+    .stat-card .stat-sub { font-size: 0.5rem; }
 
-    .meta-box { padding: 0.4rem 0.55rem; font-size: 0.7rem; line-height: 1.35; }
-    .meta-box .text-muted { font-size: 0.66rem; }
-    .client-pane, .info-pane { padding: 0.5rem; border-radius: 10px; }
+    .meta-box { padding: 0.28rem 0.42rem; font-size: 0.6rem; line-height: 1.3; }
+    .meta-box .text-muted { font-size: 0.56rem; }
+    .client-pane, .info-pane { padding: 0.36rem; border-radius: 8px; }
     /* Méta client sur 2 colonnes pour réduire la hauteur */
-    #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.6rem; }
+    #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.5rem; }
     #clientSelectedMeta > .fw-bold { grid-column: 1 / -1; }
     #clientSelectedMeta > div {
       min-width: 0;
@@ -379,24 +401,130 @@
       white-space: nowrap;
     }
 
-    .treeview-panel { max-height: 170px; }
-    .treeview-header { font-size: 0.58rem; padding: 0.26rem 0.4rem; }
-    .treeview-row { font-size: 0.72rem; padding: 0.28rem 0.4rem; }
-    .treeview-info-btn { width: 24px; height: 24px; font-size: 0.68rem; }
+    .treeview-panel { max-height: 150px; }
+    .treeview-header { font-size: 0.5rem; padding: 0.22rem 0.32rem; }
+    .treeview-row { font-size: 0.62rem; padding: 0.22rem 0.32rem; }
+    .treeview-info-btn { width: 20px; height: 20px; font-size: 0.58rem; }
 
-    .sale-line { padding: 0.55rem; border-radius: 10px; }
-    .sale-line .line-number { font-size: 0.6rem; padding: 0.15em 0.65em; }
-    .sale-line .remove-line { width: 26px; height: 26px; font-size: 0.72rem; }
-    .sale-line .stock-available { font-size: 0.66rem; margin-top: 0.15rem !important; }
-    .sale-line > .d-flex.mb-2 { margin-bottom: 0.35rem !important; }
+    .sale-line { padding: 0.36rem 0.42rem; border-radius: 8px; }
+    .sale-line .line-number { font-size: 0.52rem; padding: 0.12em 0.5em; }
+    .sale-line .remove-line { width: 22px; height: 22px; font-size: 0.62rem; }
+    .sale-line .stock-available { font-size: 0.56rem; margin-top: 0.12rem !important; }
+    .sale-line > .d-flex.mb-2 { margin-bottom: 0.3rem !important; }
 
-    .pay-stat { padding: 0.38rem 0.55rem; border-radius: 8px; }
-    .pay-stat .pay-label { font-size: 0.56rem; }
-    .pay-stat .pay-value { font-size: 0.84rem; }
-    .pay-stat .pay-sub { font-size: 0.62rem; }
+    .pay-stat { padding: 0.24rem 0.36rem; border-radius: 7px; }
+    .pay-stat .pay-label { font-size: 0.48rem; }
+    .pay-stat .pay-value { font-size: 0.68rem; }
+    .pay-stat .pay-sub { font-size: 0.52rem; }
 
-    .payment-preset { font-size: 0.7rem; padding: 0.22rem 0.55rem; }
+    .payment-preset { font-size: 0.6rem; padding: 0.18rem 0.45rem; }
+
+    .action-bar { padding: 0.4rem 0.55rem; padding-bottom: calc(0.4rem + env(safe-area-inset-bottom)); gap: 0.5rem; }
+    .action-cart-btn { width: 34px; height: 34px; border-radius: 9px; }
+    .action-total-value { font-size: 0.82rem; }
+    .action-bar .btn-success { font-size: 0.7rem; padding: 0.3rem 0.6rem; }
+    .action-bar .btn-outline-light { font-size: 0.62rem; padding: 0.22rem 0.45rem; }
+    #venteForm { margin-bottom: 62px; }
   }
+
+  /* --- Barre d'action fixe (bas d'écran) --- */
+  .action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1025;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.4rem 0.8rem;
+    padding-bottom: calc(0.4rem + env(safe-area-inset-bottom));
+    background: rgba(22, 34, 47, 0.94);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255,255,255,0.12);
+  }
+  #venteForm { margin-bottom: 70px; }
+  .action-cart-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #e05e5e, #8b5cf6);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .action-cart-btn:hover { color: #fff; transform: translateY(-1px); }
+  .action-cart-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: #fff;
+    color: #b91c1c;
+    font-size: 0.56rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    border: 1px solid #f0bcbc;
+  }
+  .action-total-label {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.52rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+  }
+  .action-total-value {
+    color: #7ee2a8;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  /* Sur mobile, la barre d'action se place au-dessus de la nav bas d'écran du site */
+  @media (max-width: 767.98px) {
+    .action-bar {
+      bottom: var(--bottom-h, 62px);
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+    #venteForm { margin-bottom: 66px; }
+  }
+
+  /* Panier / Paiement côte à côte dès les petits écrans desktop (lg),
+     avec défilement interne pour ne jamais scroller la page entière */
+  @media (min-width: 992px) {
+    .panier-body, .paiement-body {
+      max-height: calc(100vh - 210px);
+      min-height: 180px;
+      overflow-y: auto;
+    }
+  }
+
+  /* La barre d'action ne doit pas passer sous la sidebar latérale du site */
+  @media (min-width: 768px) {
+    .action-bar { left: var(--sidebar-w, 62px); }
+  }
+
+  /* --- Récap panier (modal) --- */
+  #cartRecapBody { display: flex; flex-direction: column; gap: 0.32rem; }
+  .recap-line {
+    padding: 0.36rem 0.45rem;
+    border-radius: 7px;
+    border: 1px solid #eee;
+    font-size: 0.72rem;
+  }
+  #cartRecapBody .recap-line:nth-child(odd) { background: #fdecec; border-color: #f3cccc; }
+  #cartRecapBody .recap-line:nth-child(even) { background: #f4eefc; border-color: #e2d4f5; }
 
   /* --- Modal succès vente (animation) --- */
   #venteSuccessModal .modal-content {
@@ -523,7 +651,7 @@
     }
     #receiptPreviewModal .modal-header,
     #receiptPreviewModal .modal-footer,
-    .btn, .navbar, .page-header, .text-muted, form, #productInfoModal {
+    .btn, .navbar, .page-header, .text-muted, form, #productInfoModal, .action-bar, #cartRecapModal {
       display: none !important;
     }
     .receipt-preview-container {
@@ -554,12 +682,12 @@
 <form method="POST" id="venteForm">
 
   <!-- Client & informations -->
-  <div class="card-form mb-3">
+  <div class="card-form mb-2">
     <div class="card-header">
       <h5><i class="fas fa-user me-2 text-primary"></i>Client & informations</h5>
     </div>
     <div class="p-3 p-sm-4">
-      <div class="row g-3">
+      <div class="row g-2">
         <div class="col-12 col-lg-5">
           <div class="client-pane">
           <label class="form-label">Client</label>
@@ -592,7 +720,7 @@
         </div>
         <div class="col-12 col-lg-7">
           <div class="info-pane">
-          <div class="row g-3">
+          <div class="row g-2">
             <div class="col-6 col-md-4">
               <label class="form-label">Mode de paiement</label>
               <select name="mode_paiement" class="form-select" required>
@@ -670,8 +798,10 @@
     </div>
   </div>
 
-  <!-- Produits -->
-  <div class="card-form mb-3">
+  <div class="row g-2 align-items-start">
+    <div class="col-12 col-lg-7">
+    <!-- Panier -->
+    <div class="card-form panier-card">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h5 class="d-flex align-items-center gap-2">
         <i class="fas fa-shopping-cart text-primary"></i>Panier
@@ -681,7 +811,7 @@
         <i class="fas fa-cart-plus me-1"></i> Ajouter<span class="d-none d-sm-inline"> un article</span>
       </button>
     </div>
-    <div class="p-2 p-sm-3">
+    <div class="p-2 p-sm-3 panier-body">
       <div id="saleLinesBody" class="d-flex flex-column gap-2 gap-sm-3">
         <div class="sale-line">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -745,40 +875,42 @@
       </div>
     </div>
   </div>
+    </div>
 
-  <!-- Paiement -->
-  <div class="card-form mb-3">
+    <div class="col-12 col-lg-5">
+    <!-- Paiement -->
+    <div class="card-form paiement-card">
     <div class="card-header">
       <h5><i class="fas fa-money-bill-wave me-2 text-primary"></i>Paiement</h5>
     </div>
-    <div class="p-3 p-sm-4">
-      <div class="row g-2 g-sm-3 mb-3">
-        <div class="col-6 col-md-4 col-xl">
+    <div class="p-3 p-sm-4 paiement-body">
+      <div class="row g-2 mb-2">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Total HT</div>
             <div class="pay-value" id="paymentTotalHt">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-4 col-xl">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">TVA</div>
             <div class="pay-value" id="paymentTotalTax">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-4 col-xl">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Total TTC</div>
             <div class="pay-value text-success" id="paymentTotalTtc">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-6 col-xl client-account-section">
+        <div class="col-6 client-account-section">
           <div class="pay-stat">
             <div class="pay-label">Part groupe calculée</div>
             <div class="pay-value" id="paymentGroupShare">0.00</div>
             <div class="pay-sub"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
           </div>
         </div>
-        <div class="col-6 col-md-6 col-xl client-account-section">
+        <div class="col-6 client-account-section">
           <div class="pay-stat">
             <div class="pay-label">Part client calculée</div>
             <div class="pay-value" id="paymentClientShare">0.00</div>
@@ -787,8 +919,8 @@
         </div>
       </div>
 
-      <div class="row g-3 align-items-end">
-        <div class="col-6 col-xl-3 client-account-section">
+      <div class="row g-2 align-items-end">
+        <div class="col-6 client-account-section">
           <div class="form-check">
             <input type="checkbox" class="form-check-input payment-input" id="useGroupBalance" name="use_group_balance" value="1">
             <label class="form-check-label fw-bold small" for="useGroupBalance">Débiter la part groupe</label>
@@ -796,52 +928,52 @@
           <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
           <div class="small text-muted">Montant groupe : <span id="groupDebitPreview">0.00</span></div>
         </div>
-        <div class="col-6 col-xl-3">
+        <div class="col-6">
           <label class="form-label">Payé hors solde</label>
           <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
         </div>
-        <div class="col-6 col-xl-3 client-account-section">
+        <div class="col-6 client-account-section">
           <label class="form-label">Débiter solde client</label>
           <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
           <div class="form-text">Le reste client peut être payé ici, hors solde, ou les deux.</div>
         </div>
-        <div class="col-6 col-xl-3">
+        <div class="col-6">
           <label class="form-label">Montant reçu</label>
           <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
         </div>
       </div>
 
-      <div class="d-flex flex-wrap gap-2 mt-3">
+      <div class="d-flex flex-wrap gap-2 mt-2">
         <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
         <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
       </div>
 
-      <div class="row g-2 g-sm-3 mt-2">
-        <div class="col-6 col-md-4 col-xl">
+      <div class="row g-2 mt-1">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Reste après groupe</div>
             <div class="pay-value" id="remainingAfterGroup">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-4 col-xl">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Payé + solde client</div>
             <div class="pay-value" id="amountCovered">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-4 col-xl">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Écart à corriger</div>
             <div class="pay-value text-danger" id="amountRemaining">0.00</div>
           </div>
         </div>
-        <div class="col-6 col-md-6 col-xl">
+        <div class="col-6">
           <div class="pay-stat">
             <div class="pay-label">Monnaie à rendre</div>
             <div class="pay-value text-success" id="changeDue">0.00</div>
           </div>
         </div>
-        <div class="col-12 col-md-6 col-xl client-account-section">
+        <div class="col-12 client-account-section">
           <div class="pay-stat">
             <div class="pay-label">Soldes après vente</div>
             <div class="pay-sub">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
@@ -851,13 +983,27 @@
     </div>
   </div>
 
-  <div class="d-flex flex-row justify-content-sm-end gap-2 mb-3 mb-sm-4">
-    <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-outline-secondary flex-fill flex-sm-grow-0">Annuler</a>
-    <button type="submit" class="btn btn-primary flex-fill flex-sm-grow-0">
+    </div>
+  </div>
+</form>
+
+<!-- Barre d'action fixe : panier, total et enregistrement toujours visibles -->
+<div class="action-bar">
+  <button type="button" class="btn action-cart-btn" data-bs-toggle="modal" data-bs-target="#cartRecapModal" title="Voir le panier">
+    <i class="fas fa-shopping-cart"></i>
+    <span class="action-cart-count" id="actionCartCount">0</span>
+  </button>
+  <div class="action-total">
+    <div class="action-total-label">Total TTC</div>
+    <div class="action-total-value" id="actionTotalTtc">0.00</div>
+  </div>
+  <div class="ms-auto d-flex align-items-center gap-2">
+    <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-sm btn-outline-light">Annuler</a>
+    <button type="submit" form="venteForm" class="btn btn-success">
       <i class="fas fa-save me-1"></i> Enregistrer
     </button>
   </div>
-</form>
+</div>
 
 <div class="modal fade" id="receiptPreviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
@@ -936,6 +1082,34 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Modal récap panier -->
+<div class="modal fade" id="cartRecapModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title d-flex align-items-center gap-2">
+          <i class="fas fa-shopping-cart text-primary"></i>Panier
+          <span class="cart-count-badge" id="recapCountBadge">0 article</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-2" id="cartRecapBody"></div>
+      <div class="modal-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <span class="text-muted small">Total TTC</span>
+          <span class="h5 mb-0 text-success ms-1" id="recapTotalTtc">0.00</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+          <button type="button" class="btn btn-primary btn-sm" id="recapSubmitBtn">
+            <i class="fas fa-save me-1"></i> Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Modal succès après enregistrement d'une vente -->
@@ -1240,6 +1414,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateSaleSummary() {
         let totalHt = 0;
         let totalTtc = 0;
+        let selectedCount = 0;
         document.querySelectorAll('.sale-line').forEach((line) => {
             updateUnitOptions(line);
             updateLineStockState(line);
@@ -1248,10 +1423,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const unitSelect = line.querySelector('select[name="unite[]"]');
             const quantityInput = line.querySelector('input[name="quantite[]"]');
             const option = productSelect.options[productSelect.selectedIndex];
+            if (option && option.value) selectedCount += 1;
             const quantity = Math.max(toNumber(quantityInput.value), 0);
             totalHt += getSelectedPrice(option, unitSelect.value, 'Ht') * quantity;
             totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * quantity;
         });
+
+        const cartBadge = document.getElementById('cartCountBadge');
+        if (cartBadge) cartBadge.textContent = `${selectedCount} article${selectedCount > 1 ? 's' : ''}`;
+        const actionCount = document.getElementById('actionCartCount');
+        if (actionCount) actionCount.textContent = selectedCount;
+        const actionTotal = document.getElementById('actionTotalTtc');
+        if (actionTotal) actionTotal.textContent = formatMoney(totalTtc);
 
         const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
         updateClientMeta();
@@ -1555,11 +1738,69 @@ document.addEventListener('DOMContentLoaded', function() {
         buttons.forEach((button) => {
             button.disabled = buttons.length === 1;
         });
-        const cartBadge = document.getElementById('cartCountBadge');
-        if (cartBadge) {
-            cartBadge.textContent = `${buttons.length} article${buttons.length > 1 ? 's' : ''}`;
-        }
     }
+
+    function buildCartRecap() {
+        const recapBody = document.getElementById('cartRecapBody');
+        const rows = [];
+        let total = 0;
+        let count = 0;
+        document.querySelectorAll('.sale-line').forEach((line, index) => {
+            const productSelect = line.querySelector('select[name="produit_id[]"]');
+            const unitSelect = line.querySelector('select[name="unite[]"]');
+            const quantityInput = line.querySelector('input[name="quantite[]"]');
+            const option = productSelect.options[productSelect.selectedIndex];
+            if (!option || !option.value) return;
+            count += 1;
+            const qty = Math.max(toNumber(quantityInput.value), 0);
+            const price = getSelectedPrice(option, unitSelect.value, 'Ttc');
+            const lineTotal = price * qty;
+            total += lineTotal;
+            const unitLabel = unitSelect.value === 'sous_unite' ? 'SU' : unitSelect.value === 'sous_sous_unite' ? 'SSU' : 'U';
+            rows.push(`
+                <div class="recap-line d-flex align-items-center gap-2">
+                    <div class="flex-grow-1" style="min-width:0;">
+                        <div class="fw-bold text-truncate">${escapeHtml(getOptionTitle(option))}</div>
+                        <div class="text-muted" style="font-size:0.7rem;">${formatMoney(qty)} × ${formatMoney(price)} (${unitLabel})</div>
+                    </div>
+                    <div class="fw-bold text-success flex-shrink-0">${formatMoney(lineTotal)}</div>
+                    <button type="button" class="btn btn-outline-danger btn-sm recap-remove flex-shrink-0" data-line-index="${index}" title="Retirer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `);
+        });
+        recapBody.innerHTML = rows.length ? rows.join('') : '<div class="text-center text-muted py-3">Panier vide — ajoutez un article.</div>';
+        document.getElementById('recapTotalTtc').textContent = formatMoney(total);
+        document.getElementById('recapCountBadge').textContent = `${count} article${count > 1 ? 's' : ''}`;
+    }
+
+    document.getElementById('cartRecapModal').addEventListener('show.bs.modal', buildCartRecap);
+
+    document.getElementById('cartRecapBody').addEventListener('click', function(event) {
+        const removeBtn = event.target.closest('.recap-remove');
+        if (!removeBtn) return;
+        const lines = body.querySelectorAll('.sale-line');
+        const line = lines[parseInt(removeBtn.dataset.lineIndex, 10)];
+        if (!line) return;
+        if (lines.length > 1) {
+            line.remove();
+        } else {
+            line.querySelectorAll('select').forEach((select) => select.selectedIndex = 0);
+            line.querySelector('.product-search').value = '';
+            line.querySelector('input[name="quantite[]"]').value = '1';
+            filterSelectOptions(line.querySelector('.product-select'), '', true);
+        }
+        refreshRemoveButtons();
+        updateSaleSummary();
+        buildCartRecap();
+    });
+
+    document.getElementById('recapSubmitBtn').addEventListener('click', function() {
+        const recapModal = bootstrap.Modal.getInstance(document.getElementById('cartRecapModal'));
+        if (recapModal) recapModal.hide();
+        setTimeout(() => venteForm.requestSubmit(), 300);
+    });
 
     addLineBtn.addEventListener('click', function() {
         const firstLine = body.querySelector('.sale-line');
