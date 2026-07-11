@@ -2079,6 +2079,156 @@ def client_purchase_history(id):
     ventes = Vente.query.filter_by(client_matricule=client.matricule).order_by(Vente.created_at.desc()).all()
     return render_template('admin/clients/purchase_history.html', client=client, ventes=ventes)
 
+@admin.route('/clients/<int:id>/achats/export/excel')
+@login_required
+@permission_required('gestion_clients')
+def export_client_purchase_history_excel(id):
+    import io
+    import pandas as pd
+    from flask import send_file
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    client = Client.query.get_or_404(id)
+    ventes = Vente.query.filter_by(client_matricule=client.matricule).order_by(Vente.created_at.desc()).all()
+    generated_at = datetime.now()
+
+    rows = []
+    for vente in ventes:
+        produits = ', '.join(f"{l.produit_nom} x{l.quantite:g}{l.unite}" for l in vente.lignes)
+        rows.append({
+            'Date': vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '',
+            'Vente': vente.numero_vente,
+            'Statut': vente.statut,
+            'Produits': produits,
+            'Total TTC': vente.total_ttc or 0,
+            'Payé (hors solde)': vente.montant_hors_solde or 0,
+            'Prélevé solde client': vente.montant_solde_client or 0,
+            'Prélevé solde groupe': vente.montant_solde_groupe or 0,
+            'Mode de paiement': vente.mode_paiement,
+        })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Achats', startrow=5)
+        worksheet = writer.sheets['Achats']
+        worksheet['A1'] = f'Historique des achats - {client.nom_complet}'
+        worksheet['A2'] = f'Matricule : {client.matricule} | Groupe : {client.groupe.nom if client.groupe else "-"}'
+        worksheet['A3'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Achats : {len(rows)} | Total TTC : {sum(v.total_ttc or 0 for v in ventes):.2f} | Solde actuel : {client.solde:.2f}'
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for cell in worksheet[6]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=7, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        widths = [16, 16, 12, 45, 12, 14, 16, 16, 16]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A7'
+
+    output.seek(0)
+    filename = f"achats_{client.matricule}_{generated_at.strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/clients/<int:id>/achats/export/pdf')
+@login_required
+@permission_required('gestion_clients')
+def export_client_purchase_history_pdf(id):
+    import io
+    from flask import send_file
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    client = Client.query.get_or_404(id)
+    ventes = Vente.query.filter_by(client_matricule=client.matricule).order_by(Vente.created_at.desc()).all()
+    generated_at = datetime.now()
+    total_ttc = sum(v.total_ttc or 0 for v in ventes)
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=30, bottomMargin=30, leftMargin=30, rightMargin=30)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('PHTitle', parent=styles['Heading1'], fontSize=18, leading=22, textColor=colors.HexColor('#2c3e50'), alignment=1, spaceAfter=6)
+    meta_style = ParagraphStyle('PHMeta', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
+    cell_style = ParagraphStyle('PHCell', parent=styles['Normal'], fontSize=7, leading=8.5)
+
+    elements = [
+        Paragraph('Historique des achats', title_style),
+        Paragraph(f"{escape(client.nom_complet)} &middot; Matricule {escape(client.matricule)}", meta_style),
+        Paragraph(f"Édité le {generated_at.strftime('%d/%m/%Y à %H:%M')}", meta_style),
+        Spacer(1, 12),
+    ]
+
+    summary_data = [[
+        'Nombre d\'achats', 'Total TTC cumulé', 'Solde actuel du client'
+    ], [
+        str(len(ventes)),
+        f'{total_ttc:.2f}',
+        f'{client.solde:.2f}'
+    ]]
+    summary_table = Table(summary_data, colWidths=[178, 178, 178])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 14))
+
+    data = [['Date', 'Vente', 'Produits achetés', 'TTC', 'Payé', 'Solde client', 'Solde groupe']]
+    for vente in ventes:
+        produits_str = '\n'.join(f"{l.produit_nom} x{l.quantite:g}{l.unite}" for l in vente.lignes)
+        data.append([
+            vente.created_at.strftime('%d/%m/%Y\n%H:%M') if vente.created_at else '-',
+            Paragraph(escape(vente.numero_vente), cell_style),
+            Paragraph(escape(produits_str), cell_style),
+            f'{vente.total_ttc or 0:.2f}',
+            f'{vente.montant_hors_solde or 0:.2f}',
+            f'{vente.montant_solde_client or 0:.2f}',
+            f'{vente.montant_solde_groupe or 0:.2f}',
+        ])
+
+    table = Table(data, repeatRows=1, colWidths=[60, 75, 195, 50, 45, 55, 55])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTSIZE', (0, 1), (-1, -1), 6.5),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0FBF8')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+    ]))
+    elements.append(table)
+
+    if not ventes:
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph('Aucun achat enregistré pour ce client.', styles['Normal']))
+
+    doc.build(elements)
+    output.seek(0)
+    filename = f"achats_{client.matricule}_{generated_at.strftime('%Y%m%d_%H%M')}.pdf"
+    return send_file(output, download_name=filename, as_attachment=True)
+
 @admin.route('/clients/historique')
 @login_required
 @permission_required('historique_clients')

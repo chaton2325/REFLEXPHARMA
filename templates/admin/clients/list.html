@@ -2,219 +2,434 @@
 
 {% block title %}Clients - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+  .page-header .btn-danger { border-radius: 10px; font-weight: 600; font-size: 0.85rem; }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus, .card-form .form-select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.5rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .cell-sub { font-size: 0.7rem; color: #7a8896; }
+  .badge-code { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.2px; padding: 0.25em 0.65em; background: #f0f2f5; color: #2c3e50; border-radius: 6px; border: 1px solid #e0e4ea; }
+
+  #mobileClientList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+  #mobileClientList > .mobile-card:nth-child(even) { background: #ffffff; }
+  .mobile-card { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid #f0f2f5; }
+
+  .filters-toggle {
+    width: 100%; background: #f8f9fa; border: 0; border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem; font-weight: 600; color: #2c3e50; padding: 0.55rem 0.85rem;
+    text-align: left; display: flex; align-items: center; justify-content: space-between;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.mb-4 { margin-bottom: 0.75rem !important; }
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .card-form.mb-3, .card-custom.mb-3 { margin-bottom: 0.75rem !important; }
+    .card-form .p-3 { padding: 0.7rem !important; }
+    .card-form .form-label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .card-form .form-control, .card-form .form-select { font-size: 0.78rem; padding: 0.28rem 0.5rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Clients</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Clients</h1>
-        <p class="text-muted mb-0">Gestion des clients, soldes et groupes clients.</p>
+      <h1><i class="fas fa-users me-2"></i>Clients</h1>
+      <p>Gestion des clients, soldes et groupes clients.</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
-            <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
-        </button>
-        <a href="{{ url_for('admin.export_clients_excel', **export_query) }}" class="btn btn-outline-success">
-            <i class="fas fa-file-excel me-1"></i> Excel
-        </a>
-        <a href="{{ url_for('admin.export_clients_pdf', **export_query) }}" class="btn btn-outline-danger">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </a>
-        {% if current_user.has_permission('gestion_groupes_clients') %}
-        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-info">
-            <i class="fas fa-users me-1"></i> Groupes clients
-        </a>
-        {% endif %}
-        {% if current_user.has_permission('historique_clients') %}
-        <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-history me-1"></i> Historique
-        </a>
-        {% endif %}
-        <a href="{{ url_for('admin.create_client') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Ajouter
-        </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+        <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
+      </button>
+      <a href="{{ url_for('admin.export_clients_excel', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_clients_pdf', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      {% if current_user.has_permission('gestion_groupes_clients') %}
+      <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-layer-group me-1"></i> Groupes<span class="d-none d-sm-inline"> clients</span>
+      </a>
+      {% endif %}
+      {% if current_user.has_permission('historique_clients') %}
+      <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-history me-1"></i> Historique
+      </a>
+      {% endif %}
+      <a href="{{ url_for('admin.create_client') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-plus me-1"></i> Ajouter
+      </a>
     </div>
+  </div>
 </div>
 
-<form method="GET" class="card mb-3">
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Recherche</label>
-                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Nom, matricule, email...">
+{% set clients_count = clients|length %}
+{% set clients_avec_groupe = clients|selectattr('groupe')|list|length %}
+{% set solde_total = clients|sum(attribute='solde') %}
+{% set clients_negatifs = clients|selectattr('solde', 'lt', 0)|list|length %}
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-users"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ clients_count }}</div>
+        <div class="stat-label">Clients</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-layer-group"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ clients_avec_groupe }}</div>
+        <div class="stat-label">Avec groupe</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-wallet"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(solde_total) }}</div>
+        <div class="stat-label">Solde total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ clients_negatifs }}</div>
+        <div class="stat-label">Soldes négatifs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% set filters_active = request.args.get('q') or request.args.get('groupe_id') or request.args.get('solde_status') or request.args.get('date_from') or request.args.get('date_to') %}
+<form method="GET" class="card-form mb-3">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#clientsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="clientsFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres & tri{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="clientsFilters">
+  <div class="p-3 p-sm-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label">Recherche</label>
+        <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Nom, matricule, email...">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Groupe</label>
+        <select name="groupe_id" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="none" {% if request.args.get('groupe_id') == 'none' %}selected{% endif %}>Sans groupe</option>
+          {% for groupe in groupes %}
+          <option value="{{ groupe.id }}" {% if request.args.get('groupe_id') == groupe.id|string %}selected{% endif %}>{{ groupe.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Solde</label>
+        <select name="solde_status" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
+          <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
+          <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Date debut</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Date fin</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Trier par</label>
+        <select name="sort" class="form-select form-select-sm">
+          {% set selected_sort = request.args.get('sort', 'created_at') %}
+          <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
+          <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
+          <option value="matricule" {% if selected_sort == 'matricule' %}selected{% endif %}>Matricule</option>
+          <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
+          <option value="prenom" {% if selected_sort == 'prenom' %}selected{% endif %}>Prenom</option>
+          <option value="email" {% if selected_sort == 'email' %}selected{% endif %}>Email</option>
+          <option value="telephone" {% if selected_sort == 'telephone' %}selected{% endif %}>Telephone</option>
+          <option value="groupe" {% if selected_sort == 'groupe' %}selected{% endif %}>Groupe</option>
+          <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Ordre</label>
+        <select name="direction" class="form-select form-select-sm">
+          <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
+          <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="fas fa-filter me-1"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  </div>
+</form>
+
+<div class="card-custom mb-3">
+  <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_clients') }}" method="POST"></form>
+
+  <!-- Mobile cards: no horizontal scroll -->
+  <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileClientList">
+    {% for client in clients %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ client.prenom }} {{ client.nom }}</div>
+          <span class="badge-code">{{ client.matricule }}</span>
+        </div>
+        <div class="d-flex gap-1 flex-shrink-0">
+          <button type="button" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
+            <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+          </button>
+          <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-edit" style="font-size:0.7rem;"></i>
+          </a>
+        </div>
+      </div>
+      <div class="mt-1 cell-sub">{{ client.telephone or '-' }} &middot; {{ client.email or '-' }}</div>
+      <div class="mt-1 d-flex flex-wrap align-items-center gap-2" style="font-size:0.72rem;">
+        {% if client.groupe %}
+        <span class="badge bg-info text-dark">{{ client.groupe.nom }}</span>
+        {% else %}
+        <span class="text-muted">Aucun groupe</span>
+        {% endif %}
+        <span class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}">Solde {{ "%.2f"|format(client.solde) }}</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-users" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun client enregistré.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom" id="clientTable">
+      <thead>
+        <tr>
+          <th style="width: 42px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
+          <th>Client</th>
+          <th>Contact</th>
+          <th>Groupe</th>
+          <th>Solde client</th>
+          <th>Dates</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in clients %}
+        <tr class="client-row">
+          <td><input type="checkbox" class="form-check-input row-checkbox" name="ids[]" value="{{ client.id }}" form="bulkDeleteForm"></td>
+          <td>
+            <div class="fw-bold">{{ client.prenom }} {{ client.nom }}</div>
+            <span class="badge-code">{{ client.matricule }}</span>
+          </td>
+          <td>
+            <div>{{ client.telephone or '-' }}</div>
+            <div class="cell-sub">{{ client.email or '-' }}</div>
+          </td>
+          <td>
+            {% if client.groupe %}
+            <span class="badge bg-info text-dark">{{ client.groupe.nom }}</span>
+            <div class="cell-sub">Solde groupe: {{ "%.2f"|format(client.groupe.solde) }}</div>
+            <div class="cell-sub">Absorption: {{ "%.2f"|format(client.groupe.pourcentage_absorption) }}%</div>
+            {% else %}
+            <span class="text-muted">Aucun</span>
+            {% endif %}
+          </td>
+          <td class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}" style="font-family:Consolas,monospace;">
+            {{ "%.2f"|format(client.solde) }}
+          </td>
+          <td>
+            <div class="cell-sub">Creation: {{ client.created_at.strftime('%d/%m/%Y %H:%M') if client.created_at else '-' }}</div>
+            <div class="cell-sub">Modif: {{ client.updated_at.strftime('%d/%m/%Y %H:%M') if client.updated_at else '-' }}</div>
+          </td>
+          <td class="text-end">
+            <div class="btn-group">
+              <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
+                <i class="fas fa-eye"></i>
+              </button>
+              <a href="{{ url_for('admin.client_purchase_history', id=client.id) }}" class="btn btn-sm btn-outline-success" title="Historique des achats">
+                <i class="fas fa-receipt"></i>
+              </a>
+              <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteClient{{ client.id }}">
+                <i class="fas fa-trash"></i>
+              </button>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Groupe</label>
-                <select name="groupe_id" class="form-select">
-                    <option value="">Tous</option>
-                    <option value="none" {% if request.args.get('groupe_id') == 'none' %}selected{% endif %}>Sans groupe</option>
-                    {% for groupe in groupes %}
-                    <option value="{{ groupe.id }}" {% if request.args.get('groupe_id') == groupe.id|string %}selected{% endif %}>{{ groupe.nom }}</option>
-                    {% endfor %}
-                </select>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-4 text-muted">Aucun client enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for client in clients %}
+<div class="modal fade" id="clientDetails{{ client.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Détails client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Solde</label>
-                <select name="solde_status" class="form-select">
-                    <option value="">Tous</option>
-                    <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
-                    <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
-                    <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
-                </select>
+            <div class="modal-body">
+                <p class="mb-1"><strong>Matricule:</strong> {{ client.matricule }}</p>
+                <p class="mb-1"><strong>Nom:</strong> {{ client.prenom }} {{ client.nom }}</p>
+                <p class="mb-1"><strong>Email:</strong> {{ client.email or '-' }}</p>
+                <p class="mb-1"><strong>Téléphone:</strong> {{ client.telephone or '-' }}</p>
+                <p class="mb-1"><strong>Groupe:</strong> {{ client.groupe.nom if client.groupe else '-' }}</p>
+                <p class="mb-1"><strong>Solde client:</strong> {{ "%.2f"|format(client.solde) }}</p>
+                <p class="mb-0"><strong>Solde groupe:</strong> {{ "%.2f"|format(client.groupe.solde) if client.groupe else '-' }}</p>
+                <p class="mb-0"><strong>Absorption groupe:</strong> {{ "%.2f"|format(client.groupe.pourcentage_absorption) ~ '%' if client.groupe else '-' }}</p>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Date debut</label>
-                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Date fin</label>
-                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Trier par</label>
-                <select name="sort" class="form-select">
-                    {% set selected_sort = request.args.get('sort', 'created_at') %}
-                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
-                    <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
-                    <option value="matricule" {% if selected_sort == 'matricule' %}selected{% endif %}>Matricule</option>
-                    <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
-                    <option value="prenom" {% if selected_sort == 'prenom' %}selected{% endif %}>Prenom</option>
-                    <option value="email" {% if selected_sort == 'email' %}selected{% endif %}>Email</option>
-                    <option value="telephone" {% if selected_sort == 'telephone' %}selected{% endif %}>Telephone</option>
-                    <option value="groupe" {% if selected_sort == 'groupe' %}selected{% endif %}>Groupe</option>
-                    <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Ordre</label>
-                <select name="direction" class="form-select">
-                    <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
-                    <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
-                </select>
-            </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-fill">
-                    <i class="fas fa-filter me-1"></i> Filtrer
-                </button>
-                <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
-                </a>
+            <div class="modal-footer">
+                <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-primary">Modifier</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
     </div>
-</form>
+</div>
 
-<div class="card">
-    <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_clients') }}" method="POST"></form>
-    <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="clientTable">
-                <thead class="bg-light">
-                    <tr>
-                        <th style="width: 42px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
-                        <th>Client</th>
-                        <th>Contact</th>
-                        <th>Groupe</th>
-                        <th>Solde client</th>
-                        <th>Dates</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for client in clients %}
-                    <tr class="client-row">
-                        <td><input type="checkbox" class="form-check-input row-checkbox" name="ids[]" value="{{ client.id }}" form="bulkDeleteForm"></td>
-                        <td>
-                            <div class="fw-bold">{{ client.prenom }} {{ client.nom }}</div>
-                            <span class="badge bg-dark-subtle text-dark border">{{ client.matricule }}</span>
-                        </td>
-                        <td>
-                            <div>{{ client.telephone or '-' }}</div>
-                            <small class="text-muted">{{ client.email or '-' }}</small>
-                        </td>
-                        <td>
-                            {% if client.groupe %}
-                            <span class="badge bg-info text-dark">{{ client.groupe.nom }}</span>
-                            <div class="small text-muted">Solde groupe: {{ "%.2f"|format(client.groupe.solde) }}</div>
-                            <div class="small text-muted">Absorption: {{ "%.2f"|format(client.groupe.pourcentage_absorption) }}%</div>
-                            {% else %}
-                            <span class="text-muted">Aucun</span>
-                            {% endif %}
-                        </td>
-                        <td class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}">
-                            {{ "%.2f"|format(client.solde) }}
-                        </td>
-                        <td>
-                            <div class="small">Creation: {{ client.created_at.strftime('%d/%m/%Y %H:%M') if client.created_at else '-' }}</div>
-                            <div class="small text-muted">Modif: {{ client.updated_at.strftime('%d/%m/%Y %H:%M') if client.updated_at else '-' }}</div>
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <a href="{{ url_for('admin.client_purchase_history', id=client.id) }}" class="btn btn-sm btn-outline-success" title="Historique des achats">
-                                    <i class="fas fa-receipt"></i>
-                                </a>
-                                <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteClient{{ client.id }}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <div class="modal fade" id="clientDetails{{ client.id }}" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header bg-light">
-                                    <h5 class="modal-title">Détails client</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p class="mb-1"><strong>Matricule:</strong> {{ client.matricule }}</p>
-                                    <p class="mb-1"><strong>Nom:</strong> {{ client.prenom }} {{ client.nom }}</p>
-                                    <p class="mb-1"><strong>Email:</strong> {{ client.email or '-' }}</p>
-                                    <p class="mb-1"><strong>Téléphone:</strong> {{ client.telephone or '-' }}</p>
-                                    <p class="mb-1"><strong>Groupe:</strong> {{ client.groupe.nom if client.groupe else '-' }}</p>
-                                    <p class="mb-1"><strong>Solde client:</strong> {{ "%.2f"|format(client.solde) }}</p>
-                                    <p class="mb-0"><strong>Solde groupe:</strong> {{ "%.2f"|format(client.groupe.solde) if client.groupe else '-' }}</p>
-                                    <p class="mb-0"><strong>Absorption groupe:</strong> {{ "%.2f"|format(client.groupe.pourcentage_absorption) ~ '%' if client.groupe else '-' }}</p>
-                                </div>
-                                <div class="modal-footer">
-                                    <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-primary">Modifier</a>
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="modal fade" id="deleteClient{{ client.id }}" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header"><h5 class="modal-title">Supprimer le client</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                                <div class="modal-body">Supprimer <strong>{{ client.prenom }} {{ client.nom }}</strong> ?</div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                    <form method="POST" action="{{ url_for('admin.delete_client', id=client.id) }}">
-                                        <button type="submit" class="btn btn-danger">Supprimer</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <tr><td colspan="7" class="text-center py-4 text-muted">Aucun client enregistré.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="modal fade" id="deleteClient{{ client.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Supprimer le client</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">Supprimer <strong>{{ client.prenom }} {{ client.nom }}</strong> ?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.delete_client', id=client.id) }}">
+                    <button type="submit" class="btn btn-danger">Supprimer</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+{% endfor %}
 
 <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
     <div class="modal-dialog">

@@ -2,196 +2,405 @@
 
 {% block title %}Groupes clients - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus, .card-form .form-select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.5rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .cell-sub { font-size: 0.7rem; color: #7a8896; }
+
+  #mobileGroupList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+  #mobileGroupList > .mobile-card:nth-child(even) { background: #ffffff; }
+  .mobile-card { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid #f0f2f5; }
+
+  .filters-toggle {
+    width: 100%; background: #f8f9fa; border: 0; border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem; font-weight: 600; color: #2c3e50; padding: 0.55rem 0.85rem;
+    text-align: left; display: flex; align-items: center; justify-content: space-between;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.mb-4 { margin-bottom: 0.75rem !important; }
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .card-form.mb-3, .card-custom.mb-3 { margin-bottom: 0.75rem !important; }
+    .card-form .p-3 { padding: 0.7rem !important; }
+    .card-form .form-label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .card-form .form-control, .card-form .form-select { font-size: 0.78rem; padding: 0.28rem 0.5rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_clients') }}">Clients</a></li>
-                <li class="breadcrumb-item active">Groupes clients</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Groupes clients</h1>
-        <p class="text-muted mb-0">Soldes collectifs utilisables plus tard dans le module ventes.</p>
+      <h1><i class="fas fa-layer-group me-2"></i>Groupes clients</h1>
+      <p>Soldes collectifs utilisables plus tard dans le module ventes.</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('admin.export_groupes_clients_excel', **export_query) }}" class="btn btn-outline-success">
-            <i class="fas fa-file-excel me-1"></i> Excel
-        </a>
-        <a href="{{ url_for('admin.export_groupes_clients_pdf', **export_query) }}" class="btn btn-outline-danger">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </a>
-        <a href="{{ url_for('admin.create_groupe_client') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Ajouter
-        </a>
-        {% if current_user.has_permission('historique_clients') %}
-        <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-history me-1"></i> Historique
-        </a>
-        {% endif %}
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.export_groupes_clients_excel', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_groupes_clients_pdf', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      {% if current_user.has_permission('historique_clients') %}
+      <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-history me-1"></i> Historique
+      </a>
+      {% endif %}
+      <a href="{{ url_for('admin.list_clients') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-users me-1"></i> Clients
+      </a>
+      <a href="{{ url_for('admin.create_groupe_client') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-plus me-1"></i> Ajouter
+      </a>
     </div>
+  </div>
 </div>
 
-<form method="GET" class="card mb-3">
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Recherche</label>
-                <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Nom ou description...">
+{% set groupes_count = groupes|length %}
+{% set solde_total = groupes|sum(attribute='solde') %}
+{% set absorption_moyenne = (groupes|sum(attribute='pourcentage_absorption') / groupes_count) if groupes_count > 0 else 0 %}
+{% set clients_rattaches = groupes|map(attribute='clients')|map('length')|sum %}
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-layer-group"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ groupes_count }}</div>
+        <div class="stat-label">Groupes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-wallet"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(solde_total) }}</div>
+        <div class="stat-label">Solde total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-percent"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(absorption_moyenne) }}%</div>
+        <div class="stat-label">Absorption moyenne</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-users"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ clients_rattaches }}</div>
+        <div class="stat-label">Clients rattachés</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% set filters_active = request.args.get('q') or request.args.get('solde_status') or request.args.get('absorption_min') or request.args.get('absorption_max') or request.args.get('date_from') or request.args.get('date_to') %}
+<form method="GET" class="card-form mb-3">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#groupesFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="groupesFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres & tri{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="groupesFilters">
+  <div class="p-3 p-sm-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label">Recherche</label>
+        <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Nom ou description...">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Solde</label>
+        <select name="solde_status" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
+          <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
+          <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Absorption min</label>
+        <input type="number" step="0.01" min="0" max="100" name="absorption_min" class="form-control form-control-sm" value="{{ request.args.get('absorption_min', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Absorption max</label>
+        <input type="number" step="0.01" min="0" max="100" name="absorption_max" class="form-control form-control-sm" value="{{ request.args.get('absorption_max', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Date debut</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Date fin</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Trier par</label>
+        <select name="sort" class="form-select form-select-sm">
+          {% set selected_sort = request.args.get('sort', 'nom') %}
+          <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
+          <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
+          <option value="pourcentage_absorption" {% if selected_sort == 'pourcentage_absorption' %}selected{% endif %}>Absorption</option>
+          <option value="clients_count" {% if selected_sort == 'clients_count' %}selected{% endif %}>Nombre clients</option>
+          <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
+          <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Ordre</label>
+        <select name="direction" class="form-select form-select-sm">
+          <option value="asc" {% if request.args.get('direction', 'asc') == 'asc' %}selected{% endif %}>Ascendant</option>
+          <option value="desc" {% if request.args.get('direction') == 'desc' %}selected{% endif %}>Descendant</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="fas fa-filter me-1"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  </div>
+</form>
+
+<div class="card-custom mb-3">
+  <!-- Mobile cards: no horizontal scroll -->
+  <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileGroupList">
+    {% for groupe in groupes %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ groupe.nom }}</div>
+          <div class="cell-sub">{{ groupe.description or '-' }}</div>
+        </div>
+        <div class="d-flex gap-1 flex-shrink-0">
+          <button type="button" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;" data-bs-toggle="modal" data-bs-target="#groupDetails{{ groupe.id }}">
+            <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+          </button>
+          <a href="{{ url_for('admin.edit_groupe_client', id=groupe.id) }}" class="btn btn-sm btn-outline-primary" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-edit" style="font-size:0.7rem;"></i>
+          </a>
+        </div>
+      </div>
+      <div class="mt-1 d-flex flex-wrap align-items-center gap-2" style="font-size:0.72rem;">
+        <span class="fw-bold {% if groupe.solde < 0 %}text-danger{% else %}text-success{% endif %}">Solde {{ "%.2f"|format(groupe.solde) }}</span>
+        <span class="badge bg-dark-subtle text-dark border">Abs. {{ "%.2f"|format(groupe.pourcentage_absorption) }}%</span>
+        <span class="badge bg-info text-dark">{{ groupe.clients|length }} client{{ 's' if groupe.clients|length > 1 else '' }}</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-layer-group" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun groupe client enregistré.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Groupe</th>
+          <th>Solde groupe</th>
+          <th>Absorption groupe</th>
+          <th>Clients</th>
+          <th>Dates</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for groupe in groupes %}
+        <tr class="group-row">
+          <td>
+            <div class="fw-bold">{{ groupe.nom }}</div>
+            <div class="cell-sub">{{ groupe.description or '-' }}</div>
+          </td>
+          <td class="fw-bold {% if groupe.solde < 0 %}text-danger{% else %}text-success{% endif %}" style="font-family:Consolas,monospace;">
+            {{ "%.2f"|format(groupe.solde) }}
+          </td>
+          <td>
+            <span class="badge bg-dark-subtle text-dark border">{{ "%.2f"|format(groupe.pourcentage_absorption) }}%</span>
+            <div class="cell-sub">Client: {{ "%.2f"|format(100 - groupe.pourcentage_absorption) }}%</div>
+          </td>
+          <td><span class="badge bg-info text-dark">{{ groupe.clients|length }}</span></td>
+          <td>
+            <div class="cell-sub">Creation: {{ groupe.created_at.strftime('%d/%m/%Y %H:%M') if groupe.created_at else '-' }}</div>
+            <div class="cell-sub">Modif: {{ groupe.updated_at.strftime('%d/%m/%Y %H:%M') if groupe.updated_at else '-' }}</div>
+          </td>
+          <td class="text-end">
+            <div class="btn-group">
+              <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#groupDetails{{ groupe.id }}">
+                <i class="fas fa-eye"></i>
+              </button>
+              <a href="{{ url_for('admin.edit_groupe_client', id=groupe.id) }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteGroup{{ groupe.id }}">
+                <i class="fas fa-trash"></i>
+              </button>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Solde</label>
-                <select name="solde_status" class="form-select">
-                    <option value="">Tous</option>
-                    <option value="positive" {% if request.args.get('solde_status') == 'positive' %}selected{% endif %}>Positif</option>
-                    <option value="zero" {% if request.args.get('solde_status') == 'zero' %}selected{% endif %}>Zero</option>
-                    <option value="negative" {% if request.args.get('solde_status') == 'negative' %}selected{% endif %}>Negatif</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Absorption min</label>
-                <input type="number" step="0.01" min="0" max="100" name="absorption_min" class="form-control" value="{{ request.args.get('absorption_min', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Absorption max</label>
-                <input type="number" step="0.01" min="0" max="100" name="absorption_max" class="form-control" value="{{ request.args.get('absorption_max', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Date debut</label>
-                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Date fin</label>
-                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Trier par</label>
-                <select name="sort" class="form-select">
-                    {% set selected_sort = request.args.get('sort', 'nom') %}
-                    <option value="nom" {% if selected_sort == 'nom' %}selected{% endif %}>Nom</option>
-                    <option value="solde" {% if selected_sort == 'solde' %}selected{% endif %}>Solde</option>
-                    <option value="pourcentage_absorption" {% if selected_sort == 'pourcentage_absorption' %}selected{% endif %}>Absorption</option>
-                    <option value="clients_count" {% if selected_sort == 'clients_count' %}selected{% endif %}>Nombre clients</option>
-                    <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Creation</option>
-                    <option value="updated_at" {% if selected_sort == 'updated_at' %}selected{% endif %}>Modification</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Ordre</label>
-                <select name="direction" class="form-select">
-                    <option value="asc" {% if request.args.get('direction', 'asc') == 'asc' %}selected{% endif %}>Ascendant</option>
-                    <option value="desc" {% if request.args.get('direction') == 'desc' %}selected{% endif %}>Descendant</option>
-                </select>
-            </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-fill">
-                    <i class="fas fa-filter me-1"></i> Filtrer
-                </button>
-                <a href="{{ url_for('admin.list_groupes_clients') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-rotate-left me-1"></i> Reinitialiser
-                </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">Aucun groupe client enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for groupe in groupes %}
+<div class="modal fade" id="groupDetails{{ groupe.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-light"><h5 class="modal-title">Détails du groupe client</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <p><strong>Nom:</strong> {{ groupe.nom }}</p>
+                <p><strong>Solde:</strong> {{ "%.2f"|format(groupe.solde) }}</p>
+                <p><strong>Absorption groupe:</strong> {{ "%.2f"|format(groupe.pourcentage_absorption) }}%</p>
+                <p><strong>Part client restante:</strong> {{ "%.2f"|format(100 - groupe.pourcentage_absorption) }}%</p>
+                <p><strong>Description:</strong> {{ groupe.description or '-' }}</p>
+                <hr>
+                <h6>Clients associés</h6>
+                {% if groupe.clients %}
+                <ul class="list-group list-group-flush">
+                    {% for client in groupe.clients %}
+                    <li class="list-group-item px-0 d-flex justify-content-between">
+                        <span>{{ client.prenom }} {{ client.nom }}</span>
+                        <span class="badge bg-dark-subtle text-dark border">{{ client.matricule }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">Aucun client associé.</p>
+                {% endif %}
             </div>
         </div>
     </div>
-</form>
-
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
-                <tr>
-                    <th>Groupe</th>
-                    <th>Solde groupe</th>
-                    <th>Absorption groupe</th>
-                    <th>Clients</th>
-                    <th>Dates</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for groupe in groupes %}
-                <tr class="group-row">
-                    <td>
-                        <div class="fw-bold">{{ groupe.nom }}</div>
-                        <small class="text-muted">{{ groupe.description or '-' }}</small>
-                    </td>
-                    <td class="fw-bold {% if groupe.solde < 0 %}text-danger{% else %}text-success{% endif %}">
-                        {{ "%.2f"|format(groupe.solde) }}
-                    </td>
-                    <td>
-                        <span class="badge bg-dark-subtle text-dark border">{{ "%.2f"|format(groupe.pourcentage_absorption) }}%</span>
-                        <div class="small text-muted">Client: {{ "%.2f"|format(100 - groupe.pourcentage_absorption) }}%</div>
-                    </td>
-                    <td><span class="badge bg-info text-dark">{{ groupe.clients|length }}</span></td>
-                    <td>
-                        <div class="small">Creation: {{ groupe.created_at.strftime('%d/%m/%Y %H:%M') if groupe.created_at else '-' }}</div>
-                        <div class="small text-muted">Modif: {{ groupe.updated_at.strftime('%d/%m/%Y %H:%M') if groupe.updated_at else '-' }}</div>
-                    </td>
-                    <td class="text-end">
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#groupDetails{{ groupe.id }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <a href="{{ url_for('admin.edit_groupe_client', id=groupe.id) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteGroup{{ groupe.id }}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-
-                <div class="modal fade" id="groupDetails{{ groupe.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header bg-light"><h5 class="modal-title">Détails du groupe client</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                            <div class="modal-body">
-                                <p><strong>Nom:</strong> {{ groupe.nom }}</p>
-                                <p><strong>Solde:</strong> {{ "%.2f"|format(groupe.solde) }}</p>
-                                <p><strong>Absorption groupe:</strong> {{ "%.2f"|format(groupe.pourcentage_absorption) }}%</p>
-                                <p><strong>Part client restante:</strong> {{ "%.2f"|format(100 - groupe.pourcentage_absorption) }}%</p>
-                                <p><strong>Description:</strong> {{ groupe.description or '-' }}</p>
-                                <hr>
-                                <h6>Clients associés</h6>
-                                {% if groupe.clients %}
-                                <ul class="list-group list-group-flush">
-                                    {% for client in groupe.clients %}
-                                    <li class="list-group-item px-0 d-flex justify-content-between">
-                                        <span>{{ client.prenom }} {{ client.nom }}</span>
-                                        <span class="badge bg-dark-subtle text-dark border">{{ client.matricule }}</span>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                                {% else %}
-                                <p class="text-muted mb-0">Aucun client associé.</p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal fade" id="deleteGroup{{ groupe.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header"><h5 class="modal-title">Supprimer le groupe</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                            <div class="modal-body">Supprimer <strong>{{ groupe.nom }}</strong> ? Les clients seront détachés de ce groupe.</div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                <form method="POST" action="{{ url_for('admin.delete_groupe_client', id=groupe.id) }}">
-                                    <button type="submit" class="btn btn-danger">Supprimer</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% else %}
-                <tr><td colspan="6" class="text-center py-4 text-muted">Aucun groupe client enregistré.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
 </div>
 
+<div class="modal fade" id="deleteGroup{{ groupe.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Supprimer le groupe</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">Supprimer <strong>{{ groupe.nom }}</strong> ? Les clients seront détachés de ce groupe.</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.delete_groupe_client', id=groupe.id) }}">
+                    <button type="submit" class="btn btn-danger">Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}

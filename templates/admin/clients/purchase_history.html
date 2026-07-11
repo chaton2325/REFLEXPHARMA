@@ -2,98 +2,237 @@
 
 {% block title %}Achats {{ client.nom_complet }} - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.5rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .cell-sub { font-size: 0.7rem; color: #7a8896; }
+  .amount-ttc { color: #1e8e3e; }
+
+  #mobilePurchaseList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+  #mobilePurchaseList > .mobile-card:nth-child(even) { background: #ffffff; }
+  .mobile-card { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid #f0f2f5; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+    .mb-4, .mb-3 { margin-bottom: 0.75rem !important; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_clients') }}">Clients</a></li>
-                <li class="breadcrumb-item active">Historique des achats</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Historique des achats</h1>
-        <p class="text-muted mb-0">{{ client.nom_complet }} | {{ client.matricule }}</p>
+      <h1><i class="fas fa-receipt me-2"></i>Historique des achats</h1>
+      <p>{{ client.nom_complet }} &middot; Matricule {{ client.matricule }}</p>
     </div>
-    <a href="{{ url_for('admin.list_clients') }}" class="btn btn-outline-secondary">
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.export_client_purchase_history_excel', id=client.id) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_client_purchase_history_pdf', id=client.id) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-pdf me-1"></i> PDF<span class="d-none d-sm-inline"> (à remettre au client)</span>
+      </a>
+      <a href="{{ url_for('admin.list_clients') }}" class="btn btn-light btn-sm">
         <i class="fas fa-arrow-left me-1"></i> Retour
-    </a>
+      </a>
+    </div>
+  </div>
 </div>
 
-<div class="row g-3 mb-3">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Achats</div>
-                <div class="h4 mb-0">{{ ventes|length }}</div>
-            </div>
-        </div>
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-3">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-receipt"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ ventes|length }}</div>
+        <div class="stat-label">Achats</div>
+      </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Total TTC</div>
-                <div class="h4 mb-0 text-success">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div>
-            </div>
-        </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-sack-dollar"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div>
+        <div class="stat-label">Total TTC</div>
+      </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">Solde actuel</div>
-                <div class="h4 mb-0">{{ "%.2f"|format(client.solde) }}</div>
-                <div class="small text-muted">Groupe : {{ client.groupe.nom if client.groupe else '-' }}</div>
-            </div>
-        </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-wallet"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(client.solde) }}</div>
+        <div class="stat-label">Solde actuel {{ '· ' ~ client.groupe.nom if client.groupe else '' }}</div>
+      </div>
     </div>
+  </div>
 </div>
 
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
-                <tr>
-                    <th>Date</th>
-                    <th>Jour</th>
-                    <th>Vente</th>
-                    <th>Produits</th>
-                    <th class="text-end">TTC</th>
-                    <th>Paiement</th>
-                    <th>Effectué par</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for vente in ventes %}
-                <tr>
-                    <td>{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</td>
-                    <td>{{ vente.created_at.strftime('%A') if vente.created_at else '-' }}</td>
-                    <td>
-                        <div class="fw-bold">{{ vente.numero_vente }}</div>
-                        <small class="text-muted">{{ vente.statut }}</small>
-                    </td>
-                    <td>
-                        {% for ligne in vente.lignes %}
-                        <div class="small">{{ ligne.produit_nom }} x {{ "%.2f"|format(ligne.quantite) }} {{ ligne.unite }}</div>
-                        {% endfor %}
-                    </td>
-                    <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
-                    <td>
-                        <div class="small">Hors solde: {{ "%.2f"|format(vente.montant_hors_solde) }}</div>
-                        <div class="small text-muted">Client: {{ "%.2f"|format(vente.montant_solde_client) }} / Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
-                    </td>
-                    <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
-                    <td class="text-end">
-                        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="8" class="text-center py-4 text-muted">Aucun achat enregistré pour ce client.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="card-custom">
+  <!-- Mobile cards: no horizontal scroll -->
+  <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobilePurchaseList">
+    {% for vente in ventes %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ vente.numero_vente }}</div>
+          <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%y %H:%M') if vente.created_at else '-' }} &middot; {{ vente.statut }}</div>
+        </div>
+        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info flex-shrink-0" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+        </a>
+      </div>
+      <div class="mt-1" style="font-size:0.74rem;">
+        {% for ligne in vente.lignes %}
+        <div class="cell-sub">{{ ligne.produit_nom }} x {{ "%.2f"|format(ligne.quantite) }} {{ ligne.unite }}</div>
+        {% endfor %}
+      </div>
+      <div class="mt-1 d-flex flex-wrap align-items-center gap-2" style="font-size:0.72rem;">
+        <span class="fw-bold amount-ttc">TTC {{ "%.2f"|format(vente.total_ttc) }}</span>
+        <span class="cell-sub">Payé {{ "%.2f"|format(vente.montant_hors_solde) }}</span>
+      </div>
+      <div class="cell-sub">{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
     </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-receipt" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun achat enregistré pour ce client.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Jour</th>
+          <th>Vente</th>
+          <th>Produits</th>
+          <th class="text-end">TTC</th>
+          <th>Paiement</th>
+          <th>Effectué par</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vente in ventes %}
+        <tr>
+          <td>{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</td>
+          <td class="cell-sub">{{ vente.created_at.strftime('%A') if vente.created_at else '-' }}</td>
+          <td>
+            <div class="fw-bold">{{ vente.numero_vente }}</div>
+            <div class="cell-sub">{{ vente.statut }}</div>
+          </td>
+          <td>
+            {% for ligne in vente.lignes %}
+            <div class="cell-sub">{{ ligne.produit_nom }} x {{ "%.2f"|format(ligne.quantite) }} {{ ligne.unite }}</div>
+            {% endfor %}
+          </td>
+          <td class="text-end fw-bold amount-ttc" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_ttc) }}</td>
+          <td>
+            <div class="cell-sub">Hors solde: {{ "%.2f"|format(vente.montant_hors_solde) }}</div>
+            <div class="cell-sub">Client: {{ "%.2f"|format(vente.montant_solde_client) }} / Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
+          </td>
+          <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
+              <i class="fas fa-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center py-4 text-muted">Aucun achat enregistré pour ce client.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
