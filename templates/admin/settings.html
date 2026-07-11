@@ -2,40 +2,91 @@
 
 {% block title %}Paramètres de l'application - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-custom-header {
+    background: #fff;
+    padding: 0.9rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    border-bottom: 1px solid #edf2f7;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .card-custom-header i { color: #3498db; }
+
+  .card-custom .form-label { font-size: 0.82rem; font-weight: 600; color: #2c3e50; }
+  .card-custom .form-control { border-radius: 8px; border: 1px solid #e9ecef; }
+  .card-custom .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+  .card-custom .btn-primary { border-radius: 10px; font-weight: 600; padding: 0.55rem 1rem; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+    .card-custom-header { padding: 0.7rem 0.9rem; font-size: 0.85rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Paramètres</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-0">Paramètres de l'application</h1>
-    </div>
+<div class="page-header">
+  <div>
+    <h1><i class="fas fa-gear me-2"></i>Paramètres de l'application</h1>
+    <p>Configuration générale de ReflexPharma.</p>
+  </div>
 </div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0"><i class="fas fa-hospital me-2 text-primary"></i>Informations de la Pharmacie</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="pharmacy_name" class="form-label fw-bold">Nom de la pharmacie</label>
-                        <input type="text" class="form-control" id="pharmacy_name" name="pharmacy_name" value="{{ settings.pharmacy_name }}" placeholder="Ex: REFLEXPHARMA" required>
-                        <div class="form-text">Ce nom apparaîtra en haut de tous les tickets de caisse.</div>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save me-2"></i>Enregistrer les modifications
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header"><i class="fas fa-hospital"></i> Informations de la pharmacie</div>
+      <div class="p-3 p-sm-4">
+        <form method="POST">
+          <div class="mb-3">
+            <label for="pharmacy_name" class="form-label">Nom de la pharmacie</label>
+            <input type="text" class="form-control" id="pharmacy_name" name="pharmacy_name" value="{{ settings.pharmacy_name }}" placeholder="Ex: REFLEXPHARMA" required>
+            <div class="form-text">Ce nom apparaîtra en haut de tous les tickets de caisse.</div>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-2"></i>Enregistrer les modifications
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}

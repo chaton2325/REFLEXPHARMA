@@ -2,49 +2,230 @@
 
 {% block title %}{{ title }} - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-custom-header {
+    background: #fff;
+    padding: 0.9rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    border-bottom: 1px solid #edf2f7;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .card-custom-header i { color: #3498db; }
+
+  .card-custom .form-label { font-size: 0.82rem; font-weight: 600; color: #2c3e50; }
+  .card-custom .form-control { border-radius: 8px; border: 1px solid #e9ecef; }
+  .card-custom .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .perm-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #edf2f7;
+    border-radius: 10px;
+    background: #f7fafd;
+    font-size: 0.82rem;
+    color: #2c3e50;
+    height: 100%;
+  }
+  .perm-item:has(.form-check-input:checked) {
+    background: #eaf6ee;
+    border-color: #cdeeda;
+  }
+  .form-check-input:checked { background-color: #1e8e3e; border-color: #1e8e3e; }
+
+  .btn-outline-primary-soft {
+    background: #eaf2fd;
+    color: #1a73e8;
+    border: 1px solid #d3e4fb;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.7rem;
+  }
+  .btn-outline-primary-soft:hover { background: #d3e4fb; color: #1a73e8; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+    .card-custom-header { padding: 0.7rem 0.9rem; font-size: 0.85rem; }
+    .perm-item { font-size: 0.78rem; padding: 0.5rem 0.65rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">{{ title }}</h5>
-            </div>
-            <div class="card-body p-4">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label class="form-label">Nom du Poste</label>
-                        <input type="text" name="nom" class="form-control" value="{{ poste.nom if poste else '' }}" required placeholder="ex: Pharmacien, Préparateur, Stagiaire...">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description (optionnel)</label>
-                        <textarea name="description" class="form-control" rows="3">{{ poste.description if poste else '' }}</textarea>
-                    </div>
-
-                    {% if current_user.role == 'superadmin' and poste %}
-                    <hr>
-                    <div class="mb-4">
-                        <h6 class="fw-bold mb-3"><i class="fas fa-users-cog me-2"></i>Permissions par défaut pour ce poste</h6>
-                        <div class="row">
-                            {% for feature, label in features.items() %}
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="perm_{{ feature }}" id="perm_{{ feature }}" 
-                                           {% if poste_perms.get(feature) %}checked{% endif %}>
-                                    <label class="form-check-label" for="perm_{{ feature }}">{{ label }}</label>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <div class="d-flex justify-content-end gap-2">
-                        <a href="{{ url_for('admin.list_postes') }}" class="btn btn-light border">Annuler</a>
-                        <button type="submit" class="btn btn-primary">{{ 'Mettre à jour' if poste else 'Créer' }}</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-briefcase me-2"></i>{{ title }}</h1>
+      <p>{{ 'Modification du poste et de ses permissions par défaut.' if poste else 'Création d\'un nouveau type de poste.' }}</p>
     </div>
+    <a href="{{ url_for('admin.list_postes') }}" class="btn btn-light btn-sm">
+      <i class="fas fa-arrow-left me-1"></i> Retour
+    </a>
+  </div>
 </div>
+
+<form method="POST">
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card-custom h-100">
+        <div class="card-custom-header"><span><i class="fas fa-id-card me-1"></i> Informations du poste</span></div>
+        <div class="p-3 p-sm-4">
+          <div class="mb-3">
+            <label class="form-label">Nom du Poste</label>
+            <input type="text" name="nom" class="form-control" value="{{ poste.nom if poste else '' }}" required placeholder="ex: Pharmacien, Préparateur, Stagiaire...">
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Description (optionnel)</label>
+            <textarea name="description" class="form-control" rows="4">{{ poste.description if poste else '' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if current_user.role == 'superadmin' and poste %}
+    <div class="col-lg-6">
+      <div class="card-custom h-100">
+        <div class="card-custom-header">
+          <span><i class="fas fa-users-cog me-1"></i> Permissions par défaut</span>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn-outline-primary-soft" id="permSelectAll">Tout cocher</button>
+            <button type="button" class="btn-outline-primary-soft" id="permSelectNone">Tout décocher</button>
+          </div>
+        </div>
+        <div class="px-3 px-sm-4 pt-3 pt-sm-4">
+          <p class="text-muted mb-3" style="font-size:0.72rem;"><i class="fas fa-bolt me-1"></i>Chaque case est enregistrée automatiquement dès que vous la cochez ou décochez.</p>
+        </div>
+        <div class="px-3 px-sm-4 pb-3 pb-sm-4">
+          <div class="row g-2">
+            {% for feature, label in features.items() %}
+            <div class="col-12 col-md-6">
+              <label class="perm-item mb-0">
+                <span>{{ label }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="fas fa-check text-success perm-saved-icon" style="font-size:0.7rem;opacity:0;transition:opacity 0.2s;"></i>
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input perm-toggle" type="checkbox" name="perm_{{ feature }}" id="perm_{{ feature }}" data-feature="{{ feature }}"
+                           {% if poste_perms.get(feature) %}checked{% endif %}>
+                  </div>
+                </div>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="d-flex justify-content-end gap-2 mt-3">
+    <a href="{{ url_for('admin.list_postes') }}" class="btn btn-outline-secondary">Annuler</a>
+    <button type="submit" class="btn btn-primary">{{ 'Mettre à jour' if poste else 'Créer' }}</button>
+  </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('permSelectAll');
+    const selectNone = document.getElementById('permSelectNone');
+    const toggles = Array.from(document.querySelectorAll('.perm-toggle'));
+    {% if poste %}
+    const toggleUrl = "{{ url_for('admin.toggle_poste_permission', id=poste.id) }}";
+
+    function savePermission(toggle) {
+        const feature = toggle.dataset.feature;
+        const isAllowed = toggle.checked;
+        const item = toggle.closest('.perm-item');
+        const icon = item ? item.querySelector('.perm-saved-icon') : null;
+
+        toggle.disabled = true;
+        const formData = new FormData();
+        formData.append('feature', feature);
+        formData.append('is_allowed', isAllowed ? 'true' : 'false');
+
+        fetch(toggleUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then((response) => response.json())
+        .then((data) => {
+            toggle.disabled = false;
+            if (data.success) {
+                if (icon) {
+                    icon.style.opacity = '1';
+                    setTimeout(() => { icon.style.opacity = '0'; }, 900);
+                }
+            } else {
+                toggle.checked = !isAllowed;
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch((err) => {
+            toggle.disabled = false;
+            toggle.checked = !isAllowed;
+            console.error(err);
+            alert('Erreur de connexion au serveur.');
+        });
+    }
+
+    toggles.forEach((toggle) => toggle.addEventListener('change', () => savePermission(toggle)));
+
+    if (selectAll) {
+        selectAll.addEventListener('click', () => {
+            toggles.forEach((t) => { if (!t.checked) { t.checked = true; savePermission(t); } });
+        });
+    }
+    if (selectNone) {
+        selectNone.addEventListener('click', () => {
+            toggles.forEach((t) => { if (t.checked) { t.checked = false; savePermission(t); } });
+        });
+    }
+    {% else %}
+    if (selectAll) selectAll.addEventListener('click', () => toggles.forEach((t) => t.checked = true));
+    if (selectNone) selectNone.addEventListener('click', () => toggles.forEach((t) => t.checked = false));
+    {% endif %}
+});
+</script>
 {% endblock %}

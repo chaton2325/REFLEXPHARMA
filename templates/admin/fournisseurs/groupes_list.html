@@ -2,156 +2,336 @@
 
 {% block title %}Groupes de Fournisseurs - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    padding: 0.85rem 1.1rem;
+  }
+  .card-form .form-control { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.5rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .cell-sub { font-size: 0.7rem; color: #7a8896; }
+
+  #mobileGroupFournisseurList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+  #mobileGroupFournisseurList > .mobile-card:nth-child(even) { background: #ffffff; }
+  .mobile-card { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid #f0f2f5; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.mb-4 { margin-bottom: 0.75rem !important; }
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .card-form.mb-3 { margin-bottom: 0.75rem !important; padding: 0.6rem 0.75rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a></li>
-                <li class="breadcrumb-item active">Groupes</li>
-            </ol>
-        </nav>
-        <h1 class="h3">Groupes de Fournisseurs</h1>
+      <h1><i class="fas fa-layer-group me-2"></i>Groupes de fournisseurs</h1>
+      <p>Coefficients et TVA par défaut, hérités par les fournisseurs du groupe.</p>
     </div>
-    <div class="d-flex gap-3">
-        <button type="button" id="bulkDeleteBtn" class="btn btn-danger d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
-            <i class="fas fa-trash me-1"></i> Supprimer la sélection (<span id="selectedCount">0</span>)
-        </button>
-        <div class="input-group" style="width: 300px;">
-            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un groupe...">
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
+        <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
+      </button>
+      <a href="{{ url_for('admin.list_fournisseurs') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-truck me-1"></i> Fournisseurs
+      </a>
+      <a href="{{ url_for('admin.create_groupe_fournisseur') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-plus me-1"></i> Ajouter
+      </a>
+    </div>
+  </div>
+</div>
+
+{% set total_groupes = groupes|length %}
+{% set total_fournisseurs_rattaches = groupes|map(attribute='fournisseurs')|map('length')|sum %}
+{% set coeff_moyen = (groupes|sum(attribute='coefficient_defaut') / total_groupes) if total_groupes > 0 else 0 %}
+{% set tva_moyenne = (groupes|sum(attribute='tva_defaut') / total_groupes) if total_groupes > 0 else 0 %}
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-layer-group"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_groupes }}</div>
+        <div class="stat-label">Groupes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-truck"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_fournisseurs_rattaches }}</div>
+        <div class="stat-label">Fournisseurs rattachés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-calculator"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(coeff_moyen) }}</div>
+        <div class="stat-label">Coefficient moyen</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-percent"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(tva_moyenne) }}%</div>
+        <div class="stat-label">TVA moyenne</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-form mb-3">
+  <div class="input-group">
+    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+    <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Rechercher un groupe...">
+  </div>
+</div>
+
+<div class="card-custom mb-3">
+  <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_groupes_fournisseurs') }}" method="POST"></form>
+
+  <!-- Mobile cards: no horizontal scroll -->
+  <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileGroupFournisseurList">
+    {% for g in groupes %}
+    <div class="mobile-card" data-search-row>
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ g.nom }}</div>
+          <div class="cell-sub">Coeff {{ g.coefficient_defaut }} · TVA {{ g.tva_defaut }}%</div>
         </div>
-        <a href="{{ url_for('admin.create_groupe_fournisseur') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Ajouter un Groupe
-        </a>
+        <div class="d-flex gap-1 flex-shrink-0">
+          <button type="button" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;" data-bs-toggle="modal" data-bs-target="#detailsModal{{ g.id }}">
+            <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+          </button>
+          <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-sm btn-outline-primary" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-edit" style="font-size:0.7rem;"></i>
+          </a>
+        </div>
+      </div>
+      <div class="mt-1">
+        <span class="badge bg-info text-dark">{{ g.fournisseurs|length }} fournisseur{{ 's' if g.fournisseurs|length > 1 else '' }}</span>
+      </div>
     </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-layer-group" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun groupe enregistré.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom" id="groupTable">
+      <thead>
+        <tr>
+          <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
+          <th>Nom du Groupe</th>
+          <th>Coeff. par défaut</th>
+          <th>TVA par défaut</th>
+          <th>Fournisseurs</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in groupes %}
+        <tr>
+          <td><input type="checkbox" class="form-check-input row-checkbox" name="ids[]" value="{{ g.id }}" form="bulkDeleteForm"></td>
+          <td><div class="fw-bold">{{ g.nom }}</div></td>
+          <td style="font-family:Consolas,monospace;">{{ g.coefficient_defaut }}</td>
+          <td style="font-family:Consolas,monospace;">{{ g.tva_defaut }}%</td>
+          <td><span class="badge bg-info text-dark">{{ g.fournisseurs|length }}</span></td>
+          <td class="text-end">
+            <div class="btn-group">
+              <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ g.id }}" title="Détails">
+                <i class="fas fa-eye"></i>
+              </button>
+              <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ g.id }}" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">Aucun groupe enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
-<div class="card">
-    <div class="table-responsive">
-        <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_groupes_fournisseurs') }}" method="POST">
-            <table class="table table-hover align-middle mb-0" id="groupTable">
-                <thead class="bg-light">
-                    <tr>
-                        <th style="width: 40px;">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="selectAll">
-                            </div>
-                        </th>
-                        <th>Nom du Groupe</th>
-                        <th>Coeff. par défaut</th>
-                        <th>TVA par défaut</th>
-                        <th>Fournisseurs</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for g in groupes %}
-                    <tr>
-                        <td>
-                            <div class="form-check">
-                                <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ g.id }}">
-                            </div>
-                        </td>
-                        <td><div class="fw-bold">{{ g.nom }}</div></td>
-                        <td>{{ g.coefficient_defaut }}</td>
-                        <td>{{ g.tva_defaut }}%</td>
-                        <td><span class="badge bg-info text-dark">{{ g.fournisseurs|length }}</span></td>
-                        <td class="text-end">
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ g.id }}" title="Détails">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-sm btn-outline-primary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ g.id }}" title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-
-                            <!-- Details Modal -->
-                            <div class="modal fade" id="detailsModal{{ g.id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header bg-light">
-                                            <h5 class="modal-title"><i class="fas fa-users-cog me-2"></i>Détails du Groupe</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Nom du Groupe</h6>
-                                                <p class="fs-5 fw-bold text-primary">{{ g.nom }}</p>
-                                            </div>
-                                            <div class="row mb-3">
-                                                <div class="col-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">Coefficient par défaut</h6>
-                                                    <p class="fs-6">{{ g.coefficient_defaut }}</p>
-                                                </div>
-                                                <div class="col-6">
-                                                    <h6 class="text-muted text-uppercase small fw-bold">TVA par défaut</h6>
-                                                    <p class="fs-6">{{ g.tva_defaut }}%</p>
-                                                </div>
-                                            </div>
-                                            <div class="mb-3">
-                                                <h6 class="text-muted text-uppercase small fw-bold">Fournisseurs associés ({{ g.fournisseurs|length }})</h6>
-                                                {% if g.fournisseurs %}
-                                                    <ul class="list-group list-group-flush">
-                                                    {% for f in g.fournisseurs %}
-                                                        <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                                                            <span>{{ f.nom }}</span>
-                                                            <span class="badge bg-secondary">{{ f.prefixe }}</span>
-                                                        </li>
-                                                    {% endfor %}
-                                                    </ul>
-                                                {% else %}
-                                                    <p class="text-muted small italic">Aucun fournisseur associé à ce groupe.</p>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-primary">Modifier</a>
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Delete Modal -->
-                            <div class="modal fade" id="deleteModal{{ g.id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content text-start">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Confirmer la suppression</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            Êtes-vous sûr de vouloir supprimer le groupe <strong>{{ g.nom }}</strong> ?
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                            <form action="{{ url_for('admin.delete_groupe_fournisseur', id=g.id) }}" method="POST" class="d-inline">
-                                                <button type="submit" class="btn btn-danger">Supprimer</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
+{% for g in groupes %}
+<div class="modal fade" id="detailsModal{{ g.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content text-start">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fas fa-users-cog me-2"></i>Détails du Groupe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <h6 class="text-muted text-uppercase small fw-bold">Nom du Groupe</h6>
+                    <p class="fs-5 fw-bold text-primary">{{ g.nom }}</p>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <h6 class="text-muted text-uppercase small fw-bold">Coefficient par défaut</h6>
+                        <p class="fs-6">{{ g.coefficient_defaut }}</p>
+                    </div>
+                    <div class="col-6">
+                        <h6 class="text-muted text-uppercase small fw-bold">TVA par défaut</h6>
+                        <p class="fs-6">{{ g.tva_defaut }}%</p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-muted text-uppercase small fw-bold">Fournisseurs associés ({{ g.fournisseurs|length }})</h6>
+                    {% if g.fournisseurs %}
+                        <ul class="list-group list-group-flush">
+                        {% for f in g.fournisseurs %}
+                            <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                <span>{{ f.nom }}</span>
+                                <span class="badge bg-secondary">{{ f.prefixe }}</span>
+                            </li>
+                        {% endfor %}
+                        </ul>
                     {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">Aucun groupe enregistré.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </form>
+                        <p class="text-muted small fst-italic">Aucun fournisseur associé à ce groupe.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('admin.edit_groupe_fournisseur', id=g.id) }}" class="btn btn-primary">Modifier</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal{{ g.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content text-start">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Êtes-vous sûr de vouloir supprimer le groupe <strong>{{ g.nom }}</strong> ?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form action="{{ url_for('admin.delete_groupe_fournisseur', id=g.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -173,48 +353,35 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const checkboxes = Array.from(document.querySelectorAll('.row-checkbox'));
     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
     const selectedCountSpan = document.getElementById('selectedCount');
     const modalSelectedCountSpan = document.getElementById('modalSelectedCount');
 
     function updateBulkDeleteUI() {
-        const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
-        if (selectedCount > 0) {
-            bulkDeleteBtn.classList.remove('d-none');
-            selectedCountSpan.textContent = selectedCount;
-            modalSelectedCountSpan.textContent = selectedCount;
-        } else {
-            bulkDeleteBtn.classList.add('d-none');
-        }
+        const count = checkboxes.filter((cb) => cb.checked).length;
+        bulkDeleteBtn.classList.toggle('d-none', count === 0);
+        selectedCountSpan.textContent = count;
+        modalSelectedCountSpan.textContent = count;
     }
 
     if (selectAll) {
         selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => {
-                cb.checked = selectAll.checked;
-            });
+            checkboxes.forEach((cb) => cb.checked = selectAll.checked);
             updateBulkDeleteUI();
         });
     }
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateBulkDeleteUI);
-    });
+    checkboxes.forEach((cb) => cb.addEventListener('change', updateBulkDeleteUI));
 
     const searchInput = document.getElementById('searchInput');
-    const table = document.getElementById('groupTable');
-    const tbody = table.querySelector('tbody');
-    const rows = tbody.getElementsByTagName('tr');
+    const tableRows = Array.from(document.querySelectorAll('#groupTable tbody tr'));
+    const mobileCards = Array.from(document.querySelectorAll('#mobileGroupFournisseurList [data-search-row]'));
 
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             const filter = searchInput.value.toLowerCase();
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(filter) ? '' : 'none';
-            }
+            tableRows.forEach((row) => { row.style.display = row.textContent.toLowerCase().includes(filter) ? '' : 'none'; });
+            mobileCards.forEach((card) => { card.style.display = card.textContent.toLowerCase().includes(filter) ? '' : 'none'; });
         });
     }
 });

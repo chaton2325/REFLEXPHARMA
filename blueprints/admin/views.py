@@ -308,7 +308,9 @@ def dashboard():
 @permission_required('gestion_postes')
 def list_postes():
     postes = Poste.query.all()
-    return render_template('admin/postes/list.html', postes=postes)
+    from sqlalchemy import func
+    poste_counts = dict(db.session.query(User.poste, func.count(User.id)).group_by(User.poste).all())
+    return render_template('admin/postes/list.html', postes=postes, poste_counts=poste_counts)
 
 @admin.route('/postes/create', methods=['GET', 'POST'])
 @login_required
@@ -353,6 +355,29 @@ def edit_poste(id):
     
     poste_perms = {p.feature: p.is_allowed for p in Permission.query.filter_by(poste_id=id).all()}
     return render_template('admin/postes/form.html', poste=poste, title="Modifier le Poste", features=FEATURES, poste_perms=poste_perms)
+
+@admin.route('/postes/<int:id>/permission/toggle', methods=['POST'])
+@login_required
+@permission_required('gestion_postes')
+def toggle_poste_permission(id):
+    if current_user.role != 'superadmin':
+        return {'success': False, 'message': "Action réservée au superadmin."}, 403
+
+    poste = Poste.query.get_or_404(id)
+    feature = request.form.get('feature')
+    if feature not in FEATURES:
+        return {'success': False, 'message': 'Permission inconnue.'}, 400
+
+    is_allowed = request.form.get('is_allowed') == 'true'
+    perm = Permission.query.filter_by(feature=feature, poste_id=poste.id).first()
+    if perm:
+        perm.is_allowed = is_allowed
+    else:
+        perm = Permission(feature=feature, poste_id=poste.id, is_allowed=is_allowed)
+        db.session.add(perm)
+    db.session.commit()
+
+    return {'success': True, 'feature': feature, 'is_allowed': is_allowed}
 
 @admin.route('/postes/delete/<int:id>', methods=['POST'])
 @login_required

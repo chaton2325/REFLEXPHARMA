@@ -2,287 +2,470 @@
 
 {% block title %}Statistiques des sorties de stock - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.7rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+  .stat-card .stat-sub { font-size: 0.68rem; color: #98a4ae; margin-top: 0.1rem; }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus, .card-form .form-select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-custom-header {
+    background: #fff;
+    padding: 0.85rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #2c3e50;
+    border-bottom: 1px solid #edf2f7;
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.5rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.42rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.78rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 0 0 12px 12px; }
+
+  .filters-toggle {
+    width: 100%; background: #f8f9fa; border: 0; border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem; font-weight: 600; color: #2c3e50; padding: 0.55rem 0.85rem;
+    text-align: left; display: flex; align-items: center; justify-content: space-between;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; }
+
+  .amount-ttc { color: #d93025; }
+  .amount-taxes { color: #e37400; }
+  .amount-ht { color: #1a73e8; }
+  .amount-count { color: #1e8e3e; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.mb-4, .row.g-4 { margin-bottom: 0.75rem !important; }
+    .row.g-3, .row.g-4 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.9rem; }
+    .stat-card .stat-icon { width: 26px; height: 26px; font-size: 0.75rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.54rem; }
+    .stat-card .stat-sub { font-size: 0.58rem; }
+
+    .card-form.mb-3, .card-form.mb-4 { margin-bottom: 0.75rem !important; }
+    .card-form .p-3 { padding: 0.7rem !important; }
+    .card-form .form-label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .card-form .form-control, .card-form .form-select { font-size: 0.78rem; padding: 0.28rem 0.5rem; }
+
+    .card-custom-header { padding: 0.6rem 0.85rem; font-size: 0.8rem; }
+    canvas { max-height: 220px; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_stock_exit_logs') }}">Sorties</a></li>
-                <li class="breadcrumb-item active">Statistiques</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-1">Statistiques des sorties de stock</h1>
-        <p class="text-muted mb-0">Analyse globale des pertes, volumes, fournisseurs, auteurs et raisons de sortie.</p>
+      <h1><i class="fas fa-chart-line me-2"></i>Statistiques des sorties</h1>
+      <p>Analyse des pertes, volumes, fournisseurs, auteurs et raisons de sortie de stock.</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('admin.export_stock_exit_stats_excel') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn btn-outline-success">
-            <i class="fas fa-file-excel me-1"></i> Rapport Excel
-        </a>
-        <a href="{{ url_for('admin.export_stock_exit_stats_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn btn-outline-danger">
-            <i class="fas fa-file-pdf me-1"></i> Rapport PDF
-        </a>
-        <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="btn btn-outline-primary">
-            <i class="fas fa-list me-1"></i> Historique sorties
-        </a>
-        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-1"></i> Stock
-        </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.export_stock_exit_stats_excel') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_stock_exit_stats_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-list me-1"></i> Historique
+      </a>
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Stock
+      </a>
     </div>
+  </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Filtres du module statistiques</h5>
+{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.tva or filters.min_ttc or filters.max_ttc %}
+<form method="GET" class="card-form mb-4">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#exitStatsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="exitStatsFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="exitStatsFilters">
+  <div class="p-3 p-sm-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label">Du</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Au</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label">Produit</label>
+        <select name="produit" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.produits %}
+          <option value="{{ item }}" {% if filters.produit == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Fournisseur</label>
+        <select name="fournisseur" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.fournisseurs %}
+          <option value="{{ item }}" {% if filters.fournisseur == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Groupe</label>
+        <select name="groupe" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.groupes %}
+          <option value="{{ item }}" {% if filters.groupe == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Sorti par</label>
+        <select name="sorti_par" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.sorti_par %}
+          <option value="{{ item }}" {% if filters.sorti_par == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Mis en stock par</label>
+        <select name="mis_en_stock_par" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.mis_en_stock_par %}
+          <option value="{{ item }}" {% if filters.mis_en_stock_par == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Raison</label>
+        <select name="raison" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for item in options.raisons %}
+          <option value="{{ item }}" {% if filters.raison == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">TVA</label>
+        <select name="tva" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for item in options.tvas %}
+          <option value="{{ item }}" {% if filters.tva == item %}selected{% endif %}>{{ item }}%</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label">TTC min</label>
+        <input type="number" step="0.01" name="min_ttc" class="form-control form-control-sm" value="{{ filters.min_ttc }}">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label">TTC max</label>
+        <input type="number" step="0.01" name="max_ttc" class="form-control form-control-sm" value="{{ filters.max_ttc }}">
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="fas fa-filter me-1"></i> Appliquer
+        </button>
+        <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </a>
+      </div>
     </div>
-    <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-2">
-                <label class="form-label">Du</label>
-                <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Au</label>
-                <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Produit</label>
-                <select name="produit" class="form-select">
-                    <option value="">Tous</option>
-                    {% for item in options.produits %}
-                    <option value="{{ item }}" {% if filters.produit == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Fournisseur</label>
-                <select name="fournisseur" class="form-select">
-                    <option value="">Tous</option>
-                    {% for item in options.fournisseurs %}
-                    <option value="{{ item }}" {% if filters.fournisseur == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Groupe</label>
-                <select name="groupe" class="form-select">
-                    <option value="">Tous</option>
-                    {% for item in options.groupes %}
-                    <option value="{{ item }}" {% if filters.groupe == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Sorti par</label>
-                <select name="sorti_par" class="form-select">
-                    <option value="">Tous</option>
-                    {% for item in options.sorti_par %}
-                    <option value="{{ item }}" {% if filters.sorti_par == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Mis en stock par</label>
-                <select name="mis_en_stock_par" class="form-select">
-                    <option value="">Tous</option>
-                    {% for item in options.mis_en_stock_par %}
-                    <option value="{{ item }}" {% if filters.mis_en_stock_par == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Raison</label>
-                <select name="raison" class="form-select">
-                    <option value="">Toutes</option>
-                    {% for item in options.raisons %}
-                    <option value="{{ item }}" {% if filters.raison == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">TVA</label>
-                <select name="tva" class="form-select">
-                    <option value="">Toutes</option>
-                    {% for item in options.tvas %}
-                    <option value="{{ item }}" {% if filters.tva == item %}selected{% endif %}>{{ item }}%</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-1">
-                <label class="form-label">TTC min</label>
-                <input type="number" step="0.01" name="min_ttc" class="form-control" value="{{ filters.min_ttc }}">
-            </div>
-            <div class="col-md-1">
-                <label class="form-label">TTC max</label>
-                <input type="number" step="0.01" name="max_ttc" class="form-control" value="{{ filters.max_ttc }}">
-            </div>
-            <div class="col-md-12 d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-filter me-1"></i> Appliquer
-                </button>
-                <a href="{{ url_for('admin.stock_exit_stats') }}" class="btn btn-outline-secondary">Réinitialiser</a>
-            </div>
-        </form>
+  </div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-right-from-bracket"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stats.totals.count }}</div>
+        <div class="stat-label">Sorties totales</div>
+        <div class="stat-sub">{{ stats.totals.quantity_total }} unité(s)</div>
+      </div>
     </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-sack-dollar"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(stats.totals.total_ttc) }}</div>
+        <div class="stat-label">Perte TTC</div>
+        <div class="stat-sub">HT: {{ "%.2f"|format(stats.totals.total_ht) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-percent"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(stats.totals.total_taxes) }}</div>
+        <div class="stat-label">Taxes perdues</div>
+        <div class="stat-sub">TTC - HT</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-calendar-day"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stats.totals.today_count }}</div>
+        <div class="stat-label">Aujourd'hui</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.today_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.today_taxes) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-calendar-week"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stats.totals.last_30_count }}</div>
+        <div class="stat-label">30 derniers jours</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_30_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_30_taxes) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-calendar"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stats.totals.last_7_count }}</div>
+        <div class="stat-label">7 derniers jours</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_7_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_7_taxes) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-scale-balanced"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ "%.2f"|format(stats.totals.avg_ttc) }}</div>
+        <div class="stat-label">Sortie moyenne</div>
+        <div class="stat-sub">Taxes moy. {{ "%.2f"|format(stats.totals.avg_taxes) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ stats.totals.expired_count }}</div>
+        <div class="stat-label">Stock périmé sorti</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.expired_ttc) }} · âge moy. {{ "%.1f"|format(stats.totals.avg_stock_age_days) }}j</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Évolution quotidienne — valeur (HT / Taxes / TTC)</div>
+      <div class="p-3"><canvas id="dailyValueChart" height="230"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Évolution quotidienne — nombre de sorties</div>
+      <div class="p-3"><canvas id="dailyCountChart" height="230"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Valeur mensuelle (HT / Taxes / TTC)</div>
+      <div class="p-3"><canvas id="monthlyExitChart" height="210"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Sorties par heure</div>
+      <div class="p-3"><canvas id="hourExitChart" height="210"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Top produits par perte TTC</div>
+      <div class="p-3"><canvas id="productExitChart" height="210"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Top raisons par perte TTC</div>
+      <div class="p-3"><canvas id="reasonExitChart" height="210"></canvas></div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Sorties totales</div>
-            <div class="fs-3 fw-bold">{{ stats.totals.count }}</div>
-            <div class="small text-muted">{{ stats.totals.quantity_total }} unite(s) toutes granularites</div>
-        </div></div>
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">Taxes perdues par TVA</div>
+      <div class="p-3"><canvas id="tvaExitChart" height="220"></canvas></div>
     </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Perte / valeur TTC</div>
-            <div class="fs-3 fw-bold text-danger">{{ "%.2f"|format(stats.totals.total_ttc) }}</div>
-            <div class="small text-muted">HT: {{ "%.2f"|format(stats.totals.total_ht) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Taxes perdues</div>
-            <div class="fs-3 fw-bold text-warning">{{ "%.2f"|format(stats.totals.total_taxes) }}</div>
-            <div class="small text-muted">TTC - HT sur le filtre courant</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Aujourd'hui</div>
-            <div class="fs-3 fw-bold">{{ stats.totals.today_count }}</div>
-            <div class="small text-muted">TTC: {{ "%.2f"|format(stats.totals.today_ttc) }} | Taxes: {{ "%.2f"|format(stats.totals.today_taxes) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">30 derniers jours</div>
-            <div class="fs-3 fw-bold">{{ stats.totals.last_30_count }}</div>
-            <div class="small text-muted">TTC: {{ "%.2f"|format(stats.totals.last_30_ttc) }} | Taxes: {{ "%.2f"|format(stats.totals.last_30_taxes) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">7 derniers jours</div>
-            <div class="fs-3 fw-bold">{{ stats.totals.last_7_count }}</div>
-            <div class="small text-muted">TTC: {{ "%.2f"|format(stats.totals.last_7_ttc) }} | Taxes: {{ "%.2f"|format(stats.totals.last_7_taxes) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Sortie moyenne</div>
-            <div class="fs-3 fw-bold">{{ "%.2f"|format(stats.totals.avg_ttc) }}</div>
-            <div class="small text-muted">Taxes moyennes: {{ "%.2f"|format(stats.totals.avg_taxes) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Stock sorti perime</div>
-            <div class="fs-3 fw-bold">{{ stats.totals.expired_count }}</div>
-            <div class="small text-muted">TTC: {{ "%.2f"|format(stats.totals.expired_ttc) }} | Taxes: {{ "%.2f"|format(stats.totals.expired_taxes) }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="small text-muted">Age moyen avant sortie</div>
-            <div class="fs-3 fw-bold">{{ "%.1f"|format(stats.totals.avg_stock_age_days) }} j</div>
-            <div class="small text-muted">depuis la mise en stock</div>
-        </div></div>
-    </div>
+  </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-8">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Evolution quotidienne HT / taxes / TTC</h5></div>
-            <div class="card-body"><canvas id="dailyExitChart" height="110"></canvas></div>
-        </div>
+<div class="row g-3">
+  {% macro stat_table(title, rows, show_quantity=True) %}
+  <div class="col-xl-6">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">{{ title }}</div>
+      <div class="table-responsive table-responsive-custom">
+        <table class="table table-custom">
+          <thead>
+            <tr>
+              <th>Libellé</th>
+              <th class="text-end">Sorties</th>
+              {% if show_quantity %}<th class="text-end">Qté</th>{% endif %}
+              <th class="text-end">Taxes</th>
+              <th class="text-end">TTC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="text-end">{{ row.count }}</td>
+              {% if show_quantity %}<td class="text-end">{{ row.quantity }}</td>{% endif %}
+              <td class="text-end amount-taxes" style="font-family:Consolas,monospace;">{{ "%.2f"|format(row.taxes) }}</td>
+              <td class="text-end amount-ttc fw-semibold" style="font-family:Consolas,monospace;">{{ "%.2f"|format(row.ttc) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="{{ 5 if show_quantity else 4 }}" class="text-center text-muted py-3">Aucune donnée.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="col-xl-4">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Valeur mensuelle HT / taxes / TTC</h5></div>
-            <div class="card-body"><canvas id="monthlyExitChart" height="240"></canvas></div>
-        </div>
-    </div>
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Top produits par perte TTC</h5></div>
-            <div class="card-body"><canvas id="productExitChart" height="180"></canvas></div>
-        </div>
-    </div>
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Top raisons par perte TTC</h5></div>
-            <div class="card-body"><canvas id="reasonExitChart" height="180"></canvas></div>
-        </div>
-    </div>
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Sorties par heure</h5></div>
-            <div class="card-body"><canvas id="hourExitChart" height="170"></canvas></div>
-        </div>
-    </div>
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">Taxes perdues par TVA</h5></div>
-            <div class="card-body"><canvas id="tvaExitChart" height="170"></canvas></div>
-        </div>
-    </div>
-</div>
+  </div>
+  {% endmacro %}
 
-<div class="row g-4">
-    {% macro stat_table(title, rows, show_quantity=True) %}
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header bg-white"><h5 class="mb-0">{{ title }}</h5></div>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th>Libelle</th>
-                            <th class="text-end">Sorties</th>
-                            {% if show_quantity %}<th class="text-end">Qte</th>{% endif %}
-                            <th class="text-end">Taxes</th>
-                            <th class="text-end">TTC</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rows %}
-                        <tr>
-                            <td>{{ row.label }}</td>
-                            <td class="text-end">{{ row.count }}</td>
-                            {% if show_quantity %}<td class="text-end">{{ row.quantity }}</td>{% endif %}
-                            <td class="text-end">{{ "%.2f"|format(row.taxes) }}</td>
-                            <td class="text-end">{{ "%.2f"|format(row.ttc) }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="{{ 5 if show_quantity else 4 }}" class="text-center text-muted py-3">Aucune donnee.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    {% endmacro %}
-
-    {{ stat_table('Top fournisseurs', stats.top_suppliers) }}
-    {{ stat_table('Top groupes fournisseurs', stats.top_supplier_groups) }}
-    {{ stat_table('Top produits', stats.top_products) }}
-    {{ stat_table('Top raisons', stats.top_reasons) }}
-    {{ stat_table('Sorties par utilisateur', stats.top_exit_users) }}
-    {{ stat_table('Mises en stock par utilisateur', stats.top_stock_users) }}
-    {{ stat_table('Repartition TVA', stats.tva, False) }}
+  {{ stat_table('Top fournisseurs', stats.top_suppliers) }}
+  {{ stat_table('Top groupes fournisseurs', stats.top_supplier_groups) }}
+  {{ stat_table('Top produits', stats.top_products) }}
+  {{ stat_table('Top raisons', stats.top_reasons) }}
+  {{ stat_table('Sorties par utilisateur', stats.top_exit_users) }}
+  {{ stat_table('Mises en stock par utilisateur', stats.top_stock_users) }}
+  {{ stat_table('Répartition TVA', stats.tva, False) }}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const stats = {{ stats|tojson }};
-    const moneyColor = '#dc3545';
-    const countColor = '#0d6efd';
-    const secondaryColor = '#198754';
+    // Couleurs fixes par mesure (jamais par rang) : cohérent avec le reste de l'app.
+    const colorHT = '#1a73e8';
+    const colorTaxes = '#e37400';
+    const colorTTC = '#d93025';
+    const colorCount = '#1e8e3e';
+    const categorical = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];
+
+    Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+    Chart.defaults.color = '#7a8896';
+    Chart.defaults.borderColor = '#edf2f7';
 
     function chartOrEmpty(canvasId, config) {
         const canvas = document.getElementById(canvasId);
@@ -297,18 +480,25 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    chartOrEmpty('dailyExitChart', {
+    // Évolution quotidienne — valeur (axe unique : HT / Taxes / TTC, même échelle monétaire)
+    chartOrEmpty('dailyValueChart', {
         type: 'line',
         data: {
             labels: stats.daily.labels,
             datasets: [
-                { label: 'Perte HT', data: stats.daily.ht, borderColor: secondaryColor, backgroundColor: 'rgba(25,135,84,.08)', tension: .25, fill: false, yAxisID: 'y' },
-                { label: 'Taxes perdues', data: stats.daily.taxes, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.10)', tension: .25, fill: false, yAxisID: 'y' },
-                { label: 'Perte TTC', data: stats.daily.ttc, borderColor: moneyColor, backgroundColor: 'rgba(220,53,69,.12)', tension: .25, fill: true, yAxisID: 'y' },
-                { label: 'Nombre sorties', data: stats.daily.count, borderColor: countColor, backgroundColor: 'rgba(13,110,253,.12)', tension: .25, yAxisID: 'y1' }
+                { label: 'HT', data: stats.daily.ht, borderColor: colorHT, backgroundColor: 'rgba(26,115,232,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
+                { label: 'Taxes', data: stats.daily.taxes, borderColor: colorTaxes, backgroundColor: 'rgba(227,116,0,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
+                { label: 'TTC', data: stats.daily.ttc, borderColor: colorTTC, backgroundColor: 'rgba(217,48,37,.10)', borderWidth: 2, tension: .25, fill: true, pointRadius: 2 }
             ]
         },
-        options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } }
+        options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Évolution quotidienne — nombre de sorties (mesure distincte, chart séparé plutôt qu'un second axe)
+    chartOrEmpty('dailyCountChart', {
+        type: 'bar',
+        data: { labels: stats.daily.labels, datasets: [{ label: 'Sorties', data: stats.daily.count, backgroundColor: colorCount, borderRadius: 4 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } }
     });
 
     chartOrEmpty('monthlyExitChart', {
@@ -316,39 +506,39 @@ document.addEventListener('DOMContentLoaded', function() {
         data: {
             labels: stats.monthly.labels,
             datasets: [
-                { label: 'HT', data: stats.monthly.ht, backgroundColor: secondaryColor },
-                { label: 'Taxes', data: stats.monthly.taxes, backgroundColor: '#ffc107' },
-                { label: 'TTC', data: stats.monthly.ttc, backgroundColor: moneyColor }
+                { label: 'HT', data: stats.monthly.ht, backgroundColor: colorHT, borderRadius: 4 },
+                { label: 'Taxes', data: stats.monthly.taxes, backgroundColor: colorTaxes, borderRadius: 4 },
+                { label: 'TTC', data: stats.monthly.ttc, backgroundColor: colorTTC, borderRadius: 4 }
             ]
         },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
 
+    chartOrEmpty('hourExitChart', {
+        type: 'bar',
+        data: { labels: stats.hourly.labels, datasets: [{ label: 'Sorties', data: stats.hourly.count, backgroundColor: colorCount, borderRadius: 4 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } }
+    });
+
     const products = barData(stats.top_products.slice(0, 8), 'ttc');
     chartOrEmpty('productExitChart', {
         type: 'bar',
-        data: { labels: products.labels, datasets: [{ label: 'TTC', data: products.values, backgroundColor: moneyColor }] },
-        options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
+        data: { labels: products.labels, datasets: [{ label: 'TTC', data: products.values, backgroundColor: colorTTC, borderRadius: 4 }] },
+        options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } }
     });
 
     const reasons = barData(stats.top_reasons.slice(0, 8), 'ttc');
     chartOrEmpty('reasonExitChart', {
         type: 'bar',
-        data: { labels: reasons.labels, datasets: [{ label: 'TTC', data: reasons.values, backgroundColor: secondaryColor }] },
-        options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
-    });
-
-    chartOrEmpty('hourExitChart', {
-        type: 'bar',
-        data: { labels: stats.hourly.labels, datasets: [{ label: 'Sorties', data: stats.hourly.count, backgroundColor: countColor }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        data: { labels: reasons.labels, datasets: [{ label: 'TTC', data: reasons.values, backgroundColor: colorTTC, borderRadius: 4 }] },
+        options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } }
     });
 
     const tva = barData(stats.tva, 'taxes');
     chartOrEmpty('tvaExitChart', {
         type: 'doughnut',
-        data: { labels: tva.labels, datasets: [{ label: 'Taxes', data: tva.values, backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#20c997'] }] },
-        options: { responsive: true }
+        data: { labels: tva.labels, datasets: [{ label: 'Taxes', data: tva.values, backgroundColor: categorical, borderColor: '#fff', borderWidth: 2 }] },
+        options: { responsive: true, plugins: { legend: { position: 'right' } } }
     });
 });
 </script>
