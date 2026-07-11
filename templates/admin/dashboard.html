@@ -47,6 +47,19 @@
     position: relative;
     z-index: 1;
   }
+  .dashboard-mascotte-bg {
+    position: absolute;
+    z-index: 0;
+    right: 0.5rem;
+    bottom: 0;
+    height: 100%;
+    max-height: 160px;
+    width: auto;
+    opacity: 0.85;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to left, black 45%, transparent 95%);
+    mask-image: linear-gradient(to left, black 45%, transparent 95%);
+  }
 
   .stat-card {
     background: #fff;
@@ -173,6 +186,7 @@
   @media (max-width: 575.98px) {
     .dashboard-welcome { padding: 1.5rem 1.25rem 0; border-radius: 12px; }
     .dashboard-welcome h1 { font-size: 1.35rem; }
+    .dashboard-mascotte-bg { max-height: 96px; opacity: 0.55; }
     .stat-card { padding: 1rem; }
     .stat-card .stat-number { font-size: 1.35rem; }
     .stat-card .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
@@ -187,6 +201,7 @@
 {% block content %}
 <div class="fade-in">
   <div class="dashboard-welcome">
+    <img src="{{ url_for('static', filename='mascotte/mascotte-explique-web.jpg') }}" alt="" class="dashboard-mascotte-bg">
     <div class="row align-items-end">
       <div class="col-12 col-md-8">
         <h1><i class="fas fa-prescription-bottle-alt me-2"></i>Bienvenue, {{ current_user.prenom }} !</h1>

@@ -8,6 +8,7 @@ class Config:
     # Utilisation de DATABASE_LOCAL_URL par défaut comme vu dans testDatabase.py.py
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_LOCAL_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    MISTRAL_API_KEY = os.getenv('MISTRAL_API_KEY')
     
 class DevelopmentConfig(Config):
     DEBUG = True

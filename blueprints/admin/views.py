@@ -1,7 +1,8 @@
-from flask import render_template, redirect, url_for, flash, request, abort, Response
+from flask import render_template, redirect, url_for, flash, request, abort, Response, current_app
 from flask_login import login_required, current_user
 import queue
 import threading
+import requests
 from . import admin
 from models.user import User
 from models.poste import Poste
@@ -4497,6 +4498,72 @@ def app_settings():
         'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     }
     return render_template('admin/settings.html', settings=settings)
+
+
+# ==============================================================================
+# ASSISTANT IA (MASCOTTE)
+# ==============================================================================
+
+ASSISTANT_SYSTEM_PROMPT = (
+    "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
+    "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques). "
+    "Tu aides le personnel de la pharmacie à utiliser le logiciel : où trouver une fonctionnalité, "
+    "comment faire une action, comprendre un chiffre affiché. "
+    "Réponds toujours en français, de façon concise, claire et directement utile. "
+    "Si la question sort du cadre du logiciel ou de la pharmacie, réponds brièvement puis "
+    "recentre poliment sur ce que tu peux faire ici."
+)
+
+@admin.route('/assistant/chat', methods=['POST'])
+@login_required
+def assistant_chat():
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    history = data.get('history') or []
+
+    if not message:
+        return {'success': False, 'message': 'Message vide.'}, 400
+    if len(message) > 2000:
+        return {'success': False, 'message': 'Message trop long.'}, 400
+
+    api_key = current_app.config.get('MISTRAL_API_KEY')
+    if not api_key:
+        return {'success': False, 'message': "L'assistant IA n'est pas configuré (clé API Mistral manquante)."}, 503
+
+    messages = [{'role': 'system', 'content': ASSISTANT_SYSTEM_PROMPT}]
+    if isinstance(history, list):
+        for item in history[-12:]:
+            if not isinstance(item, dict):
+                continue
+            role = item.get('role')
+            content = (item.get('content') or '').strip()
+            if role in ('user', 'assistant') and content:
+                messages.append({'role': role, 'content': content[:2000]})
+    messages.append({'role': 'user', 'content': message})
+
+    try:
+        response = requests.post(
+            'https://api.mistral.ai/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'model': 'mistral-small-latest',
+                'messages': messages,
+                'temperature': 0.4,
+                'max_tokens': 700,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        reply = payload['choices'][0]['message']['content'].strip()
+        return {'success': True, 'reply': reply}
+    except requests.exceptions.RequestException:
+        return {'success': False, 'message': "Impossible de contacter l'assistant IA pour le moment."}, 502
+    except (KeyError, IndexError, ValueError):
+        return {'success': False, 'message': "Réponse inattendue de l'assistant IA."}, 502
 
 
 # ==============================================================================
