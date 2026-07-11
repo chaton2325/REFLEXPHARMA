@@ -1,5 +1,7 @@
-from flask import render_template, redirect, url_for, flash, request, abort
+from flask import render_template, redirect, url_for, flash, request, abort, Response
 from flask_login import login_required, current_user
+import queue
+import threading
 from . import admin
 from models.user import User
 from models.poste import Poste
@@ -4326,6 +4328,46 @@ def app_settings():
 # GESTION DE L'INVENTAIRE
 # ==============================================================================
 
+# Diffusion en direct des saisies d'inventaire à tous les appareils connectés (SSE).
+# Registre en mémoire : inventaire_id -> liste de queues (une par appareil connecté).
+_inventaire_subscribers = {}
+_inventaire_subscribers_lock = threading.Lock()
+
+def _inventaire_subscribe(inventaire_id):
+    q = queue.Queue()
+    with _inventaire_subscribers_lock:
+        _inventaire_subscribers.setdefault(inventaire_id, []).append(q)
+    return q
+
+def _inventaire_unsubscribe(inventaire_id, q):
+    with _inventaire_subscribers_lock:
+        subs = _inventaire_subscribers.get(inventaire_id)
+        if subs and q in subs:
+            subs.remove(q)
+            if not subs:
+                _inventaire_subscribers.pop(inventaire_id, None)
+
+def _inventaire_publish(inventaire_id, payload):
+    with _inventaire_subscribers_lock:
+        subs = list(_inventaire_subscribers.get(inventaire_id, []))
+    for q in subs:
+        q.put(payload)
+
+def _inventaire_line_payload(line):
+    return {
+        'id': line.id,
+        'is_scanned': line.is_scanned,
+        'a_decalage': line.a_decalage,
+        'quantite_unites_apres': line.quantite_unites_apres,
+        'quantite_sous_unites_apres': line.quantite_sous_unites_apres,
+        'quantite_sous_sous_unites_apres': line.quantite_sous_sous_unites_apres,
+        'quantite_unites_avant': line.quantite_unites_avant,
+        'quantite_sous_unites_avant': line.quantite_sous_unites_avant,
+        'quantite_sous_sous_unites_avant': line.quantite_sous_sous_unites_avant,
+        'constate_by': f"{line.constate_by.prenom} {line.constate_by.nom}" if line.constate_by else None,
+        'constate_at': line.constate_at.strftime('%d/%m %H:%M') if line.constate_at else None,
+    }
+
 @admin.route('/inventaire')
 @login_required
 @permission_required('gestion_inventaire')
@@ -4383,16 +4425,22 @@ def show_inventaire(id):
     
     # Récupérer toutes les lignes pour permettre la recherche et le filtrage côté client en JS
     lines = InventaireLigne.query.filter_by(inventaire_id=id).order_by(InventaireLigne.id.asc()).all()
-    
+
     total_count = len(lines)
     scanned_count = sum(1 for line in lines if line.is_scanned)
-    
+
+    # Personnes ayant saisi au moins une ligne, pour le filtre du rapport PDF
+    comptages_par = User.query.join(
+        InventaireLigne, InventaireLigne.constate_by_id == User.id
+    ).filter(InventaireLigne.inventaire_id == id).distinct().order_by(User.nom.asc()).all()
+
     return render_template(
         'admin/inventaire/show.html',
         inventaire=inventaire,
         lines=lines,
         total_count=total_count,
-        scanned_count=scanned_count
+        scanned_count=scanned_count,
+        comptages_par=comptages_par
     )
 
 @admin.route('/inventaire/<int:id>/line/<int:line_id>/save', methods=['POST'])
@@ -4421,7 +4469,16 @@ def save_inventaire_line(id, line_id):
         line.constate_at = datetime.utcnow()
         line.constate_by_id = current_user.id
         db.session.commit()
-        
+
+        # Diffuse la saisie en direct à tous les autres appareils connectés sur cet inventaire
+        total_count = InventaireLigne.query.filter_by(inventaire_id=id).count()
+        scanned_count = InventaireLigne.query.filter_by(inventaire_id=id, is_scanned=True).count()
+        _inventaire_publish(id, {
+            'line': _inventaire_line_payload(line),
+            'total_count': total_count,
+            'scanned_count': scanned_count,
+        })
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return {
                 'success': True,
@@ -4435,8 +4492,66 @@ def save_inventaire_line(id, line_id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return {'success': False, 'message': str(e)}, 400
         flash(f"Erreur lors de la mise à jour : {str(e)}", "danger")
-        
+
     return redirect(url_for('admin.show_inventaire', id=id))
+
+@admin.route('/inventaire/<int:id>/updates', methods=['GET'])
+@login_required
+@permission_required('gestion_inventaire')
+def inventaire_updates(id):
+    """Retourne les lignes saisies depuis 'since' pour synchroniser les autres appareils sans refresh."""
+    Inventaire.query.get_or_404(id)
+
+    query = InventaireLigne.query.filter_by(inventaire_id=id).filter(InventaireLigne.constate_at.isnot(None))
+
+    since_str = request.args.get('since')
+    if since_str:
+        try:
+            since_dt = datetime.fromisoformat(since_str.replace('Z', '+00:00')).replace(tzinfo=None)
+            query = query.filter(InventaireLigne.constate_at > since_dt)
+        except ValueError:
+            pass
+
+    lines = query.order_by(InventaireLigne.constate_at.asc()).all()
+
+    total_count = InventaireLigne.query.filter_by(inventaire_id=id).count()
+    scanned_count = InventaireLigne.query.filter_by(inventaire_id=id, is_scanned=True).count()
+
+    return {
+        'success': True,
+        'server_time': datetime.utcnow().isoformat(),
+        'total_count': total_count,
+        'scanned_count': scanned_count,
+        'lines': [_inventaire_line_payload(line) for line in lines]
+    }
+
+@admin.route('/inventaire/<int:id>/stream')
+@login_required
+@permission_required('gestion_inventaire')
+def inventaire_stream(id):
+    """Flux SSE : pousse chaque saisie aux autres appareils connectés, quasi instantanément."""
+    Inventaire.query.get_or_404(id)
+    q = _inventaire_subscribe(id)
+
+    def gen():
+        try:
+            yield 'retry: 2000\n\n'
+            while True:
+                try:
+                    payload = q.get(timeout=20)
+                    yield f'data: {json.dumps(payload)}\n\n'
+                except queue.Empty:
+                    yield ': keep-alive\n\n'
+        except GeneratorExit:
+            pass
+        finally:
+            _inventaire_unsubscribe(id, q)
+
+    return Response(gen(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+    })
 
 @admin.route('/inventaire/<int:id>/scan')
 @login_required
@@ -4587,11 +4702,13 @@ def export_fiche_comptage_pdf(id):
         spaceAfter=15
     )
     normal_style = styles['Normal']
-    
+    code_style = ParagraphStyle('CodeCell', parent=styles['Normal'], fontSize=6.5, leading=7.5, wordWrap='CJK')
+    cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6.5, leading=7.5)
+
     elements.append(Paragraph(f"Fiche de Comptage - {inventaire.titre}", title_style))
     elements.append(Paragraph(f"Créé le : {inventaire.created_at.strftime('%d/%m/%Y %H:%M')} | Auteur : {inventaire.created_by.nom} {inventaire.created_by.prenom}", normal_style))
-    elements.append(Spacer(1, 15))
-    
+    elements.append(Spacer(1, 10))
+
     data = [['Code Lot', 'Produit', 'Emplacement / Rayon', 'Stock Théor.', 'Stock Réel']]
     for l in lignes:
         rayon_nom = l.produit.rayon.nom if l.produit.rayon else '-'
@@ -4602,28 +4719,31 @@ def export_fiche_comptage_pdf(id):
             th_str = f"U:{l.quantite_unites_avant}\nSU:{l.quantite_sous_unites_avant}"
         else:
             th_str = f"U:{l.quantite_unites_avant}"
-            
+
         data.append([
-            l.code_suivi,
-            l.produit.nom,
-            rayon_nom,
+            Paragraph(l.code_suivi, code_style),
+            Paragraph(l.produit.nom, cell_style),
+            Paragraph(rayon_nom, cell_style),
             th_str,
-            '[   ] U\n' + ('[   ] SU\n' if cond >= 2 else '') + ('[   ] SSU' if cond == 3 else '')
+            '[  ] U\n' + ('[  ] SU\n' if cond >= 2 else '') + ('[  ] SSU' if cond == 3 else '')
         ])
-        
-    table = Table(data, repeatRows=1, colWidths=[130, 160, 110, 60, 75])
+
+    table = Table(data, repeatRows=1, colWidths=[120, 165, 105, 65, 80])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTSIZE', (0, 1), (-1, -1), 6.5),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
     ]))
-    
+
     elements.append(table)
     doc.build(elements)
     output.seek(0)
@@ -4639,8 +4759,39 @@ def export_rapport_inventaire_pdf(id):
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
     import io
-    
+
+    sort_by = request.args.get('sort', 'code')
+    personne_id = request.args.get('personne_id', '').strip()
+
     lignes = InventaireLigne.query.filter_by(inventaire_id=id).all()
+
+    if personne_id:
+        try:
+            personne_id_int = int(personne_id)
+            lignes = [l for l in lignes if l.constate_by_id == personne_id_int]
+        except ValueError:
+            pass
+
+    def sort_key(l):
+        if sort_by == 'personne':
+            has_person = 0 if l.constate_by else 1
+            name = f"{l.constate_by.nom} {l.constate_by.prenom}".lower() if l.constate_by else ''
+            return (has_person, name, l.code_suivi.lower())
+        elif sort_by == 'produit':
+            return (l.produit.nom.lower(), l.code_suivi.lower())
+        elif sort_by == 'ecart':
+            return (0 if l.a_decalage else 1, l.code_suivi.lower())
+        return (l.code_suivi.lower(),)
+
+    lignes.sort(key=sort_key)
+
+    personne_filtree = None
+    if personne_id:
+        try:
+            personne_filtree = User.query.get(int(personne_id))
+        except ValueError:
+            pass
+
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=A4, topMargin=30, bottomMargin=30, leftMargin=30, rightMargin=30)
     elements = []
@@ -4656,15 +4807,23 @@ def export_rapport_inventaire_pdf(id):
         spaceAfter=15
     )
     normal_style = styles['Normal']
-    
+    code_style = ParagraphStyle('CodeCell', parent=styles['Normal'], fontSize=6.5, leading=7.5, wordWrap='CJK')
+    cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6.5, leading=7.5)
+
     elements.append(Paragraph(f"Rapport d'Inventaire - {inventaire.titre}", title_style))
     statut_label = "Validé" if inventaire.statut == 'valide' else "Annulé" if inventaire.statut == 'annule' else "En cours"
     validated_by_str = f" | Validé par : {inventaire.validated_by.nom} {inventaire.validated_by.prenom} le {inventaire.validated_at.strftime('%d/%m/%Y %H:%M')}" if inventaire.validated_at else ""
-    
+
     elements.append(Paragraph(f"Statut : {statut_label} | Créé le : {inventaire.created_at.strftime('%d/%m/%Y %H:%M')}{validated_by_str}", normal_style))
-    elements.append(Spacer(1, 15))
-    
-    data = [['Code Lot', 'Produit', 'Stock Théor.', 'Stock Constaté', 'Écart']]
+
+    sort_labels = {'code': 'Code lot', 'personne': 'Personne (saisi par)', 'produit': 'Produit', 'ecart': 'Écarts en premier'}
+    tri_str = f"Trié par : {sort_labels.get(sort_by, 'Code lot')}"
+    if personne_filtree:
+        tri_str += f" | Filtré sur : {personne_filtree.prenom} {personne_filtree.nom}"
+    elements.append(Paragraph(tri_str, normal_style))
+    elements.append(Spacer(1, 10))
+
+    data = [['Code Lot', 'Produit', 'Stock Théor.', 'Stock Constaté', 'Écart', 'Saisi par']]
     for l in lignes:
         cond = l.produit.conditionnement
         
@@ -4699,26 +4858,35 @@ def export_rapport_inventaire_pdf(id):
             diff_parts.append(f"SSU:{'+' if diff_ssu > 0 else ''}{diff_ssu}")
             
         diff_str = "\n".join(diff_parts) if diff_parts else "Aucun"
-        
+
+        if l.constate_by:
+            saisi_par_str = f"{l.constate_by.prenom} {l.constate_by.nom}\n{l.constate_at.strftime('%d/%m %H:%M')}"
+        else:
+            saisi_par_str = "Non saisi"
+
         data.append([
-            l.code_suivi,
-            l.produit.nom,
+            Paragraph(l.code_suivi, code_style),
+            Paragraph(l.produit.nom, cell_style),
             th_str,
             ap_str,
-            diff_str
+            diff_str,
+            saisi_par_str
         ])
-        
-    table = Table(data, repeatRows=1, colWidths=[130, 180, 80, 80, 65])
+
+    table = Table(data, repeatRows=1, colWidths=[105, 135, 65, 65, 55, 110])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTSIZE', (0, 1), (-1, -1), 6.5),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
     ]))
     
     elements.append(table)

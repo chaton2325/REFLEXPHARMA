@@ -2,134 +2,368 @@
 
 {% block title %}Gestion des Inventaires - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+  .page-header p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label {
+    font-size: 0.72rem;
+    color: #7a8896;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-custom .card-custom-header {
+    padding: 0.85rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-custom-header.head-active {
+    background: linear-gradient(135deg, #fef7e0, #fde8b3);
+    color: #92620a;
+  }
+  .card-custom-header.head-new {
+    background: linear-gradient(135deg, #1e8e3e, #27ae60);
+    color: #fff;
+  }
+  .card-custom-header.head-history {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: #fff;
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.6rem 0.75rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td {
+    padding: 0.55rem 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 0; }
+
+  .cell-sub { font-size: 0.7rem; color: #7a8896; }
+
+  #mobileInvList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+  #mobileInvList > .mobile-card:nth-child(even) { background: #ffffff; }
+  .mobile-card {
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #f0f2f5;
+  }
+
+  @media (max-width: 991.98px) {
+    .table-custom .col-validateur { display: none !important; }
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
+    .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+    .page-header p { font-size: 0.72rem; }
+
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+    .mb-4 { margin-bottom: 0.75rem !important; }
+
+    .stat-card { padding: 0.45rem 0.6rem; border-radius: 10px; box-shadow: none; border: 1px solid #e8edf4; gap: 0.5rem !important; }
+    .stat-card .stat-number { font-size: 0.92rem; }
+    .stat-card .stat-icon { width: 28px; height: 28px; font-size: 0.8rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.56rem; }
+
+    .card-custom-header { padding: 0.6rem 0.85rem; font-size: 0.85rem; }
+
+    .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
+    .mobile-card .cell-sub { font-size: 0.64rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Inventaires</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-0"><i class="fas fa-boxes me-2 text-primary"></i>Gestion des Inventaires</h1>
+      <h1><i class="fas fa-boxes me-2"></i>Gestion des Inventaires</h1>
+      <p>Sessions de comptage physique du stock — écarts, historique et validation.</p>
     </div>
+  </div>
 </div>
 
-<div class="row">
-    <!-- Section Inventaire Actif / Nouveau -->
-    <div class="col-md-4 mb-4">
-        {% if active_inventaire %}
-        <div class="card border-warning shadow-sm h-100">
-            <div class="card-header bg-warning-subtle text-warning-emphasis fw-bold d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-spinner fa-spin me-2"></i>Inventaire En Cours</span>
-                <span class="badge bg-warning">Actif</span>
-            </div>
-            <div class="card-body d-flex flex-column">
-                <h5 class="card-title fw-bold text-dark">{{ active_inventaire.titre }}</h5>
-                <p class="card-text text-muted mb-4 small">
-                    <i class="fas fa-calendar-alt me-1"></i> Créé le {{ active_inventaire.created_at.strftime('%d/%m/%Y à %H:%M') }}<br>
-                    <i class="fas fa-user me-1"></i> Par : {{ active_inventaire.created_by.nom }} {{ active_inventaire.created_by.prenom }}
-                </p>
-                <div class="mt-auto d-grid gap-2">
-                    <a href="{{ url_for('admin.show_inventaire', id=active_inventaire.id) }}" class="btn btn-primary">
-                        <i class="fas fa-arrow-right me-2"></i>Accéder à l'inventaire
-                    </a>
-                    <a href="{{ url_for('admin.scan_inventaire_qrcode', id=active_inventaire.id) }}" class="btn btn-outline-success">
-                        <i class="fas fa-qrcode me-2"></i>Scanner Mobile
-                    </a>
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <div class="card shadow-sm h-100 border-0">
-            <div class="card-header bg-success text-white fw-bold">
-                <i class="fas fa-plus me-2"></i>Nouvel Inventaire
-            </div>
-            <div class="card-body">
-                <form action="{{ url_for('admin.create_inventaire') }}" method="POST">
-                    <div class="mb-3">
-                        <label for="titre" class="form-label fw-bold">Titre de l'inventaire</label>
-                        <input type="text" class="form-control form-control-lg" id="titre" name="titre" placeholder="Ex: Inventaire Fin de Mois" required>
-                        <div class="form-text">Ce titre permettra d'identifier cette session dans l'historique.</div>
-                    </div>
-                    <p class="text-muted small mb-4">
-                        <i class="fas fa-info-circle me-1 text-primary"></i> Le système fera un instantané (snapshot) des quantités actuelles de tout le stock pour servir de base théorique de comparaison.
-                    </p>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-play me-2"></i>Démarrer l'inventaire
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        {% endif %}
-    </div>
+{% set total_inv = inventaires|length %}
+{% set en_cours_count = inventaires|selectattr('statut', 'equalto', 'en_cours')|list|length %}
+{% set valide_count = inventaires|selectattr('statut', 'equalto', 'valide')|list|length %}
+{% set annule_count = inventaires|selectattr('statut', 'equalto', 'annule')|list|length %}
 
-    <!-- Section Historique des Inventaires -->
-    <div class="col-md-8 mb-4">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-dark text-white fw-bold">
-                <i class="fas fa-history me-2"></i>Historique des sessions
-            </div>
-            <div class="card-body p-0">
-                {% if inventaires %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Titre / Date</th>
-                                <th class="text-center">Statut</th>
-                                <th>Créé par</th>
-                                <th>Validé par / Date</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for inv in inventaires %}
-                            <tr>
-                                <td>
-                                    <div class="fw-bold">{{ inv.titre }}</div>
-                                    <small class="text-muted">{{ inv.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
-                                </td>
-                                <td class="text-center">
-                                    {% if inv.statut == 'en_cours' %}
-                                    <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
-                                    {% elif inv.statut == 'valide' %}
-                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
-                                    {% else %}
-                                    <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Annulé</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <small class="fw-semibold">{{ inv.created_by.nom }} {{ inv.created_by.prenom }}</small>
-                                </td>
-                                <td>
-                                    {% if inv.statut == 'valide' and inv.validated_by %}
-                                    <small class="fw-semibold">{{ inv.validated_by.nom }} {{ inv.validated_by.prenom }}</small><br>
-                                    <small class="text-muted">{{ inv.validated_at.strftime('%d/%m/%Y %H:%M') }}</small>
-                                    {% else %}
-                                    <span class="text-muted small">-</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-end px-3">
-                                    <a href="{{ url_for('admin.show_inventaire', id=inv.id) }}" class="btn btn-sm btn-outline-dark">
-                                        <i class="fas fa-eye me-1"></i> Détails
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="p-5 text-center text-muted">
-                    <i class="fas fa-clipboard-list fa-3x mb-3 text-light"></i>
-                    <p class="mb-0">Aucun inventaire n'a été enregistré.</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-clipboard-list"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_inv }}</div>
+        <div class="stat-label">Sessions au total</div>
+      </div>
     </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-spinner"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ en_cours_count }}</div>
+        <div class="stat-label">En cours</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ valide_count }}</div>
+        <div class="stat-label">Validés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-times-circle"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ annule_count }}</div>
+        <div class="stat-label">Annulés</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Section Inventaire Actif / Nouveau -->
+  <div class="col-lg-4">
+    {% if active_inventaire %}
+    <div class="card-custom h-100 d-flex flex-column">
+      <div class="card-custom-header head-active">
+        <span><i class="fas fa-spinner fa-spin me-2"></i>Inventaire en cours</span>
+        <span class="badge bg-warning text-dark">Actif</span>
+      </div>
+      <div class="p-3 p-sm-4 d-flex flex-column flex-fill">
+        <h5 class="fw-bold text-dark">{{ active_inventaire.titre }}</h5>
+        <p class="text-muted mb-4 small">
+          <i class="fas fa-calendar-alt me-1"></i> Créé le {{ active_inventaire.created_at.strftime('%d/%m/%Y à %H:%M') }}<br>
+          <i class="fas fa-user me-1"></i> Par : {{ active_inventaire.created_by.nom }} {{ active_inventaire.created_by.prenom }}
+        </p>
+        <div class="mt-auto d-grid gap-2">
+          <a href="{{ url_for('admin.show_inventaire', id=active_inventaire.id) }}" class="btn btn-primary">
+            <i class="fas fa-arrow-right me-2"></i>Accéder à l'inventaire
+          </a>
+          <a href="{{ url_for('admin.scan_inventaire_qrcode', id=active_inventaire.id) }}" class="btn btn-outline-success">
+            <i class="fas fa-qrcode me-2"></i>Scanner Mobile
+          </a>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card-custom h-100">
+      <div class="card-custom-header head-new">
+        <span><i class="fas fa-plus me-2"></i>Nouvel inventaire</span>
+      </div>
+      <div class="p-3 p-sm-4">
+        <form action="{{ url_for('admin.create_inventaire') }}" method="POST">
+          <div class="mb-3">
+            <label for="titre" class="form-label fw-bold">Titre de l'inventaire</label>
+            <input type="text" class="form-control form-control-lg" id="titre" name="titre" placeholder="Ex: Inventaire Fin de Mois" required>
+            <div class="form-text">Ce titre permettra d'identifier cette session dans l'historique.</div>
+          </div>
+          <p class="text-muted small mb-4">
+            <i class="fas fa-info-circle me-1 text-primary"></i> Le système fera un instantané (snapshot) des quantités actuelles de tout le stock pour servir de base théorique de comparaison.
+          </p>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-success btn-lg">
+              <i class="fas fa-play me-2"></i>Démarrer l'inventaire
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Section Historique des Inventaires -->
+  <div class="col-lg-8">
+    <div class="card-custom h-100">
+      <div class="card-custom-header head-history">
+        <span><i class="fas fa-history me-2"></i>Historique des sessions</span>
+      </div>
+
+      {% if inventaires %}
+      <!-- Mobile cards: no horizontal scroll -->
+      <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileInvList">
+        {% for inv in inventaires %}
+        <div class="mobile-card">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div style="min-width:0;">
+              <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ inv.titre }}</div>
+              <div class="cell-sub">{{ inv.created_at.strftime('%d/%m/%y %H:%M') }}</div>
+            </div>
+            <a href="{{ url_for('admin.show_inventaire', id=inv.id) }}" class="btn btn-sm btn-outline-dark flex-shrink-0" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+              <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+            </a>
+          </div>
+          <div class="d-flex align-items-center gap-1 mt-1">
+            {% if inv.statut == 'en_cours' %}
+            <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
+            {% elif inv.statut == 'valide' %}
+            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
+            {% else %}
+            <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Annulé</span>
+            {% endif %}
+          </div>
+          <div class="mt-1 cell-sub">
+            Créé par {{ inv.created_by.nom }} {{ inv.created_by.prenom }}
+            {% if inv.statut == 'valide' and inv.validated_by %}
+            <br>Validé le {{ inv.validated_at.strftime('%d/%m/%y %H:%M') }} par {{ inv.validated_by.nom }} {{ inv.validated_by.prenom }}
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Desktop table -->
+      <div class="table-responsive table-responsive-custom d-none d-sm-block">
+        <table class="table table-custom">
+          <thead>
+            <tr>
+              <th>Titre / Date</th>
+              <th class="text-center">Statut</th>
+              <th>Créé par</th>
+              <th class="col-validateur">Validé par / Date</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in inventaires %}
+            <tr>
+              <td>
+                <div class="fw-bold">{{ inv.titre }}</div>
+                <div class="cell-sub">{{ inv.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+              </td>
+              <td class="text-center">
+                {% if inv.statut == 'en_cours' %}
+                <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
+                {% elif inv.statut == 'valide' %}
+                <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
+                {% else %}
+                <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Annulé</span>
+                {% endif %}
+              </td>
+              <td>{{ inv.created_by.nom }} {{ inv.created_by.prenom }}</td>
+              <td class="col-validateur">
+                {% if inv.statut == 'valide' and inv.validated_by %}
+                <div>{{ inv.validated_by.nom }} {{ inv.validated_by.prenom }}</div>
+                <div class="cell-sub">{{ inv.validated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a href="{{ url_for('admin.show_inventaire', id=inv.id) }}" class="btn btn-sm btn-outline-dark">
+                  <i class="fas fa-eye me-1"></i> Détails
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-5 text-center text-muted">
+        <i class="fas fa-clipboard-list fa-3x mb-3 text-light"></i>
+        <p class="mb-0">Aucun inventaire n'a été enregistré.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endblock %}
