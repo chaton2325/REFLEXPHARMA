@@ -218,7 +218,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary" onclick="window.print()">
+                <button type="button" class="btn btn-primary" id="printReceiptBtn">
                     <i class="fas fa-print me-1"></i> Imprimer
                 </button>
             </div>
@@ -361,4 +361,51 @@
     </div>
 </div>
 {% endif %}
+
+<script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const AUTO_PRINT_ENABLED = {{ 'true' if auto_print_enabled else 'false' }};
+    const receiptData = {
+        pharmacyName: {{ pharmacy_name|tojson }},
+        numero: {{ vente.numero_vente|tojson }},
+        date: {{ (vente.created_at.strftime('%d/%m/%Y') if vente.created_at else '-')|tojson }},
+        heure: {{ (vente.created_at.strftime('%H:%M') if vente.created_at else '-')|tojson }},
+        vendeur: {{ ((vente.auteur_prenom or '') ~ ' ' ~ (vente.auteur_nom or ''))|tojson }},
+        client: {{ vente.client_label|tojson }},
+        lignes: [
+            {% for ligne in vente.lignes %}
+            {
+                nom: {{ (ligne.produit_nom ~ ' (' ~ ('SU' if ligne.unite == 'sous_unite' else 'SSU' if ligne.unite == 'sous_sous_unite' else 'U') ~ ')')|tojson }},
+                qte: {{ "{:,.2f}".format(ligne.quantite).replace(',', ' ').replace('.', ',')|tojson }},
+                pu: {{ "{:,.2f}".format(ligne.prix_unitaire_ttc).replace(',', ' ').replace('.', ',')|tojson }},
+                total: {{ "{:,.2f}".format(ligne.total_ttc).replace(',', ' ').replace('.', ',')|tojson }}
+            }{{ ',' if not loop.last }}
+            {% endfor %}
+        ],
+        totalTtc: {{ "{:,.2f}".format(vente.total_ttc).replace(',', ' ').replace('.', ',')|tojson }},
+        modePaiement: {{ vente.mode_paiement.replace('_', ' ')|tojson }},
+        montantRecu: {{ "{:,.2f}".format(vente.montant_recu).replace(',', ' ').replace('.', ',')|tojson }},
+        monnaieRendue: {{ "{:,.2f}".format(vente.monnaie_rendue).replace(',', ' ').replace('.', ',')|tojson }},
+        watermark: 'RE-IMPRESSION'
+    };
+
+    const printBtn = document.getElementById('printReceiptBtn');
+    if (printBtn) {
+        printBtn.addEventListener('click', async function () {
+            if (AUTO_PRINT_ENABLED && window.ReflexPrinter && ReflexPrinter.isSupported()) {
+                try {
+                    if (await ReflexPrinter.isReady()) {
+                        await ReflexPrinter.printReceipt(receiptData);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Impression automatique echouee, bascule sur impression navigateur.', err);
+                }
+            }
+            window.print();
+        });
+    }
+});
+</script>
 {% endblock %}

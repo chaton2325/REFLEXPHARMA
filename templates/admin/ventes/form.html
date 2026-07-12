@@ -1153,6 +1153,7 @@
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const venteForm = document.getElementById('venteForm');
@@ -1673,6 +1674,48 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
+    const AUTO_PRINT_ENABLED = {{ 'true' if auto_print_enabled else 'false' }};
+
+    function buildReceiptDataFromPreview() {
+        const lignes = Array.from(document.querySelectorAll('#previewLines tr')).map((tr) => {
+            const cells = tr.querySelectorAll('td');
+            return {
+                nom: cells[0] ? cells[0].textContent.trim() : '',
+                qte: cells[1] ? cells[1].textContent.trim() : '',
+                pu: cells[2] ? cells[2].textContent.trim() : '',
+                total: cells[3] ? cells[3].textContent.trim() : ''
+            };
+        });
+        return {
+            pharmacyName: {{ pharmacy_name|tojson }},
+            numero: document.getElementById('previewNumeroVente').textContent.trim(),
+            date: document.getElementById('previewDate').textContent.trim(),
+            heure: document.getElementById('previewTime').textContent.trim(),
+            vendeur: document.getElementById('previewVendeur').textContent.trim(),
+            client: document.getElementById('previewClient').textContent.trim(),
+            lignes: lignes,
+            totalTtc: document.getElementById('previewTotalTtc').textContent.trim(),
+            modePaiement: document.getElementById('previewModePaiement').textContent.trim(),
+            montantRecu: document.getElementById('previewMontantRecu').textContent.trim(),
+            monnaieRendue: document.getElementById('previewMonnaieRendue').textContent.trim(),
+            watermark: null
+        };
+    }
+
+    async function printReceiptNow() {
+        if (AUTO_PRINT_ENABLED && window.ReflexPrinter && ReflexPrinter.isSupported()) {
+            try {
+                if (await ReflexPrinter.isReady()) {
+                    await ReflexPrinter.printReceipt(buildReceiptDataFromPreview());
+                    return;
+                }
+            } catch (err) {
+                console.error('Impression automatique echouee, bascule sur impression navigateur.', err);
+            }
+        }
+        window.print();
+    }
+
     document.getElementById('confirmAndPrintBtn').addEventListener('click', function() {
         const passwordInput = document.getElementById('modalValidationPassword');
         const passwordError = document.getElementById('modalPasswordError');
@@ -1691,9 +1734,9 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin'
         })
         .then(response => response.json())
-        .then(data => {
+        .then(async (data) => {
             if (data.valid) {
-                window.print();
+                await printReceiptNow();
                 const modalElement = document.getElementById('receiptPreviewModal');
                 const modal = bootstrap.Modal.getInstance(modalElement);
                 if (modal) modal.hide();

@@ -171,5 +171,8 @@ def setup_database():
         print("Structure de la base de données vérifiée et mise à jour.")
 
 if __name__ == '__main__':
+    from print_agent.launcher import start_print_agent
+    start_print_agent()
+
     setup_database()
     app.run(debug=True, threaded=True)

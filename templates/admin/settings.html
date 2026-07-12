@@ -51,6 +51,27 @@
   .card-custom .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
   .card-custom .btn-primary { border-radius: 10px; font-weight: 600; padding: 0.55rem 1rem; }
 
+  .printer-status {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 10px;
+    background: #f7fafd;
+    border: 1px solid #e8edf4;
+    font-size: 0.82rem;
+    margin-bottom: 1rem;
+  }
+  .printer-status .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .printer-status.is-ready { background: #eaf6ee; border-color: #cdeeda; color: #1e8e3e; }
+  .printer-status.is-ready .dot { background: #1e8e3e; }
+  .printer-status.is-off { color: #7a8896; }
+  .printer-status.is-off .dot { background: #c3ccd3; }
+  .printer-status.is-unsupported { background: #fef7e0; border-color: #fde8b3; color: #92620a; }
+  .printer-status.is-unsupported .dot { background: #e37400; }
+
+  .form-switch .form-check-input { width: 2.5em; height: 1.35em; }
+
   @media (max-width: 575.98px) {
     .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
     .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
@@ -88,5 +109,119 @@
       </div>
     </div>
   </div>
+
+  <div class="col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header"><i class="fas fa-print"></i> Impression automatique des tickets</div>
+      <div class="p-3 p-sm-4">
+        <p class="text-muted" style="font-size: 0.82rem;">
+          Imprime le ticket de vente directement sur l'imprimante choisie ci-dessous, sans jamais afficher
+          la boîte de dialogue d'impression. Nécessite l'agent d'impression ReflexPharma
+          (voir dossier <code>print_agent/</code>) lancé <strong>sur ce poste de caisse</strong> —
+          à installer séparément sur chaque poste.
+        </p>
+
+        <div id="printerStatus" class="printer-status is-off">
+          <span class="dot"></span>
+          <span id="printerStatusText">Vérification...</span>
+        </div>
+
+        <div class="mb-3 d-none" id="printerSelectWrapper">
+          <label for="printerSelect" class="form-label">Imprimante pour les ventes</label>
+          <select id="printerSelect" class="form-select form-select-sm"></select>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button type="button" id="btnRefreshAgent" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-rotate me-1"></i> Rafraîchir
+          </button>
+          <button type="button" id="btnTestPrinter" class="btn btn-outline-secondary btn-sm" disabled>
+            <i class="fas fa-vial me-1"></i> Imprimer un ticket de test
+          </button>
+        </div>
+
+        <form method="POST" id="printerToggleForm">
+          <input type="hidden" name="form_name" value="printer">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="auto_print_enabled" name="auto_print_enabled" {% if settings.auto_print_enabled %}checked{% endif %} onchange="this.form.submit()">
+            <label class="form-check-label" for="auto_print_enabled" style="font-size: 0.85rem;">
+              Activer l'impression automatique (si l'agent est actif sur ce poste)
+            </label>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const statusBox = document.getElementById('printerStatus');
+    const statusText = document.getElementById('printerStatusText');
+    const selectWrapper = document.getElementById('printerSelectWrapper');
+    const select = document.getElementById('printerSelect');
+    const btnRefresh = document.getElementById('btnRefreshAgent');
+    const btnTest = document.getElementById('btnTestPrinter');
+
+    async function refreshStatus() {
+        selectWrapper.classList.add('d-none');
+        btnTest.disabled = true;
+
+        const ready = await ReflexPrinter.ping();
+        if (!ready) {
+            statusBox.className = 'printer-status is-unsupported';
+            statusText.textContent = "Agent d'impression introuvable sur ce poste. Vérifiez qu'il est bien lancé (voir print_agent/README.md).";
+            return;
+        }
+
+        try {
+            const data = await ReflexPrinter.listPrinters();
+            select.innerHTML = '';
+            (data.printers || []).forEach((name) => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name + (name === data.default ? ' (défaut Windows)' : '');
+                if (name === data.selected) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            statusBox.className = 'printer-status is-ready';
+            statusText.textContent = 'Agent actif' + (data.selected ? ' — imprimante active : ' + data.selected : ' — aucune imprimante choisie');
+            selectWrapper.classList.remove('d-none');
+            btnTest.disabled = !data.selected;
+        } catch (err) {
+            console.error(err);
+            statusBox.className = 'printer-status is-unsupported';
+            statusText.textContent = "Erreur lors de la lecture des imprimantes disponibles.";
+        }
+    }
+
+    select.addEventListener('change', async function () {
+        try {
+            await ReflexPrinter.setSelectedPrinter(select.value);
+            await refreshStatus();
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Impossible d'enregistrer l'imprimante choisie.");
+        }
+    });
+
+    btnRefresh.addEventListener('click', refreshStatus);
+
+    btnTest.addEventListener('click', async function () {
+        btnTest.disabled = true;
+        try {
+            await ReflexPrinter.printTestPage();
+        } catch (err) {
+            console.error(err);
+            alert("Échec de l'impression du ticket de test : " + (err.message || err));
+        } finally {
+            btnTest.disabled = false;
+        }
+    });
+
+    refreshStatus();
+});
+</script>
 {% endblock %}

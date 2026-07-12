@@ -107,5 +107,8 @@ def create_app(config_name='default'):
     return app
 
 if __name__ == '__main__':
+    from print_agent.launcher import start_print_agent
+    start_print_agent()
+
     app = create_app(os.getenv('FLASK_CONFIG') or 'default')
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

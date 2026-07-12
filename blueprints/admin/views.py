@@ -2076,7 +2076,8 @@ def create_vente():
         stock_tracking_codes=stock_tracking_codes,
         stock_expiry_dates=stock_expiry_dates,
         suggested_numero=generate_numero_vente(),
-        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
+        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true'
     )
 
 @admin.route('/ventes/validate-password', methods=['POST'])
@@ -2092,9 +2093,10 @@ def validate_vente_password():
 def detail_vente(id):
     vente = Vente.query.get_or_404(id)
     return render_template(
-        'admin/ventes/detail.html', 
+        'admin/ventes/detail.html',
         vente=vente,
-        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
+        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true'
     )
 
 @admin.route('/clients/<int:id>/achats')
@@ -4491,11 +4493,17 @@ def app_settings():
         pharmacy_name = request.form.get('pharmacy_name')
         if pharmacy_name:
             Setting.set_value('pharmacy_name', pharmacy_name)
-            flash('Paramètres mis à jour avec succès.', 'success')
+
+        if request.form.get('form_name') == 'printer':
+            auto_print_enabled = 'true' if request.form.get('auto_print_enabled') else 'false'
+            Setting.set_value('auto_print_enabled', auto_print_enabled)
+
+        flash('Paramètres mis à jour avec succès.', 'success')
         return redirect(url_for('admin.app_settings'))
-    
+
     settings = {
-        'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+        'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
+        'auto_print_enabled': Setting.get_value('auto_print_enabled', 'true') == 'true'
     }
     return render_template('admin/settings.html', settings=settings)
 
