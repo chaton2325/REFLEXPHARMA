@@ -4,17 +4,14 @@
 
 {% block content %}
 <style>
+/* ============================================================
+   IMPRESSION DES QR CODES — NE PAS MODIFIER cette section.
+   @page, .qr-sheet, .qr-label*, .qr-batch-separator et le bloc
+   @media print pilotent le rendu papier réel (window.print()).
+   ============================================================ */
 @page {
     size: A4 portrait;
     margin: 5mm;
-}
-
-.qr-preview-toolbar {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: flex-start;
-    margin-bottom: 1rem;
 }
 
 .qr-sheet {
@@ -65,7 +62,7 @@
 }
 
 @media print {
-    nav, footer, .alert, .qr-preview-toolbar, .btn, form, .qr-summary {
+    nav, footer, .alert, .qr-preview-toolbar, .btn, form, .qr-summary, .qr-preview-stats, .qr-mark-printed {
         display: none !important;
     }
 
@@ -85,11 +82,119 @@
         padding: 0 !important;
     }
 }
+/* ============ FIN de la section impression ============ */
+
+/* Aperçu écran de la grille de QR : uniquement pour la lecture sur petit écran,
+   n'affecte jamais l'impression (ciblé "screen" explicitement). */
+@media screen and (max-width: 767.98px) {
+    .qr-sheet { grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+    .qr-label { min-height: 30mm; }
+}
+@media screen and (max-width: 479.98px) {
+    .qr-sheet { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============ Habillage écran (n'affecte pas l'impression) ============ */
+.qr-preview-toolbar {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+.qr-preview-toolbar::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.qr-preview-toolbar .breadcrumb { position: relative; z-index: 1; margin-bottom: 0.4rem; }
+.qr-preview-toolbar .breadcrumb-item, .qr-preview-toolbar .breadcrumb-item a { color: rgba(255,255,255,0.65); font-size: 0.78rem; }
+.qr-preview-toolbar .breadcrumb-item.active { color: rgba(255,255,255,0.9); }
+.qr-preview-toolbar .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,0.4); }
+.qr-preview-toolbar h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; margin-bottom: 0.2rem; }
+.qr-preview-toolbar p { color: rgba(255,255,255,0.72); font-size: 0.85rem; margin: 0; position: relative; z-index: 1; }
+.qr-preview-toolbar .btn-outline-secondary {
+    background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff;
+    border-radius: 10px; font-weight: 600; font-size: 0.85rem;
+}
+.qr-preview-toolbar .btn-outline-secondary:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.qr-preview-toolbar .btn-primary { border-radius: 10px; font-weight: 600; font-size: 0.85rem; }
+
+.stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+}
+.stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+}
+.stat-card .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+.stat-card .stat-label { font-size: 0.7rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+/* Cartes génériques de la page : "card" reste le nom de classe (ne pas renommer,
+   utilisé par le bloc @media print ci-dessus) mais on l'habille pour l'écran. */
+.card { border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+.card-header { background: #fff; font-weight: 700; font-size: 0.92rem; color: #2c3e50; border-bottom: 1px solid #edf2f7; }
+
+.table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+.table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.5rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+}
+.table-custom tbody td { padding: 0.45rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; }
+.table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+.table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+
+.cell-sub { font-size: 0.7rem; color: #7a8896; }
+.badge-code { font-size: 0.72rem; font-weight: 500; padding: 0.25em 0.65em; background: #f0f2f5; color: #2c3e50; border-radius: 6px; border: 1px solid #e0e4ea; }
+
+#mobileQrSummaryList > .mobile-card:nth-child(odd) { background: #f7fafd; }
+#mobileQrSummaryList > .mobile-card:nth-child(even) { background: #ffffff; }
+.mobile-card { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid #f0f2f5; }
+
+@media (max-width: 575.98px) {
+    .qr-preview-toolbar { padding: 0.9rem 1.1rem; border-radius: 12px; margin-bottom: 0.85rem; }
+    .qr-preview-toolbar h1 { font-size: 1.1rem; }
+    .qr-preview-toolbar p { font-size: 0.72rem; }
+
+    .row.g-3 { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
+    .mb-4 { margin-bottom: 0.85rem !important; }
+
+    .stat-card { padding: 0.6rem 0.75rem; border-radius: 10px; }
+    .stat-card .stat-number { font-size: 1rem; }
+    .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.85rem; }
+    .stat-card .stat-label { font-size: 0.58rem; }
+}
 </style>
 
 {% set items = qr_items if qr_items is defined else [{'stock': stock, 'qr_count': qr_count, 'qr_image': qr_image}] %}
 {% set total_count = total_qr_count if total_qr_count is defined else qr_count %}
 {% set ids_to_mark = selected_ids if selected_ids is defined else [stock.id] %}
+{% set lots_deja_tires = items|selectattr('stock.qr_tire')|list|length %}
+{% set total_unites = items|sum(attribute='stock.quantite_unites') %}
 
 <div class="qr-preview-toolbar">
     <div>
@@ -97,23 +202,68 @@
             <ol class="breadcrumb mb-1">
                 <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
                 <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_stock') }}">Stock</a></li>
-                <li class="breadcrumb-item active">Previsualisation QR</li>
+                <li class="breadcrumb-item active">Prévisualisation QR</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1">Previsualisation QR Codes</h1>
-        <p class="text-muted mb-0">
-            {{ total_count }} etiquette(s) a tirer pour {{ items|length }} lot(s) selectionne(s). Valeur par defaut: quantite unites uniquement.
-        </p>
+        <h1><i class="fas fa-qrcode me-2"></i>Prévisualisation QR Codes</h1>
+        <p>{{ total_count }} étiquette(s) à tirer pour {{ items|length }} lot(s) sélectionné(s). Valeur par défaut : quantité unités uniquement.</p>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-secondary">Retour</a>
-        <button type="button" class="btn btn-primary" onclick="window.print();">Imprimer</button>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-outline-secondary btn-sm">Retour</a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print();"><i class="fas fa-print me-1"></i>Imprimer</button>
     </div>
 </div>
 
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4 qr-preview-stats">
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
+        <i class="fas fa-tags"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_count }}</div>
+        <div class="stat-label">Étiquettes à tirer</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-boxes-stacked"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ items|length }}</div>
+        <div class="stat-label">Lots sélectionnés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ lots_deja_tires }}</div>
+        <div class="stat-label">Déjà tirés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-cubes"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ total_unites }}</div>
+        <div class="stat-label">Unités au total</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card mb-4 qr-summary">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Lots selectionnes</h5>
+    <div class="card-header">
+        Lots sélectionnés
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}" class="mb-3">
@@ -143,31 +293,53 @@
                 {% endfor %}
                 <div class="col-md-auto">
                     <button type="submit" class="btn btn-sm btn-outline-primary">
-                        Actualiser la previsualisation
+                        Actualiser la prévisualisation
                     </button>
                 </div>
             </div>
         </form>
-        <div class="table-responsive">
-            <table class="table table-sm mb-0 align-middle">
-                <thead class="bg-light">
+
+        <!-- Mobile cards: no horizontal scroll -->
+        <div class="d-sm-none" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileQrSummaryList">
+            {% for item in items %}
+            <div class="mobile-card">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div style="min-width:0;">
+                        <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ item.stock.produit.nom }}</div>
+                        <span class="badge-code">{{ item.stock.code_suivi }}</span>
+                    </div>
+                    <span class="badge {{ 'bg-success' if item.stock.qr_tire else 'bg-secondary' }}">{{ 'QR tiré' if item.stock.qr_tire else 'Non tiré' }}</span>
+                </div>
+                <div class="mt-1 cell-sub">BL {{ item.stock.numero_bl }} &middot; Péremption {{ item.stock.date_peremption.strftime('%d/%m/%Y') if item.stock.date_peremption else 'N/A' }}</div>
+                <div class="mt-1 d-flex flex-wrap gap-2" style="font-size:0.72rem;">
+                    <span>Unités <strong>{{ item.stock.quantite_unites }}</strong></span>
+                    <span>Étiquettes <strong>{{ item.qr_count }}</strong></span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Desktop table -->
+        <div class="table-responsive d-none d-sm-block">
+            <table class="table table-custom">
+                <thead>
                     <tr>
                         <th>Produit</th>
                         <th>Code suivi</th>
                         <th>BL</th>
-                        <th>Peremption</th>
-                        <th>QR tire</th>
-                        <th class="text-end">Unites</th>
-                        <th class="text-end">Etiquettes</th>
+                        <th>Péremption</th>
+                        <th>QR tiré</th>
+                        <th class="text-end">Unités</th>
+                        <th class="text-end">Étiquettes</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in items %}
                     <tr>
                         <td>{{ item.stock.produit.nom }}</td>
-                        <td><span class="badge bg-dark-subtle text-dark border">{{ item.stock.code_suivi }}</span></td>
-                        <td>{{ item.stock.numero_bl }}</td>
-                        <td>{{ item.stock.date_peremption.strftime('%d/%m/%Y') if item.stock.date_peremption else 'N/A' }}</td>
+                        <td><span class="badge-code">{{ item.stock.code_suivi }}</span></td>
+                        <td class="cell-sub">{{ item.stock.numero_bl }}</td>
+                        <td class="cell-sub">{{ item.stock.date_peremption.strftime('%d/%m/%Y') if item.stock.date_peremption else 'N/A' }}</td>
                         <td>{{ 'Oui' if item.stock.qr_tire else 'Non' }}</td>
                         <td class="text-end">{{ item.stock.quantite_unites }}</td>
                         <td class="text-end">{{ item.qr_count }}</td>
@@ -198,15 +370,15 @@
         </div>
         {% else %}
         <div class="text-center text-muted py-5">
-            La quantite totale selectionnee est a 0. Aucun QR code a imprimer.
+            La quantité totale sélectionnée est à 0. Aucun QR code à imprimer.
         </div>
         {% endif %}
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Marquer comme tire</h5>
+<div class="card qr-mark-printed">
+    <div class="card-header">
+        Marquer comme tiré
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('admin.mark_selected_stock_qr_printed') }}">
@@ -218,7 +390,7 @@
                 <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Ex: tirage des etiquettes QR pour mise en rayon..."></textarea>
             </div>
             <button type="submit" class="btn btn-success" {% if total_count == 0 %}disabled{% endif %}>
-                Marquer QR tire = Oui
+                Marquer QR tiré = Oui
             </button>
         </form>
     </div>

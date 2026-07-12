@@ -699,6 +699,9 @@
     {% if current_user.is_authenticated %}
     <style>
       .ai-assistant-widget { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1045; }
+      @media print {
+        .ai-assistant-widget { display: none !important; }
+      }
       .ai-assistant-toggle {
         width: 64px; height: 64px; border-radius: 50%; border: 3px solid #fff; position: relative;
         box-shadow: 0 6px 20px rgba(44,62,80,0.35); overflow: hidden; padding: 0;
