@@ -515,6 +515,35 @@
     .action-bar { left: var(--sidebar-w, 62px); }
   }
 
+  /* --- Bouton flottant : scanner un produit (caméra) --- */
+  .qr-scan-float-btn {
+    position: fixed;
+    left: 0.75rem;
+    bottom: 5.5rem;
+    z-index: 1040;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: linear-gradient(135deg, #1e8e3e, #27ae60);
+    color: #fff;
+    font-size: 1.25rem;
+    box-shadow: 0 6px 20px rgba(30,142,62,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+  }
+  .qr-scan-float-btn:hover { color: #fff; transform: scale(1.06); }
+  @media (min-width: 768px) {
+    .qr-scan-float-btn { left: calc(var(--sidebar-w, 62px) + 0.75rem); bottom: 4.5rem; }
+  }
+  @media (max-width: 767.98px) {
+    .qr-scan-float-btn { bottom: calc(var(--bottom-h, 62px) + 4.5rem); width: 50px; height: 50px; font-size: 1.1rem; }
+  }
+  #qrScanReader { width: 100%; max-width: 360px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #000; }
+  #qrScanReader video { object-fit: cover !important; }
+
   /* --- Récap panier (modal) --- */
   #cartRecapBody { display: flex; flex-direction: column; gap: 0.32rem; }
   .recap-line {
@@ -651,7 +680,7 @@
     }
     #receiptPreviewModal .modal-header,
     #receiptPreviewModal .modal-footer,
-    .btn, .navbar, .page-header, .text-muted, form, #productInfoModal, .action-bar, #cartRecapModal {
+    .btn, .navbar, .page-header, .text-muted, form, #productInfoModal, .action-bar, #cartRecapModal, .qr-scan-float-btn, #qrScanModal {
       display: none !important;
     }
     .receipt-preview-container {
@@ -1002,6 +1031,26 @@
     <button type="submit" form="venteForm" class="btn btn-success">
       <i class="fas fa-save me-1"></i> Enregistrer
     </button>
+  </div>
+</div>
+
+<!-- Scanner un produit (QR) via la caméra -->
+<button type="button" class="qr-scan-float-btn" id="qrScanFloatBtn" title="Scanner un produit" aria-label="Scanner un produit (QR)">
+  <i class="fas fa-qrcode"></i>
+</button>
+
+<div class="modal fade" id="qrScanModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="fas fa-camera me-2"></i>Scanner un produit</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-2 text-center bg-light">
+        <div id="qrScanReader"></div>
+        <div id="qrScanAlert" class="mt-2"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1845,7 +1894,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => venteForm.requestSubmit(), 300);
     });
 
-    addLineBtn.addEventListener('click', function() {
+    function createNewSaleLine() {
         const firstLine = body.querySelector('.sale-line');
         const clone = firstLine.cloneNode(true);
         clone.querySelectorAll('select').forEach((select) => select.selectedIndex = 0);
@@ -1856,6 +1905,63 @@ document.addEventListener('DOMContentLoaded', function() {
         filterSelectOptions(clone.querySelector('.product-select'), '', true);
         refreshRemoveButtons();
         updateAllUnitOptions();
+        return clone;
+    }
+
+    function selectProductOnLine(line, produitId) {
+        const productSelect = line.querySelector('select[name="produit_id[]"]');
+        const productSearch = line.querySelector('.product-search');
+        productSelect.value = produitId;
+        const selectedProduct = productSelect.options[productSelect.selectedIndex];
+        productSearch.value = selectedProduct && selectedProduct.value ? getOptionTitle(selectedProduct) : '';
+        filterSelectOptions(productSelect, productSearch.value, true);
+        line.querySelector('.product-results').classList.add('d-none');
+        productSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function flashLine(line) {
+        line.style.transition = 'background-color 0.6s';
+        line.style.backgroundColor = '#d1e7dd';
+        setTimeout(() => { line.style.backgroundColor = ''; }, 900);
+    }
+
+    // Ajoute (ou incremente) un produit scanne dans le panier. Reutilisee par le scan
+    // camera et le scan par douchette USB/Bluetooth.
+    function addScannedProductToCart(produitId) {
+        produitId = String(produitId);
+        const lines = Array.from(body.querySelectorAll('.sale-line'));
+
+        const existingLine = lines.find((line) => {
+            const select = line.querySelector('select[name="produit_id[]"]');
+            return select.value === produitId;
+        });
+        if (existingLine) {
+            const qtyInput = existingLine.querySelector('input[name="quantite[]"]');
+            qtyInput.value = String(toNumber(qtyInput.value) + 1);
+            updateSaleSummary();
+            existingLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            flashLine(existingLine);
+            return true;
+        }
+
+        let targetLine = lines.find((line) => {
+            const select = line.querySelector('select[name="produit_id[]"]');
+            return !select.value;
+        });
+        if (!targetLine) {
+            targetLine = createNewSaleLine();
+        }
+
+        selectProductOnLine(targetLine, produitId);
+        updateSaleSummary();
+        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        flashLine(targetLine);
+        return true;
+    }
+    window.ReflexAddScannedProduct = addScannedProductToCart;
+
+    addLineBtn.addEventListener('click', function() {
+        const clone = createNewSaleLine();
         updateSaleSummary();
         clone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
@@ -1902,18 +2008,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!item) return;
         const line = item.closest('.sale-line');
         const productSelect = line.querySelector('select[name="produit_id[]"]');
-        const productSearch = line.querySelector('.product-search');
         if (event.target.closest('[data-product-info]')) {
             const detailOption = Array.from(productSelect.options).find((option) => option.value === item.dataset.optionValue);
             showProductInfo(detailOption);
             return;
         }
-        productSelect.value = item.dataset.optionValue;
-        const selectedProduct = productSelect.options[productSelect.selectedIndex];
-        productSearch.value = selectedProduct && selectedProduct.value ? getOptionTitle(selectedProduct) : '';
-        filterSelectOptions(productSelect, productSearch.value, true);
-        line.querySelector('.product-results').classList.add('d-none');
-        productSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        selectProductOnLine(line, item.dataset.optionValue);
     });
     body.addEventListener('focusin', function(event) {
         if (!event.target.classList.contains('product-search')) return;
@@ -1925,6 +2025,40 @@ document.addEventListener('DOMContentLoaded', function() {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
         line.querySelector('.product-results').classList.remove('d-none');
         filterSelectOptions(productSelect, event.target.value, true);
+    });
+
+    // --- Scan physique (douchette USB/Bluetooth) : tape tres rapidement dans le champ
+    // de recherche produit puis envoie "Entree". On distingue une frappe humaine d'un
+    // scan via la vitesse moyenne de frappe.
+    let scanFieldStartTime = 0;
+    body.addEventListener('input', function(event) {
+        if (!event.target.classList.contains('product-search')) return;
+        if (event.target.value.length <= 1) scanFieldStartTime = Date.now();
+    });
+    body.addEventListener('keydown', function(event) {
+        if (!event.target.classList.contains('product-search')) return;
+        if (event.key !== 'Enter') return;
+        const input = event.target;
+        const value = input.value.trim();
+        const elapsed = Date.now() - scanFieldStartTime;
+        const avgMsPerChar = value.length > 0 ? elapsed / value.length : Infinity;
+        const looksLikeScan = value.length >= 5 && avgMsPerChar < 40;
+        if (!looksLikeScan) return;
+        event.preventDefault();
+        const line = input.closest('.sale-line');
+        fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(value)}`)
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.success) {
+                    input.value = '';
+                    input.classList.remove('is-invalid');
+                    addScannedProductToCart(data.produit_id);
+                } else {
+                    input.classList.add('is-invalid');
+                    setTimeout(() => input.classList.remove('is-invalid'), 1500);
+                }
+            })
+            .catch((err) => console.error('Erreur de lookup scan:', err));
     });
     body.addEventListener('change', function(event) {
         if (event.target.classList.contains('product-select')) {
@@ -1989,6 +2123,154 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         bootstrap.Modal.getOrCreateInstance(document.getElementById('venteSuccessModal')).show();
     }
+});
+</script>
+
+<!-- Scanner un produit via la camera (QR du lot / code produit) -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const scanBtn = document.getElementById('qrScanFloatBtn');
+    const modalEl = document.getElementById('qrScanModal');
+    const alertBox = document.getElementById('qrScanAlert');
+    if (!scanBtn || !modalEl) return;
+
+    const modal = new bootstrap.Modal(modalEl);
+    let scanner = null;
+    let processing = false;
+
+    function showAlert(message, type) {
+        alertBox.innerHTML = `<div class="alert alert-${type} py-2 small mb-0">${message}</div>`;
+    }
+
+    function beep(ok) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = ok ? 1000 : 220;
+            gain.gain.setValueAtTime(0.05, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + (ok ? 0.1 : 0.3));
+        } catch (err) {
+            // audio non disponible, tant pis
+        }
+    }
+
+    function pauseScanner() {
+        if (scanner && scanner.isScanning) scanner.pause();
+    }
+
+    function resumeScanner() {
+        if (scanner && scanner.isScanning) scanner.resume();
+    }
+
+    function handleScannedCode(code) {
+        if (processing) return;
+        processing = true;
+        pauseScanner();
+        showAlert('Recherche du produit...', 'info');
+
+        fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(code)}`)
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.success) {
+                    beep(true);
+                    if (typeof window.ReflexAddScannedProduct === 'function') {
+                        window.ReflexAddScannedProduct(data.produit_id);
+                    }
+                    showAlert(`<i class="fas fa-check-circle me-1"></i> Ajouté : ${data.nom}`, 'success');
+                    setTimeout(() => modal.hide(), 800);
+                } else {
+                    beep(false);
+                    showAlert(data.message || 'Produit introuvable.', 'danger');
+                    processing = false;
+                    resumeScanner();
+                }
+            })
+            .catch(() => {
+                beep(false);
+                showAlert('Erreur de connexion au serveur.', 'danger');
+                processing = false;
+                resumeScanner();
+            });
+    }
+
+    function startScanner() {
+        if (typeof Html5Qrcode === 'undefined') {
+            showAlert('Bibliothèque de scan indisponible (vérifiez la connexion internet).', 'danger');
+            return;
+        }
+
+        // L'accès caméra (getUserMedia) exige un contexte sécurisé : HTTPS, ou localhost.
+        // Sur une IP locale en http:// (ex: http://192.168.x.x:5000), le navigateur bloque
+        // toujours l'accès, quel que soit le code — c'est la cause la plus fréquente.
+        const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+        if (!window.isSecureContext && !isLocalhost) {
+            showAlert(
+                '<strong>Connexion non sécurisée.</strong> L\'accès à la caméra nécessite HTTPS ' +
+                '(actuellement : ' + window.location.protocol + '//' + window.location.host + '). ' +
+                'Utilisez la douchette de scan ou la saisie manuelle en attendant, ou demandez à activer HTTPS sur ce serveur.',
+                'warning'
+            );
+            return;
+        }
+        if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+            showAlert("Ce navigateur ne permet pas l'accès à la caméra depuis cette page.", 'danger');
+            return;
+        }
+
+        processing = false;
+        scanner = new Html5Qrcode('qrScanReader');
+        Html5Qrcode.getCameras().then((devices) => {
+            if (!devices || !devices.length) {
+                showAlert('Aucune caméra détectée sur cet appareil.', 'warning');
+                return;
+            }
+            let cameraId = devices[0].id;
+            const backCamera = devices.find((d) => /back|arri|environment/i.test(d.label || ''));
+            if (backCamera) cameraId = backCamera.id;
+
+            scanner.start(
+                cameraId,
+                {
+                    fps: 12,
+                    qrbox: function (viewfinderWidth, viewfinderHeight) {
+                        const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.7;
+                        return { width: size, height: size };
+                    }
+                },
+                function (decodedText) { handleScannedCode(decodedText); },
+                function () { /* echec de decodage sur une frame, ignore */ }
+            ).catch(function (err) {
+                showAlert('Impossible de démarrer la caméra. Vérifiez les permissions accordées au site. (' + (err && err.message ? err.message : err) + ')', 'danger');
+            });
+        }).catch(function (err) {
+            const reason = err && (err.name || err.message) ? (err.name || err.message) : String(err);
+            showAlert("Erreur lors de l'accès aux caméras (" + reason + "). Vérifiez que la permission caméra est autorisée pour ce site dans les réglages du navigateur.", 'danger');
+        });
+    }
+
+    function stopScanner() {
+        if (scanner) {
+            const toStop = scanner;
+            scanner = null;
+            if (toStop.isScanning) {
+                toStop.stop().then(() => toStop.clear()).catch(() => {});
+            } else {
+                toStop.clear().catch(() => {});
+            }
+        }
+    }
+
+    scanBtn.addEventListener('click', function () {
+        alertBox.innerHTML = '';
+        modal.show();
+    });
+    modalEl.addEventListener('shown.bs.modal', startScanner);
+    modalEl.addEventListener('hidden.bs.modal', stopScanner);
 });
 </script>
 {% endblock %}

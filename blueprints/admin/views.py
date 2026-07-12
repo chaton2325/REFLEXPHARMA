@@ -1875,6 +1875,36 @@ def export_ventes_stats_pdf():
     filename = f'statistiques_ventes_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
     return send_file(output, download_name=filename, as_attachment=True)
 
+@admin.route('/ventes/scan-lookup', methods=['GET'])
+@login_required
+@permission_required('gestion_ventes')
+def vente_scan_lookup():
+    """Resout un code scanne (QR d'un lot, ou code produit) vers un produit a ajouter au panier de vente."""
+    code = (request.args.get('code') or '').strip()
+    if not code:
+        return {'success': False, 'message': 'Code vide.'}, 400
+
+    stock = Stock.query.filter_by(code_suivi=code).first()
+    produit = stock.produit if stock else None
+
+    if not produit:
+        produit = Produit.query.filter_by(code_produit=code).first()
+
+    if not produit:
+        stock = Stock.query.filter(Stock.code_suivi.ilike(f'%{code}%')).first()
+        produit = stock.produit if stock else None
+
+    if not produit:
+        return {'success': False, 'message': f"Aucun produit trouve pour le code '{code}'."}, 404
+
+    return {
+        'success': True,
+        'produit_id': produit.id,
+        'nom': produit.nom,
+        'code_produit': produit.code_produit,
+        'code_suivi': stock.code_suivi if stock else None
+    }
+
 @admin.route('/ventes/create', methods=['GET', 'POST'])
 @login_required
 @permission_required('gestion_ventes')

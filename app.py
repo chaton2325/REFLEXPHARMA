@@ -102,6 +102,22 @@ def create_app(config_name='default'):
     def index():
         return redirect(url_for('auth.login'))
 
+    @app.route('/ca-cert')
+    def download_ca_cert():
+        """Sert le certificat de l'autorite de certification locale (fichier public,
+        pas la cle privee) pour l'installer facilement depuis un telephone :
+        ouvrir http(s)://<ip-serveur>:5000/ca-cert dans le navigateur du telephone."""
+        from flask import send_file, abort
+        cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-ca.crt')
+        if not os.path.exists(cert_path):
+            abort(404, description="Certificat CA non genere. Lancez : python certs/generate_cert.py")
+        return send_file(
+            cert_path,
+            mimetype='application/x-x509-ca-cert',
+            as_attachment=True,
+            download_name='reflexpharma-ca.crt'
+        )
+
     ensure_database_schema(app)
 
     return app
@@ -111,4 +127,14 @@ if __name__ == '__main__':
     start_print_agent()
 
     app = create_app(os.getenv('FLASK_CONFIG') or 'default')
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+
+    # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
+    # Genere le certificat avec : python certs/generate_cert.py
+    cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-dev.crt')
+    key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-dev.key')
+    ssl_context = (cert_path, key_path) if os.path.exists(cert_path) and os.path.exists(key_path) else None
+    if ssl_context is None:
+        print("Aucun certificat trouve (certs/reflexpharma-dev.crt) : serveur lance en HTTP simple.")
+        print("Pour activer HTTPS (requis pour la camera sur mobile) : python certs/generate_cert.py")
+
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, ssl_context=ssl_context)

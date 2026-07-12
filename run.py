@@ -175,4 +175,14 @@ if __name__ == '__main__':
     start_print_agent()
 
     setup_database()
-    app.run(debug=True, threaded=True)
+
+    # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
+    # Genere le certificat avec : python certs/generate_cert.py
+    cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-dev.crt')
+    key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-dev.key')
+    ssl_context = (cert_path, key_path) if os.path.exists(cert_path) and os.path.exists(key_path) else None
+    if ssl_context is None:
+        print("Aucun certificat trouve (certs/reflexpharma-dev.crt) : serveur lance en HTTP simple.")
+        print("Pour activer HTTPS (requis pour la camera sur mobile) : python certs/generate_cert.py")
+
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, ssl_context=ssl_context)
