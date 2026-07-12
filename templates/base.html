@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}ReflexPharma{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -259,56 +259,61 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: var(--bottom-h);
+            height: calc(var(--bottom-h) + env(safe-area-inset-bottom));
             background: #fff;
             box-shadow: 0 -2px 8px rgba(0,0,0,0.07);
             z-index: 1030;
             justify-content: space-around;
             align-items: center;
-            padding: 4px 0 2px;
+            padding: 4px 0 calc(2px + env(safe-area-inset-bottom));
             border-top: 1px solid #e9ecef;
         }
 
-        .mobile-bottom-nav a {
+        .mobile-bottom-nav a,
+        .mobile-bottom-nav .nav-more-btn {
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: #7a8896;
             text-decoration: none;
-            font-size: 0.6rem;
-            padding: 2px 6px;
+            font-size: 0.62rem;
+            font-weight: 500;
+            padding: 3px 6px;
             border-radius: 8px;
             min-width: 48px;
+            min-height: 44px;
+            background: none;
+            border: none;
             transition: color 0.12s;
         }
 
-        .mobile-bottom-nav a i {
+        .mobile-bottom-nav a i,
+        .mobile-bottom-nav .nav-more-btn i {
             font-size: 1.2rem;
-            margin-bottom: 1px;
+            margin-bottom: 2px;
+            transition: transform 0.15s;
         }
 
         .mobile-bottom-nav a.active,
-        .mobile-bottom-nav a:active { color: var(--accent); }
-
-        .mobile-bottom-nav .nav-more-btn {
-            background: none;
-            border: none;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: #7a8896;
-            font-size: 0.6rem;
-            padding: 2px 6px;
-            min-width: 48px;
-        }
-
-        .mobile-bottom-nav .nav-more-btn i {
-            font-size: 1.2rem;
-            margin-bottom: 1px;
-        }
-
+        .mobile-bottom-nav a:active,
+        .mobile-bottom-nav .nav-more-btn.active,
         .mobile-bottom-nav .nav-more-btn:active { color: var(--accent); }
+
+        .mobile-bottom-nav a.active i,
+        .mobile-bottom-nav .nav-more-btn.active i { transform: translateY(-1px); }
+
+        .mobile-bottom-nav a.active::before,
+        .mobile-bottom-nav .nav-more-btn.active::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
 
         /* Offcanvas mobile */
         .offcanvas-sidebar .offcanvas-body {
@@ -380,7 +385,7 @@
 
             .main-content {
                 margin-left: 0;
-                padding-bottom: calc(var(--bottom-h) + 10px);
+                padding-bottom: calc(var(--bottom-h) + env(safe-area-inset-bottom) + 10px);
             }
 
             .mobile-bottom-nav { display: flex; }
@@ -398,13 +403,13 @@
         </div>
 
         <div class="sidebar-nav">
-            <a href="{{ url_for('admin.dashboard') }}" class="nav-link">
+            <a href="{{ url_for('admin.dashboard') }}" class="nav-link" title="Tableau de bord">
                 <i class="fas fa-gauge-high"></i>
                 <span class="nav-label">Tableau de bord</span>
             </a>
 
             {% if current_user.has_permission('gestion_employes') %}
-            <a href="{{ url_for('admin.list_users') }}" class="nav-link">
+            <a href="{{ url_for('admin.list_users') }}" class="nav-link" title="Employés">
                 <i class="fas fa-users"></i>
                 <span class="nav-label">Employés</span>
             </a>
@@ -412,7 +417,7 @@
 
             {% if current_user.has_permission('gestion_produits') %}
             <div class="nav-group">
-                <a class="nav-link" data-bs-toggle="collapse" href="#catCollapse" role="button">
+                <a class="nav-link" data-bs-toggle="collapse" href="#catCollapse" role="button" title="Catalogue">
                     <i class="fas fa-book"></i>
                     <span class="nav-label">Catalogue</span>
                     <i class="fas fa-chevron-down collapse-indicator"></i>
@@ -433,21 +438,21 @@
             {% endif %}
 
             {% if current_user.has_permission('gestion_stock') %}
-            <a href="{{ url_for('admin.manage_stock') }}" class="nav-link">
+            <a href="{{ url_for('admin.manage_stock') }}" class="nav-link" title="Stock">
                 <i class="fas fa-warehouse"></i>
                 <span class="nav-label">Stock</span>
             </a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_inventaire') %}
-            <a href="{{ url_for('admin.list_inventaires') }}" class="nav-link">
+            <a href="{{ url_for('admin.list_inventaires') }}" class="nav-link" title="Inventaire">
                 <i class="fas fa-clipboard-list"></i>
                 <span class="nav-label">Inventaire</span>
             </a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_ventes') %}
-            <a href="{{ url_for('admin.list_ventes') }}" class="nav-link">
+            <a href="{{ url_for('admin.list_ventes') }}" class="nav-link" title="Ventes">
                 <i class="fas fa-cash-register"></i>
                 <span class="nav-label">Ventes</span>
             </a>
@@ -455,7 +460,7 @@
 
             {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
             <div class="nav-group">
-                <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button">
+                <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button" title="Clients">
                     <i class="fas fa-user-friends"></i>
                     <span class="nav-label">Clients</span>
                     <i class="fas fa-chevron-down collapse-indicator"></i>
@@ -475,18 +480,18 @@
             {% endif %}
 
             {% if current_user.has_permission('gestion_modifications_stock') %}
-            <a href="{{ url_for('admin.list_stock_modifications') }}" class="nav-link">
+            <a href="{{ url_for('admin.list_stock_modifications') }}" class="nav-link" title="Modifications Stock">
                 <i class="fas fa-pen-to-square"></i>
                 <span class="nav-label">Modifications Stock</span>
             </a>
-            <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="nav-link">
+            <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="nav-link" title="Sorties Stock">
                 <i class="fas fa-right-from-bracket"></i>
                 <span class="nav-label">Sorties Stock</span>
             </a>
             {% endif %}
 
             {% if current_user.has_permission('stats_sorties_stock') %}
-            <a href="{{ url_for('admin.stock_exit_stats') }}" class="nav-link">
+            <a href="{{ url_for('admin.stock_exit_stats') }}" class="nav-link" title="Stats Sorties">
                 <i class="fas fa-chart-bar"></i>
                 <span class="nav-label">Stats Sorties</span>
             </a>
@@ -494,7 +499,7 @@
 
             {% if current_user.has_permission('gestion_fournisseurs') %}
             <div class="nav-group">
-                <a class="nav-link" data-bs-toggle="collapse" href="#paramCollapse" role="button">
+                <a class="nav-link" data-bs-toggle="collapse" href="#paramCollapse" role="button" title="Paramètres">
                     <i class="fas fa-gear"></i>
                     <span class="nav-label">Paramètres</span>
                     <i class="fas fa-chevron-down collapse-indicator"></i>
@@ -516,11 +521,11 @@
         </div>
 
         <div class="sidebar-footer">
-            <a href="{{ url_for('auth.change_password') }}" class="nav-link">
+            <a href="{{ url_for('auth.change_password') }}" class="nav-link" title="Mot de passe">
                 <i class="fas fa-key"></i>
                 <span class="nav-label">Mot de passe</span>
             </a>
-            <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color:#dc3545;">
+            <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color:#dc3545;" title="Déconnexion">
                 <i class="fas fa-sign-out-alt"></i>
                 <span class="nav-label">Déconnexion</span>
             </a>
@@ -540,18 +545,24 @@
             <i class="fas fa-gauge-high"></i>
             <span>Dashboard</span>
         </a>
+        {% if current_user.has_permission('gestion_stock') %}
         <a href="{{ url_for('admin.manage_stock') }}">
             <i class="fas fa-warehouse"></i>
             <span>Stock</span>
         </a>
+        {% endif %}
+        {% if current_user.has_permission('gestion_ventes') %}
         <a href="{{ url_for('admin.list_ventes') }}">
             <i class="fas fa-cash-register"></i>
             <span>Ventes</span>
         </a>
+        {% endif %}
+        {% if current_user.has_permission('gestion_produits') %}
         <a href="{{ url_for('admin.list_produits') }}">
             <i class="fas fa-capsules"></i>
             <span>Produits</span>
         </a>
+        {% endif %}
         <button class="nav-more-btn" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
             <i class="fas fa-bars"></i>
             <span>Menu</span>
@@ -731,7 +742,7 @@
       .ai-assistant-input button:disabled { opacity: 0.5; }
 
       @media (max-width: 767.98px) {
-        .ai-assistant-widget { right: 0.75rem; bottom: calc(var(--bottom-h) + 0.75rem); }
+        .ai-assistant-widget { right: 0.75rem; bottom: calc(var(--bottom-h) + env(safe-area-inset-bottom) + 0.75rem); }
       }
 
       @media (max-width: 575.98px) {
@@ -877,11 +888,14 @@
     <script>
         (function() {
             var current = window.location.pathname;
-            function activate(links) {
+            var matchedInOffcanvasOnly = false;
+
+            function activate(links, isOffcanvas) {
                 links.forEach(function(el) {
                     var h = el.getAttribute('href');
                     if (h && h !== '#' && current === h.split('?')[0]) {
                         el.classList.add('active');
+                        if (isOffcanvas) matchedInOffcanvasOnly = true;
                         var parent = el.closest('.collapse');
                         if (parent) {
                             var bs = bootstrap.Collapse.getInstance(parent);
@@ -891,7 +905,36 @@
                     }
                 });
             }
-            activate(document.querySelectorAll('.sidebar-nav a[href], .offcanvas-body a[href]'));
+
+            activate(document.querySelectorAll('.sidebar-nav a[href]'));
+            activate(document.querySelectorAll('.offcanvas-body a[href]'), true);
+            activate(document.querySelectorAll('.mobile-bottom-nav a[href]'));
+
+            // Rotation des chevrons/indicateurs a l'ouverture/fermeture des sous-menus (sidebar + offcanvas)
+            document.querySelectorAll('.sidebar-nav .collapse, .offcanvas-body .collapse').forEach(function(collapseEl) {
+                var trigger = document.querySelector('[href="#' + collapseEl.id + '"]');
+                var indicator = trigger ? trigger.querySelector('.collapse-indicator, .chevron') : null;
+                if (!indicator) return;
+                collapseEl.addEventListener('shown.bs.collapse', function() { indicator.classList.add('rotated', 'open'); });
+                collapseEl.addEventListener('hidden.bs.collapse', function() { indicator.classList.remove('rotated', 'open'); });
+            });
+
+            // Si la page actuelle n'a pas de raccourci direct dans la barre mobile, mettre "Menu" en avant
+            var navMoreBtn = document.querySelector('.mobile-bottom-nav .nav-more-btn');
+            if (navMoreBtn && matchedInOffcanvasOnly && !document.querySelector('.mobile-bottom-nav a.active')) {
+                navMoreBtn.classList.add('active');
+            }
+
+            // Mettre "Menu" en surbrillance pendant que le tiroir est ouvert
+            var mobileMenuEl = document.getElementById('mobileMenu');
+            if (mobileMenuEl && navMoreBtn) {
+                mobileMenuEl.addEventListener('show.bs.offcanvas', function() { navMoreBtn.classList.add('active'); });
+                mobileMenuEl.addEventListener('hidden.bs.offcanvas', function() {
+                    if (!matchedInOffcanvasOnly || document.querySelector('.mobile-bottom-nav a.active')) {
+                        navMoreBtn.classList.remove('active');
+                    }
+                });
+            }
         })();
     </script>
 </body>
