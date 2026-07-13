@@ -1047,7 +1047,14 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-2 text-center bg-light">
-        <div id="qrScanReader"></div>
+        <div class="position-relative" style="max-width: 360px; margin: 0 auto;">
+          <div id="qrScanReader"></div>
+          <!-- Indicateur "recherche en cours" : affiche le temps que le serveur repond -->
+          <div id="qrScanLoadingOverlay" class="d-none" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); border-radius:8px; z-index:20;">
+            <div class="spinner-border text-light" role="status" style="width:2.75rem; height:2.75rem;"></div>
+            <div class="text-white mt-2 small fw-bold">Recherche du produit...</div>
+          </div>
+        </div>
         <div id="qrScanAlert" class="mt-2"></div>
       </div>
     </div>
@@ -2176,6 +2183,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const scanBtn = document.getElementById('qrScanFloatBtn');
     const modalEl = document.getElementById('qrScanModal');
     const alertBox = document.getElementById('qrScanAlert');
+    const loadingOverlay = document.getElementById('qrScanLoadingOverlay');
     if (!scanBtn || !modalEl) return;
 
     const modal = new bootstrap.Modal(modalEl);
@@ -2185,6 +2193,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function showAlert(message, type) {
         alertBox.innerHTML = `<div class="alert alert-${type} py-2 small mb-0">${message}</div>`;
     }
+
+    function showScanLoading() { if (loadingOverlay) loadingOverlay.classList.remove('d-none'); }
+    function hideScanLoading() { if (loadingOverlay) loadingOverlay.classList.add('d-none'); }
 
     function beep(ok) {
         try {
@@ -2220,10 +2231,12 @@ document.addEventListener('DOMContentLoaded', function () {
         lastScannedAt = now;
         processing = true;
         showAlert('Recherche du produit...', 'info');
+        showScanLoading();
 
         fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(code)}`)
             .then((response) => response.json())
             .then((data) => {
+                hideScanLoading();
                 if (data.success) {
                     if (typeof window.ReflexAddScannedProduct === 'function') {
                         window.ReflexAddScannedProduct(data.produit_id);
@@ -2236,6 +2249,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 processing = false;
             })
             .catch(() => {
+                hideScanLoading();
                 beep(false);
                 showAlert('Erreur de connexion au serveur.', 'danger');
                 processing = false;
@@ -2298,6 +2312,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function stopScanner() {
+        hideScanLoading();
         if (scanner) {
             const toStop = scanner;
             scanner = null;

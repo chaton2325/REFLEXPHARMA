@@ -4897,7 +4897,11 @@ def scan_lookup(id):
         'quantite_sous_sous_unites_avant': line.quantite_sous_sous_unites_avant,
         'quantite_unites_apres': line.quantite_unites_apres if line.quantite_unites_apres is not None else '',
         'quantite_sous_unites_apres': line.quantite_sous_unites_apres if line.quantite_sous_unites_apres is not None else '',
-        'quantite_sous_sous_unites_apres': line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not None else ''
+        'quantite_sous_sous_unites_apres': line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not None else '',
+        'is_scanned': line.is_scanned,
+        'constate_by_id': line.constate_by_id,
+        'constate_by': f"{line.constate_by.prenom} {line.constate_by.nom}" if line.constate_by else None,
+        'constate_at': line.constate_at.strftime('%d/%m/%Y à %H:%M') if line.constate_at else None
     }
 
 @admin.route('/inventaire/<int:id>/validate', methods=['POST'])

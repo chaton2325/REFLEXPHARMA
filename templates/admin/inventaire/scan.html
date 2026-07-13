@@ -27,9 +27,15 @@
         <div class="card-body p-2 text-center bg-light position-relative">
             <!-- Zone d'affichage de la caméra -->
             <div id="reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background-color: #000;"></div>
-            
+
             <!-- Viseur personnalisé -->
             <div class="scanner-laser" id="laser-line"></div>
+
+            <!-- Indicateur "recherche en cours" : affiche le temps que le serveur repond -->
+            <div id="scan-loading-overlay" class="d-none" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); border-radius:8px; z-index:20;">
+                <div class="spinner-border text-light" role="status" style="width:2.75rem; height:2.75rem;"></div>
+                <div class="text-white mt-2 small fw-bold">Recherche du produit...</div>
+            </div>
         </div>
     </div>
 
@@ -49,6 +55,9 @@
     <div class="card shadow border-0 mb-4 d-none" id="product-card">
         <div class="card-header bg-success text-white py-2">
             <h6 class="mb-0 fw-bold" id="prod-title">Nom du Produit</h6>
+        </div>
+        <div class="alert alert-warning py-2 px-3 mb-0 rounded-0 small d-none" id="prod-already-badge">
+            <i class="fas fa-triangle-exclamation me-1"></i><span id="prod-already-text"></span>
         </div>
         <div class="card-body p-3">
             <div class="row g-2 mb-3 bg-light p-2 rounded small text-dark">
@@ -109,6 +118,29 @@
     </div>
 </div>
 
+<!-- Confirmation : lot deja compte par quelqu'un d'autre -->
+<!-- Styles en "style=" direct (pas de classe/feuille externe) pour etre garantis
+     visibles meme si une ancienne version du CSS reste en cache sur le telephone. -->
+<div class="modal fade" id="alreadyScannedModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background-color:#c0392b;background-image:linear-gradient(135deg,#e74c3c,#922b21);border:4px solid #ffffff;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+      <div class="modal-body text-center text-white py-4 px-3">
+        <i class="fas fa-triangle-exclamation" style="font-size:3.5rem;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,0.3);"></i>
+        <h4 class="fw-bold mt-3 mb-3" style="letter-spacing:0.5px;">LOT DÉJÀ COMPTÉ</h4>
+        <p class="mb-0 fs-5" id="alreadyScannedText" style="color:#fff;">Ce lot a déjà été compté.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 pb-4 px-3 justify-content-center gap-2">
+        <button type="button" class="btn btn-light btn-lg fw-bold px-4" id="alreadyScannedCancelBtn">
+          <i class="fas fa-arrow-left me-1"></i>Annuler
+        </button>
+        <button type="button" class="btn btn-lg fw-bold px-4" id="alreadyScannedConfirmBtn" style="background:#fff;color:#922b21;border:2px solid #fff;">
+          <i class="fas fa-pen me-1"></i>Modifier quand même
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Librairie HTML5 QR Code -->
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
@@ -120,13 +152,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let activeCameraIndex = 0;
     
     const lookupUrl = "{{ url_for('admin.scan_lookup', id=inventaire.id) }}";
-    
+    const currentUserId = {{ current_user.id }};
+
     const productCard = document.getElementById('product-card');
     const saveQtyForm = document.getElementById('save-qty-form');
     const alertContainer = document.getElementById('alert-container');
     const manualSearchForm = document.getElementById('manual-search-form');
     const laserLine = document.getElementById('laser-line');
-    
+    const prodAlreadyBadge = document.getElementById('prod-already-badge');
+    const prodAlreadyText = document.getElementById('prod-already-text');
+    const scanLoadingOverlay = document.getElementById('scan-loading-overlay');
+
+    function showScanLoading() { scanLoadingOverlay.classList.remove('d-none'); }
+    function hideScanLoading() { scanLoadingOverlay.classList.add('d-none'); }
+
+    const alreadyScannedModalEl = document.getElementById('alreadyScannedModal');
+    const alreadyScannedModal = new bootstrap.Modal(alreadyScannedModalEl);
+    const alreadyScannedText = document.getElementById('alreadyScannedText');
+    const alreadyScannedConfirmBtn = document.getElementById('alreadyScannedConfirmBtn');
+    const alreadyScannedCancelBtn = document.getElementById('alreadyScannedCancelBtn');
+
     // Sons de notification synthétisés
     function beep(type) {
         try {
@@ -169,6 +214,12 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("Web Audio blocked/not supported");
         }
     }
+
+    function vibrateAlert() {
+        if (navigator.vibrate) {
+            navigator.vibrate([180, 100, 180, 100, 180]);
+        }
+    }
     
     function showAlert(message, category) {
         alertContainer.innerHTML = `
@@ -181,13 +232,115 @@ document.addEventListener('DOMContentLoaded', function() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     
+    // Affiche la fiche de saisie pour le lot trouve
+    function openProductCard(data) {
+        // Masquer le scanner
+        document.getElementById('scanner-section').classList.add('d-none');
+
+        // Remplir la fiche produit
+        document.getElementById('prod-title').textContent = data.product_name;
+        document.getElementById('prod-code-suivi').textContent = data.code_suivi;
+        document.getElementById('prod-peremption').textContent = data.date_peremption;
+        document.getElementById('prod-bl').textContent = data.numero_bl;
+
+        // Bandeau "deja compte" (informatif, pour soi ou pour un autre)
+        if (data.is_scanned && data.constate_by) {
+            const isOther = data.constate_by_id !== currentUserId;
+            const who = isOther ? data.constate_by : 'vous';
+            prodAlreadyText.textContent = isOther
+                ? `⚠ Déjà compté par ${who}, le ${data.constate_at} — vous modifiez sa saisie.`
+                : `Déjà compté par ${who}, le ${data.constate_at}.`;
+            if (isOther) {
+                prodAlreadyBadge.setAttribute('style', 'background-color:#e74c3c;color:#fff;border:none;font-weight:700;');
+            } else {
+                prodAlreadyBadge.removeAttribute('style');
+            }
+            prodAlreadyBadge.classList.remove('d-none');
+        } else {
+            prodAlreadyBadge.classList.add('d-none');
+        }
+
+        // Stock théorique label
+        let thLabel = `U: ${data.quantite_unites_avant}`;
+        if (data.conditionnement >= 2) thLabel += ` | SU: ${data.quantite_sous_unites_avant}`;
+        if (data.conditionnement === 3) thLabel += ` | SSU: ${data.quantite_sous_sous_unites_avant}`;
+        document.getElementById('prod-stock-theorique').textContent = thLabel;
+
+        // Configuration des inputs
+        document.getElementById('form-line-id').value = data.line_id;
+
+        // Reset inputs values
+        document.getElementById('qty-u').value = data.quantite_unites_apres;
+
+        const groupSU = document.getElementById('input-group-su');
+        const qtySU = document.getElementById('qty-su');
+        if (data.conditionnement >= 2) {
+            groupSU.classList.remove('d-none');
+            document.getElementById('input-group-u').className = 'col-6';
+            qtySU.value = data.quantite_sous_unites_apres;
+            qtySU.required = true;
+        } else {
+            groupSU.classList.add('d-none');
+            document.getElementById('input-group-u').className = 'col-12';
+            qtySU.required = false;
+        }
+
+        const groupSSU = document.getElementById('input-group-ssu');
+        const qtySSU = document.getElementById('qty-ssu');
+        if (data.conditionnement === 3) {
+            groupSSU.classList.remove('d-none');
+            qtySSU.value = data.quantite_sous_sous_unites_apres;
+            qtySSU.required = true;
+        } else {
+            groupSSU.classList.add('d-none');
+            qtySSU.required = false;
+        }
+
+        // Afficher la card produit
+        productCard.classList.remove('d-none');
+        alertContainer.innerHTML = ''; // Clear search alert
+
+        // Focus sur le premier input
+        setTimeout(() => document.getElementById('qty-u').focus(), 100);
+    }
+
+    // Demande confirmation avant de modifier un lot deja compte par quelqu'un d'autre
+    function confirmAlreadyScanned(data) {
+        alreadyScannedText.textContent =
+            `Ce lot (${data.product_name} — ${data.code_suivi}) a déjà été compté par ` +
+            `${data.constate_by} le ${data.constate_at}. Voulez-vous vraiment modifier les quantités ?`;
+
+        const onConfirm = () => {
+            cleanup();
+            openProductCard(data);
+        };
+        const onCancel = () => {
+            cleanup();
+            alertContainer.innerHTML = '';
+            resumeScanner();
+        };
+        function cleanup() {
+            alreadyScannedConfirmBtn.removeEventListener('click', onConfirm);
+            alreadyScannedCancelBtn.removeEventListener('click', onCancel);
+            alreadyScannedModalEl.removeEventListener('hidden.bs.modal', onCancel);
+            alreadyScannedModal.hide();
+        }
+
+        alreadyScannedConfirmBtn.addEventListener('click', onConfirm);
+        alreadyScannedCancelBtn.addEventListener('click', onCancel);
+        alreadyScannedModalEl.addEventListener('hidden.bs.modal', onCancel);
+        alreadyScannedModal.show();
+    }
+
     // Fonction de recherche de lot
     function findLot(code) {
         // Stopper le scan le temps de la saisie
         pauseScanner();
-        
-        showAlert("Recherche du lot...", "info");
-        
+
+        // Le QR est capte : on affiche tout de suite l'indicateur "recherche en cours"
+        // (utile si la base contient beaucoup de produits et que la reponse met un peu de temps).
+        showScanLoading();
+
         fetch(`${lookupUrl}?code=${encodeURIComponent(code)}`)
         .then(response => {
             if (!response.ok) {
@@ -196,62 +349,20 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
+            hideScanLoading();
             if (data.success) {
-                beep('scan');
-                // Masquer le scanner
-                document.getElementById('scanner-section').classList.add('d-none');
-                
-                // Remplir la fiche produit
-                document.getElementById('prod-title').textContent = data.product_name;
-                document.getElementById('prod-code-suivi').textContent = data.code_suivi;
-                document.getElementById('prod-peremption').textContent = data.date_peremption;
-                document.getElementById('prod-bl').textContent = data.numero_bl;
-                
-                // Stock théorique label
-                let thLabel = `U: ${data.quantite_unites_avant}`;
-                if (data.conditionnement >= 2) thLabel += ` | SU: ${data.quantite_sous_unites_avant}`;
-                if (data.conditionnement === 3) thLabel += ` | SSU: ${data.quantite_sous_sous_unites_avant}`;
-                document.getElementById('prod-stock-theorique').textContent = thLabel;
-                
-                // Configuration des inputs
-                document.getElementById('form-line-id').value = data.line_id;
-                
-                // Reset inputs values
-                document.getElementById('qty-u').value = data.quantite_unites_apres;
-                
-                const groupSU = document.getElementById('input-group-su');
-                const qtySU = document.getElementById('qty-su');
-                if (data.conditionnement >= 2) {
-                    groupSU.classList.remove('d-none');
-                    document.getElementById('input-group-u').className = 'col-6';
-                    qtySU.value = data.quantite_sous_unites_apres;
-                    qtySU.required = true;
+                const scannedByOther = data.is_scanned && data.constate_by_id && data.constate_by_id !== currentUserId;
+                if (scannedByOther) {
+                    vibrateAlert();
+                    confirmAlreadyScanned(data);
                 } else {
-                    groupSU.classList.add('d-none');
-                    document.getElementById('input-group-u').className = 'col-12';
-                    qtySU.required = false;
+                    beep('scan');
+                    openProductCard(data);
                 }
-                
-                const groupSSU = document.getElementById('input-group-ssu');
-                const qtySSU = document.getElementById('qty-ssu');
-                if (data.conditionnement === 3) {
-                    groupSSU.classList.remove('d-none');
-                    qtySSU.value = data.quantite_sous_sous_unites_apres;
-                    qtySSU.required = true;
-                } else {
-                    groupSSU.classList.add('d-none');
-                    qtySSU.required = false;
-                }
-                
-                // Afficher la card produit
-                productCard.classList.remove('d-none');
-                alertContainer.innerHTML = ''; // Clear search alert
-                
-                // Focus sur le premier input
-                setTimeout(() => document.getElementById('qty-u').focus(), 100);
             }
         })
         .catch(err => {
+            hideScanLoading();
             beep('error');
             showAlert(err.message, 'danger');
             resumeScanner();
