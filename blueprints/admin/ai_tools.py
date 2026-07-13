@@ -1116,10 +1116,90 @@ TOOL_FUNCTIONS = {
 }
 
 
-def call_ai_tool(name, arguments):
+# ---------------------------------------------------------------------------
+# Permissions : chaque outil est rattache a un module (meme cle que FEATURES).
+# Un utilisateur ne peut appeler un outil que s'il a la permission du module
+# correspondant — sauf superadmin/admin qui ont acces a tout, sans exception.
+# Un outil absent de cette carte (ex: generer_rapport_pdf, modules_disponibles)
+# n'est pas restreint : il ne revele aucune donnee metier par lui-meme.
+# ---------------------------------------------------------------------------
+
+TOOL_PERMISSIONS = {
+    'chiffre_affaires_periode': 'stats_ventes',
+    'comparer_ca_mois_precedent': 'stats_ventes',
+    'prevision_chiffre_affaires': 'stats_ventes',
+    'employe_du_mois': 'stats_ventes',
+    'nombre_produits': 'gestion_produits',
+    'liste_produits': 'gestion_produits',
+    'liste_fournisseurs': 'gestion_fournisseurs',
+    'liste_groupes_fournisseurs': 'gestion_groupes_fournisseurs',
+    'stock_produit': 'gestion_stock',
+    'produits_stock_faible': 'gestion_stock',
+    'produits_peremption_proche': 'gestion_stock',
+    'top_produits_vendus': 'stats_ventes',
+    'sorties_stock_periode': 'stats_sorties_stock',
+    'dernieres_sorties_stock': 'stats_sorties_stock',
+    'sorties_stock_produit': 'stats_sorties_stock',
+    'top_clients': 'gestion_clients',
+    'solde_client': 'gestion_clients',
+    'nombre_clients': 'gestion_clients',
+    'liste_clients': 'gestion_clients',
+    'nombre_groupes_clients': 'gestion_groupes_clients',
+    'liste_groupes_clients': 'gestion_groupes_clients',
+    'solde_groupe_client': 'gestion_groupes_clients',
+    'clients_par_groupe': 'gestion_groupes_clients',
+    'clients_sans_groupe': 'gestion_clients',
+    'top_clients_solde': 'gestion_clients',
+    'solde_total_clients_et_groupes': 'gestion_clients',
+    'liste_inventaires': 'gestion_inventaire',
+    'detail_inventaire': 'gestion_inventaire',
+    'nombre_employes': 'gestion_employes',
+    'liste_employes': 'gestion_employes',
+    'employes_par_poste': 'gestion_employes',
+    'postes_disponibles': 'gestion_postes',
+    'acces_module': 'gestion_employes',
+}
+
+
+def _user_has_ai_access(user, feature):
+    if user is None:
+        return False
+    if user.role in ('superadmin', 'admin'):
+        return True
+    return user.has_permission(feature)
+
+
+def get_ai_tools_for_user(user):
+    """Filtre la liste des outils envoyee au modele : seuls ceux dont l'utilisateur
+    a la permission du module associe sont proposes (superadmin/admin : tout)."""
+    return [
+        tool for tool in AI_TOOLS
+        if not TOOL_PERMISSIONS.get(tool['function']['name'])
+        or _user_has_ai_access(user, TOOL_PERMISSIONS[tool['function']['name']])
+    ]
+
+
+def call_ai_tool(name, arguments, user=None):
     fn = TOOL_FUNCTIONS.get(name)
     if not fn:
-        return {'error': f"Outil inconnu: {name}"}
+        return {
+            'error': (
+                f"Outil '{name}' inexistant ou non disponible pour cet utilisateur (permissions "
+                "insuffisantes pour le module concerné). N'essaie pas d'autre nom d'outil pour cette "
+                "meme information : réponds directement en texte que cette donnée n'est pas accessible "
+                "avec les permissions actuelles de cet utilisateur."
+            )
+        }
+
+    required_feature = TOOL_PERMISSIONS.get(name)
+    if required_feature and not _user_has_ai_access(user, required_feature):
+        return {
+            'error': (
+                f"Accès refusé : cette information relève du module "
+                f"'{FEATURES.get(required_feature, required_feature)}', auquel cet utilisateur n'a pas accès."
+            )
+        }
+
     try:
         return fn(**(arguments or {}))
     except TypeError as exc:

@@ -34,7 +34,7 @@ import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
 from sqlalchemy.exc import SQLAlchemyError
-from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
+from .ai_tools import get_ai_tools_for_user, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 
 def superadmin_required(f):
     @wraps(f)
@@ -4625,6 +4625,15 @@ def build_assistant_system_prompt():
         "réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous ton message. Contente-toi "
         "de confirmer brièvement que le PDF est prêt (et résume les chiffres clés si utile). "
         "Réponds toujours en français. "
+        "Les outils de données auxquels tu as accès dépendent des permissions de la personne qui te parle : "
+        "certains modules peuvent ne pas t'être proposés du tout dans la liste d'outils disponibles, ou un "
+        "outil peut renvoyer une erreur d'accès refusé. N'appelle JAMAIS un outil qui n'est pas explicitement "
+        "dans la liste qui t'est fournie pour cette conversation, même s'il existait dans un échange "
+        "précédent ou te semble logique — un nom d'outil absent de ta liste actuelle n'existe pas pour cet "
+        "utilisateur. Si aucun outil disponible ne permet de répondre à la question, ne tente rien d'autre : "
+        "réponds directement en texte que cette information nécessite une permission que cette personne n'a "
+        "pas, sans détailler de donnée, et suggère de contacter un administrateur. Idem si un outil renvoie "
+        "une erreur d'accès refusé : n'insiste pas et n'essaie pas de contourner via un autre outil. "
         "Si la question sort totalement du cadre du logiciel ou de la pharmacie, réponds brièvement puis "
         "recentre poliment sur ce que tu peux faire ici."
     )
@@ -4656,6 +4665,18 @@ def assistant_chat():
                 messages.append({'role': role, 'content': content[:2000]})
     messages.append({'role': 'user', 'content': message})
 
+    user_ai_tools = get_ai_tools_for_user(current_user)
+
+    request_payload = {
+        'model': 'mistral-small-latest',
+        'messages': messages,
+        'temperature': 0.3,
+        'max_tokens': 800,
+    }
+    if user_ai_tools:
+        request_payload['tools'] = user_ai_tools
+        request_payload['tool_choice'] = 'auto'
+
     pdf_attachment = None
     try:
         for _ in range(4):  # limite le nombre d'aller-retours d'appels d'outils
@@ -4665,14 +4686,7 @@ def assistant_chat():
                     'Authorization': f'Bearer {api_key}',
                     'Content-Type': 'application/json',
                 },
-                json={
-                    'model': 'mistral-small-latest',
-                    'messages': messages,
-                    'tools': AI_TOOLS,
-                    'tool_choice': 'auto',
-                    'temperature': 0.3,
-                    'max_tokens': 800,
-                },
+                json=request_payload,
                 timeout=30,
             )
             response.raise_for_status()
@@ -4694,7 +4708,7 @@ def assistant_chat():
                     arguments = json.loads(raw_arguments)
                 except (ValueError, TypeError):
                     arguments = {}
-                result = call_ai_tool(function_name, arguments)
+                result = call_ai_tool(function_name, arguments, current_user)
                 if function_name == 'generer_rapport_pdf' and isinstance(result, dict) and result.get('pdf_genere'):
                     pdf_attachment = {
                         'url': result.get('url_telechargement'),
