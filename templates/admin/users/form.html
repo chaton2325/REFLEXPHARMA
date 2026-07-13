@@ -171,6 +171,13 @@
             </div>
           </div>
 
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <label class="form-label">Nom d'utilisateur <small class="text-muted fw-normal">(optionnel, pour se connecter sans l'email)</small></label>
+              <input type="text" name="username" class="form-control" value="{{ user.username if user else '' }}" placeholder="ex : jdupont" autocomplete="off">
+            </div>
+          </div>
+
           <div class="mb-4">
             <label class="form-label">Adresse</label>
             <textarea name="adresse" class="form-control" rows="2" style="resize:vertical;min-height:80px;">{{ user.adresse if user else '' }}</textarea>

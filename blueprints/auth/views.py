@@ -10,11 +10,13 @@ def login():
         return redirect(url_for('admin.dashboard'))
         
     if request.method == 'POST':
-        email = request.form.get('email')
+        identifiant = (request.form.get('identifiant') or '').strip()
         password = request.form.get('password')
         remember = True if request.form.get('remember') else False
-        
-        user = User.query.filter_by(email=email).first()
+
+        user = User.query.filter(
+            (User.email == identifiant) | (User.username == identifiant)
+        ).first()
         
         if not user or not user.check_password(password):
             flash('Veuillez vérifier vos identifiants de connexion.', 'danger')

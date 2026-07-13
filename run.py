@@ -19,7 +19,8 @@ def setup_database():
         cols_to_check = {
             'users': [
                 ('date_prise_poste', 'DATE'),
-                ('salaire_mensuel', 'FLOAT')
+                ('salaire_mensuel', 'FLOAT'),
+                ('username', 'VARCHAR(80)')
             ],
             'permissions': [
                 # La table permissions est déjà gérée par create_all car nouvelle

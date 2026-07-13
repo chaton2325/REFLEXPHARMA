@@ -10,6 +10,7 @@ class User(UserMixin, db.Model):
     nom = db.Column(db.String(100), nullable=False)
     prenom = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    username = db.Column(db.String(80), unique=True, nullable=True, index=True)
     telephone = db.Column(db.String(20))
     adresse = db.Column(db.Text)
     password_hash = db.Column(db.String(255), nullable=False)

@@ -451,10 +451,14 @@ def create_user():
     postes = Poste.query.all()
     if request.method == 'POST':
         email = request.form.get('email')
+        username = (request.form.get('username') or '').strip() or None
         if User.query.filter_by(email=email).first():
             flash('Cet email est déjà utilisé.', 'danger')
             return redirect(url_for('admin.create_user'))
-            
+        if username and User.query.filter_by(username=username).first():
+            flash("Ce nom d'utilisateur est déjà utilisé.", 'danger')
+            return redirect(url_for('admin.create_user'))
+
         date_prise_poste_str = request.form.get('date_prise_poste')
         date_prise_poste = datetime.strptime(date_prise_poste_str, '%Y-%m-%d').date() if date_prise_poste_str else None
         salaire_mensuel = request.form.get('salaire_mensuel')
@@ -464,6 +468,7 @@ def create_user():
             nom=request.form.get('nom'),
             prenom=request.form.get('prenom'),
             email=email,
+            username=username,
             telephone=request.form.get('telephone'),
             adresse=request.form.get('adresse'),
             role=request.form.get('role'),
@@ -487,9 +492,15 @@ def edit_user(id):
     user = User.query.get_or_404(id)
     postes = Poste.query.all()
     if request.method == 'POST':
+        username = (request.form.get('username') or '').strip() or None
+        if username and User.query.filter(User.username == username, User.id != user.id).first():
+            flash("Ce nom d'utilisateur est déjà utilisé.", 'danger')
+            return redirect(url_for('admin.edit_user', id=id))
+
         user.nom = request.form.get('nom')
         user.prenom = request.form.get('prenom')
         user.email = request.form.get('email')
+        user.username = username
         user.telephone = request.form.get('telephone')
         user.adresse = request.form.get('adresse')
         user.role = request.form.get('role')

@@ -14,6 +14,7 @@ def seed():
                 nom="Admin",
                 prenom="Super",
                 email="admin@reflexpharma.com",
+                username="admin",
                 telephone="0102030405",
                 adresse="Si?ge ReflexPharma",
                 role="superadmin",

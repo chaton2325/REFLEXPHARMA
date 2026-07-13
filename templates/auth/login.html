@@ -2,35 +2,205 @@
 
 {% block title %}Connexion - ReflexPharma{% endblock %}
 
+{% block extra_head %}
+<style>
+  /* La page de connexion n'a pas de sidebar (utilisateur non connecte) :
+     on annule la marge reservee a la sidebar par base.html pour bien centrer. */
+  .main-content { margin-left: 0 !important; }
+
+  .login-wrapper {
+    min-height: calc(100vh - 6rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 0;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 880px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    overflow: hidden;
+    display: flex;
+    min-height: 520px;
+  }
+
+  .login-visual {
+    flex: 0 0 42%;
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+
+  /* Sur PC (>= 768px) : les deux moitiés occupent tout l'ecran, sans carte/marge. */
+  @media (min-width: 768px) {
+    .main-content { min-height: 100vh; }
+    .main-content .container { max-width: none; width: 100%; padding: 0; margin: 0; }
+    .main-content > footer { display: none; }
+
+    .login-wrapper { min-height: 100vh; padding: 0; }
+    .login-card {
+      max-width: none;
+      border-radius: 0;
+      box-shadow: none;
+      min-height: 100vh;
+    }
+    .login-visual { flex: 0 0 50%; }
+    .login-form-panel { flex: 0 0 50%; }
+  }
+  .login-visual::before {
+    content: '';
+    position: absolute;
+    top: -30%;
+    right: -20%;
+    width: 260px;
+    height: 260px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .login-visual-text {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    color: #fff;
+    margin-bottom: 1.25rem;
+  }
+  .login-visual-text h2 {
+    font-weight: 700;
+    font-size: 1.4rem;
+    margin-bottom: 0.25rem;
+  }
+  .login-visual-text p {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.75);
+    margin: 0;
+  }
+  .login-logo-img {
+    display: block;
+    max-height: 70px;
+    width: auto;
+    margin: 0 auto 0.75rem;
+    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25));
+  }
+  .login-icon-fallback { display: none; }
+  .login-mascotte {
+    position: relative;
+    z-index: 1;
+    max-width: 82%;
+    max-height: 340px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 20px rgba(0,0,0,0.25));
+  }
+
+  .login-form-panel {
+    flex: 1 1 auto;
+    background: #fff;
+    padding: 3rem 4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-form-inner {
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .login-form-panel .form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.4rem;
+  }
+  .login-form-panel .form-control {
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.92rem;
+  }
+  .login-form-panel .form-control:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .login-form-panel .btn-primary {
+    border-radius: 10px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border: none;
+  }
+  .login-form-panel .btn-primary:hover {
+    opacity: 0.92;
+  }
+
+  @media (max-width: 767.98px) {
+    .login-wrapper { min-height: auto; padding: 0.5rem 0; }
+    .login-card { flex-direction: column; min-height: 0; border-radius: 16px; }
+    .login-visual {
+      flex: none;
+      padding: 1.25rem 1rem 0;
+      flex-direction: row;
+      justify-content: center;
+    }
+    .login-mascotte { max-height: 130px; max-width: 45%; }
+    .login-visual-text { margin-bottom: 0; margin-left: 0.75rem; text-align: left; }
+    .login-visual-text h2 { font-size: 1.15rem; }
+    .login-form-panel { padding: 1.75rem 1.5rem 2rem; }
+
+    /* Sur mobile on garde l'icone + texte (deja valide) plutot que le logo image */
+    .login-logo-img { display: none; }
+    .login-icon-fallback { display: inline; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <div class="card mt-5">
-            <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <i class="fas fa-prescription-bottle-alt fa-3x text-primary mb-3"></i>
-                    <h2 class="fw-bold">Connexion</h2>
-                    <p class="text-muted">Accédez à votre espace gestion</p>
-                </div>
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" name="email" id="email" class="form-control" required placeholder="nom@exemple.com">
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Mot de passe</label>
-                        <input type="password" name="password" id="password" class="form-control" required placeholder="••••••••">
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" name="remember" id="remember" class="form-check-input">
-                        <label for="remember" class="form-check-label">Se souvenir de moi</label>
-                    </div>
-                    <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-primary py-2">Se connecter</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-visual">
+      <div class="login-visual-text">
+        <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="ReflexPharma" class="login-logo-img">
+        <h2><i class="fas fa-prescription-bottle-alt me-1 login-icon-fallback"></i>ReflexPharma</h2>
+        <p>Gestion de pharmacie simplifiée</p>
+      </div>
+      <img src="{{ url_for('static', filename='mascotte/Mascotte_explique.png') }}" alt="Mascotte ReflexPharma" class="login-mascotte">
     </div>
+
+    <div class="login-form-panel">
+      <div class="login-form-inner">
+        <div class="mb-4">
+          <h2 class="fw-bold mb-1">Connexion</h2>
+          <p class="text-muted mb-0">Accédez à votre espace gestion</p>
+        </div>
+        <form method="POST">
+          <div class="mb-3">
+            <label for="identifiant" class="form-label">Email ou nom d'utilisateur</label>
+            <input type="text" name="identifiant" id="identifiant" class="form-control" required autofocus autocomplete="username" placeholder="nom@exemple.com ou identifiant">
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Mot de passe</label>
+            <input type="password" name="password" id="password" class="form-control" required autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <div class="mb-3 form-check">
+            <input type="checkbox" name="remember" id="remember" class="form-check-input">
+            <label for="remember" class="form-check-label">Se souvenir de moi</label>
+          </div>
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-primary py-2">Se connecter</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
