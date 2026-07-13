@@ -6,8 +6,9 @@ class Inventaire(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     titre = db.Column(db.String(100), nullable=False)
-    statut = db.Column(db.String(30), nullable=False, default='en_cours') # 'en_cours', 'valide', 'annule'
-    
+    statut = db.Column(db.String(30), nullable=False, default='en_cours') # 'planifie', 'en_cours', 'valide', 'annule'
+    date_planifiee = db.Column(db.DateTime, nullable=True) # date/heure prevue si statut == 'planifie'
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

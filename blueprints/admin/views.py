@@ -313,6 +313,15 @@ def dashboard():
     lan_login_url = f"{request.scheme}://{get_lan_ip()}:{port}{url_for('auth.login')}"
     lan_login_qr = build_qr_svg_data_uri(lan_login_url, size=180)
 
+    _activer_inventaires_planifies()
+    active_inventaire = Inventaire.query.filter_by(statut='en_cours').first()
+    planned_inventaire = Inventaire.query.filter_by(statut='planifie').order_by(Inventaire.date_planifiee.asc()).first()
+    active_inventaire_progress = None
+    if active_inventaire:
+        total_lignes = InventaireLigne.query.filter_by(inventaire_id=active_inventaire.id).count()
+        scanned_lignes = InventaireLigne.query.filter_by(inventaire_id=active_inventaire.id, is_scanned=True).count()
+        active_inventaire_progress = {'total': total_lignes, 'scanned': scanned_lignes}
+
     return render_template('admin/dashboard.html',
         produits_count=produits_count,
         stock_count=stock_count,
@@ -320,7 +329,10 @@ def dashboard():
         today_ventes_count=today_ventes_count,
         today_ventes_total=today_ventes_total,
         lan_login_url=lan_login_url,
-        lan_login_qr=lan_login_qr
+        lan_login_qr=lan_login_qr,
+        active_inventaire=active_inventaire,
+        active_inventaire_progress=active_inventaire_progress,
+        planned_inventaire=planned_inventaire
     )
 
 # --- GESTION DES POSTES (METIERS) ---
@@ -4762,15 +4774,55 @@ def _inventaire_line_payload(line):
         'constate_at': line.constate_at.strftime('%d/%m %H:%M') if line.constate_at else None,
     }
 
+def _snapshot_stock_into_inventaire(inventaire):
+    """Prend un instantane des quantites actuelles de tout le stock pour servir de
+    base theorique de comparaison a cet inventaire (appele au demarrage reel, pas a
+    la programmation, pour que les quantites 'avant' soient a jour)."""
+    stocks = Stock.query.all()
+    for s in stocks:
+        ligne = InventaireLigne(
+            inventaire_id=inventaire.id,
+            stock_id=s.id,
+            produit_id=s.produit_id,
+            code_suivi=s.code_suivi,
+            numero_bl=s.numero_bl,
+            date_peremption=s.date_peremption,
+            quantite_unites_avant=s.quantite_unites,
+            quantite_sous_unites_avant=s.quantite_sous_unites,
+            quantite_sous_sous_unites_avant=s.quantite_sous_sous_unites
+        )
+        db.session.add(ligne)
+
+
+def _activer_inventaires_planifies():
+    """Demarre automatiquement le prochain inventaire programme dont l'heure est
+    arrivee, s'il n'y a pas deja un inventaire en cours. Il n'y a pas de tache de
+    fond dans cette appli : on verifie donc a chaque chargement d'une page
+    inventaire/dashboard, comme le reste du "self-healing" de l'appli."""
+    if Inventaire.query.filter_by(statut='en_cours').first():
+        return
+    due = Inventaire.query.filter(
+        Inventaire.statut == 'planifie',
+        Inventaire.date_planifiee <= datetime.now()
+    ).order_by(Inventaire.date_planifiee.asc()).first()
+    if not due:
+        return
+    due.statut = 'en_cours'
+    _snapshot_stock_into_inventaire(due)
+    db.session.commit()
+
 @admin.route('/inventaire')
 @login_required
 @permission_required('gestion_inventaire')
 def list_inventaires():
+    _activer_inventaires_planifies()
     active_inventaire = Inventaire.query.filter_by(statut='en_cours').first()
+    planned_inventaire = Inventaire.query.filter_by(statut='planifie').order_by(Inventaire.date_planifiee.asc()).first()
     inventaires = Inventaire.query.order_by(Inventaire.created_at.desc()).all()
     return render_template(
         'admin/inventaire/list.html',
         active_inventaire=active_inventaire,
+        planned_inventaire=planned_inventaire,
         inventaires=inventaires
     )
 
@@ -4782,31 +4834,43 @@ def create_inventaire():
     if active:
         flash("Un inventaire est déjà en cours.", "warning")
         return redirect(url_for('admin.show_inventaire', id=active.id))
-        
-    titre = request.form.get('titre')
+
+    titre = (request.form.get('titre') or '').strip()
+    date_planifiee_str = (request.form.get('date_planifiee') or '').strip()
+
+    if date_planifiee_str:
+        planned = Inventaire.query.filter_by(statut='planifie').first()
+        if planned:
+            flash("Un inventaire est déjà programmé. Annulez-le avant d'en programmer un autre.", "warning")
+            return redirect(url_for('admin.list_inventaires'))
+
+        try:
+            date_planifiee = datetime.strptime(date_planifiee_str, '%Y-%m-%dT%H:%M')
+        except ValueError:
+            flash("Date/heure de programmation invalide.", "danger")
+            return redirect(url_for('admin.list_inventaires'))
+        if date_planifiee <= datetime.now():
+            flash("La date programmée doit être dans le futur. Démarrez l'inventaire immédiatement à la place.", "warning")
+            return redirect(url_for('admin.list_inventaires'))
+
+        if not titre:
+            titre = f"Inventaire programmé du {date_planifiee.strftime('%d/%m/%Y %H:%M')}"
+
+        new_inv = Inventaire(titre=titre, statut='planifie', created_by_id=current_user.id, date_planifiee=date_planifiee)
+        db.session.add(new_inv)
+        db.session.commit()
+        flash("Inventaire programmé avec succès.", "success")
+        return redirect(url_for('admin.list_inventaires'))
+
     if not titre:
         titre = f"Inventaire du {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-        
+
     new_inv = Inventaire(titre=titre, statut='en_cours', created_by_id=current_user.id)
     db.session.add(new_inv)
     db.session.flush()
-    
-    # Snapshot des entrées de stock
-    stocks = Stock.query.all()
-    for s in stocks:
-        ligne = InventaireLigne(
-            inventaire_id=new_inv.id,
-            stock_id=s.id,
-            produit_id=s.produit_id,
-            code_suivi=s.code_suivi,
-            numero_bl=s.numero_bl,
-            date_peremption=s.date_peremption,
-            quantite_unites_avant=s.quantite_unites,
-            quantite_sous_unites_avant=s.quantite_sous_unites,
-            quantite_sous_sous_unites_avant=s.quantite_sous_sous_unites
-        )
-        db.session.add(ligne)
-        
+
+    _snapshot_stock_into_inventaire(new_inv)
+
     db.session.commit()
     flash("Nouvel inventaire démarré avec succès.", "success")
     return redirect(url_for('admin.show_inventaire', id=new_inv.id))
@@ -5064,10 +5128,10 @@ def validate_inventaire(id):
 @permission_required('gestion_inventaire')
 def cancel_inventaire(id):
     inventaire = Inventaire.query.get_or_404(id)
-    if inventaire.statut != 'en_cours':
-        flash("Seul un inventaire en cours peut être annulé.", "danger")
+    if inventaire.statut not in ('en_cours', 'planifie'):
+        flash("Seul un inventaire en cours ou programmé peut être annulé.", "danger")
         return redirect(url_for('admin.show_inventaire', id=id))
-        
+
     inventaire.statut = 'annule'
     db.session.commit()
     flash("L'inventaire a été annulé.", "warning")

@@ -247,10 +247,68 @@
     .feature-card .btn { font-size: 0.68rem; padding: 0.3rem 0.5rem; }
     .feature-card .d-flex.gap-2 { gap: 0.3rem !important; }
   }
+
+  .inventaire-banner {
+    border-radius: 16px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    color: #fff;
+  }
+  .inventaire-banner-active { background: linear-gradient(135deg, #e37400 0%, #f5a623 100%); }
+  .inventaire-banner-planned { background: linear-gradient(135deg, #6c3483 0%, #8e44ad 100%); }
+  .inventaire-banner-icon {
+    width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,0.18);
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;
+  }
+  .inventaire-banner-info { flex: 1; min-width: 0; }
+  .inventaire-banner-title { font-weight: 700; font-size: 0.95rem; }
+  .inventaire-banner-sub { font-size: 0.82rem; color: rgba(255,255,255,0.85); margin-top: 0.15rem; }
+  .inventaire-banner-btn { border-radius: 10px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; flex-shrink: 0; }
+  #inventaireCountdown { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  @media (max-width: 575.98px) {
+    .inventaire-banner { padding: 0.75rem 1rem; border-radius: 12px; margin-bottom: 0.85rem; }
+    .inventaire-banner-title { font-size: 0.82rem; }
+    .inventaire-banner-sub { font-size: 0.72rem; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
+{% if active_inventaire %}
+<div class="inventaire-banner inventaire-banner-active fade-in">
+  <div class="inventaire-banner-icon"><i class="fas fa-clipboard-list"></i></div>
+  <div class="inventaire-banner-info">
+    <div class="inventaire-banner-title"><i class="fas fa-spinner fa-spin me-1"></i>Inventaire en cours : {{ active_inventaire.titre }}</div>
+    {% if active_inventaire_progress %}
+    <div class="inventaire-banner-sub">{{ active_inventaire_progress.scanned }} / {{ active_inventaire_progress.total }} produits comptés</div>
+    {% endif %}
+  </div>
+  {% if current_user.has_permission('gestion_inventaire') %}
+  <a href="{{ url_for('admin.show_inventaire', id=active_inventaire.id) }}" class="btn btn-light btn-sm inventaire-banner-btn">Accéder <i class="fas fa-arrow-right ms-1"></i></a>
+  {% endif %}
+</div>
+{% elif planned_inventaire %}
+<div class="inventaire-banner inventaire-banner-planned fade-in">
+  <div class="inventaire-banner-icon"><i class="fas fa-calendar-alt"></i></div>
+  <div class="inventaire-banner-info">
+    <div class="inventaire-banner-title"><i class="fas fa-hourglass-half me-1"></i>Inventaire programmé : {{ planned_inventaire.titre }}</div>
+    <div class="inventaire-banner-sub">
+      Le {{ planned_inventaire.date_planifiee.strftime('%d/%m/%Y à %H:%M') }}
+      &middot; <span id="inventaireCountdown" data-target="{{ planned_inventaire.date_planifiee.isoformat() }}">calcul en cours...</span>
+    </div>
+  </div>
+  {% if current_user.has_permission('gestion_inventaire') %}
+  <form method="POST" action="{{ url_for('admin.cancel_inventaire', id=planned_inventaire.id) }}">
+    <button type="submit" class="btn btn-light btn-sm inventaire-banner-btn">Annuler</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 <div class="fade-in">
   <div class="dashboard-welcome">
     <img src="{{ url_for('static', filename='mascotte/mascotte-explique-web.jpg') }}" alt="" class="dashboard-mascotte-bg">
@@ -487,4 +545,37 @@
   </div>
   {% endif %}
 </div>
+
+{% if planned_inventaire %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('inventaireCountdown');
+    if (!el) return;
+    const target = new Date(el.dataset.target).getTime();
+
+    function tick() {
+        const diff = target - Date.now();
+        if (diff <= 0) {
+            el.textContent = "démarrage imminent...";
+            return;
+        }
+        const totalSeconds = Math.floor(diff / 1000);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        const parts = [];
+        if (days > 0) parts.push(days + 'j');
+        parts.push(String(hours).padStart(2, '0') + 'h');
+        parts.push(String(minutes).padStart(2, '0') + 'm');
+        parts.push(String(seconds).padStart(2, '0') + 's');
+        el.textContent = 'dans ' + parts.join(' ');
+    }
+
+    tick();
+    setInterval(tick, 1000);
+});
+</script>
+{% endif %}
 {% endblock %}

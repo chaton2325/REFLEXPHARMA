@@ -28,6 +28,9 @@ def setup_database():
             'stock_entries': [
                 ('qr_tire', 'BOOLEAN DEFAULT FALSE')
             ],
+            'inventaires': [
+                ('date_planifiee', 'TIMESTAMP')
+            ],
             'stock_modification_logs': [
                 ('numero_bl', 'VARCHAR(120)'),
                 ('date_peremption', 'DATE'),

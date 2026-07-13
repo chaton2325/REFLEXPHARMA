@@ -244,6 +244,30 @@
         </div>
       </div>
     </div>
+    {% elif planned_inventaire %}
+    <div class="card-custom h-100 d-flex flex-column">
+      <div class="card-custom-header" style="background:linear-gradient(135deg,#6c3483,#8e44ad);color:#fff;">
+        <span><i class="fas fa-hourglass-half me-2"></i>Inventaire programmé</span>
+        <span class="badge bg-light text-dark">Programmé</span>
+      </div>
+      <div class="p-3 p-sm-4 d-flex flex-column flex-fill">
+        <h5 class="fw-bold text-dark">{{ planned_inventaire.titre }}</h5>
+        <p class="text-muted mb-1 small">
+          <i class="fas fa-calendar-alt me-1"></i> Prévu le {{ planned_inventaire.date_planifiee.strftime('%d/%m/%Y à %H:%M') }}<br>
+          <i class="fas fa-user me-1"></i> Programmé par : {{ planned_inventaire.created_by.nom }} {{ planned_inventaire.created_by.prenom }}
+        </p>
+        <p class="small mb-4" style="color:#8e44ad;font-weight:600;">
+          <i class="fas fa-info-circle me-1"></i> L'instantané du stock sera pris automatiquement au démarrage, pas maintenant.
+        </p>
+        <div class="mt-auto">
+          <form method="POST" action="{{ url_for('admin.cancel_inventaire', id=planned_inventaire.id) }}">
+            <button type="submit" class="btn btn-outline-danger w-100">
+              <i class="fas fa-times me-2"></i>Annuler la programmation
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
     {% else %}
     <div class="card-custom h-100">
       <div class="card-custom-header head-new">
@@ -253,15 +277,31 @@
         <form action="{{ url_for('admin.create_inventaire') }}" method="POST">
           <div class="mb-3">
             <label for="titre" class="form-label fw-bold">Titre de l'inventaire</label>
-            <input type="text" class="form-control form-control-lg" id="titre" name="titre" placeholder="Ex: Inventaire Fin de Mois" required>
+            <input type="text" class="form-control form-control-lg" id="titre" name="titre" placeholder="Ex: Inventaire Fin de Mois">
             <div class="form-text">Ce titre permettra d'identifier cette session dans l'historique.</div>
           </div>
+
+          <div class="mb-3">
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="modeInventaire" id="modeMaintenant" checked onchange="document.getElementById('planifieField').classList.add('d-none'); document.getElementById('date_planifiee').value='';">
+              <label class="btn btn-outline-success" for="modeMaintenant"><i class="fas fa-play me-1"></i>Maintenant</label>
+              <input type="radio" class="btn-check" name="modeInventaire" id="modeProgramme" onchange="document.getElementById('planifieField').classList.remove('d-none')">
+              <label class="btn btn-outline-success" for="modeProgramme"><i class="fas fa-clock me-1"></i>Programmer</label>
+            </div>
+          </div>
+
+          <div class="mb-3 d-none" id="planifieField">
+            <label for="date_planifiee" class="form-label fw-bold">Date et heure de démarrage</label>
+            <input type="datetime-local" class="form-control form-control-lg" id="date_planifiee" name="date_planifiee">
+            <div class="form-text">L'inventaire démarrera automatiquement à cette date/heure (instantané du stock pris à ce moment-là).</div>
+          </div>
+
           <p class="text-muted small mb-4">
             <i class="fas fa-info-circle me-1 text-primary"></i> Le système fera un instantané (snapshot) des quantités actuelles de tout le stock pour servir de base théorique de comparaison.
           </p>
           <div class="d-grid">
             <button type="submit" class="btn btn-success btn-lg">
-              <i class="fas fa-play me-2"></i>Démarrer l'inventaire
+              <i class="fas fa-play me-2"></i>Démarrer / programmer l'inventaire
             </button>
           </div>
         </form>
@@ -292,7 +332,9 @@
             </a>
           </div>
           <div class="d-flex align-items-center gap-1 mt-1">
-            {% if inv.statut == 'en_cours' %}
+            {% if inv.statut == 'planifie' %}
+            <span class="badge" style="background:#8e44ad;"><i class="fas fa-hourglass-half me-1"></i>Programmé</span>
+            {% elif inv.statut == 'en_cours' %}
             <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
             {% elif inv.statut == 'valide' %}
             <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
@@ -330,7 +372,9 @@
                 <div class="cell-sub">{{ inv.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
               </td>
               <td class="text-center">
-                {% if inv.statut == 'en_cours' %}
+                {% if inv.statut == 'planifie' %}
+                <span class="badge" style="background:#8e44ad;"><i class="fas fa-hourglass-half me-1"></i>Programmé</span>
+                {% elif inv.statut == 'en_cours' %}
                 <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
                 {% elif inv.statut == 'valide' %}
                 <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Validé</span>
