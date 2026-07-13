@@ -711,8 +711,8 @@
       .ai-assistant-toggle img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
 
       .ai-assistant-panel {
-        position: absolute; right: 0; bottom: 78px; width: 340px; max-width: calc(100vw - 2rem);
-        height: 480px; max-height: 70vh; background: #fff; border-radius: 16px;
+        position: absolute; right: 0; bottom: 78px; width: 380px; max-width: calc(100vw - 2rem);
+        height: 540px; max-height: 74vh; background: #fff; border-radius: 16px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;
         border: 1px solid rgba(0,0,0,0.05);
       }
@@ -727,10 +727,29 @@
       .ai-assistant-close:hover { opacity: 1; }
 
       .ai-assistant-messages { flex: 1; overflow-y: auto; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.55rem; background: #f7fafd; }
-      .ai-msg { max-width: 85%; padding: 0.5rem 0.7rem; border-radius: 12px; font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap; }
+      .ai-msg { max-width: 88%; padding: 0.5rem 0.7rem; border-radius: 12px; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; }
       .ai-msg-bot { align-self: flex-start; background: #fff; border: 1px solid #e8edf4; color: #1a1a2e; border-bottom-left-radius: 4px; }
       .ai-msg-user { align-self: flex-end; background: #1a73e8; color: #fff; border-bottom-right-radius: 4px; }
       .ai-msg-error { align-self: flex-start; background: #fee8e8; color: #c0392b; border: 1px solid #fcc5c5; border-bottom-left-radius: 4px; }
+      .ai-msg-bot p { margin: 0 0 0.45rem; }
+      .ai-msg-bot p:last-child { margin-bottom: 0; }
+      .ai-msg-bot ul { margin: 0.1rem 0 0.45rem; padding-left: 1.1rem; }
+      .ai-msg-bot ul:last-child { margin-bottom: 0; }
+      .ai-msg-bot li { margin-bottom: 0.2rem; }
+      .ai-msg-bot strong { color: #1a5fb4; font-weight: 700; }
+
+      .ai-pdf-card { padding: 0; background: #fff; border: 1px solid #e8edf4; }
+      .ai-pdf-card-inner { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.7rem; }
+      .ai-pdf-card-inner > i.fa-file-pdf { font-size: 1.6rem; color: #dc3545; flex-shrink: 0; }
+      .ai-pdf-card-info { min-width: 0; flex: 1; }
+      .ai-pdf-card-title { font-weight: 700; font-size: 0.8rem; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .ai-pdf-card-name { font-size: 0.7rem; color: #7a8896; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .ai-pdf-card-btn {
+        flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center;
+        justify-content: center; background: linear-gradient(135deg,#2c3e50,#3498db); color: #fff;
+        text-decoration: none; transition: transform 0.15s;
+      }
+      .ai-pdf-card-btn:hover { color: #fff; transform: scale(1.08); }
 
       .ai-typing { align-self: flex-start; display: flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.7rem; }
       .ai-typing span { width: 6px; height: 6px; border-radius: 50%; background: #98a4ae; animation: aiTypingBounce 1.2s infinite ease-in-out; }
@@ -771,7 +790,7 @@
           </button>
         </div>
         <div class="ai-assistant-messages" id="aiAssistantMessages">
-          <div class="ai-msg ai-msg-bot">Bonjour{{ ' ' ~ current_user.prenom if current_user.prenom else '' }} ! Je suis l'assistante ReflexPharma. Posez-moi une question sur l'utilisation du logiciel.</div>
+          <div class="ai-msg ai-msg-bot">Bonjour{{ ' ' ~ current_user.prenom if current_user.prenom else '' }} ! Je suis l'assistante ReflexPharma. Je peux vous aider à utiliser le logiciel, mais aussi répondre à des questions sur vos données : ventes du jour, chiffre d'affaires, prévisions, employé du mois, stock d'un produit...</div>
         </div>
         <form class="ai-assistant-input" id="aiAssistantForm">
           <input type="text" id="aiAssistantInput" placeholder="Posez votre question..." autocomplete="off" maxlength="2000">
@@ -819,10 +838,63 @@
         toggleBtn.addEventListener('click', () => { open ? closePanel() : openPanel(); });
         closeBtn.addEventListener('click', closePanel);
 
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Rendu mini-markdown pour les reponses du bot : **gras** et listes a puces
+        // (- ou *). Le texte est echappe avant toute transformation (pas d'injection HTML).
+        function formatBotText(text) {
+            const lines = escapeHtml(text).split('\n');
+            let html = '';
+            let inList = false;
+            for (const rawLine of lines) {
+                const line = rawLine.trim();
+                const isBullet = /^[-*]\s+/.test(line);
+                if (isBullet) {
+                    if (!inList) { html += '<ul>'; inList = true; }
+                    html += `<li>${line.replace(/^[-*]\s+/, '')}</li>`;
+                } else {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    if (line) html += `<p>${line}</p>`;
+                }
+            }
+            if (inList) html += '</ul>';
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            return html || escapeHtml(text);
+        }
+
         function appendMessage(role, text) {
             const div = document.createElement('div');
             div.className = 'ai-msg ' + (role === 'user' ? 'ai-msg-user' : role === 'error' ? 'ai-msg-error' : 'ai-msg-bot');
-            div.textContent = text;
+            if (role === 'bot') {
+                div.innerHTML = formatBotText(text);
+            } else {
+                div.textContent = text;
+            }
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function appendPdfAttachment(attachment) {
+            if (!attachment || !attachment.url) return;
+            const div = document.createElement('div');
+            div.className = 'ai-msg ai-msg-bot ai-pdf-card';
+            const titre = escapeHtml(attachment.titre || 'Rapport');
+            const nomFichier = escapeHtml(attachment.nom_fichier || 'rapport.pdf');
+            const url = escapeHtml(attachment.url);
+            div.innerHTML = `
+                <div class="ai-pdf-card-inner">
+                    <i class="fas fa-file-pdf"></i>
+                    <div class="ai-pdf-card-info">
+                        <div class="ai-pdf-card-title">${titre}</div>
+                        <div class="ai-pdf-card-name">${nomFichier}</div>
+                    </div>
+                    <a href="${url}" target="_blank" rel="noopener" class="ai-pdf-card-btn" title="Télécharger le PDF">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </div>
+            `;
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
@@ -867,6 +939,7 @@
                 if (data.success) {
                     appendMessage('bot', data.reply);
                     history.push({ role: 'assistant', content: data.reply });
+                    if (data.attachment) appendPdfAttachment(data.attachment);
                 } else {
                     appendMessage('error', data.message || "Une erreur est survenue.");
                 }

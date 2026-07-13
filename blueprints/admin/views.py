@@ -1,9 +1,10 @@
-from flask import render_template, redirect, url_for, flash, request, abort, Response, current_app
+from flask import render_template, redirect, url_for, flash, request, abort, Response, current_app, send_file
 from flask_login import login_required, current_user
 import queue
 import threading
 import requests
 import socket
+import os
 from . import admin
 from models.user import User
 from models.poste import Poste
@@ -33,6 +34,7 @@ import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
 from sqlalchemy.exc import SQLAlchemyError
+from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 
 def superadmin_required(f):
     @wraps(f)
@@ -4571,15 +4573,49 @@ def app_settings():
 # ASSISTANT IA (MASCOTTE)
 # ==============================================================================
 
-ASSISTANT_SYSTEM_PROMPT = (
-    "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
-    "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques). "
-    "Tu aides le personnel de la pharmacie à utiliser le logiciel : où trouver une fonctionnalité, "
-    "comment faire une action, comprendre un chiffre affiché. "
-    "Réponds toujours en français, de façon concise, claire et directement utile. "
-    "Si la question sort du cadre du logiciel ou de la pharmacie, réponds brièvement puis "
-    "recentre poliment sur ce que tu peux faire ici."
-)
+_JOURS_FR = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+_MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet',
+            'août', 'septembre', 'octobre', 'novembre', 'décembre']
+
+def build_assistant_system_prompt():
+    today = datetime.now()
+    date_str = f"{_JOURS_FR[today.weekday()]} {today.day} {_MOIS_FR[today.month - 1]} {today.year}"
+    return (
+        "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
+        "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques). "
+        f"Nous sommes le {date_str}. "
+        "Tu aides le personnel de la pharmacie de deux façons : "
+        "1) l'utilisation du logiciel (où trouver une fonctionnalité, comment faire une action, comprendre un chiffre affiché) ; "
+        "2) l'analyse des données réelles de la pharmacie (ventes, chiffre d'affaires, stock, clients, employés) "
+        "en utilisant les outils mis à ta disposition. "
+        "Dès qu'une question porte sur des chiffres ou des données concrètes (ventes, chiffre d'affaires, stock, "
+        "employé du mois, clients, prévisions...), appelle systématiquement l'outil le plus pertinent plutôt que "
+        "de deviner ou d'inventer une réponse. Tu peux enchaîner plusieurs appels d'outils si besoin (par exemple "
+        "comparer deux périodes). Ne donne JAMAIS un chiffre, un nom (produit, client, employé...), une liste "
+        "ou toute autre donnée factuelle que tu n'as pas obtenue via un outil — y compris dans une question de "
+        "relance sur un message précédent (ex: après avoir donné un nombre de produits/clients, si on te demande "
+        "'lesquels ?', appelle l'outil de listing correspondant plutôt que d'inventer des noms plausibles). "
+        "En cas de doute, appelle un outil ou dis que tu ne sais pas plutôt que d'inventer. "
+        "Important : les paramètres 'recherche' des outils de listing (produits, clients, fournisseurs, "
+        "groupes...) ne filtrent QUE sur du texte (nom, code, matricule...), jamais sur des valeurs "
+        "numériques (coefficient, TVA, prix, solde, quantité...). Si on te demande de retrouver un élément "
+        "par une valeur numérique (ex: 'quel fournisseur a le coefficient 1.34', 'quel client a un solde de "
+        "38560'), appelle l'outil de listing SANS filtre pour récupérer tous les éléments, puis identifie "
+        "toi-même celui qui correspond dans les résultats — ne renvoie jamais 'aucun résultat' simplement "
+        "parce que le filtre texte ne matchait pas un nombre. Ce principe s'applique à toute variante de "
+        "formulation d'une recherche, pas seulement aux exemples ci-dessus. "
+        "Les montants sont en euros (€). Réponds de façon concise et claire, avec les chiffres clés mis en avant "
+        "(des listes à puces pour les classements, pas de longs paragraphes). "
+        "Si l'utilisateur demande explicitement un PDF, un rapport, un document ou une impression des résultats, "
+        "récupère d'abord les données via le(s) outil(s) pertinent(s) puis appelle generer_rapport_pdf avec ces "
+        "données pour produire un fichier téléchargeable ; ne propose jamais un PDF si ce n'est pas demandé. "
+        "Après avoir appelé generer_rapport_pdf, ne redonne PAS l'URL ni un lien de téléchargement dans ta "
+        "réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous ton message. Contente-toi "
+        "de confirmer brièvement que le PDF est prêt (et résume les chiffres clés si utile). "
+        "Réponds toujours en français. "
+        "Si la question sort totalement du cadre du logiciel ou de la pharmacie, réponds brièvement puis "
+        "recentre poliment sur ce que tu peux faire ici."
+    )
 
 @admin.route('/assistant/chat', methods=['POST'])
 @login_required
@@ -4597,7 +4633,7 @@ def assistant_chat():
     if not api_key:
         return {'success': False, 'message': "L'assistant IA n'est pas configuré (clé API Mistral manquante)."}, 503
 
-    messages = [{'role': 'system', 'content': ASSISTANT_SYSTEM_PROMPT}]
+    messages = [{'role': 'system', 'content': build_assistant_system_prompt()}]
     if isinstance(history, list):
         for item in history[-12:]:
             if not isinstance(item, dict):
@@ -4608,29 +4644,78 @@ def assistant_chat():
                 messages.append({'role': role, 'content': content[:2000]})
     messages.append({'role': 'user', 'content': message})
 
+    pdf_attachment = None
     try:
-        response = requests.post(
-            'https://api.mistral.ai/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': 'mistral-small-latest',
-                'messages': messages,
-                'temperature': 0.4,
-                'max_tokens': 700,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        reply = payload['choices'][0]['message']['content'].strip()
-        return {'success': True, 'reply': reply}
+        for _ in range(4):  # limite le nombre d'aller-retours d'appels d'outils
+            response = requests.post(
+                'https://api.mistral.ai/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'model': 'mistral-small-latest',
+                    'messages': messages,
+                    'tools': AI_TOOLS,
+                    'tool_choice': 'auto',
+                    'temperature': 0.3,
+                    'max_tokens': 800,
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            assistant_message = payload['choices'][0]['message']
+            tool_calls = assistant_message.get('tool_calls')
+
+            if not tool_calls:
+                reply = (assistant_message.get('content') or '').strip()
+                if not reply:
+                    return {'success': False, 'message': "Réponse vide de l'assistant IA."}, 502
+                return {'success': True, 'reply': reply, 'attachment': pdf_attachment}
+
+            messages.append(assistant_message)
+            for tool_call in tool_calls:
+                function_name = (tool_call.get('function') or {}).get('name', '')
+                raw_arguments = (tool_call.get('function') or {}).get('arguments') or '{}'
+                try:
+                    arguments = json.loads(raw_arguments)
+                except (ValueError, TypeError):
+                    arguments = {}
+                result = call_ai_tool(function_name, arguments)
+                if function_name == 'generer_rapport_pdf' and isinstance(result, dict) and result.get('pdf_genere'):
+                    pdf_attachment = {
+                        'url': result.get('url_telechargement'),
+                        'titre': result.get('titre'),
+                        'nom_fichier': result.get('nom_fichier'),
+                    }
+                messages.append({
+                    'role': 'tool',
+                    'tool_call_id': tool_call.get('id'),
+                    'name': function_name,
+                    'content': json.dumps(result, ensure_ascii=False, default=str),
+                })
+
+        return {'success': False, 'message': "L'assistant n'a pas réussi à conclure sa recherche, reformulez votre question."}, 502
     except requests.exceptions.RequestException:
         return {'success': False, 'message': "Impossible de contacter l'assistant IA pour le moment."}, 502
     except (KeyError, IndexError, ValueError):
         return {'success': False, 'message': "Réponse inattendue de l'assistant IA."}, 502
+
+
+@admin.route('/assistant/rapport/<path:filename>')
+@login_required
+def assistant_download_report(filename):
+    """Sert un PDF genere par l'assistant IA. Le nom de fichier contient un token
+    aleatoire (uuid4) genere a la creation : non devinable, donc seul un lien recu
+    dans le chat permet d'y acceder (en plus de la connexion requise)."""
+    if not REPORT_FILENAME_RE.match(filename):
+        abort(404)
+    filepath = os.path.join(REPORTS_DIR, filename)
+    if not os.path.isfile(filepath):
+        abort(404)
+    display_name = filename.split('__', 1)[1]
+    return send_file(filepath, mimetype='application/pdf', as_attachment=True, download_name=display_name)
 
 
 # ==============================================================================

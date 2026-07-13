@@ -1,3 +1,4 @@
 .env
 certs/*.crt
 certs/*.key
+ai_reports/
