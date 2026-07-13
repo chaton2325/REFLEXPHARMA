@@ -183,6 +183,41 @@
   .stagger-10 { animation-delay: 0.5s; }
   .stagger-11 { animation-delay: 0.55s; }
 
+  .lan-qr-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 100%;
+  }
+  .lan-qr-card img {
+    width: 90px;
+    height: 90px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .lan-qr-card h6 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 0.25rem;
+  }
+  .lan-qr-card p {
+    font-size: 0.76rem;
+    color: #7a8896;
+    margin-bottom: 0.35rem;
+    line-height: 1.4;
+  }
+  .lan-qr-card code {
+    font-size: 0.72rem;
+    color: #3498db;
+    word-break: break-all;
+  }
+
   @media (max-width: 575.98px) {
     .dashboard-welcome { padding: 1.5rem 1.25rem 0; border-radius: 12px; }
     .dashboard-welcome h1 { font-size: 1.35rem; }
@@ -223,6 +258,19 @@
       <div class="col-12 col-md-8">
         <h1><i class="fas fa-prescription-bottle-alt me-2"></i>Bienvenue, {{ current_user.prenom }} !</h1>
         <p>Tableau de bord de gestion de la pharmacie.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4 d-none d-lg-flex">
+  <div class="col-lg-6 col-xl-4 fade-in stagger-1">
+    <div class="lan-qr-card">
+      <img src="{{ lan_login_qr }}" alt="QR code de connexion mobile">
+      <div>
+        <h6><i class="fas fa-mobile-screen-button me-1"></i>Connexion mobile (réseau local)</h6>
+        <p>Scannez ce code avec un téléphone connecté au même réseau Wi-Fi pour ouvrir la page de connexion en HTTPS.</p>
+        <code>{{ lan_login_url }}</code>
       </div>
     </div>
   </div>

@@ -1925,9 +1925,51 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => { line.style.backgroundColor = ''; }, 900);
     }
 
+    // Petit son de confirmation "ajoute au panier", commun au scan camera (mobile),
+    // au scan douchette USB/Bluetooth (PC) et a l'ajout manuel via la recherche.
+    //
+    // Genere via Web Audio (comme le beep() du scan camera plus bas) plutot qu'un
+    // <audio>/fichier son : un element <audio> qui demarre pendant qu'un flux camera
+    // (getUserMedia) est actif peut couper/interrompre ce flux sur mobile (iOS surtout).
+    // Un seul AudioContext est reutilise a chaque appel.
+    let cartAddAudioCtx = null;
+    function getCartAddAudioCtx() {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        if (!cartAddAudioCtx) cartAddAudioCtx = new AC();
+        if (cartAddAudioCtx.state === 'suspended') cartAddAudioCtx.resume().catch(() => {});
+        return cartAddAudioCtx;
+    }
+    ['click', 'keydown', 'touchstart'].forEach((evtName) => {
+        document.addEventListener(evtName, getCartAddAudioCtx, { passive: true });
+    });
+
+    function playCartAddSound() {
+        try {
+            const ctx = getCartAddAudioCtx();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            [[1046.50, now, 0.11], [1567.98, now + 0.1, 0.18]].forEach(([freq, start, duration]) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                gain.gain.setValueAtTime(0.16, start);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                osc.start(start);
+                osc.stop(start + duration + 0.02);
+            });
+        } catch (err) {
+            // audio non disponible, tant pis
+        }
+    }
+
     // Ajoute (ou incremente) un produit scanne dans le panier. Reutilisee par le scan
     // camera et le scan par douchette USB/Bluetooth.
     function addScannedProductToCart(produitId) {
+        playCartAddSound();
         produitId = String(produitId);
         const lines = Array.from(body.querySelectorAll('.sale-line'));
 
@@ -2013,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showProductInfo(detailOption);
             return;
         }
+        playCartAddSound();
         selectProductOnLine(line, item.dataset.optionValue);
     });
     body.addEventListener('focusin', function(event) {
@@ -2159,42 +2202,43 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function pauseScanner() {
-        if (scanner && scanner.isScanning) scanner.pause();
-    }
-
-    function resumeScanner() {
-        if (scanner && scanner.isScanning) scanner.resume();
-    }
+    // NB : on evite volontairement scanner.pause()/resume() ici. La librairie
+    // html5-qrcode a un comportement peu fiable au resume() sur mobile (le flux
+    // video peut rester fige et ne plus jamais re-decoder). Le scanner tourne donc
+    // en continu ; on filtre nous-memes les doublons via un anti-rebond sur le code
+    // decode, ce qui evite d'ajouter 10 fois le meme produit pendant qu'il reste
+    // sous la camera, sans jamais toucher a l'etat interne du scanner.
+    let lastScannedCode = null;
+    let lastScannedAt = 0;
+    const SCAN_COOLDOWN_MS = 1800;
 
     function handleScannedCode(code) {
+        const now = Date.now();
+        if (code === lastScannedCode && (now - lastScannedAt) < SCAN_COOLDOWN_MS) return;
         if (processing) return;
+        lastScannedCode = code;
+        lastScannedAt = now;
         processing = true;
-        pauseScanner();
         showAlert('Recherche du produit...', 'info');
 
         fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(code)}`)
             .then((response) => response.json())
             .then((data) => {
                 if (data.success) {
-                    beep(true);
                     if (typeof window.ReflexAddScannedProduct === 'function') {
                         window.ReflexAddScannedProduct(data.produit_id);
                     }
-                    showAlert(`<i class="fas fa-check-circle me-1"></i> Ajouté : ${data.nom}`, 'success');
-                    setTimeout(() => modal.hide(), 800);
+                    showAlert(`<i class="fas fa-check-circle me-1"></i> Ajouté : ${data.nom}. Continuez à scanner ou fermez la fenêtre.`, 'success');
                 } else {
                     beep(false);
                     showAlert(data.message || 'Produit introuvable.', 'danger');
-                    processing = false;
-                    resumeScanner();
                 }
+                processing = false;
             })
             .catch(() => {
                 beep(false);
                 showAlert('Erreur de connexion au serveur.', 'danger');
                 processing = false;
-                resumeScanner();
             });
     }
 

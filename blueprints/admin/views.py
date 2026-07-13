@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 import queue
 import threading
 import requests
+import socket
 from . import admin
 from models.user import User
 from models.poste import Poste
@@ -195,6 +196,17 @@ def delete_stock_reason(id):
     flash('Raison de stock supprimée.', 'success')
     return redirect(url_for('admin.list_stock_reasons'))
 
+def get_lan_ip():
+    """Detecte l'IP locale du serveur sur le reseau (pour connexion depuis un mobile)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        return s.getsockname()[0]
+    except Exception:
+        return '127.0.0.1'
+    finally:
+        s.close()
+
 def build_qr_svg_data_uri(value, size=96):
     from reportlab.graphics.barcode import qr
     from reportlab.graphics.shapes import Drawing
@@ -295,12 +307,18 @@ def dashboard():
         db.func.coalesce(db.func.sum(Vente.total_ttc), 0)
     ).filter(Vente.created_at >= today_start).scalar()
 
+    port = request.host.split(':')[1] if ':' in request.host else ('443' if request.scheme == 'https' else '80')
+    lan_login_url = f"{request.scheme}://{get_lan_ip()}:{port}{url_for('auth.login')}"
+    lan_login_qr = build_qr_svg_data_uri(lan_login_url, size=180)
+
     return render_template('admin/dashboard.html',
         produits_count=produits_count,
         stock_count=stock_count,
         clients_count=clients_count,
         today_ventes_count=today_ventes_count,
-        today_ventes_total=today_ventes_total
+        today_ventes_total=today_ventes_total,
+        lan_login_url=lan_login_url,
+        lan_login_qr=lan_login_qr
     )
 
 # --- GESTION DES POSTES (METIERS) ---
