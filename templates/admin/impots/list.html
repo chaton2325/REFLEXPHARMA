@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Impôts & Taxes - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #fffbf2 !important; }
+
+    .page-header {
+        /* Cercle décoratif en radial-gradient (rogné par le border-radius) plutôt qu'en
+           ::before + overflow:hidden, qui couperait un menu déroulant dans le bandeau. */
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #7a4d00 0%, #e3a008 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+    .page-header .btn-light { color: #7a4d00; font-weight: 600; border-radius: 10px; font-size: 0.85rem; position: relative; z-index: 1; }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+    .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.68rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+    .card-form .card-header-custom {
+        background: linear-gradient(135deg, #fef7e0, #fdeecb);
+        border-bottom: 1px solid #f3e3b3;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px 14px 0 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #7a4d00;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .preset-btn {
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 0.25rem 0.75rem;
+        border: 1px solid #e3a008;
+        color: #a5670a;
+        background: #fff;
+        transition: all 0.15s;
+    }
+    .preset-btn:hover { background: #fef7e0; color: #7a4d00; transform: translateY(-1px); }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e);
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 0.5rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.5rem 0.65rem; vertical-align: middle; font-size: 0.78rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fffdf5; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #fef7e0; }
+    .amount-benefice { color: #1e8e3e; }
+    .amount-tva { color: #a5670a; }
+    .cell-sub { font-size: 0.68rem; color: #7a8896; }
+
+    .badge-declaree { background: linear-gradient(135deg,#1e8e3e,#28a745); color: #fff; font-size: 0.66rem; padding: 0.32rem 0.6rem; border-radius: 999px; font-weight: 700; }
+    .badge-preparation { background: linear-gradient(135deg,#e37400,#f5a623); color: #fff; font-size: 0.66rem; padding: 0.32rem 0.6rem; border-radius: 999px; font-weight: 700; }
+
+    .mobile-card { border-radius: 12px; padding: 0.75rem 0.85rem; border: 1px solid #f3e3b3; background: #fffdf5; }
+    .mobile-card:nth-child(even) { background: #fef7e0; }
+
+    .fade-in { opacity: 0; transform: translateY(12px); animation: fadeInUp 0.4s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+    .stagger-3 { animation-delay: 0.15s; }
+    .stagger-4 { animation-delay: 0.2s; }
+    .stagger-5 { animation-delay: 0.25s; }
+
+    @media (max-width: 575.98px) {
+        .page-header { padding: 1.1rem; border-radius: 12px; }
+        .page-header h1 { font-size: 1.1rem; }
+        .stat-card { padding: 0.7rem 0.85rem; }
+        .stat-card .stat-number { font-size: 1rem; }
+        .stat-card .stat-icon { width: 36px; height: 36px; font-size: 0.95rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Impôts & Taxes</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-landmark me-2"></i>Impôts & Déclaration des taxes</h1>
+        <p class="mb-0">Définissez une période, exportez le détail des ventes (HT, TVA, TTC) en PDF, puis marquez la période comme déclarée.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#newPeriodeCollapse" aria-expanded="false">
+            <i class="fas fa-plus me-1"></i> Nouvelle période
+        </button>
+    </div>
+  </div>
+</div>
+
+<!-- Indicateurs -->
+<div class="row g-3 mb-4 row-cols-2 row-cols-xl-4">
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-circle-check"></i></div>
+            <div>
+                <div class="stat-number">{{ stats_globales.declarees }}</div>
+                <div class="stat-label">Périodes déclarées</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-2">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e8,#fde0c5);color:#e37400;"><i class="fas fa-hourglass-half"></i></div>
+            <div>
+                <div class="stat-number">{{ stats_globales.en_preparation }}</div>
+                <div class="stat-label">En préparation</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;"><i class="fas fa-percent"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats_globales.tva_declaree).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">TVA déclarée (€)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-4">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-sack-dollar"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(stats_globales.ttc_declare).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">CA TTC déclaré (€)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Nouvelle période -->
+<div class="collapse {% if stats_globales.total == 0 or conflit %}show{% endif %} mb-4" id="newPeriodeCollapse">
+    <div class="card-form fade-in">
+        <div class="card-header-custom"><i class="fas fa-calendar-plus"></i> Définir une période à déclarer</div>
+        <form method="POST" action="{{ url_for('admin.create_declaration_impot') }}" class="p-3 p-sm-4">
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="preset-btn" data-preset="mois">Mois dernier</button>
+                <button type="button" class="preset-btn" data-preset="trimestre">Trimestre dernier</button>
+                <button type="button" class="preset-btn" data-preset="semestre">Semestre dernier</button>
+                <button type="button" class="preset-btn" data-preset="annee">Année dernière</button>
+            </div>
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Début de la période <span class="text-danger">*</span></label>
+                    <input type="date" name="periode_debut" id="periodeDebut" class="form-control form-control-sm" value="{{ request.args.get('periode_debut', '') if conflit else '' }}" required>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Fin de la période <span class="text-danger">*</span></label>
+                    <input type="date" name="periode_fin" id="periodeFin" class="form-control form-control-sm" value="{{ request.args.get('periode_fin', '') if conflit else '' }}" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Note (optionnelle)</label>
+                    <input type="text" name="note" class="form-control form-control-sm" maxlength="300" placeholder="Ex : déclaration TVA T2 2026" value="{{ request.args.get('note', '') if conflit else '' }}">
+                </div>
+                <div class="col-12 col-md-2 d-grid">
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-white" style="background:linear-gradient(135deg,#a5670a,#e3a008);border:none;">
+                        <i class="fas fa-plus me-1"></i> Créer
+                    </button>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>Deux périodes de déclaration ne peuvent pas se chevaucher.</div>
+        </form>
+    </div>
+</div>
+
+<!-- Filtres -->
+<form method="GET" class="card-form mb-4 fade-in stagger-1">
+    <div class="p-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="form-label">Recherche</label>
+                <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Référence, note, auteur...">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Statut</label>
+                <select name="statut" class="form-select form-select-sm">
+                    <option value="">Tous</option>
+                    <option value="en_preparation" {% if request.args.get('statut') == 'en_preparation' %}selected{% endif %}>En préparation</option>
+                    <option value="declaree" {% if request.args.get('statut') == 'declaree' %}selected{% endif %}>Déclarée</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill"><i class="fas fa-filter me-1"></i> Filtrer</button>
+                <a href="{{ url_for('admin.list_declarations_impots') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-rotate-left me-1"></i> Réinitialiser</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Liste : cartes mobiles -->
+<div class="d-md-none fade-in stagger-2" style="display:flex;flex-direction:column;gap:0.6rem;">
+    {% for row in rows %}
+    {% set d = row.declaration %}
+    <a href="{{ url_for('admin.show_declaration_impot', id=d.id) }}" class="mobile-card text-decoration-none text-reset d-block">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold" style="font-size:0.85rem;color:#7a4d00;"><i class="fas fa-file-invoice-dollar me-1"></i>{{ d.reference }}</span>
+            {% if d.est_declaree %}
+            <span class="badge-declaree"><i class="fas fa-check me-1"></i>Déclarée</span>
+            {% else %}
+            <span class="badge-preparation"><i class="fas fa-hourglass-half me-1"></i>En préparation</span>
+            {% endif %}
+        </div>
+        <div class="cell-sub mb-1"><i class="fas fa-calendar me-1"></i>{{ d.periode_label }} · {{ row.totaux.count }} vente(s)</div>
+        <div class="d-flex flex-wrap gap-2" style="font-size:0.72rem;">
+            <span>HT <strong>{{ "{:,.2f}".format(row.totaux.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
+            <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.totaux.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
+            <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.totaux.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+            <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(row.totaux.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
+        </div>
+        {% if d.est_declaree and d.declared_at %}
+        <div class="cell-sub mt-1"><i class="fas fa-user-check me-1"></i>Déclarée le {{ d.declared_at.strftime('%d/%m/%Y') }}{% if d.declared_by %} par {{ d.declared_by.prenom }} {{ d.declared_by.nom }}{% endif %}</div>
+        {% endif %}
+    </a>
+    {% else %}
+    <div class="text-center text-muted py-4 card-form">
+        <i class="fas fa-landmark fa-2x mb-2 d-block" style="color:#e3a008;"></i>
+        Aucune période de déclaration pour le moment.<br>Créez votre première période ci-dessus.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Liste : tableau desktop -->
+<div class="card-form d-none d-md-block fade-in stagger-2">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Référence</th>
+                    <th>Période</th>
+                    <th class="text-center">Ventes</th>
+                    <th class="text-end">HT (€)</th>
+                    <th class="text-end">TVA (€)</th>
+                    <th class="text-end">Bénéfice (€)</th>
+                    <th class="text-end">TTC (€)</th>
+                    <th class="text-center">Statut</th>
+                    <th>Déclarée</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                {% set d = row.declaration %}
+                <tr>
+                    <td class="fw-bold" style="color:#7a4d00;">{{ d.reference }}</td>
+                    <td>
+                        {{ d.periode_label }}
+                        {% if d.note %}<div class="cell-sub text-truncate" style="max-width:200px;" title="{{ d.note }}">{{ d.note }}</div>{% endif %}
+                    </td>
+                    <td class="text-center">{{ row.totaux.count }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(row.totaux.ht).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-tva fw-bold">{{ "{:,.2f}".format(row.totaux.tva).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-benefice">{{ "{:,.2f}".format(row.totaux.benefice).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end fw-bold">{{ "{:,.2f}".format(row.totaux.ttc).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-center">
+                        {% if d.est_declaree %}
+                        <span class="badge-declaree"><i class="fas fa-check me-1"></i>Déclarée</span>
+                        {% else %}
+                        <span class="badge-preparation"><i class="fas fa-hourglass-half me-1"></i>En préparation</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if d.est_declaree and d.declared_at %}
+                        <div style="font-size:0.74rem;">{{ d.declared_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        {% if d.declared_by %}<div class="cell-sub">{{ d.declared_by.prenom }} {{ d.declared_by.nom }}</div>{% endif %}
+                        {% else %}
+                        <span class="cell-sub">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <a href="{{ url_for('admin.show_declaration_impot', id=d.id) }}" class="btn btn-sm btn-outline-primary" title="Détails"><i class="fas fa-eye"></i></a>
+                            <a href="{{ url_for('admin.export_declaration_impot_pdf', id=d.id) }}" class="btn btn-sm btn-outline-danger" title="Exporter en PDF"><i class="fas fa-file-pdf"></i></a>
+                            <a href="{{ url_for('admin.export_declaration_impot_excel', id=d.id) }}" class="btn btn-sm btn-outline-success" title="Exporter en Excel"><i class="fas fa-file-excel"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-4">
+                        <i class="fas fa-landmark fa-2x mb-2 d-block" style="color:#e3a008;"></i>
+                        Aucune période de déclaration pour le moment. Créez votre première période ci-dessus.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if conflit %}
+<!-- Modale de conflit : la période saisie chevauche une déclaration existante -->
+<div class="modal fade" id="chevauchementModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#a81e11,#dc3545);border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Chevauchement de périodes</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3" style="font-size:2.8rem;color:#dc3545;">
+                    <i class="fas fa-calendar-xmark"></i>
+                </div>
+                <p class="mb-2" style="font-size:0.95rem;">
+                    La période
+                    {% if tentative_debut and tentative_fin %}
+                    du <strong>{{ tentative_debut.strftime('%d/%m/%Y') }}</strong> au <strong>{{ tentative_fin.strftime('%d/%m/%Y') }}</strong>
+                    {% else %}
+                    saisie
+                    {% endif %}
+                    chevauche la déclaration <strong style="color:#7a4d00;">{{ conflit.reference }}</strong>
+                    ({{ conflit.periode_label }}),
+                    {% if conflit.est_declaree %}
+                    déjà <span class="fw-bold text-success">marquée comme déclarée</span>.
+                    {% else %}
+                    actuellement <span class="fw-bold" style="color:#e37400;">en préparation</span>.
+                    {% endif %}
+                </p>
+                <p class="small text-muted mb-0">
+                    Deux périodes de déclaration ne peuvent pas se chevaucher : cela déclarerait deux fois les mêmes ventes.
+                    Corrigez les dates, ou consultez la déclaration existante.
+                </p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center pb-4">
+                <a href="{{ url_for('admin.show_declaration_impot', id=conflit.id) }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-eye me-1"></i>Voir {{ conflit.reference }}
+                </a>
+                <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-dismiss="modal" id="btnCorrigerDates">
+                    <i class="fas fa-pen me-1"></i>Corriger les dates
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const debutInput = document.getElementById('periodeDebut');
+    const finInput = document.getElementById('periodeFin');
+
+    {% if conflit %}
+    new bootstrap.Modal(document.getElementById('chevauchementModal')).show();
+    document.getElementById('btnCorrigerDates').addEventListener('click', function() {
+        setTimeout(function() {
+            debutInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            debutInput.focus();
+        }, 300);
+    });
+    {% endif %}
+
+    function toIso(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const now = new Date();
+            let debut, fin;
+            switch (btn.dataset.preset) {
+                case 'mois':
+                    debut = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    fin = new Date(now.getFullYear(), now.getMonth(), 0);
+                    break;
+                case 'trimestre': {
+                    const trimestreActuel = Math.floor(now.getMonth() / 3);
+                    debut = new Date(now.getFullYear(), (trimestreActuel - 1) * 3, 1);
+                    fin = new Date(now.getFullYear(), trimestreActuel * 3, 0);
+                    break;
+                }
+                case 'semestre': {
+                    const semestreActuel = Math.floor(now.getMonth() / 6);
+                    debut = new Date(now.getFullYear(), (semestreActuel - 1) * 6, 1);
+                    fin = new Date(now.getFullYear(), semestreActuel * 6, 0);
+                    break;
+                }
+                case 'annee':
+                    debut = new Date(now.getFullYear() - 1, 0, 1);
+                    fin = new Date(now.getFullYear() - 1, 11, 31);
+                    break;
+            }
+            if (debut && fin) {
+                debutInput.value = toIso(debut);
+                finInput.value = toIso(fin);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

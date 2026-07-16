@@ -19,6 +19,7 @@ Les accès sont déterminés selon une logique de priorité stricte :
 - `gestion_sections` : Accès aux sections de stockage/vente.
 - `gestion_produits` : Accès au catalogue produit.
 - `consultation_salaires` : Accès à la visualisation des informations financières.
+- `module_impots` : Accès au module Impôts (déclaration des taxes par période, export PDF des ventes avec HT/TVA/TTC, marquage des périodes déclarées).
 
 ## Règles d'Affichage (UI/UX)
 - Si un utilisateur n'a pas accès à une fonctionnalité, le bouton ou le menu correspondant **ne doit pas s'afficher** sur son tableau de bord ou dans la barre de navigation.

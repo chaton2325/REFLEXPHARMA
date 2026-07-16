@@ -7,7 +7,7 @@ point d'entree unique utilise par la vue Flask : il capture toute exception pour
 jamais faire planter la conversation, et renvoie {'error': ...} a la place.
 
 Permissions : la liste d'outils envoyee au modele n'est PAS filtree en amont (tous
-les utilisateurs voient les memes 35 outils, ce qui evite au modele d'halluciner un
+les utilisateurs voient la meme liste d'outils, ce qui evite au modele d'halluciner un
 nom d'outil different quand un tool attendu semble manquant, et economise des
 allers-retours). A la place, CHAQUE fonction `tool_*` verifie elle-meme, en tout
 debut d'execution, si l'utilisateur appelant a la permission du module concerne
@@ -34,6 +34,7 @@ from models.groupe_fournisseur import GroupeFournisseur
 from models.client import Client
 from models.groupe_client import GroupeClient
 from models.inventaire import Inventaire, InventaireLigne
+from models.declaration_impot import DeclarationImpot
 from models.user import User
 from models.poste import Poste
 from utils.permissions import FEATURES
@@ -986,6 +987,196 @@ def tool_detail_inventaire(user, recherche=None):
 
 
 # ---------------------------------------------------------------------------
+# Impots / declaration des taxes
+# ---------------------------------------------------------------------------
+
+def _ventes_periode_fiscale(start_dt, end_dt):
+    """Ventes validees sur un intervalle : la meme base que le module Impots de l'application."""
+    return Vente.query.filter(
+        Vente.statut == 'validee',
+        Vente.created_at >= start_dt,
+        Vente.created_at <= end_dt
+    ).order_by(Vente.created_at.asc()).all()
+
+
+def _totaux_fiscaux(ventes):
+    """HT / TVA effective / benefice / TTC agreges en SQL sur les lignes de vente,
+    comme compute_ventes_totals_reels() cote vues (TVA reelle hors marge coefficient)."""
+    numeros = [v.numero_vente for v in ventes]
+    tva_reelle, benefice = 0.0, 0.0
+    if numeros:
+        tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
+        benefice_expr = func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+        tva_sum, benefice_sum = db.session.query(
+            func.coalesce(func.sum(tva_expr), 0.0),
+            func.coalesce(func.sum(benefice_expr), 0.0)
+        ).filter(VenteLigne.numero_vente.in_(numeros)).one()
+        tva_reelle, benefice = float(tva_sum or 0), float(benefice_sum or 0)
+    return {
+        'nombre_ventes': len(ventes),
+        'total_ht': _round2(sum(v.total_ht or 0 for v in ventes)),
+        'total_tva': _round2(tva_reelle),
+        'total_benefice': _round2(benefice),
+        'total_ttc': _round2(sum(v.total_ttc or 0 for v in ventes)),
+    }
+
+
+def _repartition_tva(ventes):
+    numeros = [v.numero_vente for v in ventes]
+    if not numeros:
+        return []
+    tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
+    rows = db.session.query(
+        VenteLigne.tva_pourcentage,
+        func.coalesce(func.sum(VenteLigne.total_ht), 0.0),
+        func.coalesce(func.sum(tva_expr), 0.0)
+    ).filter(
+        VenteLigne.numero_vente.in_(numeros)
+    ).group_by(VenteLigne.tva_pourcentage).order_by(VenteLigne.tva_pourcentage).all()
+    return [
+        {'taux_tva_pourcentage': _round2(taux), 'base_ht': _round2(ht), 'montant_tva': _round2(tva)}
+        for taux, ht, tva in rows
+    ]
+
+
+def _declaration_bornes_dt(declaration):
+    start_dt = datetime.combine(declaration.periode_debut, datetime.min.time())
+    end_dt = datetime.combine(declaration.periode_fin, datetime.max.time())
+    return start_dt, end_dt
+
+
+def _serialize_declaration(declaration):
+    if declaration.est_declaree:
+        totaux = {
+            'nombre_ventes': declaration.nb_ventes,
+            'total_ht': _round2(declaration.total_ht),
+            'total_tva': _round2(declaration.total_tva),
+            'total_benefice': _round2(declaration.total_benefice),
+            'total_ttc': _round2(declaration.total_ttc),
+        }
+    else:
+        start_dt, end_dt = _declaration_bornes_dt(declaration)
+        totaux = _totaux_fiscaux(_ventes_periode_fiscale(start_dt, end_dt))
+    return {
+        'reference': declaration.reference,
+        'periode_debut': declaration.periode_debut.strftime('%Y-%m-%d'),
+        'periode_fin': declaration.periode_fin.strftime('%Y-%m-%d'),
+        'statut': 'declaree' if declaration.est_declaree else 'en_preparation',
+        'note': declaration.note,
+        'totaux_geles_a_la_declaration': declaration.est_declaree,
+        **totaux,
+        'creee_le': declaration.created_at.strftime('%Y-%m-%d %H:%M') if declaration.created_at else None,
+        'creee_par': _inventaire_personne_label(declaration.created_by),
+        'declaree_le': declaration.declared_at.strftime('%Y-%m-%d %H:%M') if declaration.declared_at else None,
+        'declaree_par': _inventaire_personne_label(declaration.declared_by),
+    }
+
+
+def tool_liste_declarations_impots(user, statut=None, limite=10):
+    denied = _check_access(user, 'module_impots')
+    if denied:
+        return denied
+    limite = max(1, min(int(limite or 10), 50))
+    query = DeclarationImpot.query.order_by(DeclarationImpot.periode_debut.desc())
+    statut = (statut or '').strip()
+    if statut:
+        if statut not in ('declaree', 'en_preparation'):
+            raise ValueError("Statut inconnu. Valeurs valides : declaree, en_preparation.")
+        query = query.filter(DeclarationImpot.statut == statut)
+    declarations = query.limit(limite).all()
+    return {
+        'nombre_declarations': len(declarations),
+        'declarations': [_serialize_declaration(d) for d in declarations],
+    }
+
+
+def tool_detail_declaration_impot(user, recherche=None):
+    """Sans recherche : renvoie la declaration la plus recente (par periode). La recherche
+    accepte une reference (ex: IMP-123456, partielle) ou une date AAAA-MM-JJ contenue
+    dans la periode."""
+    denied = _check_access(user, 'module_impots')
+    if denied:
+        return denied
+    recherche = (recherche or '').strip()
+    declaration = None
+    if recherche:
+        try:
+            jour = datetime.strptime(recherche, '%Y-%m-%d').date()
+            declaration = DeclarationImpot.query.filter(
+                DeclarationImpot.periode_debut <= jour,
+                DeclarationImpot.periode_fin >= jour
+            ).order_by(DeclarationImpot.periode_debut.desc()).first()
+        except ValueError:
+            declaration = DeclarationImpot.query.filter(
+                DeclarationImpot.reference.ilike(f'%{recherche}%')
+            ).order_by(DeclarationImpot.periode_debut.desc()).first()
+    else:
+        declaration = DeclarationImpot.query.order_by(DeclarationImpot.periode_debut.desc()).first()
+
+    if not declaration:
+        return {'trouve': False, 'message': "Aucune declaration d'impots trouvee."}
+
+    start_dt, end_dt = _declaration_bornes_dt(declaration)
+    ventes = _ventes_periode_fiscale(start_dt, end_dt)
+    return {
+        'trouve': True,
+        **_serialize_declaration(declaration),
+        'repartition_par_taux_tva': _repartition_tva(ventes),
+        'ventes': [
+            {
+                'numero_vente': v.numero_vente,
+                'date': v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else None,
+                'client': v.client_label,
+                'total_ht': _round2(v.total_ht),
+                'total_ttc': _round2(v.total_ttc),
+            }
+            for v in ventes[:30]
+        ],
+        'ventes_tronquees': len(ventes) > 30,
+    }
+
+
+def tool_taxes_a_declarer_periode(user, periode='mois_dernier', date_debut=None, date_fin=None):
+    """Montants fiscaux (HT, TVA par taux, TTC) sur une periode quelconque + verification
+    de la couverture de cette periode par les declarations existantes."""
+    denied = _check_access(user, 'module_impots')
+    if denied:
+        return denied
+    start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+    ventes = _ventes_periode_fiscale(start_dt, end_dt)
+
+    declarations = DeclarationImpot.query.filter(
+        DeclarationImpot.periode_debut <= end_dt.date(),
+        DeclarationImpot.periode_fin >= start_dt.date()
+    ).order_by(DeclarationImpot.periode_debut.asc()).all()
+
+    periode_couverte_et_declaree = any(
+        d.est_declaree and d.periode_debut <= start_dt.date() and d.periode_fin >= end_dt.date()
+        for d in declarations
+    )
+
+    return {
+        'periode': label,
+        'date_debut': start_dt.strftime('%Y-%m-%d'),
+        'date_fin': end_dt.strftime('%Y-%m-%d'),
+        **_totaux_fiscaux(ventes),
+        'repartition_par_taux_tva': _repartition_tva(ventes),
+        'periode_entierement_couverte_par_une_declaration_marquee_declaree': periode_couverte_et_declaree,
+        'declarations_chevauchant_la_periode': [
+            {
+                'reference': d.reference,
+                'periode_debut': d.periode_debut.strftime('%Y-%m-%d'),
+                'periode_fin': d.periode_fin.strftime('%Y-%m-%d'),
+                'statut': 'declaree' if d.est_declaree else 'en_preparation',
+                'declaree_le': d.declared_at.strftime('%Y-%m-%d %H:%M') if d.declared_at else None,
+                'declaree_par': _inventaire_personne_label(d.declared_by),
+            }
+            for d in declarations
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Employes / equipe / permissions
 # ---------------------------------------------------------------------------
 
@@ -1266,6 +1457,9 @@ TOOL_FUNCTIONS = {
     'solde_total_clients_et_groupes': tool_solde_total_clients_et_groupes,
     'liste_inventaires': tool_liste_inventaires,
     'detail_inventaire': tool_detail_inventaire,
+    'liste_declarations_impots': tool_liste_declarations_impots,
+    'detail_declaration_impot': tool_detail_declaration_impot,
+    'taxes_a_declarer_periode': tool_taxes_a_declarer_periode,
     'nombre_employes': tool_nombre_employes,
     'liste_employes': tool_liste_employes,
     'employes_par_poste': tool_employes_par_poste,
@@ -1746,6 +1940,73 @@ AI_TOOLS = [
                 'properties': {
                     'recherche': {'type': 'string', 'description': "Titre de l'inventaire recherche (recherche partielle, texte uniquement). Laisser vide pour l'inventaire en cours / le plus recent."},
                 },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'liste_declarations_impots',
+            'description': (
+                "Liste les periodes de declaration des taxes du module Impots (reference IMP-xxxxxx, "
+                "periode debut/fin, statut declaree ou en_preparation, totaux HT/TVA/benefice/TTC, qui a "
+                "declare et quand), de la plus recente a la plus ancienne. A utiliser pour 'liste des "
+                "declarations d'impots', 'quelles periodes ont ete declarees', 'quand a-t-on declare "
+                "les taxes pour la derniere fois', 'y a-t-il une declaration en preparation'. Les totaux "
+                "d'une periode declaree sont geles au moment de la declaration ; ceux d'une periode en "
+                "preparation sont recalcules en direct."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'statut': {'type': 'string', 'enum': ['declaree', 'en_preparation'], 'description': "Filtre optionnel sur le statut. Laisser vide pour toutes les declarations."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum de declarations a retourner (defaut 10, max 50)."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'detail_declaration_impot',
+            'description': (
+                "Donne le detail complet d'une declaration d'impots : periode, statut, totaux HT/TVA/"
+                "benefice/TTC, repartition de la TVA par taux (l'information cle pour remplir la "
+                "declaration fiscale), auteur, date de declaration, et la liste des ventes incluses. "
+                "Sans parametre 'recherche', renvoie la declaration la plus recente. Pour generer un PDF "
+                "de ce rapport, appelle d'abord cet outil puis generer_rapport_pdf avec les donnees "
+                "obtenues (l'export PDF officiel reste disponible dans le module Impots de l'application)."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Reference de la declaration (ex: IMP-123456, recherche partielle) OU une date AAAA-MM-JJ contenue dans la periode recherchee. Laisser vide pour la declaration la plus recente."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'taxes_a_declarer_periode',
+            'description': (
+                "Calcule les montants fiscaux d'une periode quelconque (meme sans declaration creee) : "
+                "total HT, TVA effective, benefice, TTC et repartition de la TVA par taux, sur les ventes "
+                "validees. Indique aussi si cette periode est deja couverte par une declaration marquee "
+                "declaree, et liste les declarations qui la chevauchent. A utiliser pour 'combien de TVA "
+                "dois-je declarer pour juin', 'est-ce que les impots de ce trimestre ont ete declares', "
+                "'montant des taxes a declarer ce mois-ci'. Pour creer ou marquer une declaration, "
+                "l'utilisateur doit passer par le module Impots de l'application (toi tu ne peux que "
+                "consulter)."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': _PERIODE_DESC},
+                    'date_debut': {'type': 'string', 'description': "Date de debut AAAA-MM-JJ, uniquement si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "Date de fin AAAA-MM-JJ, uniquement si periode='personnalise'."},
+                },
+                'required': ['periode'],
             },
         },
     },

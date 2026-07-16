@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+
+{% block title %}Déclaration {{ declaration.reference }} - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #fffbf2 !important; }
+
+    .page-header {
+        /* Cercle décoratif en radial-gradient (rogné par le border-radius) plutôt qu'en
+           ::before + overflow:hidden, qui coupait le menu déroulant Exporter. */
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #7a4d00 0%, #e3a008 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.35rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+    .page-header .btn-light { color: #7a4d00; font-weight: 600; border-radius: 10px; font-size: 0.85rem; position: relative; z-index: 1; }
+    .page-header .btn { position: relative; z-index: 1; }
+
+    .status-banner {
+        border-radius: 14px;
+        padding: 0.9rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.85rem;
+        color: #fff;
+    }
+    .status-banner-declaree { background: linear-gradient(135deg, #14652c 0%, #28a745 100%); }
+    .status-banner-preparation { background: linear-gradient(135deg, #e37400 0%, #f5a623 100%); }
+    .status-banner-icon {
+        width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.18);
+        display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
+    }
+    .status-banner-info { flex: 1; min-width: 200px; }
+    .status-banner-title { font-weight: 700; font-size: 0.92rem; }
+    .status-banner-sub { font-size: 0.78rem; color: rgba(255,255,255,0.85); margin-top: 0.1rem; }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; }
+    .stat-card .stat-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.15rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.66rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .card-custom { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); overflow: hidden; }
+    .card-custom .card-header-custom {
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 0.85rem 1.25rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e);
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 0.5rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.45rem 0.65rem; vertical-align: middle; font-size: 0.78rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fffdf5; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #fef7e0; }
+    .table-custom tfoot td { background: #fdeecb; font-weight: 700; font-size: 0.78rem; padding: 0.55rem 0.65rem; color: #7a4d00; }
+    .amount-benefice { color: #1e8e3e; }
+    .amount-tva { color: #a5670a; }
+    .cell-sub { font-size: 0.68rem; color: #7a8896; }
+
+    .mobile-card { border-radius: 12px; padding: 0.7rem 0.8rem; border: 1px solid #f3e3b3; background: #fffdf5; }
+    .mobile-card:nth-child(even) { background: #fef7e0; }
+
+    .tva-rate-pill { background: #fef7e0; border: 1px solid #e3a008; color: #a5670a; font-weight: 700; font-size: 0.72rem; padding: 0.2rem 0.65rem; border-radius: 999px; }
+
+    .fade-in { opacity: 0; transform: translateY(12px); animation: fadeInUp 0.4s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+    .stagger-3 { animation-delay: 0.15s; }
+    .stagger-4 { animation-delay: 0.2s; }
+
+    @media (max-width: 575.98px) {
+        .page-header { padding: 1.1rem; border-radius: 12px; }
+        .page-header h1 { font-size: 1.05rem; }
+        .stat-card { padding: 0.7rem 0.85rem; }
+        .stat-card .stat-number { font-size: 0.95rem; }
+        .stat-card .stat-icon { width: 34px; height: 34px; font-size: 0.9rem; }
+        .status-banner { padding: 0.75rem 1rem; border-radius: 12px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.list_declarations_impots') }}">Impôts & Taxes</a></li>
+                <li class="breadcrumb-item active">{{ declaration.reference }}</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-file-invoice-dollar me-2"></i>Déclaration {{ declaration.reference }}</h1>
+        <p class="mb-0">Période du {{ declaration.periode_label }}{% if declaration.note %} — {{ declaration.note }}{% endif %}</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <div class="dropdown">
+            <button class="btn btn-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-1"></i> Exporter
+            </button>
+            <ul class="dropdown-menu shadow border-0">
+                <li><a class="dropdown-item" href="{{ url_for('admin.export_declaration_impot_pdf', id=declaration.id) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>Format PDF</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('admin.export_declaration_impot_excel', id=declaration.id) }}"><i class="fas fa-file-excel me-2 text-success"></i>Format Excel</a></li>
+            </ul>
+        </div>
+        {% if not declaration.est_declaree %}
+        <button type="button" class="btn btn-success btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#declarerModal">
+            <i class="fas fa-stamp me-1"></i> Marquer comme déclarée
+        </button>
+        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="fas fa-trash me-1"></i> Supprimer
+        </button>
+        {% else %}
+        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#rouvrirModal">
+            <i class="fas fa-rotate-left me-1"></i> Rouvrir
+        </button>
+        {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if declaration.est_declaree %}
+<div class="status-banner status-banner-declaree fade-in">
+    <div class="status-banner-icon"><i class="fas fa-circle-check"></i></div>
+    <div class="status-banner-info">
+        <div class="status-banner-title">Période déclarée</div>
+        <div class="status-banner-sub">
+            Marquée comme déclarée le {{ declaration.declared_at.strftime('%d/%m/%Y à %H:%M') if declaration.declared_at else '-' }}
+            {% if declaration.declared_by %} par {{ declaration.declared_by.prenom }} {{ declaration.declared_by.nom }}{% endif %}.
+            Les totaux ci-dessous ont été gelés à ce moment.
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="status-banner status-banner-preparation fade-in">
+    <div class="status-banner-icon"><i class="fas fa-hourglass-half"></i></div>
+    <div class="status-banner-info">
+        <div class="status-banner-title">Déclaration en préparation</div>
+        <div class="status-banner-sub">
+            Vérifiez le récapitulatif et exportez le PDF pour votre déclaration, puis marquez la période comme déclarée pour geler les totaux.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Récapitulatif -->
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-3 row-cols-xl-5">
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-receipt"></i></div>
+            <div>
+                <div class="stat-number">{{ summary.count }}</div>
+                <div class="stat-label">Ventes incluses</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;"><i class="fas fa-file-invoice"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(summary.ht).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Total HT (€)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-2">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;"><i class="fas fa-percent"></i></div>
+            <div>
+                <div class="stat-number amount-tva">{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">TVA effective (€)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-2">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
+            <div>
+                <div class="stat-number amount-benefice">{{ "{:,.2f}".format(summary.benefice).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Bénéfice (€)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;"><i class="fas fa-sack-dollar"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Total TTC (€)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if declaration.est_declaree %}
+{% set ecart = (summary.tva - declaration.total_tva)|abs + (summary.ttc - declaration.total_ttc)|abs %}
+{% if ecart > 0.01 %}
+<div class="alert alert-warning fade-in">
+    <i class="fas fa-triangle-exclamation me-2"></i>
+    Attention : les ventes recalculées aujourd'hui diffèrent des totaux gelés lors de la déclaration
+    (TVA gelée : {{ "{:,.2f}".format(declaration.total_tva).replace(',', ' ').replace('.', ',') }} € ·
+    TTC gelé : {{ "{:,.2f}".format(declaration.total_ttc).replace(',', ' ').replace('.', ',') }} €).
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Répartition par taux de TVA -->
+<div class="card-custom mb-4 fade-in stagger-3">
+    <div class="card-header-custom"><i class="fas fa-percent" style="color:#a5670a;"></i> Répartition par taux de TVA</div>
+
+    <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for row in tva_breakdown %}
+        <div class="mobile-card d-flex justify-content-between align-items-center">
+            <span class="tva-rate-pill">{{ "%.2f"|format(row.taux) }} %</span>
+            <div class="text-end" style="font-size:0.74rem;">
+                <div>Base HT <strong>{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</strong></div>
+                <div class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</strong></div>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3">Aucune vente sur la période.</div>
+        {% endfor %}
+    </div>
+
+    <div class="table-responsive d-none d-sm-block">
+        <table class="table table-custom mb-0">
+            <thead>
+                <tr>
+                    <th>Taux de TVA</th>
+                    <th class="text-end">Base HT (€)</th>
+                    <th class="text-end">Montant TVA (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in tva_breakdown %}
+                <tr>
+                    <td><span class="tva-rate-pill">{{ "%.2f"|format(row.taux) }} %</span></td>
+                    <td class="text-end">{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-tva fw-bold">{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" class="text-center text-muted py-3">Aucune vente sur la période.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Détail des ventes -->
+<div class="card-custom mb-4 fade-in stagger-4">
+    <div class="card-header-custom">
+        <i class="fas fa-cash-register" style="color:#1a73e8;"></i> Ventes de la période ({{ summary.count }})
+    </div>
+
+    <div class="d-lg-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for vente in ventes %}
+        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="mobile-card text-decoration-none text-reset d-block">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold" style="font-size:0.8rem;">{{ vente.numero_vente }}</span>
+                <span class="cell-sub">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</span>
+            </div>
+            <div class="cell-sub mb-1">{{ vente.client_label }} · {{ (vente.mode_paiement or '-').replace('_', ' ') }}</div>
+            <div class="d-flex flex-wrap gap-2" style="font-size:0.72rem;">
+                <span>HT <strong>{{ "{:,.2f}".format(vente.total_ht or 0).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(vente.total_tva_reelle).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(vente.total_benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(vente.total_ttc or 0).replace(',', ' ').replace('.', ',') }}</strong></span>
+            </div>
+        </a>
+        {% else %}
+        <div class="text-center text-muted py-3">Aucune vente validée sur cette période.</div>
+        {% endfor %}
+    </div>
+
+    <div class="table-responsive d-none d-lg-block">
+        <table class="table table-custom mb-0">
+            <thead>
+                <tr>
+                    <th>N° vente</th>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th>Employé</th>
+                    <th>Mode paiement</th>
+                    <th class="text-end">HT (€)</th>
+                    <th class="text-end">TVA (€)</th>
+                    <th class="text-end">Bénéfice (€)</th>
+                    <th class="text-end">TTC (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vente in ventes %}
+                <tr>
+                    <td><a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="text-decoration-none fw-bold">{{ vente.numero_vente }}</a></td>
+                    <td>{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</td>
+                    <td>{{ vente.client_label }}</td>
+                    <td>{{ (vente.auteur_prenom or '') ~ ' ' ~ (vente.auteur_nom or '') }}</td>
+                    <td class="text-capitalize">{{ (vente.mode_paiement or '-').replace('_', ' ') }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(vente.total_ht or 0).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-tva">{{ "{:,.2f}".format(vente.total_tva_reelle).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end amount-benefice">{{ "{:,.2f}".format(vente.total_benefice).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end fw-bold">{{ "{:,.2f}".format(vente.total_ttc or 0).replace(',', ' ').replace('.', ',') }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-4">Aucune vente validée sur cette période.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if ventes %}
+            <tfoot>
+                <tr>
+                    <td colspan="5">TOTAL</td>
+                    <td class="text-end">{{ "{:,.2f}".format(summary.ht).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(summary.benefice).replace(',', ' ').replace('.', ',') }}</td>
+                    <td class="text-end">{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<div class="text-muted small mb-4 fade-in stagger-4">
+    <i class="fas fa-circle-info me-1"></i>
+    Créée le {{ declaration.created_at.strftime('%d/%m/%Y %H:%M') }}{% if declaration.created_by %} par {{ declaration.created_by.prenom }} {{ declaration.created_by.nom }}{% endif %}.
+</div>
+
+{% if not declaration.est_declaree %}
+<!-- Modal : marquer comme déclarée -->
+<div class="modal fade" id="declarerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#14652c,#28a745);border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="fas fa-stamp me-2"></i>Marquer comme déclarée</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Confirmez-vous que les taxes de la période <strong>{{ declaration.periode_label }}</strong> ont été déclarées ?</p>
+                <ul class="small text-muted mb-0">
+                    <li>{{ summary.count }} vente(s) — TVA : <strong>{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }} €</strong> — TTC : <strong>{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }} €</strong></li>
+                    <li>Les totaux seront gelés avec la date et votre nom.</li>
+                    <li>Vous pourrez rouvrir la période en cas d'erreur.</li>
+                </ul>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.declarer_impot', id=declaration.id) }}">
+                    <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="fas fa-check me-1"></i>Oui, la période est déclarée</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal : suppression -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#a81e11,#dc3545);border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Supprimer la déclaration</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Supprimer la déclaration <strong>{{ declaration.reference }}</strong> ({{ declaration.periode_label }}) ? Les ventes ne sont pas affectées, seule la période de déclaration est supprimée.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.delete_declaration_impot', id=declaration.id) }}">
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold"><i class="fas fa-trash me-1"></i>Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Modal : rouvrir -->
+<div class="modal fade" id="rouvrirModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#e37400,#f5a623);border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="fas fa-rotate-left me-2"></i>Rouvrir la période</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Rouvrir la déclaration <strong>{{ declaration.reference }}</strong> ? Elle ne sera plus marquée comme déclarée et les totaux seront recalculés en direct.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.rouvrir_declaration_impot', id=declaration.id) }}">
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-white"><i class="fas fa-rotate-left me-1"></i>Rouvrir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

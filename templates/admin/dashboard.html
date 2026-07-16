@@ -550,6 +550,19 @@
     </div>
   </div>
   {% endif %}
+
+  {% if current_user.has_permission('module_impots') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;">
+        <i class="fas fa-landmark"></i>
+      </div>
+      <h5>Impôts & Taxes</h5>
+      <p>Déclarez les taxes par période : export PDF des ventes (HT, TVA, TTC) et suivi des périodes déclarées.</p>
+      <a href="{{ url_for('admin.list_declarations_impots') }}" class="btn btn-outline-warning" style="border-color:#a5670a;color:#a5670a;">Ouvrir le module</a>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 {% if planned_inventaire %}

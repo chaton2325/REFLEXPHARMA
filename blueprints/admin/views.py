@@ -25,6 +25,7 @@ from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
+from models.declaration_impot import DeclarationImpot
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta
@@ -4594,7 +4595,8 @@ def build_assistant_system_prompt():
     date_str = f"{_JOURS_FR[today.weekday()]} {today.day} {_MOIS_FR[today.month - 1]} {today.year}"
     return (
         "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
-        "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques). "
+        "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques, "
+        "déclarations d'impôts/taxes). "
         f"Nous sommes le {date_str}. "
         "Tu aides le personnel de la pharmacie de deux façons : "
         "1) l'utilisation du logiciel (où trouver une fonctionnalité, comment faire une action, comprendre un chiffre affiché) ; "
@@ -5368,3 +5370,422 @@ def export_rapport_inventaire_pdf(id):
     return send_file(output, download_name=f"rapport_inv_{id}.pdf", as_attachment=True)
 
 
+
+
+# --- MODULE IMPOTS (DECLARATION DES TAXES) ---
+
+def generate_reference_declaration():
+    while True:
+        suffix = ''.join(secrets.choice('0123456789') for _ in range(6))
+        reference = f'IMP-{suffix}'
+        if not DeclarationImpot.query.filter_by(reference=reference).first():
+            return reference
+
+def get_ventes_declaration(declaration):
+    """Ventes validees comprises dans la periode de la declaration (bornes incluses)."""
+    debut_dt = datetime(declaration.periode_debut.year, declaration.periode_debut.month, declaration.periode_debut.day)
+    fin_dt = datetime(declaration.periode_fin.year, declaration.periode_fin.month, declaration.periode_fin.day, 23, 59, 59)
+    return Vente.query.filter(
+        Vente.statut == 'validee',
+        Vente.created_at >= debut_dt,
+        Vente.created_at <= fin_dt
+    ).order_by(Vente.created_at.asc()).all()
+
+def compute_impots_summary(ventes):
+    totals_reels = compute_ventes_totals_reels(ventes)
+    return {
+        'count': len(ventes),
+        'ht': sum(money_value(v.total_ht) for v in ventes),
+        'tva': totals_reels['tva_reelle'],
+        'benefice': totals_reels['benefice'],
+        'ttc': sum(money_value(v.total_ttc) for v in ventes)
+    }
+
+def declaration_totaux_affiches(declaration):
+    """Totaux a afficher : geles si la periode est declaree, recalcules en direct sinon."""
+    if declaration.est_declaree:
+        return {
+            'count': declaration.nb_ventes,
+            'ht': declaration.total_ht,
+            'tva': declaration.total_tva,
+            'benefice': declaration.total_benefice,
+            'ttc': declaration.total_ttc
+        }
+    return compute_impots_summary(get_ventes_declaration(declaration))
+
+@admin.route('/impots')
+@login_required
+@permission_required('module_impots')
+def list_declarations_impots():
+    declarations = DeclarationImpot.query.order_by(DeclarationImpot.periode_debut.desc()).all()
+
+    query = (request.args.get('q') or '').strip().lower()
+    statut = (request.args.get('statut') or '').strip()
+    if query:
+        declarations = [
+            d for d in declarations
+            if query in ' '.join([
+                d.reference or '',
+                d.note or '',
+                d.periode_label,
+                (d.created_by.prenom + ' ' + d.created_by.nom) if d.created_by else '',
+                (d.declared_by.prenom + ' ' + d.declared_by.nom) if d.declared_by else ''
+            ]).lower()
+        ]
+    if statut:
+        declarations = [d for d in declarations if d.statut == statut]
+
+    rows = [{'declaration': d, 'totaux': declaration_totaux_affiches(d)} for d in declarations]
+
+    # Conflit de chevauchement renvoye par create_declaration_impot (affiche en modale)
+    conflit_ref = (request.args.get('chevauchement') or '').strip()
+    conflit = DeclarationImpot.query.filter_by(reference=conflit_ref).first() if conflit_ref else None
+    tentative_debut = parse_date_filter((request.args.get('periode_debut') or '').strip())
+    tentative_fin = parse_date_filter((request.args.get('periode_fin') or '').strip())
+
+    toutes = DeclarationImpot.query.all()
+    declarees = [d for d in toutes if d.est_declaree]
+    stats_globales = {
+        'total': len(toutes),
+        'declarees': len(declarees),
+        'en_preparation': len(toutes) - len(declarees),
+        'tva_declaree': sum(money_value(d.total_tva) for d in declarees),
+        'ttc_declare': sum(money_value(d.total_ttc) for d in declarees)
+    }
+
+    return render_template(
+        'admin/impots/list.html',
+        rows=rows,
+        stats_globales=stats_globales,
+        conflit=conflit,
+        tentative_debut=tentative_debut,
+        tentative_fin=tentative_fin
+    )
+
+@admin.route('/impots/create', methods=['POST'])
+@login_required
+@permission_required('module_impots')
+def create_declaration_impot():
+    date_debut = parse_date_filter((request.form.get('periode_debut') or '').strip())
+    date_fin = parse_date_filter((request.form.get('periode_fin') or '').strip())
+    note = (request.form.get('note') or '').strip() or None
+
+    if not date_debut or not date_fin:
+        flash("Veuillez renseigner les deux dates de la période à déclarer.", "danger")
+        return redirect(url_for('admin.list_declarations_impots'))
+    if date_debut > date_fin:
+        flash("La date de début doit être antérieure ou égale à la date de fin.", "danger")
+        return redirect(url_for('admin.list_declarations_impots'))
+
+    chevauchement = DeclarationImpot.query.filter(
+        DeclarationImpot.periode_debut <= date_fin,
+        DeclarationImpot.periode_fin >= date_debut
+    ).first()
+    if chevauchement:
+        # Affiche sur la page liste une modale de conflit bien visible, avec la saisie
+        # conservee dans le formulaire pour correction.
+        params = {
+            'chevauchement': chevauchement.reference,
+            'periode_debut': date_debut.isoformat(),
+            'periode_fin': date_fin.isoformat(),
+        }
+        if note:
+            params['note'] = note
+        return redirect(url_for('admin.list_declarations_impots', **params))
+
+    declaration = DeclarationImpot(
+        reference=generate_reference_declaration(),
+        periode_debut=date_debut,
+        periode_fin=date_fin,
+        note=note,
+        created_by_id=current_user.id
+    )
+    db.session.add(declaration)
+    db.session.commit()
+    flash(f"Période de déclaration {declaration.reference} créée. Vérifiez le récapitulatif puis exportez le PDF.", "success")
+    return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+
+@admin.route('/impots/<int:id>')
+@login_required
+@permission_required('module_impots')
+def show_declaration_impot(id):
+    declaration = DeclarationImpot.query.get_or_404(id)
+    ventes = get_ventes_declaration(declaration)
+    summary = compute_impots_summary(ventes)
+    tva_breakdown = compute_tva_breakdown(ventes)
+    return render_template(
+        'admin/impots/show.html',
+        declaration=declaration,
+        ventes=ventes,
+        summary=summary,
+        tva_breakdown=tva_breakdown
+    )
+
+@admin.route('/impots/<int:id>/declarer', methods=['POST'])
+@login_required
+@permission_required('module_impots')
+def declarer_impot(id):
+    declaration = DeclarationImpot.query.get_or_404(id)
+    if declaration.est_declaree:
+        flash("Cette période est déjà marquée comme déclarée.", "warning")
+        return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+
+    summary = compute_impots_summary(get_ventes_declaration(declaration))
+    declaration.statut = 'declaree'
+    declaration.nb_ventes = summary['count']
+    declaration.total_ht = summary['ht']
+    declaration.total_tva = summary['tva']
+    declaration.total_benefice = summary['benefice']
+    declaration.total_ttc = summary['ttc']
+    declaration.declared_at = datetime.utcnow()
+    declaration.declared_by_id = current_user.id
+    db.session.commit()
+    flash(f"La période {declaration.periode_label} est marquée comme déclarée. Les totaux sont gelés.", "success")
+    return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+
+@admin.route('/impots/<int:id>/rouvrir', methods=['POST'])
+@login_required
+@permission_required('module_impots')
+def rouvrir_declaration_impot(id):
+    declaration = DeclarationImpot.query.get_or_404(id)
+    if not declaration.est_declaree:
+        flash("Cette période n'est pas encore déclarée.", "warning")
+        return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+    declaration.statut = 'en_preparation'
+    declaration.declared_at = None
+    declaration.declared_by_id = None
+    db.session.commit()
+    flash(f"La déclaration {declaration.reference} a été rouverte : elle n'est plus marquée comme déclarée.", "info")
+    return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+
+@admin.route('/impots/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('module_impots')
+def delete_declaration_impot(id):
+    declaration = DeclarationImpot.query.get_or_404(id)
+    if declaration.est_declaree:
+        flash("Impossible de supprimer une période déjà déclarée. Rouvrez-la d'abord.", "danger")
+        return redirect(url_for('admin.show_declaration_impot', id=declaration.id))
+    reference = declaration.reference
+    db.session.delete(declaration)
+    db.session.commit()
+    flash(f"La déclaration {reference} a été supprimée.", "success")
+    return redirect(url_for('admin.list_declarations_impots'))
+
+@admin.route('/impots/<int:id>/export/pdf')
+@login_required
+@permission_required('module_impots')
+def export_declaration_impot_pdf(id):
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    declaration = DeclarationImpot.query.get_or_404(id)
+    ventes = get_ventes_declaration(declaration)
+    summary = compute_impots_summary(ventes)
+    tva_breakdown = compute_tva_breakdown(ventes)
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    generated_at = datetime.now()
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=20, bottomMargin=20, leftMargin=20, rightMargin=20)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=7.5, leading=10))
+    styles.add(ParagraphStyle('Cell', parent=styles['Normal'], fontSize=6.5, leading=8))
+
+    statut_label = 'DÉCLARÉE' if declaration.est_declaree else 'EN PRÉPARATION'
+    elements = [
+        Paragraph(f'Déclaration des taxes - {pharmacy_name}', styles['Title']),
+        Paragraph(
+            f'Référence : {declaration.reference} | Période : {declaration.periode_label} | Statut : {statut_label}',
+            styles['Small']
+        ),
+        Paragraph(
+            f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tiré par : {current_user.nom} {current_user.prenom} | Ventes incluses : {summary["count"]}',
+            styles['Small']
+        )
+    ]
+    if declaration.est_declaree and declaration.declared_at:
+        declarant = f'{declaration.declared_by.prenom} {declaration.declared_by.nom}' if declaration.declared_by else '-'
+        elements.append(Paragraph(
+            f'Période marquée comme déclarée le {declaration.declared_at.strftime("%d/%m/%Y %H:%M")} par {declarant}.',
+            styles['Small']
+        ))
+    if declaration.note:
+        elements.append(Paragraph(f'Note : {declaration.note}', styles['Small']))
+    elements.append(Spacer(1, 10))
+
+    elements.append(Paragraph('Récapitulatif de la période', styles['Heading3']))
+    recap = [
+        ['Nombre de ventes', 'Total HT (€)', 'TVA effective (€)', 'Bénéfice (€)', 'Total TTC (€)'],
+        [
+            summary['count'],
+            f"{summary['ht']:.2f}",
+            f"{summary['tva']:.2f}",
+            f"{summary['benefice']:.2f}",
+            f"{summary['ttc']:.2f}"
+        ]
+    ]
+    elements.append(Table(recap, colWidths=[150, 150, 150, 150, 150], style=[
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#a5670a')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+    ]))
+    elements.append(Spacer(1, 10))
+
+    elements.append(Paragraph('Répartition par taux de TVA', styles['Heading3']))
+    tva_data = [['Taux de TVA (%)', 'Base HT (€)', 'Montant TVA (€)']]
+    for row in tva_breakdown:
+        tva_data.append([f"{row['taux']:.2f}", f"{row['ht']:.2f}", f"{row['tva']:.2f}"])
+    if not tva_breakdown:
+        tva_data.append(['-', '0.00', '0.00'])
+    elements.append(Table(tva_data, colWidths=[150, 200, 200], repeatRows=1, style=[
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#374151')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+    ]))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph('Détail de toutes les ventes de la période', styles['Heading3']))
+    data = [['N° vente', 'Date', 'Client', 'Employé', 'Mode paiement', 'HT (€)', 'TVA (€)', 'Bénéfice (€)', 'TTC (€)']]
+    for vente in ventes:
+        data.append([
+            Paragraph(vente.numero_vente or '-', styles['Cell']),
+            vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-',
+            Paragraph(vente.client_label, styles['Cell']),
+            Paragraph(sale_employee_label(vente), styles['Cell']),
+            (vente.mode_paiement or '-').replace('_', ' '),
+            f"{money_value(vente.total_ht):.2f}",
+            f"{vente.total_tva_reelle:.2f}",
+            f"{vente.total_benefice:.2f}",
+            f"{money_value(vente.total_ttc):.2f}"
+        ])
+    if not ventes:
+        data.append(['Aucune vente sur la période', '', '', '', '', '', '', '', ''])
+    data.append([
+        'TOTAL', '', '', '', '',
+        f"{summary['ht']:.2f}",
+        f"{summary['tva']:.2f}",
+        f"{summary['benefice']:.2f}",
+        f"{summary['ttc']:.2f}"
+    ])
+    table = Table(data, repeatRows=1, colWidths=[95, 75, 120, 110, 75, 70, 70, 70, 70])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 6.5),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (5, 0), (-1, -1), 'RIGHT'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#fef7e0')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    output.seek(0)
+    filename = f'declaration_impots_{declaration.reference}_{declaration.periode_debut.strftime("%Y%m%d")}_{declaration.periode_fin.strftime("%Y%m%d")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/impots/<int:id>/export/excel')
+@login_required
+@permission_required('module_impots')
+def export_declaration_impot_excel(id):
+    import io
+    import pandas as pd
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    declaration = DeclarationImpot.query.get_or_404(id)
+    ventes = get_ventes_declaration(declaration)
+    summary = compute_impots_summary(ventes)
+    tva_breakdown = compute_tva_breakdown(ventes)
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    generated_at = datetime.now()
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        synth_rows = [
+            {'Indicateur': 'Nombre de ventes', 'Valeur': summary['count']},
+            {'Indicateur': 'Total HT (€)', 'Valeur': round(summary['ht'], 2)},
+            {'Indicateur': 'TVA effective (€)', 'Valeur': round(summary['tva'], 2)},
+            {'Indicateur': 'Bénéfice (€)', 'Valeur': round(summary['benefice'], 2)},
+            {'Indicateur': 'Total TTC (€)', 'Valeur': round(summary['ttc'], 2)},
+        ]
+        pd.DataFrame(synth_rows).to_excel(writer, index=False, sheet_name='Synthese', startrow=7)
+
+        tva_rows = [
+            {'Taux de TVA (%)': row['taux'], 'Base HT (€)': round(row['ht'], 2), 'Montant TVA (€)': round(row['tva'], 2)}
+            for row in tva_breakdown
+        ] or [{'Taux de TVA (%)': '-', 'Base HT (€)': 0.0, 'Montant TVA (€)': 0.0}]
+        pd.DataFrame(tva_rows).to_excel(writer, index=False, sheet_name='TVA par taux')
+
+        vente_rows = [
+            {
+                'N° vente': vente.numero_vente or '-',
+                'Date': vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-',
+                'Client': vente.client_label,
+                'Employé': sale_employee_label(vente),
+                'Mode paiement': (vente.mode_paiement or '-').replace('_', ' '),
+                'HT (€)': round(money_value(vente.total_ht), 2),
+                'TVA (€)': round(vente.total_tva_reelle, 2),
+                'Bénéfice (€)': round(vente.total_benefice, 2),
+                'TTC (€)': round(money_value(vente.total_ttc), 2),
+            }
+            for vente in ventes
+        ]
+        vente_rows.append({
+            'N° vente': 'TOTAL',
+            'Date': '',
+            'Client': '',
+            'Employé': '',
+            'Mode paiement': '',
+            'HT (€)': round(summary['ht'], 2),
+            'TVA (€)': round(summary['tva'], 2),
+            'Bénéfice (€)': round(summary['benefice'], 2),
+            'TTC (€)': round(summary['ttc'], 2),
+        })
+        pd.DataFrame(vente_rows).to_excel(writer, index=False, sheet_name='Ventes')
+
+        for sheet_name, worksheet in writer.sheets.items():
+            worksheet.freeze_panes = 'A9' if sheet_name == 'Synthese' else 'A2'
+            worksheet.column_dimensions['A'].width = 24
+            for column in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']:
+                worksheet.column_dimensions[column].width = 18
+            header_row = 8 if sheet_name == 'Synthese' else 1
+            for cell in worksheet[header_row]:
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill(start_color='A5670A', end_color='A5670A', fill_type='solid')
+                cell.alignment = Alignment(horizontal='center')
+            for row in worksheet.iter_rows(min_row=header_row + 1):
+                for cell in row:
+                    cell.border = Border(bottom=Side(style='thin', color='D1D5DB'))
+
+        ventes_ws = writer.sheets['Ventes']
+        for cell in ventes_ws[ventes_ws.max_row]:
+            cell.font = Font(bold=True, color='7A4D00')
+            cell.fill = PatternFill(start_color='FEF7E0', end_color='FEF7E0', fill_type='solid')
+
+        statut_label = 'DÉCLARÉE' if declaration.est_declaree else 'EN PRÉPARATION'
+        synth = writer.sheets['Synthese']
+        synth['A1'] = f'Déclaration des taxes - {pharmacy_name}'
+        synth['A1'].font = Font(bold=True, size=13, color='7A4D00')
+        synth['A2'] = f'Référence : {declaration.reference} | Période : {declaration.periode_label} | Statut : {statut_label}'
+        synth['A3'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tiré par : {current_user.nom} {current_user.prenom}'
+        if declaration.est_declaree and declaration.declared_at:
+            declarant = f'{declaration.declared_by.prenom} {declaration.declared_by.nom}' if declaration.declared_by else '-'
+            synth['A4'] = f'Période marquée comme déclarée le {declaration.declared_at.strftime("%d/%m/%Y %H:%M")} par {declarant}'
+        if declaration.note:
+            synth['A5'] = f'Note : {declaration.note}'
+
+    output.seek(0)
+    filename = f'declaration_impots_{declaration.reference}_{declaration.periode_debut.strftime("%Y%m%d")}_{declaration.periode_fin.strftime("%Y%m%d")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)

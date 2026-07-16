@@ -24,6 +24,7 @@ from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
+from models.declaration_impot import DeclarationImpot
 
 from config import config
 

@@ -460,6 +460,13 @@
             </a>
             {% endif %}
 
+            {% if current_user.has_permission('module_impots') %}
+            <a href="{{ url_for('admin.list_declarations_impots') }}" class="nav-link" title="Impôts & Taxes">
+                <i class="fas fa-landmark"></i>
+                <span class="nav-label">Impôts & Taxes</span>
+            </a>
+            {% endif %}
+
             {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
             <div class="nav-group">
                 <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button" title="Clients">
@@ -619,6 +626,10 @@
 
             {% if current_user.has_permission('gestion_ventes') %}
             <a href="{{ url_for('admin.list_ventes') }}"><i class="fas fa-cash-register"></i>Ventes</a>
+            {% endif %}
+
+            {% if current_user.has_permission('module_impots') %}
+            <a href="{{ url_for('admin.list_declarations_impots') }}"><i class="fas fa-landmark"></i>Impôts & Taxes</a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
