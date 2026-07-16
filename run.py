@@ -28,6 +28,9 @@ def setup_database():
             'stock_entries': [
                 ('qr_tire', 'BOOLEAN DEFAULT FALSE')
             ],
+            'produits': [
+                ('stock_securite', 'INTEGER DEFAULT 0')
+            ],
             'inventaires': [
                 ('date_planifiee', 'TIMESTAMP')
             ],

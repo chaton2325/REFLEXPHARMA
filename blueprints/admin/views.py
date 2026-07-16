@@ -2925,7 +2925,8 @@ def create_produit():
             prix_sous_unite=float(request.form.get('prix_sous_unite') or 0),
             prix_sous_sous_unite=float(request.form.get('prix_sous_sous_unite') or 0),
             coefficient=float(request.form.get('coefficient')) if request.form.get('coefficient') else None,
-            tva=float(request.form.get('tva')) if request.form.get('tva') else None
+            tva=float(request.form.get('tva')) if request.form.get('tva') else None,
+            stock_securite=int(request.form.get('stock_securite') or 0)
         )
         db.session.add(new_produit)
         db.session.commit()
@@ -2957,7 +2958,8 @@ def edit_produit(id):
         produit.prix_sous_sous_unite = float(request.form.get('prix_sous_sous_unite') or 0)
         produit.coefficient = float(request.form.get('coefficient')) if request.form.get('coefficient') else None
         produit.tva = float(request.form.get('tva')) if request.form.get('tva') else None
-        
+        produit.stock_securite = int(request.form.get('stock_securite') or 0)
+
         db.session.commit()
         flash('Produit mis à jour.', 'success')
         return redirect(url_for('admin.list_produits'))

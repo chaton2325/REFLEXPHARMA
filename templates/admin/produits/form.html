@@ -233,6 +233,14 @@
                 <option value="3" {% if produit and produit.conditionnement == 3 %}selected{% endif %}>Cond 3 (Unité + 2 Niveaux)</option>
               </select>
             </div>
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label">Stock de Sécurité</label>
+              <div class="input-group">
+                <input type="number" step="1" min="0" name="stock_securite" class="form-control" value="{{ produit.stock_securite or 0 if produit else 0 }}">
+                <span class="input-group-text">unités</span>
+              </div>
+              <div class="form-text small text-muted">Seuil en dessous duquel le stock est considéré comme faible.</div>
+            </div>
           </div>
 
           <div class="row g-3 mb-4">

@@ -37,6 +37,9 @@ def ensure_database_schema(app):
             Setting.set_value('pharmacy_name', 'REFLEXPHARMA', 'Nom de la pharmacie affiché sur les tickets')
 
         columns_to_check = {
+            'produits': [
+                ('stock_securite', 'INTEGER DEFAULT 0')
+            ],
             'ventes': [
                 ('montant_recu', 'FLOAT DEFAULT 0'),
                 ('montant_hors_solde', 'FLOAT DEFAULT 0'),

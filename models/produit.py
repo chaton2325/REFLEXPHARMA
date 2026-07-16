@@ -25,6 +25,9 @@ class Produit(db.Model):
     # Parametres financiers (peuvent surcharger ceux du fournisseur)
     coefficient = db.Column(db.Float, nullable=True)
     tva = db.Column(db.Float, nullable=True)
+
+    # Stock de securite (seuil d'alerte, exprime en unites)
+    stock_securite = db.Column(db.Integer, default=0)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
