@@ -78,6 +78,70 @@
 
   .produits-scroll { max-height: 520px; overflow-y: auto; }
 
+  /* Recherche + ajout au panier */
+  .ajout-panier-bar {
+    background: #f5f9ff;
+    border-bottom: 1px solid #e4edf9;
+    padding: 0.85rem 1.5rem;
+  }
+  /* Le dropdown doit pouvoir déborder de la carte sans être rogné */
+  #produitsCard { overflow: visible; }
+  #produitsCard .card-header { border-radius: 14px 14px 0 0; }
+  #produitsCard .produits-scroll { border-radius: 0 0 14px 14px; }
+  .ajout-panier-wrapper { position: relative; max-width: 480px; }
+  .ajout-panier-wrapper .form-control {
+    padding-left: 2.4rem;
+    border-radius: 10px;
+    border: 1px solid #cfe0f5;
+    background: #fff;
+    font-size: 0.88rem;
+  }
+  .ajout-panier-wrapper .form-control:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .ajout-panier-wrapper .cart-icon {
+    position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%);
+    color: #3498db; font-size: 0.9rem; pointer-events: none; z-index: 2;
+  }
+  .ajout-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #fff;
+    border: 1px solid #e4edf9;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.14);
+    z-index: 50;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+  }
+  .ajout-item {
+    display: flex; align-items: center; gap: 0.7rem;
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    border: none; background: transparent;
+    border-bottom: 1px solid #f3f6fa;
+    cursor: pointer; text-align: left;
+  }
+  .ajout-item:last-child { border-bottom: none; }
+  .ajout-item:hover, .ajout-item.actif { background: #eef5fd; }
+  .ajout-item .ajout-nom { font-weight: 600; color: #1a1a2e; font-size: 0.85rem; }
+  .ajout-item .ajout-meta { font-size: 0.72rem; color: #7a8896; }
+  .ajout-item .ajout-badge-qte {
+    margin-left: auto; flex-shrink: 0;
+    background: #e6f7ee; color: #1e8e3e;
+    font-weight: 700; font-size: 0.72rem;
+    border-radius: 8px; padding: 0.2rem 0.5rem;
+  }
+  .ajout-item .ajout-plus {
+    flex-shrink: 0; width: 26px; height: 26px;
+    border-radius: 8px; background: #e8f0fe; color: #1a73e8;
+    display: flex; align-items: center; justify-content: center; font-size: 0.75rem;
+  }
+  .ajout-vide { padding: 0.8rem 1rem; color: #7a8896; font-size: 0.82rem; }
+
   /* Overlay bloquant pendant l'envoi (anti double-clic) */
   .submit-overlay {
     display: none;
@@ -148,17 +212,83 @@
     </div>
   </div>
 
+  <div class="card-form mb-3" id="assistantCard" style="display:none;"
+       data-stats-url="{{ url_for('admin.commandes_stats_ventes') }}">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2">
+      <h5><i class="fas fa-wand-magic-sparkles me-2 text-primary"></i>Assistant de commande</h5>
+      <div id="assistantSpinner" class="d-none align-items-center gap-2 small text-muted" style="display:flex;">
+        <span class="spinner-border spinner-border-sm"></span> Analyse des ventes...
+      </div>
+    </div>
+    <div class="card-body" style="padding:1rem 1.5rem;">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button type="button" class="btn btn-outline-danger btn-sm btn-strategie" data-strategie="securite" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                title="Remplit les produits au niveau ou sous leur stock de sécurité (complète jusqu'à 2× le seuil)">
+          <i class="fas fa-battery-quarter me-1"></i> Stock de sécurité
+        </button>
+        <button type="button" class="btn btn-outline-dark btn-sm btn-strategie" data-strategie="rupture" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                title="Remplit les produits en rupture totale (stock à 0, seuil défini)">
+          <i class="fas fa-box-open me-1"></i> Ruptures de stock
+        </button>
+        <button type="button" class="btn btn-outline-success btn-sm btn-strategie" data-strategie="jour" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                title="Recommande les quantités vendues aujourd'hui (réassort quotidien)">
+          <i class="fas fa-cash-register me-1"></i> Vendus aujourd'hui
+        </button>
+        <div class="d-flex align-items-center gap-1">
+          <button type="button" class="btn btn-outline-primary btn-sm btn-strategie" data-strategie="pareto" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Loi des 20/80 : produits qui cumulent 80% du chiffre d'affaires sur la période. Quantités = ventes de la période − stock actuel">
+            <i class="fas fa-chart-pie me-1"></i> Top ventes 20/80
+          </button>
+          <select id="paretoPeriode" class="form-select form-select-sm" style="width:auto;border-radius:8px;font-size:0.78rem;">
+            <option value="7">7 jours</option>
+            <option value="15">15 jours</option>
+            <option value="30" selected>30 jours</option>
+            <option value="60">60 jours</option>
+            <option value="90">90 jours</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-outline-warning btn-sm btn-strategie" data-strategie="peremption" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                title="Remplace les unités des lots périmés ou périmant sous 30 jours">
+          <i class="fas fa-hourglass-end me-1"></i> Péremption proche (30 j)
+        </button>
+        <button type="button" id="btnViderQuantites" class="btn btn-light border btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;margin-left:auto;">
+          <i class="fas fa-eraser me-1"></i> Vider les quantités
+        </button>
+      </div>
+      <div id="assistantFeedback" class="small mt-2" style="min-height:1.2em;color:#7a8896;">
+        Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.
+      </div>
+    </div>
+  </div>
+
   <div class="card-form" id="produitsCard" style="display:none;">
     <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
       <h5><i class="fas fa-pills me-2 text-primary"></i>Produits du fournisseur</h5>
       <div class="d-flex gap-2 align-items-center flex-wrap">
-        <button type="button" id="btnToutesSuggestions" class="btn btn-outline-primary btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;">
-          <i class="fas fa-wand-magic-sparkles me-1"></i> Appliquer les suggestions
-        </button>
+        <div class="form-check form-switch" style="font-size:0.78rem;">
+          <input class="form-check-input" type="checkbox" id="filtreRemplis" style="cursor:pointer;">
+          <label class="form-check-label text-muted" for="filtreRemplis" style="cursor:pointer;">
+            <i class="fas fa-shopping-basket me-1"></i>Panier uniquement (<span id="panierCount">0</span>)
+          </label>
+        </div>
         <div class="search-wrapper">
           <i class="fas fa-search search-icon"></i>
           <input type="text" id="searchProduit" class="form-control form-control-sm" placeholder="Filtrer les produits..." style="border-radius:8px;width:200px;">
         </div>
+      </div>
+    </div>
+    <div class="ajout-panier-bar">
+      <div class="small fw-semibold mb-1" style="color:#2c3e50;">
+        <i class="fas fa-cart-plus me-1 text-primary"></i>Ajout rapide au panier
+      </div>
+      <div class="ajout-panier-wrapper">
+        <i class="fas fa-search cart-icon"></i>
+        <input type="text" id="ajoutPanierInput" class="form-control" autocomplete="off"
+               placeholder="Rechercher un produit du fournisseur (nom, code)...">
+        <div class="ajout-dropdown" id="ajoutPanierDropdown"></div>
+      </div>
+      <div class="small text-muted mt-1" style="font-size:0.72rem;">
+        Entrée ou clic pour ajouter 1 unité à chaque fois — flèches ↑↓ pour naviguer.
       </div>
     </div>
     <div class="produits-scroll table-responsive">
@@ -180,6 +310,11 @@
           {% set suggestion = (seuil * 2 - stock) if (seuil > 0 and (seuil * 2 - stock) > 0) else 0 %}
           {% set codes = codes_suivi.get(p.id, []) %}
           <tr data-fournisseur="{{ p.fournisseur_id }}"
+              data-produit="{{ p.id }}"
+              data-stock="{{ stock }}"
+              data-seuil="{{ seuil }}"
+              data-suggestion="{{ suggestion }}"
+              data-peremption="{{ peremption_30j.get(p.id, 0) }}"
               data-search="{{ (p.nom ~ ' ' ~ p.code_produit ~ ' ' ~ codes|join(' '))|lower }}"
               class="{{ 'sous-seuil' if (seuil > 0 and stock <= seuil) else '' }}"
               style="display:none;">
@@ -263,12 +398,19 @@ document.addEventListener('DOMContentLoaded', function() {
         return rows.filter(r => r.dataset.fournisseur === fid);
     }
 
+    const assistantCard = document.getElementById('assistantCard');
+    const filtreRemplis = document.getElementById('filtreRemplis');
+
     function afficherProduits() {
         const fid = fournisseurSelect.value;
         const query = searchProduit.value.trim().toLowerCase();
+        const remplisSeul = filtreRemplis.checked;
         let visibles = 0;
         rows.forEach(row => {
-            const match = row.dataset.fournisseur === fid && (!query || row.dataset.search.includes(query));
+            const qte = parseInt(row.querySelector('.qte-input').value, 10) || 0;
+            const match = row.dataset.fournisseur === fid
+                && (!query || row.dataset.search.includes(query))
+                && (!remplisSeul || qte > 0);
             row.style.display = match ? '' : 'none';
             if (row.dataset.fournisseur === fid) visibles++;
             // On vide les quantités des produits d'autres fournisseurs pour éviter les surprises
@@ -277,6 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         produitsCard.style.display = fid ? 'block' : 'none';
+        assistantCard.style.display = fid ? 'block' : 'none';
         recapBar.style.display = fid ? 'flex' : 'none';
         aucunProduit.style.display = (fid && visibles === 0) ? 'block' : 'none';
         majRecap();
@@ -298,10 +441,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('recapLignes').textContent = lignes;
         document.getElementById('recapQuantite').textContent = quantite;
         document.getElementById('recapMontant').textContent = montant > 0 ? '≈ ' + montant.toFixed(2) + ' € HT' : '';
+        document.getElementById('panierCount').textContent = lignes;
     }
 
-    fournisseurSelect.addEventListener('change', afficherProduits);
+    fournisseurSelect.addEventListener('change', () => {
+        feedbackAssistant(null);
+        afficherProduits();
+    });
     searchProduit.addEventListener('input', afficherProduits);
+    filtreRemplis.addEventListener('change', afficherProduits);
 
     rows.forEach(row => {
         row.querySelector('.qte-input').addEventListener('input', majRecap);
@@ -314,12 +462,245 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    document.getElementById('btnToutesSuggestions').addEventListener('click', () => {
-        rowsDuFournisseur().forEach(row => {
-            const btn = row.querySelector('.btn-suggestion');
-            if (btn) row.querySelector('.qte-input').value = btn.dataset.suggestion;
-        });
+    // --- Assistant de commande : stratégies de remplissage ---
+    const assistantSpinner = document.getElementById('assistantSpinner');
+    const assistantFeedback = document.getElementById('assistantFeedback');
+    const paretoPeriode = document.getElementById('paretoPeriode');
+    const FEEDBACK_DEFAUT = "Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.";
+    const statsCache = {};
+
+    function feedbackAssistant(html, couleur) {
+        assistantFeedback.innerHTML = html || FEEDBACK_DEFAUT;
+        assistantFeedback.style.color = couleur || '#7a8896';
+    }
+
+    function chargerStats(jours) {
+        if (statsCache[jours]) return Promise.resolve(statsCache[jours]);
+        assistantSpinner.classList.remove('d-none');
+        return fetch(assistantCard.dataset.statsUrl + '?jours=' + jours, { headers: { 'Accept': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(data => { statsCache[jours] = data; return data; })
+            .finally(() => assistantSpinner.classList.add('d-none'));
+    }
+
+    function resumeStrategie(nom, remplis, unites, ignores) {
+        if (remplis === 0 && !ignores) {
+            feedbackAssistant('<strong>' + nom + '</strong> : aucun produit concerné chez ce fournisseur.');
+        } else {
+            let msg = '<i class="fas fa-check-circle me-1"></i><strong>' + nom + '</strong> : '
+                + remplis + ' produit(s) rempli(s), ' + unites + ' unité(s)';
+            if (ignores > 0) msg += ' · ' + ignores + ' produit(s) en rupture ignoré(s) (aucun stock de sécurité défini)';
+            feedbackAssistant(msg + '.', remplis > 0 ? '#1e8e3e' : '#e37400');
+        }
+        afficherProduits();
+    }
+
+    function appliquerStrategie(strategie) {
+        const lignes = rowsDuFournisseur();
+
+        if (strategie === 'securite' || strategie === 'rupture') {
+            let remplis = 0, unites = 0, ignores = 0;
+            lignes.forEach(row => {
+                const stock = parseInt(row.dataset.stock, 10) || 0;
+                const seuil = parseInt(row.dataset.seuil, 10) || 0;
+                const suggestion = parseInt(row.dataset.suggestion, 10) || 0;
+                const concerne = strategie === 'rupture' ? stock === 0 : (seuil > 0 && stock <= seuil);
+                if (!concerne) return;
+                if (suggestion <= 0) {
+                    if (strategie === 'rupture' && seuil === 0) ignores++;
+                    return;
+                }
+                row.querySelector('.qte-input').value = suggestion;
+                remplis++; unites += suggestion;
+            });
+            resumeStrategie(strategie === 'rupture' ? 'Ruptures de stock' : 'Stock de sécurité', remplis, unites, ignores);
+
+        } else if (strategie === 'jour' || strategie === 'pareto') {
+            const jours = strategie === 'jour' ? 0 : parseInt(paretoPeriode.value, 10);
+            chargerStats(jours).then(data => {
+                let remplis = 0, unites = 0;
+                lignes.forEach(row => {
+                    const info = data.produits[row.dataset.produit];
+                    if (!info) return;
+                    let q = 0;
+                    if (strategie === 'jour') {
+                        q = Math.ceil(info.unites);
+                    } else if (info.pareto) {
+                        // Ventes de la période, déduction faite du stock actuel
+                        q = Math.ceil(info.unites) - (parseInt(row.dataset.stock, 10) || 0);
+                    }
+                    if (q > 0) {
+                        row.querySelector('.qte-input').value = q;
+                        remplis++; unites += q;
+                    }
+                });
+                const nom = strategie === 'jour'
+                    ? "Vendus aujourd'hui"
+                    : 'Top ventes 20/80 sur ' + jours + ' j (' + data.nb_pareto + ' produit(s) Pareto tous fournisseurs)';
+                resumeStrategie(nom, remplis, unites, 0);
+            }).catch(() => {
+                feedbackAssistant('<i class="fas fa-triangle-exclamation me-1"></i>Impossible de charger les statistiques de ventes. Réessayez.', '#d93025');
+            });
+
+        } else if (strategie === 'peremption') {
+            let remplis = 0, unites = 0;
+            lignes.forEach(row => {
+                const q = parseInt(row.dataset.peremption, 10) || 0;
+                if (q > 0) {
+                    row.querySelector('.qte-input').value = q;
+                    remplis++; unites += q;
+                }
+            });
+            resumeStrategie('Péremption proche (30 j)', remplis, unites, 0);
+        }
+    }
+
+    document.querySelectorAll('.btn-strategie').forEach(btn => {
+        btn.addEventListener('click', () => appliquerStrategie(btn.dataset.strategie));
+    });
+
+    document.getElementById('btnViderQuantites').addEventListener('click', () => {
+        rowsDuFournisseur().forEach(row => { row.querySelector('.qte-input').value = ''; });
+        feedbackAssistant('Toutes les quantités ont été vidées.');
+        afficherProduits();
+    });
+
+    // --- Recherche de produits du fournisseur + ajout au panier ---
+    const ajoutInput = document.getElementById('ajoutPanierInput');
+    const ajoutDropdown = document.getElementById('ajoutPanierDropdown');
+    let ajoutResultats = [];
+    let ajoutIndexActif = -1;
+
+    function infosLigne(row) {
+        const nomEl = row.querySelector('td .fw-semibold');
+        const codeEl = row.querySelector('td.col-masquable .badge');
+        return {
+            nom: nomEl ? nomEl.textContent.trim() : '',
+            code: codeEl ? codeEl.textContent.trim() : '',
+            stock: parseInt(row.dataset.stock, 10) || 0,
+            qte: parseInt(row.querySelector('.qte-input').value, 10) || 0
+        };
+    }
+
+    function fermerAjoutDropdown() {
+        ajoutDropdown.style.display = 'none';
+        ajoutDropdown.innerHTML = '';
+        ajoutResultats = [];
+        ajoutIndexActif = -1;
+    }
+
+    function ajouterAuPanier(row) {
+        const input = row.querySelector('.qte-input');
+        const nouvelleQte = (parseInt(input.value, 10) || 0) + 1;
+        input.value = nouvelleQte;
         majRecap();
+        const infos = infosLigne(row);
+        feedbackAssistant('<i class="fas fa-cart-plus me-1"></i><strong>' + infos.nom + '</strong> ajouté au panier (quantité : ' + nouvelleQte + ').', '#1e8e3e');
+        // Si la ligne est visible dans le tableau, on la montre
+        if (row.style.display !== 'none' && row.offsetParent !== null) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        rechercherAjoutPanier(); // rafraîchit le badge de quantité dans la liste
+    }
+
+    function rechercherAjoutPanier() {
+        const query = ajoutInput.value.trim().toLowerCase();
+        if (!query) {
+            fermerAjoutDropdown();
+            return;
+        }
+        ajoutResultats = rowsDuFournisseur()
+            .filter(row => row.dataset.search.includes(query))
+            .slice(0, 8);
+        if (ajoutIndexActif >= ajoutResultats.length) ajoutIndexActif = ajoutResultats.length - 1;
+
+        ajoutDropdown.innerHTML = '';
+        if (ajoutResultats.length === 0) {
+            const vide = document.createElement('div');
+            vide.className = 'ajout-vide';
+            vide.textContent = 'Aucun produit de ce fournisseur ne correspond à « ' + ajoutInput.value.trim() + ' ».';
+            ajoutDropdown.appendChild(vide);
+        } else {
+            ajoutResultats.forEach((row, i) => {
+                const infos = infosLigne(row);
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'ajout-item' + (i === ajoutIndexActif ? ' actif' : '');
+
+                const plus = document.createElement('span');
+                plus.className = 'ajout-plus';
+                plus.innerHTML = '<i class="fas fa-plus"></i>';
+
+                const bloc = document.createElement('div');
+                bloc.style.minWidth = '0';
+                const nom = document.createElement('div');
+                nom.className = 'ajout-nom';
+                nom.textContent = infos.nom;
+                const meta = document.createElement('div');
+                meta.className = 'ajout-meta';
+                meta.textContent = infos.code + ' · stock : ' + infos.stock + ' u.';
+                bloc.appendChild(nom);
+                bloc.appendChild(meta);
+
+                item.appendChild(plus);
+                item.appendChild(bloc);
+
+                if (infos.qte > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'ajout-badge-qte';
+                    badge.textContent = infos.qte + ' au panier';
+                    item.appendChild(badge);
+                }
+
+                item.addEventListener('click', () => {
+                    ajouterAuPanier(row);
+                    ajoutInput.focus();
+                });
+                ajoutDropdown.appendChild(item);
+            });
+        }
+        ajoutDropdown.style.display = 'block';
+    }
+
+    ajoutInput.addEventListener('input', () => {
+        ajoutIndexActif = -1;
+        rechercherAjoutPanier();
+    });
+
+    ajoutInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            // Jamais de soumission du formulaire depuis ce champ
+            e.preventDefault();
+            if (ajoutResultats.length > 0) {
+                ajouterAuPanier(ajoutResultats[Math.max(0, ajoutIndexActif)]);
+                ajoutInput.select();
+            }
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (ajoutResultats.length > 0) {
+                ajoutIndexActif = (ajoutIndexActif + 1) % ajoutResultats.length;
+                rechercherAjoutPanier();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (ajoutResultats.length > 0) {
+                ajoutIndexActif = (ajoutIndexActif - 1 + ajoutResultats.length) % ajoutResultats.length;
+                rechercherAjoutPanier();
+            }
+        } else if (e.key === 'Escape') {
+            fermerAjoutDropdown();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!ajoutDropdown.contains(e.target) && e.target !== ajoutInput) {
+            fermerAjoutDropdown();
+        }
+    });
+
+    fournisseurSelect.addEventListener('change', () => {
+        ajoutInput.value = '';
+        fermerAjoutDropdown();
     });
 
     const recapInfo = document.querySelector('.recap-bar .recap-info');

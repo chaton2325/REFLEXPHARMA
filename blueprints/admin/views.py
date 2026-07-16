@@ -3058,6 +3058,76 @@ def _codes_suivi_par_produit(produit_ids=None):
         codes.setdefault(pid, []).append(code)
     return codes
 
+def _unites_perimant_bientot(nb_jours=30):
+    """Retourne {produit_id: unités dans des lots périmés ou périmant sous nb_jours}."""
+    limite = datetime.utcnow().date() + timedelta(days=nb_jours)
+    rows = db.session.query(
+        Stock.produit_id,
+        db.func.coalesce(db.func.sum(Stock.quantite_unites), 0)
+    ).filter(
+        Stock.date_peremption <= limite,
+        (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) > 0
+    ).group_by(Stock.produit_id).all()
+    return {pid: int(total or 0) for pid, total in rows if (total or 0) > 0}
+
+@admin.route('/api/commandes/stats-ventes')
+@login_required
+@permission_required('gestion_commandes')
+def commandes_stats_ventes():
+    """Statistiques de ventes par produit pour l'assistant de commande.
+    ?jours=N : période en jours (0 = aujourd'hui depuis minuit).
+    Retourne les unités vendues, le CA TTC par produit, et le marquage
+    Pareto 20/80 (produits qui cumulent 80%% du chiffre d'affaires)."""
+    try:
+        jours = max(0, min(int(request.args.get('jours', 0)), 365))
+    except (TypeError, ValueError):
+        jours = 0
+
+    now = datetime.utcnow()
+    debut = datetime(now.year, now.month, now.day) if jours == 0 else now - timedelta(days=jours)
+
+    rows = db.session.query(
+        VenteLigne.produit_id,
+        db.func.coalesce(db.func.sum(
+            db.case((VenteLigne.unite == 'unite', VenteLigne.quantite), else_=0)
+        ), 0),
+        db.func.coalesce(db.func.sum(VenteLigne.total_ttc), 0)
+    ).join(Vente, Vente.numero_vente == VenteLigne.numero_vente).filter(
+        Vente.statut == 'validee',
+        VenteLigne.created_at >= debut,
+        VenteLigne.produit_id.isnot(None)
+    ).group_by(VenteLigne.produit_id).all()
+
+    total_ca = float(sum(ca or 0 for _, _, ca in rows))
+
+    # Loi de Pareto (analyse ABC) : produits triés par CA décroissant,
+    # marqués tant que le CA cumulé n'atteint pas 80% du total.
+    pareto_ids = set()
+    if total_ca > 0:
+        cumul = 0.0
+        for pid, _, ca in sorted(rows, key=lambda r: float(r[2] or 0), reverse=True):
+            if cumul >= total_ca * 0.8:
+                break
+            pareto_ids.add(pid)
+            cumul += float(ca or 0)
+
+    produits = {
+        str(pid): {
+            'unites': float(unites or 0),
+            'ca': round(float(ca or 0), 2),
+            'pareto': pid in pareto_ids
+        }
+        for pid, unites, ca in rows
+    }
+    return jsonify({
+        'jours': jours,
+        'debut': debut.isoformat(),
+        'total_ca': round(total_ca, 2),
+        'nb_produits': len(produits),
+        'nb_pareto': len(pareto_ids),
+        'produits': produits
+    })
+
 def generate_numero_commande():
     base = f"CMD-{datetime.utcnow().strftime('%Y%m%d')}-"
     count = Commande.query.filter(Commande.numero.like(f'{base}%')).count()
@@ -3144,12 +3214,14 @@ def create_commande():
     produits = Produit.query.order_by(Produit.nom.asc()).all()
     stocks = _stock_unites_par_produit()
     codes_suivi = _codes_suivi_par_produit()
+    peremption_30j = _unites_perimant_bientot(30)
     return render_template('admin/commandes/form.html',
         title='Nouvelle Commande',
         fournisseurs=fournisseurs,
         produits=produits,
         stocks=stocks,
-        codes_suivi=codes_suivi)
+        codes_suivi=codes_suivi,
+        peremption_30j=peremption_30j)
 
 @admin.route('/commandes/<int:id>')
 @login_required
