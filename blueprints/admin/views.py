@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, abort, Response, current_app, send_file
+from flask import render_template, redirect, url_for, flash, request, abort, Response, current_app, send_file, jsonify
 from flask_login import login_required, current_user
 import queue
 import threading
@@ -335,6 +335,49 @@ def dashboard():
         active_inventaire_progress=active_inventaire_progress,
         planned_inventaire=planned_inventaire
     )
+
+@admin.route('/api/dashboard-alerts')
+@login_required
+def dashboard_alerts():
+    """Alertes du tableau de bord : lots périmés encore en stock et produits
+    sous leur stock de sécurité. Chaque type d'alerte n'est renvoyé que si
+    l'utilisateur a la permission d'accéder à la page qui permet de le traiter."""
+    today = datetime.utcnow().date()
+    alerts = []
+
+    if current_user.has_permission('gestion_stock'):
+        perimes = Stock.query.join(Produit).filter(
+            Stock.date_peremption <= today,
+            (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) > 0
+        ).order_by(Stock.date_peremption.asc()).all()
+        for s in perimes:
+            jours = (today - s.date_peremption).days
+            echeance = "périme aujourd'hui" if jours == 0 else f"périmé depuis {jours} jour(s)"
+            alerts.append({
+                'type': 'perime',
+                'label': 'Périmé',
+                'produit': s.produit.nom,
+                'detail': f"Lot {s.numero_bl} {echeance} · {s.quantite_totale} article(s) encore en stock",
+                'url': url_for('admin.manage_stock', q=s.code_suivi)
+            })
+
+    if current_user.has_permission('gestion_produits'):
+        total_unites = db.func.coalesce(db.func.sum(Stock.quantite_unites), 0)
+        rows = db.session.query(Produit, total_unites.label('total_unites')).outerjoin(
+            Stock, Stock.produit_id == Produit.id
+        ).filter(Produit.stock_securite > 0).group_by(Produit.id).having(
+            total_unites <= Produit.stock_securite
+        ).order_by(total_unites.asc()).all()
+        for produit, total in rows:
+            alerts.append({
+                'type': 'stock_securite',
+                'label': 'Stock bas',
+                'produit': produit.nom,
+                'detail': f"{int(total or 0)} unité(s) en stock · seuil de sécurité : {produit.stock_securite}",
+                'url': url_for('admin.list_produits', q=produit.code_produit)
+            })
+
+    return jsonify({'total': len(alerts), 'alerts': alerts})
 
 # --- GESTION DES POSTES (METIERS) ---
 @admin.route('/postes')

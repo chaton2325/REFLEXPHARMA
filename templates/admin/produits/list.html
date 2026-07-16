@@ -213,6 +213,14 @@
     .stat-card .stat-number { font-size: 1.2rem; }
     .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
   }
+
+  /* Mise en evidence du produit cible par une alerte du tableau de bord (?q=...) */
+  @keyframes rowFlash {
+    30% { background-color: #ffe1e1; }
+  }
+  tr.row-flash td, .mobile-card.row-flash {
+    animation: rowFlash 1.2s ease 3;
+  }
 </style>
 {% endblock %}
 
@@ -624,6 +632,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterRayon').addEventListener('change', filterTable);
     document.getElementById('filterFamille').addEventListener('change', filterTable);
     document.getElementById('filterCond').addEventListener('change', filterTable);
+
+    // Deep-link depuis les alertes du tableau de bord : /admin/produits?q=CODE
+    const presetQuery = new URLSearchParams(window.location.search).get('q');
+    if (presetQuery) {
+        const searchInput = document.getElementById('searchInput');
+        searchInput.value = presetQuery;
+        filterTable();
+
+        const tableRows = document.querySelectorAll('#produitTable tbody tr');
+        const mobileCards = document.querySelectorAll('#mobileList .mobile-card');
+        const visible = Array.from(tableRows).concat(Array.from(mobileCards))
+            .filter(el => el.style.display !== 'none' && el.offsetParent !== null);
+        if (visible.length > 0) {
+            visible[0].classList.add('row-flash');
+            visible[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
 });
 
 function sortTable(n) {
