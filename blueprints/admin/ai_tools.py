@@ -5,6 +5,13 @@ clients, employes) plutot que des reponses generiques.
 Chaque fonction `tool_*` retourne un dict JSON-serialisable. `call_ai_tool()` est le
 point d'entree unique utilise par la vue Flask : il capture toute exception pour ne
 jamais faire planter la conversation, et renvoie {'error': ...} a la place.
+
+Permissions : la liste d'outils envoyee au modele n'est PAS filtree en amont (tous
+les utilisateurs voient les memes 35 outils, ce qui evite au modele d'halluciner un
+nom d'outil different quand un tool attendu semble manquant, et economise des
+allers-retours). A la place, CHAQUE fonction `tool_*` verifie elle-meme, en tout
+debut d'execution, si l'utilisateur appelant a la permission du module concerne
+(via `_check_access`). Superadmin et admin ont acces a tout, sans exception.
 """
 
 import os
@@ -119,10 +126,41 @@ def _conditionnement_label(n):
 
 
 # ---------------------------------------------------------------------------
+# Permissions : verifiees directement par chaque outil (pas de filtrage centralise
+# en amont). Superadmin et admin ont acces a tout, sans exception ; les autres
+# roles suivent has_permission() (override individuel, puis poste, sinon refuse).
+# ---------------------------------------------------------------------------
+
+def _user_has_ai_access(user, feature):
+    if user is None:
+        return False
+    if user.role in ('superadmin', 'admin'):
+        return True
+    return user.has_permission(feature)
+
+
+def _check_access(user, feature):
+    """A appeler en tout debut de chaque fonction d'outil. Renvoie un dict d'erreur
+    si l'acces est refuse, sinon None."""
+    if _user_has_ai_access(user, feature):
+        return None
+    return {
+        'error': (
+            f"Accès refusé : cette information relève du module "
+            f"'{FEATURES.get(feature, feature)}', auquel cet utilisateur n'a pas accès. "
+            "Explique-le poliment sans donner de detail, n'essaie pas un autre outil."
+        )
+    }
+
+
+# ---------------------------------------------------------------------------
 # Ventes / chiffre d'affaires
 # ---------------------------------------------------------------------------
 
-def tool_chiffre_affaires_periode(periode='aujourd_hui', date_debut=None, date_fin=None):
+def tool_chiffre_affaires_periode(user, periode='aujourd_hui', date_debut=None, date_fin=None):
+    denied = _check_access(user, 'stats_ventes')
+    if denied:
+        return denied
     start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
     count, ttc, ht = db.session.query(
         func.count(Vente.id),
@@ -144,9 +182,12 @@ def tool_chiffre_affaires_periode(periode='aujourd_hui', date_debut=None, date_f
     }
 
 
-def tool_comparer_ca_mois_precedent():
-    curr = tool_chiffre_affaires_periode('ce_mois')
-    prev = tool_chiffre_affaires_periode('mois_dernier')
+def tool_comparer_ca_mois_precedent(user):
+    denied = _check_access(user, 'stats_ventes')
+    if denied:
+        return denied
+    curr = tool_chiffre_affaires_periode(user, 'ce_mois')
+    prev = tool_chiffre_affaires_periode(user, 'mois_dernier')
     variation_montant = curr['chiffre_affaires_ttc'] - prev['chiffre_affaires_ttc']
     variation_pourcentage = (
         _round2(variation_montant / prev['chiffre_affaires_ttc'] * 100)
@@ -161,7 +202,10 @@ def tool_comparer_ca_mois_precedent():
     }
 
 
-def tool_prevision_chiffre_affaires(horizon_jours=7):
+def tool_prevision_chiffre_affaires(user, horizon_jours=7):
+    denied = _check_access(user, 'stats_ventes')
+    if denied:
+        return denied
     horizon_jours = max(1, min(int(horizon_jours or 7), 60))
     jours_historique = 30
     today = date.today()
@@ -219,10 +263,13 @@ def tool_prevision_chiffre_affaires(horizon_jours=7):
 
 
 # ---------------------------------------------------------------------------
-# Employes
+# Employes (statistiques de vente)
 # ---------------------------------------------------------------------------
 
-def tool_employe_du_mois(periode='ce_mois'):
+def tool_employe_du_mois(user, periode='ce_mois'):
+    denied = _check_access(user, 'stats_ventes')
+    if denied:
+        return denied
     if periode not in ('ce_mois', 'mois_dernier'):
         periode = 'ce_mois'
     start_dt, end_dt, label = _resolve_periode(periode)
@@ -258,15 +305,21 @@ def tool_employe_du_mois(periode='ce_mois'):
 # Produits / stock
 # ---------------------------------------------------------------------------
 
-def tool_nombre_produits():
+def tool_nombre_produits(user):
+    denied = _check_access(user, 'gestion_produits')
+    if denied:
+        return denied
     total = db.session.query(func.count(Produit.id)).scalar() or 0
     return {'nombre_produits_catalogue': int(total)}
 
 
-def tool_liste_produits(recherche=None, limite=50):
+def tool_liste_produits(user, recherche=None, limite=50):
     """Liste le CATALOGUE de produits (fiche produit : nom, code, fournisseur, rayon,
     famille). Ne contient aucune quantite en stock — pour ca, voir stock_produit /
     produits_stock_faible, qui portent sur une notion differente (le stock physique)."""
+    denied = _check_access(user, 'gestion_produits')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 50), 200))
     query = Produit.query
     recherche = (recherche or '').strip()
@@ -298,9 +351,12 @@ def tool_liste_produits(recherche=None, limite=50):
     }
 
 
-def tool_liste_fournisseurs(recherche=None, limite=50):
+def tool_liste_fournisseurs(user, recherche=None, limite=50):
     """Liste les fournisseurs avec leur coefficient et taux de TVA effectifs (propres au
     fournisseur, ou herites de son groupe fournisseur si non personnalises)."""
+    denied = _check_access(user, 'gestion_fournisseurs')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 50), 200))
     query = Fournisseur.query
     recherche = (recherche or '').strip()
@@ -333,9 +389,12 @@ def tool_liste_fournisseurs(recherche=None, limite=50):
     }
 
 
-def tool_liste_groupes_fournisseurs(recherche=None):
+def tool_liste_groupes_fournisseurs(user, recherche=None):
     """Liste les groupes fournisseurs avec leur coefficient et TVA par defaut (herites par
     les fournisseurs du groupe qui n'ont pas de valeur personnalisee)."""
+    denied = _check_access(user, 'gestion_groupes_fournisseurs')
+    if denied:
+        return denied
     query = GroupeFournisseur.query
     recherche = (recherche or '').strip()
     if recherche:
@@ -356,7 +415,10 @@ def tool_liste_groupes_fournisseurs(recherche=None):
     }
 
 
-def tool_stock_produit(nom_produit):
+def tool_stock_produit(user, nom_produit):
+    denied = _check_access(user, 'gestion_stock')
+    if denied:
+        return denied
     nom_produit = (nom_produit or '').strip()
     if not nom_produit:
         raise ValueError("Le parametre nom_produit est requis.")
@@ -395,7 +457,10 @@ def tool_stock_produit(nom_produit):
     return {'trouve': True, 'resultats': resultats}
 
 
-def tool_produits_stock_faible(seuil=10, limite=15):
+def tool_produits_stock_faible(user, seuil=10, limite=15):
+    denied = _check_access(user, 'gestion_stock')
+    if denied:
+        return denied
     seuil = max(0, int(seuil or 10))
     limite = max(1, min(int(limite or 15), 50))
 
@@ -421,7 +486,10 @@ def tool_produits_stock_faible(seuil=10, limite=15):
     }
 
 
-def tool_produits_peremption_proche(nb_jours=30, limite=15):
+def tool_produits_peremption_proche(user, nb_jours=30, limite=15):
+    denied = _check_access(user, 'gestion_stock')
+    if denied:
+        return denied
     nb_jours = max(1, min(int(nb_jours or 30), 365))
     limite = max(1, min(int(limite or 15), 50))
     today = date.today()
@@ -450,7 +518,10 @@ def tool_produits_peremption_proche(nb_jours=30, limite=15):
     }
 
 
-def tool_top_produits_vendus(periode='ce_mois', critere='chiffre_affaires', limite=5, date_debut=None, date_fin=None):
+def tool_top_produits_vendus(user, periode='ce_mois', critere='chiffre_affaires', limite=5, date_debut=None, date_fin=None):
+    denied = _check_access(user, 'stats_ventes')
+    if denied:
+        return denied
     start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
     limite = max(1, min(int(limite or 5), 20))
 
@@ -493,7 +564,10 @@ def _quantite_sortie(row):
     )
 
 
-def tool_sorties_stock_periode(periode='aujourd_hui', date_debut=None, date_fin=None):
+def tool_sorties_stock_periode(user, periode='aujourd_hui', date_debut=None, date_fin=None):
+    denied = _check_access(user, 'stats_sorties_stock')
+    if denied:
+        return denied
     start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
 
     count, total_ht, total_ttc, u, su, ssu = db.session.query(
@@ -530,7 +604,10 @@ def tool_sorties_stock_periode(periode='aujourd_hui', date_debut=None, date_fin=
     }
 
 
-def tool_dernieres_sorties_stock(periode='aujourd_hui', date_debut=None, date_fin=None, limite=10):
+def tool_dernieres_sorties_stock(user, periode='aujourd_hui', date_debut=None, date_fin=None, limite=10):
+    denied = _check_access(user, 'stats_sorties_stock')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 10), 50))
     start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
 
@@ -556,7 +633,10 @@ def tool_dernieres_sorties_stock(periode='aujourd_hui', date_debut=None, date_fi
     }
 
 
-def tool_sorties_stock_produit(nom_produit, periode='ce_mois', date_debut=None, date_fin=None):
+def tool_sorties_stock_produit(user, nom_produit, periode='ce_mois', date_debut=None, date_fin=None):
+    denied = _check_access(user, 'stats_sorties_stock')
+    if denied:
+        return denied
     nom_produit = (nom_produit or '').strip()
     if not nom_produit:
         raise ValueError("Le parametre nom_produit est requis.")
@@ -597,7 +677,10 @@ def tool_sorties_stock_produit(nom_produit, periode='ce_mois', date_debut=None, 
 # Clients
 # ---------------------------------------------------------------------------
 
-def tool_top_clients(periode='ce_mois', limite=5, date_debut=None, date_fin=None):
+def tool_top_clients(user, periode='ce_mois', limite=5, date_debut=None, date_fin=None):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
     limite = max(1, min(int(limite or 5), 20))
 
@@ -626,7 +709,10 @@ def tool_top_clients(periode='ce_mois', limite=5, date_debut=None, date_fin=None
     }
 
 
-def tool_solde_client(recherche):
+def tool_solde_client(user, recherche):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     recherche = (recherche or '').strip()
     if not recherche:
         raise ValueError("Le parametre 'recherche' (nom, prenom, matricule ou email) est requis.")
@@ -652,12 +738,18 @@ def tool_solde_client(recherche):
     }
 
 
-def tool_nombre_clients():
+def tool_nombre_clients(user):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     total = db.session.query(func.count(Client.id)).scalar() or 0
     return {'nombre_clients': int(total)}
 
 
-def tool_liste_clients(recherche=None, limite=50):
+def tool_liste_clients(user, recherche=None, limite=50):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 50), 200))
     query = Client.query
     recherche = (recherche or '').strip()
@@ -687,12 +779,18 @@ def tool_liste_clients(recherche=None, limite=50):
     }
 
 
-def tool_nombre_groupes_clients():
+def tool_nombre_groupes_clients(user):
+    denied = _check_access(user, 'gestion_groupes_clients')
+    if denied:
+        return denied
     total = db.session.query(func.count(GroupeClient.id)).scalar() or 0
     return {'nombre_groupes_clients': int(total)}
 
 
-def tool_liste_groupes_clients():
+def tool_liste_groupes_clients(user):
+    denied = _check_access(user, 'gestion_groupes_clients')
+    if denied:
+        return denied
     rows = db.session.query(
         GroupeClient.nom, GroupeClient.solde, GroupeClient.pourcentage_absorption,
         func.count(Client.id)
@@ -714,7 +812,10 @@ def tool_liste_groupes_clients():
     }
 
 
-def tool_solde_groupe_client(recherche):
+def tool_solde_groupe_client(user, recherche):
+    denied = _check_access(user, 'gestion_groupes_clients')
+    if denied:
+        return denied
     recherche = (recherche or '').strip()
     if not recherche:
         raise ValueError("Le parametre 'recherche' (nom du groupe) est requis.")
@@ -737,7 +838,10 @@ def tool_solde_groupe_client(recherche):
     }
 
 
-def tool_clients_par_groupe(nom_groupe):
+def tool_clients_par_groupe(user, nom_groupe):
+    denied = _check_access(user, 'gestion_groupes_clients')
+    if denied:
+        return denied
     nom_groupe = (nom_groupe or '').strip()
     if not nom_groupe:
         raise ValueError("Le parametre 'nom_groupe' est requis.")
@@ -758,7 +862,10 @@ def tool_clients_par_groupe(nom_groupe):
     }
 
 
-def tool_clients_sans_groupe(limite=15):
+def tool_clients_sans_groupe(user, limite=15):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 15), 50))
     total = db.session.query(func.count(Client.id)).filter(Client.groupe_id.is_(None)).scalar() or 0
     clients = Client.query.filter(Client.groupe_id.is_(None)).order_by(Client.nom.asc()).limit(limite).all()
@@ -768,7 +875,10 @@ def tool_clients_sans_groupe(limite=15):
     }
 
 
-def tool_top_clients_solde(limite=10):
+def tool_top_clients_solde(user, limite=10):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 10), 50))
     clients = Client.query.order_by(Client.solde.desc()).limit(limite).all()
     return {
@@ -779,7 +889,10 @@ def tool_top_clients_solde(limite=10):
     }
 
 
-def tool_solde_total_clients_et_groupes():
+def tool_solde_total_clients_et_groupes(user):
+    denied = _check_access(user, 'gestion_clients')
+    if denied:
+        return denied
     total_clients = db.session.query(func.coalesce(func.sum(Client.solde), 0.0)).scalar() or 0
     total_groupes = db.session.query(func.coalesce(func.sum(GroupeClient.solde), 0.0)).scalar() or 0
     return {
@@ -793,13 +906,16 @@ def tool_solde_total_clients_et_groupes():
 # Inventaires
 # ---------------------------------------------------------------------------
 
-def _inventaire_personne_label(user):
-    return f'{user.prenom} {user.nom}'.strip() if user else None
+def _inventaire_personne_label(u):
+    return f'{u.prenom} {u.nom}'.strip() if u else None
 
 
-def tool_liste_inventaires(limite=10):
+def tool_liste_inventaires(user, limite=10):
     """ReflexPharma ne planifie pas d'inventaires futurs : il n'existe qu'un inventaire
     'en_cours' au plus (le cas echeant) et l'historique des inventaires passes (valide/annule)."""
+    denied = _check_access(user, 'gestion_inventaire')
+    if denied:
+        return denied
     limite = max(1, min(int(limite or 10), 50))
     inventaires = Inventaire.query.order_by(Inventaire.created_at.desc()).limit(limite).all()
 
@@ -824,9 +940,12 @@ def tool_liste_inventaires(limite=10):
     }
 
 
-def tool_detail_inventaire(recherche=None):
+def tool_detail_inventaire(user, recherche=None):
     """Sans recherche : renvoie l'inventaire actuellement en cours s'il y en a un, sinon le
     plus recent (donc le 'dernier inventaire')."""
+    denied = _check_access(user, 'gestion_inventaire')
+    if denied:
+        return denied
     recherche = (recherche or '').strip()
     if recherche:
         inv = Inventaire.query.filter(Inventaire.titre.ilike(f'%{recherche}%')).order_by(Inventaire.created_at.desc()).first()
@@ -870,7 +989,10 @@ def tool_detail_inventaire(recherche=None):
 # Employes / equipe / permissions
 # ---------------------------------------------------------------------------
 
-def tool_nombre_employes():
+def tool_nombre_employes(user):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
     total = db.session.query(func.count(User.id)).scalar() or 0
     actifs = db.session.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
     par_role = db.session.query(User.role, func.count(User.id)).group_by(User.role).all()
@@ -889,7 +1011,10 @@ def _employe_ancienne_annees(u):
     return round(jours / 365.25, 1)
 
 
-def tool_liste_employes(statut='actifs'):
+def tool_liste_employes(user, statut='actifs'):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
     query = User.query
     if statut == 'actifs':
         query = query.filter(User.is_active.is_(True))
@@ -914,7 +1039,10 @@ def tool_liste_employes(statut='actifs'):
     }
 
 
-def tool_employes_par_poste():
+def tool_employes_par_poste(user):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
     rows = db.session.query(User.poste, func.count(User.id)).filter(
         User.is_active.is_(True)
     ).group_by(User.poste).order_by(func.count(User.id).desc()).all()
@@ -926,7 +1054,10 @@ def tool_employes_par_poste():
     }
 
 
-def tool_postes_disponibles():
+def tool_postes_disponibles(user):
+    denied = _check_access(user, 'gestion_postes')
+    if denied:
+        return denied
     postes = Poste.query.order_by(Poste.nom.asc()).all()
     return {
         'nombre_postes': len(postes),
@@ -934,7 +1065,10 @@ def tool_postes_disponibles():
     }
 
 
-def tool_acces_module(module):
+def tool_acces_module(user, module):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
     module = (module or '').strip()
     if module not in FEATURES:
         raise ValueError(
@@ -957,9 +1091,33 @@ def tool_acces_module(module):
     }
 
 
-def tool_modules_disponibles():
-    """Liste les modules/fonctionnalites dont l'acces peut etre accorde ou restreint."""
+def tool_modules_disponibles(user):
+    """Liste les modules/fonctionnalites dont l'acces peut etre accorde ou restreint.
+    Pas de restriction : ne revele aucune donnee metier, juste les cles/labels."""
     return {'modules': [{'cle': cle, 'nom': nom} for cle, nom in FEATURES.items()]}
+
+
+def tool_mes_modules_accessibles(user):
+    """Modules auxquels LA PERSONNE QUI POSE LA QUESTION a reellement acces (pas la
+    liste de tous les modules existants). Utilise le has_permission() reel de
+    l'application (pas le bypass admin/superadmin propre a l'assistant IA), pour
+    refleter exactement ce que cette personne voit dans le logiciel. Aucune
+    restriction : on peut toujours consulter ses propres acces."""
+    if user is None:
+        return {'error': "Utilisateur inconnu."}
+
+    accessibles = [
+        {'cle': cle, 'nom': nom}
+        for cle, nom in FEATURES.items()
+        if user.has_permission(cle)
+    ]
+
+    return {
+        'employe': f'{user.prenom} {user.nom}'.strip(),
+        'role': user.role,
+        'nombre_modules_accessibles': len(accessibles),
+        'modules_accessibles': accessibles,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1046,7 +1204,9 @@ def _build_pdf_report(filepath, titre, sections):
     doc.build(story)
 
 
-def tool_generer_rapport_pdf(titre, sections):
+def tool_generer_rapport_pdf(user, titre, sections):
+    """Pas de restriction propre a cet outil : il ne fait que mettre en forme des
+    donnees deja obtenues (et donc deja verifiees) via d'autres outils."""
     titre = (titre or 'Rapport ReflexPharma').strip() or 'Rapport ReflexPharma'
     if not isinstance(sections, list) or not sections:
         raise ValueError(
@@ -1074,7 +1234,7 @@ def tool_generer_rapport_pdf(titre, sections):
 
 
 # ---------------------------------------------------------------------------
-# Registre des outils + schemas JSON (format compatible Mistral/OpenAI tool-calling)
+# Registre des outils + dispatch (format compatible Mistral/OpenAI tool-calling)
 # ---------------------------------------------------------------------------
 
 TOOL_FUNCTIONS = {
@@ -1112,71 +1272,9 @@ TOOL_FUNCTIONS = {
     'postes_disponibles': tool_postes_disponibles,
     'acces_module': tool_acces_module,
     'modules_disponibles': tool_modules_disponibles,
+    'mes_modules_accessibles': tool_mes_modules_accessibles,
     'generer_rapport_pdf': tool_generer_rapport_pdf,
 }
-
-
-# ---------------------------------------------------------------------------
-# Permissions : chaque outil est rattache a un module (meme cle que FEATURES).
-# Un utilisateur ne peut appeler un outil que s'il a la permission du module
-# correspondant — sauf superadmin/admin qui ont acces a tout, sans exception.
-# Un outil absent de cette carte (ex: generer_rapport_pdf, modules_disponibles)
-# n'est pas restreint : il ne revele aucune donnee metier par lui-meme.
-# ---------------------------------------------------------------------------
-
-TOOL_PERMISSIONS = {
-    'chiffre_affaires_periode': 'stats_ventes',
-    'comparer_ca_mois_precedent': 'stats_ventes',
-    'prevision_chiffre_affaires': 'stats_ventes',
-    'employe_du_mois': 'stats_ventes',
-    'nombre_produits': 'gestion_produits',
-    'liste_produits': 'gestion_produits',
-    'liste_fournisseurs': 'gestion_fournisseurs',
-    'liste_groupes_fournisseurs': 'gestion_groupes_fournisseurs',
-    'stock_produit': 'gestion_stock',
-    'produits_stock_faible': 'gestion_stock',
-    'produits_peremption_proche': 'gestion_stock',
-    'top_produits_vendus': 'stats_ventes',
-    'sorties_stock_periode': 'stats_sorties_stock',
-    'dernieres_sorties_stock': 'stats_sorties_stock',
-    'sorties_stock_produit': 'stats_sorties_stock',
-    'top_clients': 'gestion_clients',
-    'solde_client': 'gestion_clients',
-    'nombre_clients': 'gestion_clients',
-    'liste_clients': 'gestion_clients',
-    'nombre_groupes_clients': 'gestion_groupes_clients',
-    'liste_groupes_clients': 'gestion_groupes_clients',
-    'solde_groupe_client': 'gestion_groupes_clients',
-    'clients_par_groupe': 'gestion_groupes_clients',
-    'clients_sans_groupe': 'gestion_clients',
-    'top_clients_solde': 'gestion_clients',
-    'solde_total_clients_et_groupes': 'gestion_clients',
-    'liste_inventaires': 'gestion_inventaire',
-    'detail_inventaire': 'gestion_inventaire',
-    'nombre_employes': 'gestion_employes',
-    'liste_employes': 'gestion_employes',
-    'employes_par_poste': 'gestion_employes',
-    'postes_disponibles': 'gestion_postes',
-    'acces_module': 'gestion_employes',
-}
-
-
-def _user_has_ai_access(user, feature):
-    if user is None:
-        return False
-    if user.role in ('superadmin', 'admin'):
-        return True
-    return user.has_permission(feature)
-
-
-def get_ai_tools_for_user(user):
-    """Filtre la liste des outils envoyee au modele : seuls ceux dont l'utilisateur
-    a la permission du module associe sont proposes (superadmin/admin : tout)."""
-    return [
-        tool for tool in AI_TOOLS
-        if not TOOL_PERMISSIONS.get(tool['function']['name'])
-        or _user_has_ai_access(user, TOOL_PERMISSIONS[tool['function']['name']])
-    ]
 
 
 def call_ai_tool(name, arguments, user=None):
@@ -1184,24 +1282,12 @@ def call_ai_tool(name, arguments, user=None):
     if not fn:
         return {
             'error': (
-                f"Outil '{name}' inexistant ou non disponible pour cet utilisateur (permissions "
-                "insuffisantes pour le module concerné). N'essaie pas d'autre nom d'outil pour cette "
-                "meme information : réponds directement en texte que cette donnée n'est pas accessible "
-                "avec les permissions actuelles de cet utilisateur."
+                f"Outil '{name}' inexistant. N'invente jamais un nom d'outil hors de la liste fournie : "
+                "reponds directement en texte si aucun outil disponible ne correspond a la question."
             )
         }
-
-    required_feature = TOOL_PERMISSIONS.get(name)
-    if required_feature and not _user_has_ai_access(user, required_feature):
-        return {
-            'error': (
-                f"Accès refusé : cette information relève du module "
-                f"'{FEATURES.get(required_feature, required_feature)}', auquel cet utilisateur n'a pas accès."
-            )
-        }
-
     try:
-        return fn(**(arguments or {}))
+        return fn(user, **(arguments or {}))
     except TypeError as exc:
         return {'error': f"Parametres invalides pour {name}: {exc}"}
     except ValueError as exc:
@@ -1729,7 +1815,27 @@ AI_TOOLS = [
         'type': 'function',
         'function': {
             'name': 'modules_disponibles',
-            'description': "Liste toutes les cles de modules/fonctionnalites existantes (utile avant d'appeler acces_module si le module demande n'est pas evident).",
+            'description': (
+                "Liste TOUTES les cles de modules/fonctionnalites existantes dans le logiciel (utile "
+                "avant d'appeler acces_module si le module demande n'est pas evident). N'utilise JAMAIS "
+                "cet outil pour repondre a 'a quels modules ai-je acces' — cela listerait tout le "
+                "catalogue au lieu des acces reels de la personne : utilise mes_modules_accessibles "
+                "pour cette question-la."
+            ),
+            'parameters': {'type': 'object', 'properties': {}},
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'mes_modules_accessibles',
+            'description': (
+                "Donne la liste des modules auxquels LA PERSONNE QUI POSE LA QUESTION a reellement "
+                "acces dans ReflexPharma — PAS la liste de tous les modules existants dans le logiciel. "
+                "A utiliser pour toute question du type 'a quels modules ai-je acces', 'qu'est-ce que je "
+                "peux faire/voir ici', 'quelles sont mes permissions'. Ne liste que ce que cette personne "
+                "a le droit de faire, jamais le catalogue complet des modules possibles."
+            ),
             'parameters': {'type': 'object', 'properties': {}},
         },
     },

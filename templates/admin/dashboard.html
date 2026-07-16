@@ -440,7 +440,7 @@
   </div>
   {% endif %}
 
-  {% if current_user.has_permission('gestion_rayons') %}
+  {% if current_user.has_permission('gestion_rayons') or current_user.has_permission('gestion_familles') or current_user.has_permission('gestion_sections') %}
   <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-10">
     <div class="feature-card">
       <div class="feature-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
@@ -449,9 +449,15 @@
       <h5>Organisation</h5>
       <p>Configurez les rayons, familles et sections de stockage.</p>
       <div class="d-flex gap-2 flex-wrap">
+        {% if current_user.has_permission('gestion_rayons') %}
         <a href="{{ url_for('admin.list_rayons') }}" class="btn btn-outline-success btn-sm">Rayons</a>
+        {% endif %}
+        {% if current_user.has_permission('gestion_familles') %}
         <a href="{{ url_for('admin.list_familles') }}" class="btn btn-outline-success btn-sm">Familles</a>
+        {% endif %}
+        {% if current_user.has_permission('gestion_sections') %}
         <a href="{{ url_for('admin.list_sections') }}" class="btn btn-outline-success btn-sm">Sections</a>
+        {% endif %}
       </div>
     </div>
   </div>

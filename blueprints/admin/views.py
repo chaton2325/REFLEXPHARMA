@@ -34,7 +34,7 @@ import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
 from sqlalchemy.exc import SQLAlchemyError
-from .ai_tools import get_ai_tools_for_user, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
+from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 
 def superadmin_required(f):
     @wraps(f)
@@ -4665,17 +4665,14 @@ def assistant_chat():
                 messages.append({'role': role, 'content': content[:2000]})
     messages.append({'role': 'user', 'content': message})
 
-    user_ai_tools = get_ai_tools_for_user(current_user)
-
     request_payload = {
         'model': 'mistral-small-latest',
         'messages': messages,
+        'tools': AI_TOOLS,
+        'tool_choice': 'auto',
         'temperature': 0.3,
         'max_tokens': 800,
     }
-    if user_ai_tools:
-        request_payload['tools'] = user_ai_tools
-        request_payload['tool_choice'] = 'auto'
 
     pdf_attachment = None
     try:

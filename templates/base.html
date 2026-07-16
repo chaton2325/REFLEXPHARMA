@@ -415,7 +415,7 @@
             </a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_produits') %}
+            {% if current_user.has_permission('gestion_produits') or current_user.has_permission('gestion_rayons') or current_user.has_permission('gestion_familles') or current_user.has_permission('gestion_sections') %}
             <div class="nav-group">
                 <a class="nav-link" data-bs-toggle="collapse" href="#catCollapse" role="button" title="Catalogue">
                     <i class="fas fa-book"></i>
@@ -423,7 +423,9 @@
                     <i class="fas fa-chevron-down collapse-indicator"></i>
                 </a>
                 <div class="collapse sub-menu" id="catCollapse">
+                    {% if current_user.has_permission('gestion_produits') %}
                     <a href="{{ url_for('admin.list_produits') }}"><span class="nav-label">Produits</span></a>
+                    {% endif %}
                     {% if current_user.has_permission('gestion_rayons') %}
                     <a href="{{ url_for('admin.list_rayons') }}"><span class="nav-label">Rayons</span></a>
                     {% endif %}
@@ -497,7 +499,7 @@
             </a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_fournisseurs') %}
+            {% if current_user.has_permission('gestion_fournisseurs') or current_user.has_permission('gestion_groupes_fournisseurs') or current_user.has_permission('gestion_postes') or current_user.has_permission('gestion_parametres') %}
             <div class="nav-group">
                 <a class="nav-link" data-bs-toggle="collapse" href="#paramCollapse" role="button" title="Paramètres">
                     <i class="fas fa-gear"></i>
@@ -505,7 +507,9 @@
                     <i class="fas fa-chevron-down collapse-indicator"></i>
                 </a>
                 <div class="collapse sub-menu" id="paramCollapse">
+                    {% if current_user.has_permission('gestion_fournisseurs') %}
                     <a href="{{ url_for('admin.list_fournisseurs') }}"><span class="nav-label">Fournisseurs</span></a>
+                    {% endif %}
                     {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
                     <a href="{{ url_for('admin.list_groupes_fournisseurs') }}"><span class="nav-label">Groupes de Fournisseurs</span></a>
                     {% endif %}
@@ -584,13 +588,15 @@
             <a href="{{ url_for('admin.list_users') }}"><i class="fas fa-users"></i>Employés</a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_produits') %}
+            {% if current_user.has_permission('gestion_produits') or current_user.has_permission('gestion_rayons') or current_user.has_permission('gestion_familles') or current_user.has_permission('gestion_sections') %}
             <a data-bs-toggle="collapse" href="#ocCatCollapse" role="button">
                 <i class="fas fa-book"></i>Catalogue
                 <i class="fas fa-chevron-down chevron"></i>
             </a>
             <div class="collapse sub-menu" id="ocCatCollapse">
+                {% if current_user.has_permission('gestion_produits') %}
                 <a href="{{ url_for('admin.list_produits') }}">Produits</a>
+                {% endif %}
                 {% if current_user.has_permission('gestion_rayons') %}
                 <a href="{{ url_for('admin.list_rayons') }}">Rayons</a>
                 {% endif %}
@@ -642,13 +648,15 @@
             <a href="{{ url_for('admin.stock_exit_stats') }}"><i class="fas fa-chart-bar"></i>Stats Sorties</a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_fournisseurs') %}
+            {% if current_user.has_permission('gestion_fournisseurs') or current_user.has_permission('gestion_groupes_fournisseurs') or current_user.has_permission('gestion_postes') or current_user.has_permission('gestion_parametres') %}
             <a data-bs-toggle="collapse" href="#ocParamCollapse" role="button">
                 <i class="fas fa-gear"></i>Paramètres
                 <i class="fas fa-chevron-down chevron"></i>
             </a>
             <div class="collapse sub-menu" id="ocParamCollapse">
+                {% if current_user.has_permission('gestion_fournisseurs') %}
                 <a href="{{ url_for('admin.list_fournisseurs') }}">Fournisseurs</a>
+                {% endif %}
                 {% if current_user.has_permission('gestion_groupes_fournisseurs') %}
                 <a href="{{ url_for('admin.list_groupes_fournisseurs') }}">Groupes de Fournisseurs</a>
                 {% endif %}
@@ -864,15 +872,39 @@
             return html || escapeHtml(text);
         }
 
+        // Effet de frappe progressive (façon ChatGPT) pour les reponses du bot : on
+        // revele le texte brut caractere par caractere, puis on bascule sur le rendu
+        // mini-markdown final une fois complet (evite d'afficher du markdown a moitie
+        // parse pendant l'animation).
+        function typeWriterEffect(el, text, onDone) {
+            const tickMs = 16;
+            const totalDurationMs = Math.min(1800, Math.max(300, text.length * 6));
+            const totalTicks = Math.max(1, Math.round(totalDurationMs / tickMs));
+            const chunkSize = Math.max(1, Math.ceil(text.length / totalTicks));
+            let i = 0;
+            function step() {
+                i = Math.min(text.length, i + chunkSize);
+                el.textContent = text.slice(0, i);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+                if (i < text.length) {
+                    setTimeout(step, tickMs);
+                } else if (onDone) {
+                    onDone();
+                }
+            }
+            step();
+        }
+
         function appendMessage(role, text) {
             const div = document.createElement('div');
             div.className = 'ai-msg ' + (role === 'user' ? 'ai-msg-user' : role === 'error' ? 'ai-msg-error' : 'ai-msg-bot');
             if (role === 'bot') {
-                div.innerHTML = formatBotText(text);
+                messagesEl.appendChild(div);
+                typeWriterEffect(div, text, () => { div.innerHTML = formatBotText(text); });
             } else {
                 div.textContent = text;
+                messagesEl.appendChild(div);
             }
-            messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
 
