@@ -26,6 +26,7 @@ from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
+from models.commande import Commande, CommandeLigne
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta
@@ -3034,6 +3035,235 @@ def delete_produit(id):
     db.session.commit()
     flash('Produit supprimé du catalogue.', 'success')
     return redirect(url_for('admin.list_produits'))
+
+# --- GESTION DES COMMANDES FOURNISSEURS ---
+def _stock_unites_par_produit():
+    """Retourne {produit_id: total d'unités en stock}."""
+    rows = db.session.query(
+        Stock.produit_id,
+        db.func.coalesce(db.func.sum(Stock.quantite_unites), 0)
+    ).group_by(Stock.produit_id).all()
+    return {pid: int(total or 0) for pid, total in rows}
+
+def _codes_suivi_par_produit(produit_ids=None):
+    """Retourne {produit_id: [codes de suivi des lots encore en stock]},
+    triés par date de péremption croissante."""
+    query = db.session.query(Stock.produit_id, Stock.code_suivi).filter(
+        (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) > 0
+    ).order_by(Stock.date_peremption.asc())
+    if produit_ids:
+        query = query.filter(Stock.produit_id.in_(produit_ids))
+    codes = {}
+    for pid, code in query.all():
+        codes.setdefault(pid, []).append(code)
+    return codes
+
+def generate_numero_commande():
+    base = f"CMD-{datetime.utcnow().strftime('%Y%m%d')}-"
+    count = Commande.query.filter(Commande.numero.like(f'{base}%')).count()
+    while True:
+        numero = f'{base}{count + 1:03d}'
+        if not Commande.query.filter_by(numero=numero).first():
+            return numero
+        count += 1
+
+@admin.route('/commandes')
+@login_required
+@permission_required('gestion_commandes')
+def list_commandes():
+    commandes = Commande.query.order_by(Commande.created_at.desc()).all()
+    nb_en_cours = sum(1 for c in commandes if c.statut == 'en_cours')
+    nb_livrees = sum(1 for c in commandes if c.statut == 'livree')
+    nb_ecarts = sum(1 for c in commandes if c.statut == 'livree' and c.a_ecart)
+    # Permet de faire pointer le badge "Relance" vers la commande source
+    ids_par_numero = {c.numero: c.id for c in commandes}
+    # Nombre de relances par commande source (pour le badge compteur)
+    nb_relances_par_numero = {}
+    for c in commandes:
+        if c.relance_de_numero:
+            nb_relances_par_numero[c.relance_de_numero] = nb_relances_par_numero.get(c.relance_de_numero, 0) + 1
+    return render_template('admin/commandes/list.html',
+        commandes=commandes,
+        nb_en_cours=nb_en_cours,
+        nb_livrees=nb_livrees,
+        nb_ecarts=nb_ecarts,
+        ids_par_numero=ids_par_numero,
+        nb_relances_par_numero=nb_relances_par_numero)
+
+@admin.route('/commandes/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_commandes')
+def create_commande():
+    fournisseurs = Fournisseur.query.order_by(Fournisseur.nom.asc()).all()
+
+    if request.method == 'POST':
+        fournisseur_id = request.form.get('fournisseur_id')
+        if not fournisseur_id:
+            flash('Veuillez choisir un fournisseur.', 'warning')
+            return redirect(url_for('admin.create_commande'))
+        fournisseur = Fournisseur.query.get_or_404(int(fournisseur_id))
+
+        stocks = _stock_unites_par_produit()
+        commande = Commande(
+            numero=generate_numero_commande(),
+            statut='en_cours',
+            fournisseur_id=fournisseur.id,
+            fournisseur_nom=fournisseur.nom,
+            note=(request.form.get('note') or '').strip() or None,
+            created_by_id=current_user.id,
+            created_by_nom=f'{current_user.prenom} {current_user.nom}'
+        )
+
+        nb_lignes = 0
+        for produit in fournisseur.produits:
+            raw = (request.form.get(f'qte_{produit.id}') or '').strip()
+            try:
+                quantite = int(raw) if raw else 0
+            except ValueError:
+                quantite = 0
+            if quantite <= 0:
+                continue
+            commande.lignes.append(CommandeLigne(
+                produit_id=produit.id,
+                produit_nom=produit.nom,
+                produit_code=produit.code_produit,
+                prix_unite_ht=produit.prix_unite or 0,
+                stock_unites_au_moment=stocks.get(produit.id, 0),
+                quantite_commandee=quantite
+            ))
+            nb_lignes += 1
+
+        if nb_lignes == 0:
+            flash('Aucune quantité saisie : la commande n\'a pas été créée.', 'warning')
+            return redirect(url_for('admin.create_commande'))
+
+        db.session.add(commande)
+        db.session.commit()
+        return redirect(url_for('admin.show_commande', id=commande.id, created=1))
+
+    produits = Produit.query.order_by(Produit.nom.asc()).all()
+    stocks = _stock_unites_par_produit()
+    codes_suivi = _codes_suivi_par_produit()
+    return render_template('admin/commandes/form.html',
+        title='Nouvelle Commande',
+        fournisseurs=fournisseurs,
+        produits=produits,
+        stocks=stocks,
+        codes_suivi=codes_suivi)
+
+@admin.route('/commandes/<int:id>')
+@login_required
+@permission_required('gestion_commandes')
+def show_commande(id):
+    commande = Commande.query.get_or_404(id)
+    origine = None
+    if commande.relance_de_numero:
+        origine = Commande.query.filter_by(numero=commande.relance_de_numero).first()
+    relances = Commande.query.filter_by(relance_de_numero=commande.numero).order_by(Commande.created_at.asc()).all()
+    created = request.args.get('created') == '1'
+    livree_confirm = request.args.get('livree') == '1' and commande.statut == 'livree'
+    return render_template('admin/commandes/show.html', commande=commande, origine=origine,
+                           relances=relances, created=created, livree_confirm=livree_confirm)
+
+@admin.route('/commandes/<int:id>/relancer', methods=['POST'])
+@login_required
+@permission_required('gestion_commandes')
+def relancer_commande(id):
+    """Crée une nouvelle commande chez le même fournisseur avec uniquement
+    les quantités manquantes (livré < commandé) de la commande d'origine."""
+    origine = Commande.query.get_or_404(id)
+    if origine.statut != 'livree':
+        flash('Seule une commande livrée peut être relancée.', 'warning')
+        return redirect(url_for('admin.show_commande', id=origine.id))
+
+    manquantes = origine.lignes_manquantes
+    if not manquantes:
+        flash('Aucun produit manquant sur cette commande.', 'info')
+        return redirect(url_for('admin.show_commande', id=origine.id))
+
+    stocks = _stock_unites_par_produit()
+    relance = Commande(
+        numero=generate_numero_commande(),
+        statut='en_cours',
+        fournisseur_id=origine.fournisseur_id,
+        fournisseur_nom=origine.fournisseur_nom,
+        note=f'Relance des manquants de la commande {origine.numero}',
+        relance_de_numero=origine.numero,
+        created_by_id=current_user.id,
+        created_by_nom=f'{current_user.prenom} {current_user.nom}'
+    )
+    for ligne in manquantes:
+        produit = ligne.produit
+        relance.lignes.append(CommandeLigne(
+            produit_id=ligne.produit_id,
+            produit_nom=produit.nom if produit else ligne.produit_nom,
+            produit_code=produit.code_produit if produit else ligne.produit_code,
+            prix_unite_ht=(produit.prix_unite if produit else ligne.prix_unite_ht) or 0,
+            stock_unites_au_moment=stocks.get(ligne.produit_id, 0) if ligne.produit_id else 0,
+            quantite_commandee=-ligne.ecart
+        ))
+
+    db.session.add(relance)
+    db.session.commit()
+    return redirect(url_for('admin.show_commande', id=relance.id, created=1))
+
+@admin.route('/commandes/<int:id>/livraison', methods=['POST'])
+@login_required
+@permission_required('gestion_commandes')
+def livraison_commande(id):
+    """Marque la commande comme livrée (ou ajuste les quantités livrées si
+    elle l'est déjà). Les quantités non renseignées valent la quantité commandée."""
+    commande = Commande.query.get_or_404(id)
+    if commande.statut == 'annulee':
+        flash('Cette commande est annulée : impossible d\'enregistrer une livraison.', 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+
+    for ligne in commande.lignes:
+        raw = (request.form.get(f'livree_{ligne.id}') or '').strip()
+        if raw == '':
+            quantite = ligne.quantite_livree if ligne.quantite_livree is not None else ligne.quantite_commandee
+        else:
+            try:
+                quantite = max(0, int(raw))
+            except ValueError:
+                quantite = ligne.quantite_livree if ligne.quantite_livree is not None else ligne.quantite_commandee
+        ligne.quantite_livree = quantite
+
+    if commande.statut == 'en_cours':
+        commande.statut = 'livree'
+        commande.livree_at = datetime.utcnow()
+        commande.livree_by_id = current_user.id
+        commande.livree_by_nom = f'{current_user.prenom} {current_user.nom}'
+        db.session.commit()
+        return redirect(url_for('admin.show_commande', id=commande.id, livree=1))
+
+    db.session.commit()
+    flash(f'Quantités livrées de la commande {commande.numero} ajustées.', 'success')
+    return redirect(url_for('admin.show_commande', id=commande.id))
+
+@admin.route('/commandes/<int:id>/annuler', methods=['POST'])
+@login_required
+@permission_required('gestion_commandes')
+def annuler_commande(id):
+    commande = Commande.query.get_or_404(id)
+    if commande.statut != 'en_cours':
+        flash('Seule une commande en cours peut être annulée.', 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+    commande.statut = 'annulee'
+    db.session.commit()
+    flash(f'Commande {commande.numero} annulée.', 'success')
+    return redirect(url_for('admin.list_commandes'))
+
+@admin.route('/commandes/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_commandes')
+def delete_commande(id):
+    commande = Commande.query.get_or_404(id)
+    numero = commande.numero
+    db.session.delete(commande)
+    db.session.commit()
+    flash(f'Commande {numero} supprimée.', 'success')
+    return redirect(url_for('admin.list_commandes'))
 
 # --- GESTION DU STOCK ---
 @admin.route('/stock', methods=['GET', 'POST'])

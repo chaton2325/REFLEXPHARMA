@@ -31,6 +31,9 @@ def setup_database():
             'produits': [
                 ('stock_securite', 'INTEGER DEFAULT 0')
             ],
+            'commandes': [
+                ('relance_de_numero', 'VARCHAR(40)')
+            ],
             'inventaires': [
                 ('date_planifiee', 'TIMESTAMP')
             ],

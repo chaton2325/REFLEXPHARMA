@@ -453,6 +453,13 @@
             </a>
             {% endif %}
 
+            {% if current_user.has_permission('gestion_commandes') %}
+            <a href="{{ url_for('admin.list_commandes') }}" class="nav-link" title="Commandes">
+                <i class="fas fa-truck"></i>
+                <span class="nav-label">Commandes</span>
+            </a>
+            {% endif %}
+
             {% if current_user.has_permission('gestion_ventes') %}
             <a href="{{ url_for('admin.list_ventes') }}" class="nav-link" title="Ventes">
                 <i class="fas fa-cash-register"></i>
@@ -622,6 +629,10 @@
 
             {% if current_user.has_permission('gestion_inventaire') %}
             <a href="{{ url_for('admin.list_inventaires') }}"><i class="fas fa-clipboard-list"></i>Inventaire</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_commandes') %}
+            <a href="{{ url_for('admin.list_commandes') }}"><i class="fas fa-truck"></i>Commandes</a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_ventes') %}

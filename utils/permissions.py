@@ -18,6 +18,7 @@ FEATURES = {
     'gestion_ventes': 'Gérer les ventes',
     'stats_ventes': 'Voir les statistiques des ventes',
     'gestion_inventaire': "Gérer l'inventaire",
+    'gestion_commandes': 'Gérer les commandes fournisseurs',
     'module_impots': 'Gérer les impôts (déclaration des taxes)',
     'gestion_parametres': 'Gérer les paramètres de l\'application'
 }

@@ -1,0 +1,745 @@
+{% extends "base.html" %}
+
+{% block title %}Commande {{ commande.numero }} - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.88rem; margin: 0; }
+
+  .card-custom {
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03); overflow: hidden;
+  }
+  .card-custom .card-header { background: #f8f9fa; border-bottom: 1px solid #e9ecef; padding: 1rem 1.5rem; }
+  .card-custom .card-header h5 { font-size: 1rem; font-weight: 600; color: #2c3e50; margin: 0; }
+
+  .badge-statut { font-weight: 600; padding: 0.35rem 0.8rem; border-radius: 8px; font-size: 0.8rem; }
+  .statut-en_cours { background: #fef3e2; color: #e37400; }
+  .statut-livree { background: #e6f7ee; color: #1e8e3e; }
+  .statut-annulee { background: #f1f3f4; color: #6c757d; }
+
+  .info-item { font-size: 0.87rem; margin-bottom: 0.5rem; color: #495057; }
+  .info-item i { width: 20px; color: #7a8896; }
+
+  .stat-mini {
+    background: #f8f9fa; border-radius: 12px; padding: 0.85rem 1rem; height: 100%;
+  }
+  .stat-mini .val { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+  .stat-mini .lbl { font-size: 0.72rem; color: #7a8896; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; }
+
+  .table-lignes { margin-bottom: 0; }
+  .table-lignes thead th {
+    background: #f8f9fa; color: #495057; font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0.75rem 0.9rem;
+    border-bottom: 2px solid #e9ecef; white-space: nowrap;
+  }
+  .table-lignes tbody td {
+    padding: 0.7rem 0.9rem; vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5; font-size: 0.87rem;
+  }
+  .table-lignes tr.ligne-ecart td { background: #fff8f0; }
+
+  .badge-ecart-plus { background: #fef3e2; color: #e37400; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
+  .badge-ecart-moins { background: #fee8e8; color: #d93025; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
+  .badge-conforme { background: #e6f7ee; color: #1e8e3e; font-weight: 600; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
+  .badge-attente { background: #f1f3f4; color: #6c757d; font-weight: 500; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
+
+  .livree-input { width: 90px; border-radius: 8px; border: 1px solid #e9ecef; padding: 0.35rem 0.5rem; font-size: 0.85rem; text-align: center; }
+  .livree-input:focus { border-color: #1e8e3e; box-shadow: 0 0 0 3px rgba(30,142,62,0.12); outline: none; }
+  .livree-input.differente { border-color: #e37400; background: #fff8f0; }
+
+  .btn-rounded { border-radius: 10px; font-weight: 600; padding: 0.5rem 1.4rem; font-size: 0.88rem; }
+
+  /* Overlay bloquant pendant l'envoi (anti double-clic) */
+  .submit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+  }
+  .submit-overlay.visible { display: flex; }
+  .submit-overlay .overlay-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.4rem 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    max-width: 90vw;
+  }
+  .submit-overlay .overlay-title { font-weight: 700; color: #1a1a2e; font-size: 0.95rem; }
+  .submit-overlay .overlay-sub { font-size: 0.8rem; color: #7a8896; }
+
+  /* --- Modal de confirmation de création (animé) --- */
+  #createdModal .modal-content {
+    border: none;
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+  }
+  #createdModal.show .modal-dialog {
+    animation: createdPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes createdPop {
+    0% { transform: scale(0.6) translateY(40px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  .created-check {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    display: block;
+    stroke-width: 3;
+    stroke: #fff;
+    stroke-miterlimit: 10;
+    margin: 0 auto;
+    box-shadow: inset 0 0 0 #1e8e3e;
+    animation: createdFill 0.4s ease-in-out 0.5s forwards, createdScale 0.35s ease-in-out 1s both;
+  }
+  .created-check .cercle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-width: 3;
+    stroke: #1e8e3e;
+    fill: none;
+    animation: createdStroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.15s forwards;
+  }
+  .created-check .coche {
+    transform-origin: 50% 50%;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    stroke-width: 4;
+    animation: createdStroke 0.35s cubic-bezier(0.65, 0, 0.45, 1) 0.85s forwards;
+  }
+  @keyframes createdStroke { 100% { stroke-dashoffset: 0; } }
+  @keyframes createdScale { 0%, 100% { transform: none; } 50% { transform: scale3d(1.12, 1.12, 1); } }
+  @keyframes createdFill { 100% { box-shadow: inset 0 0 0 60px #1e8e3e; } }
+
+  .created-pulse {
+    position: absolute;
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+    border: 3px solid rgba(30,142,62,0.35);
+    animation: createdPulse 1.4s ease-out 1s 2;
+    pointer-events: none;
+  }
+  @keyframes createdPulse {
+    0% { transform: translateX(-50%) scale(1); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1.8); opacity: 0; }
+  }
+
+  .created-titre {
+    font-weight: 800;
+    color: #1a1a2e;
+    font-size: 1.15rem;
+    opacity: 0;
+    animation: createdSlideUp 0.5s ease 1.05s forwards;
+  }
+  .created-numero {
+    display: inline-block;
+    background: #e6f7ee;
+    color: #1e8e3e;
+    font-family: Consolas, monospace;
+    font-weight: 700;
+    font-size: 1rem;
+    border-radius: 10px;
+    padding: 0.3rem 0.8rem;
+    margin: 0.4rem 0;
+    opacity: 0;
+    animation: createdSlideUp 0.5s ease 1.2s forwards;
+  }
+  .created-sub {
+    font-size: 0.85rem;
+    color: #7a8896;
+    opacity: 0;
+    animation: createdSlideUp 0.5s ease 1.35s forwards;
+  }
+  .created-actions {
+    opacity: 0;
+    animation: createdSlideUp 0.5s ease 1.5s forwards;
+  }
+  @keyframes createdSlideUp {
+    0% { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .created-confetti {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .created-confetti i {
+    position: absolute;
+    top: -14px;
+    width: 8px;
+    height: 14px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: confettiFall 1.7s ease-out forwards;
+  }
+  @keyframes confettiFall {
+    0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(380px) rotate(560deg); }
+  }
+
+  /* Variante bleue (commande marquée comme livrée) */
+  .modal-confirm-bleu .created-check {
+    box-shadow: inset 0 0 0 #1a73e8;
+    animation: createdFillBleu 0.4s ease-in-out 0.5s forwards, createdScale 0.35s ease-in-out 1s both;
+  }
+  .modal-confirm-bleu .created-check .cercle { stroke: #1a73e8; }
+  @keyframes createdFillBleu { 100% { box-shadow: inset 0 0 0 60px #1a73e8; } }
+  .modal-confirm-bleu .created-pulse { border-color: rgba(26,115,232,0.35); }
+  .modal-confirm-bleu .created-numero { background: #e8f0fe; color: #1a73e8; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #createdModal.show .modal-dialog,
+    .created-check, .created-check .cercle, .created-check .coche,
+    .created-pulse, .created-titre, .created-numero, .created-sub, .created-actions,
+    .created-confetti i { animation: none; opacity: 1; stroke-dashoffset: 0; }
+    .created-check { box-shadow: inset 0 0 0 60px #1e8e3e; }
+    .modal-confirm-bleu .created-check { box-shadow: inset 0 0 0 60px #1a73e8; }
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.15rem; }
+    .col-masquable { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{{ url_for('admin.list_commandes') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#2c3e50;" title="Retour">
+        <i class="fas fa-arrow-left"></i>
+      </a>
+      <div>
+        <h1><i class="fas fa-truck me-2"></i>Commande {{ commande.numero }}</h1>
+        <p>{{ commande.fournisseur_nom }} · {{ commande.created_at.strftime('%d/%m/%Y à %H:%M') }}</p>
+      </div>
+    </div>
+    <span class="badge-statut statut-{{ commande.statut }}" style="font-size:0.9rem;">
+      {{ 'En cours de livraison' if commande.statut == 'en_cours' else ('Livrée' if commande.statut == 'livree' else 'Annulée') }}
+    </span>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-4">
+    <div class="card-custom h-100">
+      <div class="card-header"><h5><i class="fas fa-info-circle me-2 text-primary"></i>Informations</h5></div>
+      <div class="p-3 p-sm-4">
+        {% if commande.relance_de_numero %}
+        <div class="info-item">
+          <i class="fas fa-rotate-right me-2"></i>Relance des manquants de
+          {% if origine %}
+          <a href="{{ url_for('admin.show_commande', id=origine.id) }}" class="fw-semibold">{{ commande.relance_de_numero }}</a>
+          {% else %}
+          <strong>{{ commande.relance_de_numero }}</strong>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="info-item"><i class="fas fa-building me-2"></i><strong>{{ commande.fournisseur_nom }}</strong></div>
+        <div class="info-item"><i class="fas fa-user me-2"></i>Passée par {{ commande.created_by_nom or 'N/A' }}</div>
+        <div class="info-item"><i class="fas fa-calendar-plus me-2"></i>Créée le {{ commande.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+        {% if commande.livree_at %}
+        <div class="info-item"><i class="fas fa-calendar-check me-2"></i>Livrée le {{ commande.livree_at.strftime('%d/%m/%Y %H:%M') }} par {{ commande.livree_by_nom or 'N/A' }}</div>
+        {% endif %}
+        {% if commande.note %}
+        <div class="info-item"><i class="fas fa-sticky-note me-2"></i>{{ commande.note }}</div>
+        {% endif %}
+        {% if commande.statut == 'en_cours' %}
+        <hr>
+        <button type="button" class="btn btn-outline-secondary btn-sm btn-rounded" data-bs-toggle="modal" data-bs-target="#annulerModal">
+          <i class="fas fa-ban me-1"></i> Annuler la commande
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-8">
+    <div class="card-custom h-100">
+      <div class="card-header"><h5><i class="fas fa-scale-balanced me-2 text-primary"></i>Commandé vs Livré</h5></div>
+      <div class="p-3 p-sm-4">
+        <div class="row g-2">
+          <div class="col-6 col-sm-3">
+            <div class="stat-mini">
+              <div class="val">{{ commande.total_commande }}</div>
+              <div class="lbl">Unités commandées</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="stat-mini">
+              <div class="val">{{ commande.total_livre if commande.statut == 'livree' else '—' }}</div>
+              <div class="lbl">Unités livrées</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="stat-mini">
+              {% if commande.statut == 'livree' %}
+              {% set ecart_total = commande.total_livre - commande.total_commande %}
+              <div class="val {{ 'text-danger' if ecart_total < 0 else ('text-warning' if ecart_total > 0 else 'text-success') }}">
+                {{ '%+d'|format(ecart_total) if ecart_total != 0 else '0' }}
+              </div>
+              {% else %}
+              <div class="val">—</div>
+              {% endif %}
+              <div class="lbl">Écart total</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="stat-mini">
+              <div class="val {{ 'text-danger' if commande.nb_lignes_ecart > 0 else '' }}">{{ commande.nb_lignes_ecart if commande.statut == 'livree' else '—' }}</div>
+              <div class="lbl">Lignes avec écart</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 small text-muted">
+          Montant estimé : <strong>{{ "%.2f"|format(commande.montant_commande_ht) }} € HT</strong> commandé
+          {% if commande.statut == 'livree' %}
+          · <strong>{{ "%.2f"|format(commande.montant_livre_ht) }} € HT</strong> livré
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if relances %}
+{% set total_relance = relances|sum(attribute='total_commande') %}
+{% set total_livre_relances = relances|selectattr('statut', 'equalto', 'livree')|sum(attribute='total_livre') %}
+<div class="card-custom mb-3" id="relancesCard">
+  <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <h5><i class="fas fa-rotate-right me-2 text-primary"></i>Relances de cette commande ({{ relances|length }})</h5>
+    {% if commande.total_manquant == 0 %}
+    <span class="badge-conforme"><i class="fas fa-check me-1"></i>Plus aucun manquant sur cette commande</span>
+    {% elif total_relance >= commande.total_manquant %}
+    <span class="badge-conforme"><i class="fas fa-check-double me-1"></i>Manquants entièrement couverts par les relances</span>
+    {% else %}
+    <span class="badge-ecart-plus"><i class="fas fa-triangle-exclamation me-1"></i>{{ commande.total_manquant - total_relance }} u. manquante(s) non relancée(s)</span>
+    {% endif %}
+  </div>
+
+  <!-- Desktop (sm+) -->
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-lignes">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Créée le</th>
+          <th class="col-masquable">Par</th>
+          <th>Statut</th>
+          <th>Relancé</th>
+          <th>Livré</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in relances %}
+        <tr>
+          <td><a href="{{ url_for('admin.show_commande', id=r.id) }}" class="fw-semibold text-decoration-none">{{ r.numero }}</a></td>
+          <td class="text-muted">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td class="col-masquable text-muted">{{ r.created_by_nom or 'N/A' }}</td>
+          <td>
+            <span class="badge-statut statut-{{ r.statut }}">
+              {{ 'En cours' if r.statut == 'en_cours' else ('Livrée' if r.statut == 'livree' else 'Annulée') }}
+            </span>
+          </td>
+          <td><span class="fw-semibold">{{ r.total_commande }}</span> u.</td>
+          <td>
+            {% if r.statut == 'livree' %}
+              <span class="fw-semibold {{ 'text-danger' if r.a_ecart else 'text-success' }}">{{ r.total_livre }}</span> u.
+              {% if r.lignes_manquantes %}<span class="badge-ecart-moins ms-1">-{{ r.total_manquant }} u.</span>{% endif %}
+            {% elif r.statut == 'annulee' %}
+              <span class="text-muted">—</span>
+            {% else %}
+              <span class="badge-attente">En attente</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.show_commande', id=r.id) }}" class="btn btn-outline-primary btn-sm" style="border-radius:8px;" title="Ouvrir la relance">
+              <i class="fas fa-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile (xs) -->
+  <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.6rem;">
+    {% for r in relances %}
+    <a href="{{ url_for('admin.show_commande', id=r.id) }}" class="text-decoration-none" style="display:block;border:1px solid #f0f2f5;border-radius:10px;padding:0.7rem 0.85rem;background:#fafbfc;">
+      <div class="d-flex justify-content-between align-items-center gap-2">
+        <span class="fw-semibold" style="color:#1a1a2e;font-size:0.88rem;">{{ r.numero }}</span>
+        <span class="badge-statut statut-{{ r.statut }}" style="font-size:0.68rem;">
+          {{ 'En cours' if r.statut == 'en_cours' else ('Livrée' if r.statut == 'livree' else 'Annulée') }}
+        </span>
+      </div>
+      <div class="text-muted" style="font-size:0.75rem;">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ r.created_by_nom or 'N/A' }}</div>
+      <div style="font-size:0.8rem;color:#495057;margin-top:0.2rem;">
+        {{ r.total_commande }} u. relancée(s)
+        {% if r.statut == 'livree' %}
+        · <span class="{{ 'text-danger' if r.a_ecart else 'text-success' }} fw-semibold">{{ r.total_livre }} u. livrée(s)</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="p-3 border-top d-flex flex-wrap gap-3 align-items-center" style="font-size:0.82rem;color:#495057;background:#fafbfc;">
+    <span><i class="fas fa-triangle-exclamation me-1 text-warning"></i>Manquants actuels : <strong>{{ commande.total_manquant }} u.</strong></span>
+    <span><i class="fas fa-rotate-right me-1 text-primary"></i>Total relancé : <strong>{{ total_relance }} u.</strong></span>
+    <span><i class="fas fa-truck me-1 text-success"></i>Reçu via relances : <strong>{{ total_livre_relances }} u.</strong></span>
+  </div>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('admin.livraison_commande', id=commande.id) }}" id="livraisonForm">
+  <div class="card-custom">
+    <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+      <h5><i class="fas fa-boxes me-2 text-primary"></i>Produits ({{ commande.lignes|length }})</h5>
+      {% if commande.statut == 'en_cours' %}
+      <span class="small text-muted">Ajustez les quantités reçues puis marquez la commande comme livrée.</span>
+      {% elif commande.statut == 'livree' %}
+      <span class="small text-muted">Vous pouvez corriger les quantités livrées si besoin.</span>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-lignes">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th class="col-masquable">Code</th>
+            <th class="col-masquable">Stock à la commande</th>
+            <th>Commandé</th>
+            <th>Livré</th>
+            <th>Écart</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in commande.lignes %}
+          <tr class="{{ 'ligne-ecart' if l.a_ecart else '' }}">
+            <td>
+              <div class="fw-semibold" style="color:#1a1a2e;">{{ l.produit_nom }}</div>
+              {% if l.produit_id and l.produit %}
+              <a href="{{ url_for('admin.list_produits', q=l.produit_code) }}" class="small text-decoration-none">Voir au catalogue</a>
+              {% endif %}
+            </td>
+            <td class="col-masquable"><span class="badge bg-secondary" style="font-weight:500;font-size:0.72rem;">{{ l.produit_code or 'N/A' }}</span></td>
+            <td class="col-masquable text-muted">{{ l.stock_unites_au_moment }} u.</td>
+            <td><span class="fw-semibold">{{ l.quantite_commandee }}</span> u.</td>
+            <td>
+              {% if commande.statut == 'annulee' %}
+                <span class="text-muted">—</span>
+              {% else %}
+                <input type="number" min="0" step="1" class="livree-input"
+                       name="livree_{{ l.id }}"
+                       data-commandee="{{ l.quantite_commandee }}"
+                       value="{{ l.quantite_livree if l.quantite_livree is not none else l.quantite_commandee }}">
+              {% endif %}
+            </td>
+            <td>
+              {% if commande.statut == 'livree' %}
+                {% if l.ecart is not none and l.ecart > 0 %}
+                <span class="badge-ecart-plus">+{{ l.ecart }} u.</span>
+                {% elif l.ecart is not none and l.ecart < 0 %}
+                <span class="badge-ecart-moins">{{ l.ecart }} u.</span>
+                {% else %}
+                <span class="badge-conforme"><i class="fas fa-check me-1"></i>Conforme</span>
+                {% endif %}
+              {% elif commande.statut == 'en_cours' %}
+                <span class="badge-attente">En attente</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if commande.statut != 'annulee' %}
+    <div class="p-3 p-sm-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+      <span class="small text-muted">
+        <i class="fas fa-circle-info me-1"></i>
+        La mise en stock physique (lots, dates de péremption) se fait ensuite dans le module <a href="{{ url_for('admin.manage_stock') }}">Stock</a>.
+      </span>
+      <div class="d-flex flex-wrap gap-2">
+        {% if commande.statut == 'livree' and commande.lignes_manquantes %}
+        <button type="button" class="btn btn-warning btn-rounded" data-bs-toggle="modal" data-bs-target="#relancerModal">
+          <i class="fas fa-rotate-right me-1"></i> Relancer les manquants ({{ commande.total_manquant }} u.)
+        </button>
+        {% endif %}
+        <button type="submit" class="btn {{ 'btn-success' if commande.statut == 'en_cours' else 'btn-outline-success' }} btn-rounded">
+          {% if commande.statut == 'en_cours' %}
+          <i class="fas fa-check-double me-1"></i> Marquer comme livrée
+          {% else %}
+          <i class="fas fa-rotate me-1"></i> Enregistrer les ajustements
+          {% endif %}
+        </button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</form>
+
+{% if commande.statut == 'livree' and commande.lignes_manquantes %}
+<!-- Modal relance des manquants -->
+<div class="modal fade" id="relancerModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body px-4 pb-3">
+        <div class="text-center mb-3">
+          <div style="width:64px;height:64px;border-radius:50%;background:#fef3e2;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+            <i class="fas fa-rotate-right" style="color:#e37400;font-size:1.5rem;"></i>
+          </div>
+          <h5 class="fw-bold mb-1">Relancer les manquants</h5>
+          <p class="text-muted mb-0" style="font-size:0.88rem;">
+            Une nouvelle commande sera créée chez <strong>{{ commande.fournisseur_nom }}</strong> avec les quantités manquantes :
+          </p>
+        </div>
+        <div style="max-height:220px;overflow-y:auto;border:1px solid #f0f2f5;border-radius:10px;">
+          <table class="table mb-0" style="font-size:0.85rem;">
+            <tbody>
+              {% for l in commande.lignes_manquantes %}
+              <tr>
+                <td class="fw-semibold" style="padding:0.55rem 0.85rem;">{{ l.produit_nom }}</td>
+                <td class="text-end" style="padding:0.55rem 0.85rem;white-space:nowrap;">
+                  <span class="badge-ecart-moins">{{ -l.ecart }} u. manquante(s)</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="text-end small text-muted mt-2">Total : <strong>{{ commande.total_manquant }} unité(s)</strong></div>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Retour</button>
+        <form action="{{ url_for('admin.relancer_commande', id=commande.id) }}" method="POST" class="d-inline" id="relancerForm">
+          <button type="submit" class="btn btn-warning" style="border-radius:10px;font-weight:600;">
+            <i class="fas fa-rotate-right me-1"></i> Créer la commande de relance
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if commande.statut == 'en_cours' %}
+<!-- Modal annulation -->
+<div class="modal fade" id="annulerModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fef3e2;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-ban" style="color:#e37400;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Annuler cette commande ?</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          La commande <strong>{{ commande.numero }}</strong> passera au statut « Annulée ».<br>
+          Cette action ne peut pas être défaite.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Retour</button>
+        <form action="{{ url_for('admin.annuler_commande', id=commande.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-warning" style="border-radius:10px;min-width:100px;font-weight:600;">Annuler la commande</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if created or livree_confirm %}
+<!-- Modal animé : confirmation de création (vert) ou de livraison (bleu) -->
+<div class="modal fade {{ 'modal-confirm-bleu' if livree_confirm }}" id="createdModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="created-confetti" id="createdConfetti"></div>
+      <div class="modal-body text-center px-4 pt-4 pb-3" style="position:relative;">
+        <div style="position:relative;margin-bottom:1rem;">
+          <span class="created-pulse"></span>
+          <svg class="created-check" viewBox="0 0 52 52">
+            <circle class="cercle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="coche" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <div class="created-titre">
+          {% if livree_confirm %}
+          Commande marquée comme livrée
+          {% elif commande.relance_de_numero %}
+          Commande de relance créée
+          {% else %}
+          Commande créée avec succès
+          {% endif %}
+        </div>
+        <div><span class="created-numero">{{ commande.numero }}</span></div>
+        <div class="created-sub">
+          {% if livree_confirm %}
+          <strong>{{ commande.total_livre }}</strong> unité(s) reçue(s) sur <strong>{{ commande.total_commande }}</strong> commandée(s)
+          chez <strong>{{ commande.fournisseur_nom }}</strong>
+          {% if commande.lignes_manquantes %}
+          <br><span style="color:#e37400;font-weight:600;"><i class="fas fa-triangle-exclamation me-1"></i>{{ commande.total_manquant }} unité(s) manquante(s) sur {{ commande.lignes_manquantes|length }} produit(s)</span>
+          {% elif commande.a_ecart %}
+          <br><span style="color:#e37400;font-weight:600;">Des écarts ont été relevés (surplus).</span>
+          {% else %}
+          <br><span style="color:#1e8e3e;font-weight:600;"><i class="fas fa-check me-1"></i>Livraison conforme à la commande.</span>
+          {% endif %}
+          {% else %}
+          Chez <strong>{{ commande.fournisseur_nom }}</strong>
+          · {{ commande.lignes|length }} produit(s)
+          · {{ commande.total_commande }} unité(s)
+          {% if commande.relance_de_numero %}
+          <br>Relance des manquants de {{ commande.relance_de_numero }}
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-1 pb-4 justify-content-center gap-2 created-actions">
+        {% if livree_confirm and commande.lignes_manquantes %}
+        <button type="button" class="btn btn-warning" id="btnOuvrirRelance" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-rotate-right me-1"></i> Relancer les manquants
+        </button>
+        {% else %}
+        <a href="{{ url_for('admin.list_commandes') }}" class="btn btn-light border" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-list me-1"></i> Toutes les commandes
+        </a>
+        {% endif %}
+        <button type="button" class="btn {{ 'btn-primary' if livree_confirm else 'btn-success' }}" data-bs-dismiss="modal" style="border-radius:10px;min-width:130px;font-weight:600;">
+          <i class="fas fa-check me-1"></i> Parfait
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Overlay bloquant pendant l'enregistrement -->
+<div class="submit-overlay" id="submitOverlay" aria-hidden="true">
+  <div class="overlay-box">
+    <span class="spinner-border text-success" role="status" style="width:2.2rem;height:2.2rem;flex-shrink:0;"></span>
+    <div>
+      <div class="overlay-title" id="overlayTitle">Enregistrement en cours...</div>
+      <div class="overlay-sub">Merci de patienter, ne fermez pas la page.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Met en évidence les quantités livrées différentes du commandé pendant la saisie
+    document.querySelectorAll('.livree-input').forEach(input => {
+        function maj() {
+            const commandee = parseInt(input.dataset.commandee, 10) || 0;
+            const val = parseInt(input.value, 10);
+            input.classList.toggle('differente', !isNaN(val) && val !== commandee);
+        }
+        input.addEventListener('input', maj);
+        maj();
+    });
+
+    // Anti double-clic : overlay bloquant sur tous les formulaires de la page
+    // (livraison / ajustement / annulation)
+    const overlay = document.getElementById('submitOverlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    let envoiEnCours = false;
+
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (envoiEnCours) {
+                e.preventDefault();
+                return;
+            }
+            envoiEnCours = true;
+            if (form.id === 'livraisonForm') {
+                overlayTitle.textContent = 'Enregistrement de la livraison...';
+            } else if (form.id === 'relancerForm') {
+                overlayTitle.textContent = 'Création de la commande de relance...';
+            } else {
+                overlayTitle.textContent = 'Enregistrement en cours...';
+            }
+            overlay.classList.add('visible');
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+        });
+    });
+
+    // Si l'utilisateur revient en arrière (bfcache), on débloque la page
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            envoiEnCours = false;
+            overlay.classList.remove('visible');
+            document.querySelectorAll('form button[type="submit"]').forEach(btn => btn.disabled = false);
+        }
+    });
+
+    // Modal animé de confirmation (création : vert / livraison : bleu)
+    const createdModalEl = document.getElementById('createdModal');
+    if (createdModalEl) {
+        // On retire ?created=1 / ?livree=1 de l'URL pour ne pas rejouer l'animation au refresh
+        const url = new URL(window.location.href);
+        url.searchParams.delete('created');
+        url.searchParams.delete('livree');
+        window.history.replaceState({}, '', url);
+
+        const couleurs = ['#1e8e3e', '#3498db', '#f5a623', '#e74c3c', '#7c3aed', '#2ecc71'];
+        createdModalEl.addEventListener('shown.bs.modal', function() {
+            const conteneur = document.getElementById('createdConfetti');
+            for (let i = 0; i < 18; i++) {
+                const piece = document.createElement('i');
+                piece.style.left = (4 + Math.random() * 92) + '%';
+                piece.style.background = couleurs[i % couleurs.length];
+                piece.style.animationDelay = (Math.random() * 0.6) + 's';
+                piece.style.transform = 'rotate(' + Math.floor(Math.random() * 360) + 'deg)';
+                conteneur.appendChild(piece);
+            }
+        }, { once: true });
+
+        // Depuis le modal bleu : ouvrir directement le modal de relance des manquants
+        const btnOuvrirRelance = document.getElementById('btnOuvrirRelance');
+        const relancerModalEl = document.getElementById('relancerModal');
+        if (btnOuvrirRelance && relancerModalEl) {
+            btnOuvrirRelance.addEventListener('click', function() {
+                bootstrap.Modal.getInstance(createdModalEl).hide();
+                createdModalEl.addEventListener('hidden.bs.modal', function() {
+                    new bootstrap.Modal(relancerModalEl).show();
+                }, { once: true });
+            });
+        }
+
+        new bootstrap.Modal(createdModalEl).show();
+    }
+});
+</script>
+{% endblock %}

@@ -748,6 +748,19 @@
   </div>
   {% endif %}
 
+  {% if current_user.has_permission('gestion_commandes') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-1">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-truck"></i>
+      </div>
+      <h5>Commandes Fournisseurs</h5>
+      <p>Passez des commandes selon le stock, suivez les livraisons et les écarts.</p>
+      <a href="{{ url_for('admin.list_commandes') }}" class="btn btn-outline-primary">Gérer les commandes</a>
+    </div>
+  </div>
+  {% endif %}
+
   {% if current_user.has_permission('gestion_modifications_stock') %}
   <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-2">
     <div class="feature-card">

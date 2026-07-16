@@ -25,6 +25,7 @@ from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
+from models.commande import Commande, CommandeLigne
 
 from config import config
 
@@ -39,6 +40,9 @@ def ensure_database_schema(app):
         columns_to_check = {
             'produits': [
                 ('stock_securite', 'INTEGER DEFAULT 0')
+            ],
+            'commandes': [
+                ('relance_de_numero', 'VARCHAR(40)')
             ],
             'ventes': [
                 ('montant_recu', 'FLOAT DEFAULT 0'),

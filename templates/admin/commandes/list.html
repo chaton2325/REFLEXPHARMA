@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}Commandes Fournisseurs - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+  }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.4rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.75rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+
+  .search-wrapper { position: relative; }
+  .search-wrapper .form-control {
+    padding-left: 2.5rem; border-radius: 10px; border: 1px solid #e9ecef;
+    background: #f8f9fa; font-size: 0.88rem;
+  }
+  .search-wrapper .search-icon {
+    position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
+    color: #adb5bd; font-size: 0.9rem; pointer-events: none;
+  }
+
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: #f8f9fa; color: #495057; font-size: 0.78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef; white-space: nowrap;
+  }
+  .table-custom tbody td {
+    padding: 0.85rem 1rem; vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5; font-size: 0.88rem;
+  }
+  .table-custom tbody tr:hover { background: #f8faff; }
+
+  .badge-statut { font-weight: 600; padding: 0.35rem 0.7rem; border-radius: 8px; font-size: 0.75rem; }
+  .statut-en_cours { background: #fef3e2; color: #e37400; }
+  .statut-livree { background: #e6f7ee; color: #1e8e3e; }
+  .statut-annulee { background: #f1f3f4; color: #6c757d; }
+
+  .badge-ecart { background: #fee8e8; color: #d93025; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: 8px; font-size: 0.72rem; }
+  .badge-ok { background: #e6f7ee; color: #1e8e3e; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: 8px; font-size: 0.72rem; }
+
+  .btn-action {
+    width: 34px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 0.85rem;
+  }
+  .action-group { display: flex; gap: 0.3rem; justify-content: flex-end; }
+
+  .mobile-card {
+    background: #fff; border-radius: 12px; padding: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f0f2f5;
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-truck me-2"></i>Commandes Fournisseurs</h1>
+      <p>Passez des commandes, suivez les livraisons et comparez le commandé au livré.</p>
+    </div>
+    <a href="{{ url_for('admin.create_commande') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+      <i class="fas fa-plus me-1"></i> Nouvelle Commande
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-sm-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-truck"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ commandes|length }}</div>
+        <div class="stat-label">Commandes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e2,#fde4b3);color:#e37400;">
+        <i class="fas fa-hourglass-half"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ nb_en_cours }}</div>
+        <div class="stat-label">En cours</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-check-double"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ nb_livrees }}</div>
+        <div class="stat-label">Livrées</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-sm-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;">
+        <i class="fas fa-not-equal"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ nb_ecarts }}</div>
+        <div class="stat-label">Avec écart</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+    <select id="filterStatut" class="form-select" style="max-width:200px;border-radius:10px;background:#f8f9fa;border:1px solid #e9ecef;font-size:0.85rem;">
+      <option value="">Tous les statuts</option>
+      <option value="en_cours">En cours</option>
+      <option value="livree">Livrée</option>
+      <option value="annulee">Annulée</option>
+    </select>
+    <div class="search-wrapper" style="width:100%;max-width:300px;">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" id="searchInput" class="form-control" placeholder="Rechercher (numéro, fournisseur...)">
+    </div>
+  </div>
+
+  <!-- Mobile cards (xs only) -->
+  <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileList">
+    {% for c in commandes %}
+    <div class="mobile-card" data-statut="{{ c.statut }}" data-search="{{ (c.numero ~ ' ' ~ c.fournisseur_nom ~ ' ' ~ c.statut ~ ' ' ~ (c.relance_de_numero or ''))|lower }}">
+      <div class="d-flex align-items-start gap-2">
+        <div style="flex:1;min-width:0;">
+          <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">
+            {{ c.numero }}
+            {% if c.relance_de_numero %}
+              {% set source_id = ids_par_numero.get(c.relance_de_numero) %}
+              {% if source_id %}
+              <a href="{{ url_for('admin.show_commande', id=source_id) }}" class="badge text-decoration-none" style="background:#f3e8fd;color:#7c3aed;font-weight:600;font-size:0.62rem;">
+                <i class="fas fa-rotate-right me-1"></i>Relance de {{ c.relance_de_numero }}
+              </a>
+              {% else %}
+              <span class="badge" style="background:#f3e8fd;color:#7c3aed;font-weight:600;font-size:0.62rem;">Relance de {{ c.relance_de_numero }}</span>
+              {% endif %}
+            {% endif %}
+            {% set nb_relances = nb_relances_par_numero.get(c.numero, 0) %}
+            {% if nb_relances > 0 %}
+            <a href="{{ url_for('admin.show_commande', id=c.id) }}#relancesCard" class="badge text-decoration-none" style="background:#e8f0fe;color:#1a73e8;font-weight:600;font-size:0.62rem;">
+              <i class="fas fa-share me-1"></i>{{ nb_relances }} relance(s)
+            </a>
+            {% endif %}
+          </div>
+          <div style="font-size:0.82rem;color:#495057;"><i class="fas fa-building text-muted me-1"></i>{{ c.fournisseur_nom }}</div>
+          <div class="text-muted" style="font-size:0.75rem;">{{ c.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ c.lignes|length }} produit(s)</div>
+          <div class="mt-1 d-flex flex-wrap gap-1">
+            <span class="badge-statut statut-{{ c.statut }}">
+              {{ 'En cours' if c.statut == 'en_cours' else ('Livrée' if c.statut == 'livree' else 'Annulée') }}
+            </span>
+            {% if c.statut == 'livree' %}
+              {% if c.a_ecart %}
+              <span class="badge-ecart">{{ c.nb_lignes_ecart }} écart(s)</span>
+              {% else %}
+              <span class="badge-ok">Conforme</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        <a href="{{ url_for('admin.show_commande', id=c.id) }}" class="btn btn-outline-primary btn-action"><i class="fas fa-eye"></i></a>
+      </div>
+    </div>
+    {% endfor %}
+    {% if commandes|length == 0 %}
+    <div class="text-center py-4">
+      <i class="fas fa-truck" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucune commande pour le moment.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Desktop table (sm+) -->
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-custom" id="commandeTable">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Fournisseur</th>
+          <th>Date</th>
+          <th>Produits</th>
+          <th>Commandé / Livré</th>
+          <th>Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in commandes %}
+        <tr data-statut="{{ c.statut }}">
+          <td>
+            <span class="fw-semibold" style="color:#1a1a2e;">{{ c.numero }}</span>
+            {% if c.relance_de_numero %}
+              {% set source_id = ids_par_numero.get(c.relance_de_numero) %}
+              {% if source_id %}
+              <a href="{{ url_for('admin.show_commande', id=source_id) }}" class="badge text-decoration-none" style="background:#f3e8fd;color:#7c3aed;font-weight:600;font-size:0.65rem;" title="Voir la commande source {{ c.relance_de_numero }}">
+                <i class="fas fa-rotate-right me-1"></i>Relance de {{ c.relance_de_numero }}
+              </a>
+              {% else %}
+              <span class="badge" style="background:#f3e8fd;color:#7c3aed;font-weight:600;font-size:0.65rem;" title="Commande source supprimée">
+                <i class="fas fa-rotate-right me-1"></i>Relance de {{ c.relance_de_numero }}
+              </span>
+              {% endif %}
+            {% endif %}
+            {% set nb_relances = nb_relances_par_numero.get(c.numero, 0) %}
+            {% if nb_relances > 0 %}
+            <a href="{{ url_for('admin.show_commande', id=c.id) }}#relancesCard" class="badge text-decoration-none" style="background:#e8f0fe;color:#1a73e8;font-weight:600;font-size:0.65rem;" title="Voir les relances de cette commande">
+              <i class="fas fa-share me-1"></i>{{ nb_relances }} relance(s)
+            </a>
+            {% endif %}
+          </td>
+          <td style="color:#495057;">{{ c.fournisseur_nom }}</td>
+          <td class="text-muted small">{{ c.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ c.lignes|length }}</td>
+          <td>
+            <span class="fw-semibold">{{ c.total_commande }}</span>
+            <span class="text-muted">/</span>
+            {% if c.statut == 'livree' %}
+              <span class="fw-semibold {{ 'text-danger' if c.a_ecart else 'text-success' }}">{{ c.total_livre }}</span>
+              {% if c.a_ecart %}<span class="badge-ecart ms-1">{{ c.nb_lignes_ecart }} écart(s)</span>{% endif %}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge-statut statut-{{ c.statut }}">
+              {{ 'En cours' if c.statut == 'en_cours' else ('Livrée' if c.statut == 'livree' else 'Annulée') }}
+            </span>
+          </td>
+          <td>
+            <div class="action-group">
+              <a href="{{ url_for('admin.show_commande', id=c.id) }}" class="btn btn-outline-primary btn-action" title="Voir / Livrer">
+                <i class="fas fa-eye"></i>
+              </a>
+              <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ c.id }}" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if commandes|length == 0 %}
+        <tr>
+          <td colspan="7" class="text-center py-5 text-muted">
+            <i class="fas fa-truck" style="font-size:2rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+            Aucune commande pour le moment.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Delete Modals -->
+{% for c in commandes %}
+<div class="modal fade" id="deleteModal{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Supprimer la commande <strong>{{ c.numero }}</strong> ({{ c.fournisseur_nom }}) ?<br>
+          Cette action est irréversible.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_commande', id=c.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const filterStatut = document.getElementById('filterStatut');
+
+    function filterList() {
+        const query = searchInput.value.toLowerCase();
+        const statut = filterStatut.value;
+
+        document.querySelectorAll('#commandeTable tbody tr[data-statut]').forEach(row => {
+            const matchQuery = row.textContent.toLowerCase().includes(query);
+            const matchStatut = !statut || row.dataset.statut === statut;
+            row.style.display = matchQuery && matchStatut ? '' : 'none';
+        });
+
+        document.querySelectorAll('#mobileList .mobile-card').forEach(card => {
+            const matchQuery = (card.dataset.search || '').includes(query);
+            const matchStatut = !statut || card.dataset.statut === statut;
+            card.style.display = matchQuery && matchStatut ? '' : 'none';
+        });
+    }
+
+    searchInput.addEventListener('input', filterList);
+    filterStatut.addEventListener('change', filterList);
+});
+</script>
+{% endblock %}

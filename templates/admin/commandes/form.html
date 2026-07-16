@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; }
+
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-form .card-header {
+    background: #f8f9fa; border-bottom: 1px solid #e9ecef; padding: 1rem 1.5rem;
+  }
+  .card-form .card-header h5 { font-size: 1rem; font-weight: 600; color: #2c3e50; margin: 0; }
+  .card-form .card-body { padding: 1.5rem; }
+
+  .form-custom .form-label { font-size: 0.85rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.4rem; }
+  .form-custom .form-control, .form-custom .form-select {
+    border-radius: 10px; border: 1px solid #e9ecef; padding: 0.55rem 0.85rem; font-size: 0.88rem;
+  }
+
+  .table-produits { margin-bottom: 0; }
+  .table-produits thead th {
+    background: #f8f9fa; color: #495057; font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0.7rem 0.85rem;
+    border-bottom: 2px solid #e9ecef; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  .table-produits tbody td {
+    padding: 0.6rem 0.85rem; vertical-align: middle;
+    border-bottom: 1px solid #f0f2f5; font-size: 0.85rem;
+  }
+  .table-produits .qte-input { width: 90px; border-radius: 8px; border: 1px solid #e9ecef; padding: 0.35rem 0.5rem; font-size: 0.85rem; text-align: center; }
+  .table-produits .qte-input:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); outline: none; }
+  .table-produits tr.sous-seuil td { background: #fff5f5; }
+  .table-produits tr.a-quantite td { background: #eefaf2; }
+
+  .badge-stock { font-weight: 600; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
+  .stock-ok { background: #e6f7ee; color: #1e8e3e; }
+  .stock-bas { background: #fee8e8; color: #d93025; }
+  .stock-sans-seuil { background: #f1f3f4; color: #6c757d; }
+
+  .btn-suggestion {
+    border: 1px dashed #3498db; color: #3498db; background: transparent;
+    border-radius: 7px; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.5rem;
+  }
+  .btn-suggestion:hover { background: #e8f0fe; }
+
+  .search-wrapper { position: relative; }
+  .search-wrapper .form-control { padding-left: 2.3rem; background: #f8f9fa; }
+  .search-wrapper .search-icon {
+    position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%);
+    color: #adb5bd; font-size: 0.85rem; pointer-events: none;
+  }
+
+  .recap-bar {
+    position: sticky; bottom: 0; z-index: 5;
+    background: #2c3e50; color: #fff;
+    border-radius: 12px; padding: 0.75rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.15);
+    margin-top: 1rem;
+  }
+  .recap-bar .recap-info { font-size: 0.85rem; flex: 1; min-width: 200px; }
+  .recap-bar .recap-info strong { font-size: 1rem; }
+
+  .produits-scroll { max-height: 520px; overflow-y: auto; }
+
+  /* Overlay bloquant pendant l'envoi (anti double-clic) */
+  .submit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+  }
+  .submit-overlay.visible { display: flex; }
+  .submit-overlay .overlay-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.4rem 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    max-width: 90vw;
+  }
+  .submit-overlay .overlay-title { font-weight: 700; color: #1a1a2e; font-size: 0.95rem; }
+  .submit-overlay .overlay-sub { font-size: 0.8rem; color: #7a8896; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .card-form .card-body { padding: 1rem; }
+    .produits-scroll { max-height: 420px; }
+    .col-masquable { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('admin.list_commandes') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#2c3e50;" title="Retour">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h1><i class="fas fa-truck me-2"></i>{{ title }}</h1>
+      <p>Choisissez un fournisseur, consultez le stock actuel et saisissez les quantités à commander (en unités).</p>
+    </div>
+  </div>
+</div>
+
+<form method="POST" class="form-custom" id="commandeForm">
+  <div class="card-form mb-3">
+    <div class="card-header"><h5><i class="fas fa-building me-2 text-primary"></i>Fournisseur</h5></div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-sm-6 col-md-4">
+          <label class="form-label">Fournisseur <span class="text-danger">*</span></label>
+          <select name="fournisseur_id" id="fournisseurSelect" class="form-select" required>
+            <option value="">Choisir un fournisseur...</option>
+            {% for f in fournisseurs %}
+            <option value="{{ f.id }}">{{ f.nom }} ({{ f.prefixe }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-8">
+          <label class="form-label">Note (optionnel)</label>
+          <input type="text" name="note" class="form-control" placeholder="Référence, urgence, remarque pour la livraison...">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-form" id="produitsCard" style="display:none;">
+    <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+      <h5><i class="fas fa-pills me-2 text-primary"></i>Produits du fournisseur</h5>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <button type="button" id="btnToutesSuggestions" class="btn btn-outline-primary btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;">
+          <i class="fas fa-wand-magic-sparkles me-1"></i> Appliquer les suggestions
+        </button>
+        <div class="search-wrapper">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="searchProduit" class="form-control form-control-sm" placeholder="Filtrer les produits..." style="border-radius:8px;width:200px;">
+        </div>
+      </div>
+    </div>
+    <div class="produits-scroll table-responsive">
+      <table class="table table-produits" id="produitsTable">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th class="col-masquable">Code</th>
+            <th>Stock actuel</th>
+            <th class="col-masquable">Seuil sécurité</th>
+            <th>Suggestion</th>
+            <th style="width:110px;">Quantité</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in produits %}
+          {% set stock = stocks.get(p.id, 0) %}
+          {% set seuil = p.stock_securite or 0 %}
+          {% set suggestion = (seuil * 2 - stock) if (seuil > 0 and (seuil * 2 - stock) > 0) else 0 %}
+          {% set codes = codes_suivi.get(p.id, []) %}
+          <tr data-fournisseur="{{ p.fournisseur_id }}"
+              data-search="{{ (p.nom ~ ' ' ~ p.code_produit ~ ' ' ~ codes|join(' '))|lower }}"
+              class="{{ 'sous-seuil' if (seuil > 0 and stock <= seuil) else '' }}"
+              style="display:none;">
+            <td>
+              <div class="fw-semibold" style="color:#1a1a2e;">{{ p.nom }}</div>
+              {% if seuil > 0 and stock <= seuil %}
+              <span class="badge-stock stock-bas" style="font-size:0.68rem;"><i class="fas fa-triangle-exclamation me-1"></i>Sous le seuil</span>
+              {% endif %}
+            </td>
+            <td class="col-masquable"><span class="badge bg-secondary" style="font-weight:500;font-size:0.72rem;">{{ p.code_produit }}</span></td>
+            <td>
+              <span class="badge-stock {{ 'stock-bas' if (seuil > 0 and stock <= seuil) else 'stock-ok' }}">{{ stock }} u.</span>
+            </td>
+            <td class="col-masquable">
+              {% if seuil > 0 %}
+              <span class="text-muted">{{ seuil }} u.</span>
+              {% else %}
+              <span class="badge-stock stock-sans-seuil">non défini</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if suggestion > 0 %}
+              <button type="button" class="btn-suggestion" data-suggestion="{{ suggestion }}" title="Compléter jusqu'à 2× le stock de sécurité">
+                +{{ suggestion }} u.
+              </button>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <input type="number" min="0" step="1" class="qte-input" name="qte_{{ p.id }}" value="" placeholder="0">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div id="aucunProduit" class="text-center py-4 text-muted" style="display:none;">
+        <i class="fas fa-box-open" style="font-size:1.8rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+        Ce fournisseur n'a aucun produit dans le catalogue.
+      </div>
+    </div>
+  </div>
+
+  <div class="recap-bar" id="recapBar" style="display:none;">
+    <div class="recap-info">
+      <strong id="recapLignes">0</strong> produit(s) · <strong id="recapQuantite">0</strong> unité(s) au total
+      <span id="recapMontant" class="ms-2 text-white-50"></span>
+    </div>
+    <a href="{{ url_for('admin.list_commandes') }}" class="btn btn-light btn-sm" style="border-radius:10px;">Annuler</a>
+    <button type="submit" id="btnSubmitCommande" class="btn btn-primary" style="border-radius:10px;font-weight:600;">
+      <i class="fas fa-paper-plane me-1"></i> Passer la commande
+    </button>
+  </div>
+</form>
+
+<!-- Overlay bloquant pendant l'envoi de la commande -->
+<div class="submit-overlay" id="submitOverlay" aria-hidden="true">
+  <div class="overlay-box">
+    <span class="spinner-border text-primary" role="status" style="width:2.2rem;height:2.2rem;flex-shrink:0;"></span>
+    <div>
+      <div class="overlay-title">Envoi de la commande...</div>
+      <div class="overlay-sub">Merci de patienter, ne fermez pas la page.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fournisseurSelect = document.getElementById('fournisseurSelect');
+    const produitsCard = document.getElementById('produitsCard');
+    const recapBar = document.getElementById('recapBar');
+    const searchProduit = document.getElementById('searchProduit');
+    const aucunProduit = document.getElementById('aucunProduit');
+    const rows = Array.from(document.querySelectorAll('#produitsTable tbody tr'));
+    const prix = {};
+    {% for p in produits %}prix[{{ p.id }}] = {{ (p.prix_unite or 0)|round(4) }};
+    {% endfor %}
+
+    function rowsDuFournisseur() {
+        const fid = fournisseurSelect.value;
+        return rows.filter(r => r.dataset.fournisseur === fid);
+    }
+
+    function afficherProduits() {
+        const fid = fournisseurSelect.value;
+        const query = searchProduit.value.trim().toLowerCase();
+        let visibles = 0;
+        rows.forEach(row => {
+            const match = row.dataset.fournisseur === fid && (!query || row.dataset.search.includes(query));
+            row.style.display = match ? '' : 'none';
+            if (row.dataset.fournisseur === fid) visibles++;
+            // On vide les quantités des produits d'autres fournisseurs pour éviter les surprises
+            if (row.dataset.fournisseur !== fid) {
+                row.querySelector('.qte-input').value = '';
+            }
+        });
+        produitsCard.style.display = fid ? 'block' : 'none';
+        recapBar.style.display = fid ? 'flex' : 'none';
+        aucunProduit.style.display = (fid && visibles === 0) ? 'block' : 'none';
+        majRecap();
+    }
+
+    function majRecap() {
+        let lignes = 0, quantite = 0, montant = 0;
+        rowsDuFournisseur().forEach(row => {
+            const input = row.querySelector('.qte-input');
+            const val = parseInt(input.value, 10) || 0;
+            row.classList.toggle('a-quantite', val > 0);
+            if (val > 0) {
+                lignes++;
+                quantite += val;
+                const pid = parseInt(input.name.replace('qte_', ''), 10);
+                montant += val * (prix[pid] || 0);
+            }
+        });
+        document.getElementById('recapLignes').textContent = lignes;
+        document.getElementById('recapQuantite').textContent = quantite;
+        document.getElementById('recapMontant').textContent = montant > 0 ? '≈ ' + montant.toFixed(2) + ' € HT' : '';
+    }
+
+    fournisseurSelect.addEventListener('change', afficherProduits);
+    searchProduit.addEventListener('input', afficherProduits);
+
+    rows.forEach(row => {
+        row.querySelector('.qte-input').addEventListener('input', majRecap);
+        const btn = row.querySelector('.btn-suggestion');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                row.querySelector('.qte-input').value = btn.dataset.suggestion;
+                majRecap();
+            });
+        }
+    });
+
+    document.getElementById('btnToutesSuggestions').addEventListener('click', () => {
+        rowsDuFournisseur().forEach(row => {
+            const btn = row.querySelector('.btn-suggestion');
+            if (btn) row.querySelector('.qte-input').value = btn.dataset.suggestion;
+        });
+        majRecap();
+    });
+
+    const recapInfo = document.querySelector('.recap-bar .recap-info');
+    const recapInfoHtml = recapInfo.innerHTML;
+    const overlay = document.getElementById('submitOverlay');
+    const btnSubmit = document.getElementById('btnSubmitCommande');
+    let envoiEnCours = false;
+
+    document.getElementById('commandeForm').addEventListener('submit', function(e) {
+        // Anti double-clic : une soumission est déjà partie, on bloque tout
+        if (envoiEnCours) {
+            e.preventDefault();
+            return;
+        }
+        const total = rowsDuFournisseur().reduce((acc, row) => acc + (parseInt(row.querySelector('.qte-input').value, 10) || 0), 0);
+        if (total === 0) {
+            e.preventDefault();
+            recapInfo.innerHTML = '<span style="color:#ffb3b3;font-weight:600;"><i class="fas fa-triangle-exclamation me-1"></i>Saisissez au moins une quantité avant de passer la commande.</span>';
+            setTimeout(function() {
+                recapInfo.innerHTML = recapInfoHtml;
+                majRecap();
+            }, 2500);
+            return;
+        }
+        // Soumission valide : on bloque l'application avec l'overlay
+        envoiEnCours = true;
+        overlay.classList.add('visible');
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Envoi en cours...';
+    });
+
+    // Si l'utilisateur revient en arrière (bfcache), on débloque la page
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            envoiEnCours = false;
+            overlay.classList.remove('visible');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Passer la commande';
+        }
+    });
+});
+</script>
+{% endblock %}
