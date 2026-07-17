@@ -37,6 +37,7 @@ from urllib.parse import quote
 from utils.permissions import FEATURES
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
+from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
 
 def superadmin_required(f):
     @wraps(f)
@@ -3257,8 +3258,6 @@ def show_commande(id):
     return render_template('admin/commandes/show.html', commande=commande, origine=origine,
                            relances=relances, created=created, livree_confirm=livree_confirm)
 
-_COMMANDE_STATUT_LABELS = {'en_cours': 'En cours', 'livree': 'Livrée', 'annulee': 'Annulée'}
-
 _XLSX_MIMETYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 
@@ -3425,96 +3424,16 @@ def export_commande_excel(id):
 @login_required
 @permission_required('gestion_commandes')
 def export_commande_pdf(id):
-    """Bon de commande PDF : recapitulatif imprimable/envoyable au fournisseur."""
+    """Bon de commande PDF : recapitulatif imprimable/envoyable au fournisseur.
+    La construction du document est partagée avec l'assistant IA (bon_commande_pdf.py)."""
     import io
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     commande = Commande.query.get_or_404(id)
-    livree = commande.statut == 'livree'
-
     output = io.BytesIO()
-    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=24, bottomMargin=24, leftMargin=24, rightMargin=24)
-    styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, leading=10))
-    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
-    # Les tableaux occupent presque toute la largeur utile de la page A4
-    largeur_utile = A4[0] - doc.leftMargin - doc.rightMargin
-
-    elements = [
-        Paragraph(f'Bon de commande {commande.numero}', styles['Title']),
-        Paragraph(
-            f'{pharmacy_name} | Date du tirage : {datetime.now().strftime("%d/%m/%Y %H:%M")} | '
-            f'Tire par : {current_user.nom} {current_user.prenom}',
-            styles['Small']),
-        Spacer(1, 10)
-    ]
-
-    infos = [
-        ['Fournisseur', commande.fournisseur_nom, 'Statut', _COMMANDE_STATUT_LABELS.get(commande.statut, commande.statut)],
-        ['Creee le', commande.created_at.strftime('%d/%m/%Y %H:%M') if commande.created_at else '', 'Creee par', commande.created_by_nom or ''],
-    ]
-    if commande.relance_de_numero:
-        infos.append(['Relance de', commande.relance_de_numero, '', ''])
-    if livree:
-        infos.append(['Livree le', commande.livree_at.strftime('%d/%m/%Y %H:%M') if commande.livree_at else '',
-                      'Receptionnee par', commande.livree_by_nom or ''])
-    if commande.note:
-        infos.append(['Note', commande.note, '', ''])
-    elements.append(Table(infos, colWidths=[largeur_utile * p for p in (0.15, 0.37, 0.15, 0.33)], style=TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F9FAFB')),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-    ])))
-    elements.append(Spacer(1, 12))
-
-    produit_style = ParagraphStyle('CelluleProduit', parent=styles['Normal'], fontSize=8, leading=10)
-
-    if livree:
-        colWidths = [largeur_utile * p for p in (0.33, 0.13, 0.10, 0.11, 0.08, 0.11, 0.14)]
-        data = [['Produit', 'Code', 'Qte cmd', 'Qte livree', 'Ecart', 'Prix U. HT', 'Montant HT']]
-        for l in commande.lignes:
-            data.append([
-                Paragraph(l.produit_nom, produit_style), l.produit_code or '',
-                str(l.quantite_commandee or 0),
-                str(l.quantite_livree) if l.quantite_livree is not None else '',
-                str(l.ecart) if l.ecart else '',
-                f'{(l.prix_unite_ht or 0):.2f}', f'{l.montant_commande_ht:.2f}',
-            ])
-        data.append(['TOTAL', '', str(commande.total_commande), str(commande.total_livre),
-                     str(-commande.total_manquant) if commande.total_manquant else '',
-                     '', f'{commande.montant_commande_ht:.2f}'])
-    else:
-        colWidths = [largeur_utile * p for p in (0.46, 0.16, 0.13, 0.11, 0.14)]
-        data = [['Produit', 'Code', 'Qte commandee', 'Prix U. HT', 'Montant HT']]
-        for l in commande.lignes:
-            data.append([
-                Paragraph(l.produit_nom, produit_style), l.produit_code or '',
-                str(l.quantite_commandee or 0),
-                f'{(l.prix_unite_ht or 0):.2f}', f'{l.montant_commande_ht:.2f}',
-            ])
-        data.append(['TOTAL', '', str(commande.total_commande), '', f'{commande.montant_commande_ht:.2f}'])
-
-    elements.append(Table(data, colWidths=colWidths, repeatRows=1, style=TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F7FAFD')]),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#EAF1F8')),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ])))
-    doc.build(elements)
+    build_bon_commande_pdf(
+        commande, output,
+        tire_par=f'{current_user.nom} {current_user.prenom}',
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'))
     output.seek(0)
     return send_file(output, mimetype='application/pdf', as_attachment=True,
                      download_name=f'bon_commande_{commande.numero}.pdf')
@@ -5253,6 +5172,9 @@ def build_assistant_system_prompt():
         "récupère d'abord les données via le(s) outil(s) pertinent(s) puis appelle generer_rapport_pdf avec ces "
         "données pour produire un fichier téléchargeable ; s'il demande un fichier Excel, un tableur ou un .xlsx, "
         "utilise generer_rapport_excel de la même façon (si le format n'est pas précisé, choisis le PDF). "
+        "Exception : pour le bon de commande d'une commande fournisseur ('bon de commande', 'PDF de la commande "
+        "CMD-...'), appelle directement generer_bon_commande_pdf, qui produit le document officiel identique à "
+        "celui du module Commandes — jamais generer_rapport_pdf pour ce cas. "
         "Ne propose jamais un export si ce n'est pas demandé. "
         "Après avoir appelé generer_rapport_pdf ou generer_rapport_excel, ne redonne PAS l'URL ni un lien de "
         "téléchargement dans ta réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous "
@@ -5340,11 +5262,8 @@ def assistant_chat():
                 except (ValueError, TypeError):
                     arguments = {}
                 result = call_ai_tool(function_name, arguments, current_user)
-                if (
-                    function_name in ('generer_rapport_pdf', 'generer_rapport_excel')
-                    and isinstance(result, dict)
-                    and (result.get('pdf_genere') or result.get('excel_genere'))
-                ):
+                # Tout outil qui produit un fichier le signale par pdf_genere/excel_genere
+                if isinstance(result, dict) and (result.get('pdf_genere') or result.get('excel_genere')):
                     pdf_attachment = {
                         'url': result.get('url_telechargement'),
                         'titre': result.get('titre'),

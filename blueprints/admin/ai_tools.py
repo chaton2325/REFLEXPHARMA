@@ -36,6 +36,8 @@ from models.groupe_client import GroupeClient
 from models.inventaire import Inventaire, InventaireLigne
 from models.commande import Commande, CommandeLigne
 from models.declaration_impot import DeclarationImpot
+from models.setting import Setting
+from .bon_commande_pdf import build_bon_commande_pdf
 from models.user import User
 from models.poste import Poste
 from utils.permissions import FEATURES
@@ -754,10 +756,9 @@ def tool_liste_commandes(user, statut=None, fournisseur=None, periode=None, date
     }
 
 
-def tool_detail_commande(user, recherche=None):
-    denied = _check_access(user, 'gestion_commandes')
-    if denied:
-        return denied
+def _trouver_commande(recherche=None):
+    """Retrouve une commande par numero (partiel) puis nom de fournisseur ; sans
+    recherche, la plus recente. Retourne (commande, dict_erreur)."""
     recherche = (recherche or '').strip()
     if recherche:
         commande = Commande.query.filter(
@@ -768,11 +769,21 @@ def tool_detail_commande(user, recherche=None):
                 Commande.fournisseur_nom.ilike(f'%{recherche}%')
             ).order_by(Commande.created_at.desc()).first()
         if not commande:
-            return {'trouve': False, 'message': f"Aucune commande ne correspond a '{recherche}' (ni par numero, ni par fournisseur)."}
+            return None, {'trouve': False, 'message': f"Aucune commande ne correspond a '{recherche}' (ni par numero, ni par fournisseur)."}
     else:
         commande = Commande.query.order_by(Commande.created_at.desc()).first()
         if not commande:
-            return {'trouve': False, 'message': "Aucune commande enregistree pour le moment."}
+            return None, {'trouve': False, 'message': "Aucune commande enregistree pour le moment."}
+    return commande, None
+
+
+def tool_detail_commande(user, recherche=None):
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    commande, erreur = _trouver_commande(recherche)
+    if erreur:
+        return erreur
 
     relances = Commande.query.filter_by(relance_de_numero=commande.numero).order_by(Commande.created_at.asc()).all()
     return {
@@ -870,6 +881,35 @@ def tool_stats_commandes(user, periode='ce_mois', date_debut=None, date_fin=None
         'nombre_commandes_livrees_avec_ecart': nb_avec_ecart,
         'total_unites_manquantes_a_la_livraison': int(unites_manquantes),
         'top_fournisseurs_par_montant': top_fournisseurs,
+    }
+
+
+def tool_generer_bon_commande_pdf(user, recherche=None):
+    """Genere le bon de commande PDF OFFICIEL d'une commande : passe par exactement
+    le meme constructeur que l'export du module Commandes (bon_commande_pdf.py),
+    donc le document est identique a celui genere par l'application."""
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    commande, erreur = _trouver_commande(recherche)
+    if erreur:
+        return erreur
+
+    titre = f'Bon de commande {commande.numero}'
+    filepath, filename, nom_public = _preparer_fichier_rapport(titre, 'pdf')
+    build_bon_commande_pdf(
+        commande, filepath,
+        tire_par=f'{user.nom} {user.prenom}' if user else 'Assistant IA',
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'))
+    return {
+        'pdf_genere': True,
+        'trouve': True,
+        'titre': titre,
+        'numero_commande': commande.numero,
+        'fournisseur': commande.fournisseur_nom,
+        'statut': commande.statut,
+        'nom_fichier': nom_public,
+        'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
     }
 
 
@@ -1577,7 +1617,17 @@ def _build_pdf_report(filepath, titre, sections):
                 [Paragraph(xml_escape(str(cell)) if cell is not None else '', cell_style) for cell in row]
                 for row in lignes
             ]
-            table = Table([header] + body_rows, hAlign='LEFT', repeatRows=1)
+            # Le tableau occupe toute la largeur utile de la page (premiere colonne
+            # plus large : c'est generalement le libelle)
+            largeur_utile = A4[0] - 4 * cm
+            nb_colonnes = len(colonnes)
+            if nb_colonnes == 1:
+                col_widths = [largeur_utile]
+            else:
+                premiere = largeur_utile * (0.35 if nb_colonnes <= 4 else 0.28)
+                autres = (largeur_utile - premiere) / (nb_colonnes - 1)
+                col_widths = [premiere] + [autres] * (nb_colonnes - 1)
+            table = Table([header] + body_rows, colWidths=col_widths, hAlign='LEFT', repeatRows=1)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7fafd')]),
@@ -1737,6 +1787,7 @@ TOOL_FUNCTIONS = {
     'detail_commande': tool_detail_commande,
     'commandes_produit': tool_commandes_produit,
     'stats_commandes': tool_stats_commandes,
+    'generer_bon_commande_pdf': tool_generer_bon_commande_pdf,
     'liste_inventaires': tool_liste_inventaires,
     'detail_inventaire': tool_detail_inventaire,
     'liste_declarations_impots': tool_liste_declarations_impots,
@@ -2279,6 +2330,27 @@ AI_TOOLS = [
     {
         'type': 'function',
         'function': {
+            'name': 'generer_bon_commande_pdf',
+            'description': (
+                "Genere le bon de commande PDF OFFICIEL d'une commande fournisseur, strictement "
+                "identique a celui que produit le module Commandes de l'application (memes styles, "
+                "meme mise en page, tableau des produits sur toute la largeur). A utiliser DES QU'ON "
+                "demande 'le bon de commande', 'le PDF de la commande CMD-...', 'imprime ma derniere "
+                "commande' — n'utilise JAMAIS generer_rapport_pdf pour un bon de commande. Sans "
+                "parametre 'recherche', prend la commande la plus recente. Apres l'appel, un bouton de "
+                "telechargement s'affiche automatiquement sous ton message : ne redonne pas l'URL."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Numero de commande (ex: CMD-20260717-001, recherche partielle) OU nom du fournisseur (prend alors sa commande la plus recente). Laisser vide pour la derniere commande toutes confondues."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
             'name': 'liste_inventaires',
             'description': (
                 "Liste l'historique des inventaires (titre, statut en_cours/valide/annule, date et "
@@ -2484,10 +2556,12 @@ AI_TOOLS = [
                 "si l'utilisateur demande explicitement un PDF, un rapport, un document ou une "
                 "impression des resultats — jamais spontanement. Si l'utilisateur demande un fichier "
                 "Excel, un tableur ou un .xlsx, utilise generer_rapport_excel a la place (memes "
-                "parametres). Si le format n'est pas precise pour un 'export' ou un 'rapport', choisis "
-                "le PDF. Appelle d'abord le(s) outil(s) necessaires pour obtenir les donnees demandees, "
-                "PUIS appelle cet outil avec un titre et le contenu structure (texte et/ou tableaux) a "
-                "inclure dans le document."
+                "parametres). Pour le bon de commande d'une commande fournisseur, utilise "
+                "generer_bon_commande_pdf (document officiel de l'application), PAS cet outil. Si le "
+                "format n'est pas precise pour un 'export' ou un 'rapport', choisis le PDF. Appelle "
+                "d'abord le(s) outil(s) necessaires pour obtenir les donnees demandees, PUIS appelle "
+                "cet outil avec un titre et le contenu structure (texte et/ou tableaux) a inclure dans "
+                "le document."
             ),
             'parameters': {
                 'type': 'object',
