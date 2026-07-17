@@ -3076,27 +3076,46 @@ def _unites_perimant_bientot(nb_jours=30):
 def commandes_stats_ventes():
     """Statistiques de ventes par produit pour l'assistant de commande.
     ?jours=N : période en jours (0 = aujourd'hui depuis minuit).
+    ?date=YYYY-MM-DD : uniquement les ventes de ce jour-là (prioritaire sur jours).
     Retourne les unités vendues, le CA TTC par produit, et le marquage
-    Pareto 20/80 (produits qui cumulent 80%% du chiffre d'affaires)."""
+    Pareto 20/80 (produits qui cumulent 80%% du chiffre d'affaires).
+    Les lignes de vente sont des photos sans lien vers les produits :
+    la correspondance se fait ici, à la lecture, via le code produit."""
     try:
         jours = max(0, min(int(request.args.get('jours', 0)), 365))
     except (TypeError, ValueError):
         jours = 0
 
     now = datetime.utcnow()
-    debut = datetime(now.year, now.month, now.day) if jours == 0 else now - timedelta(days=jours)
+    fin = None
+    date_str = (request.args.get('date') or '').strip()
+    if date_str:
+        try:
+            debut = datetime.strptime(date_str, '%Y-%m-%d')
+            fin = debut + timedelta(days=1)
+        except ValueError:
+            date_str = ''
+    if not date_str:
+        debut = datetime(now.year, now.month, now.day) if jours == 0 else now - timedelta(days=jours)
+
+    filtres = [
+        Vente.statut == 'validee',
+        VenteLigne.created_at >= debut
+    ]
+    if fin is not None:
+        filtres.append(VenteLigne.created_at < fin)
 
     rows = db.session.query(
-        VenteLigne.produit_id,
+        Produit.id,
         db.func.coalesce(db.func.sum(
             db.case((VenteLigne.unite == 'unite', VenteLigne.quantite), else_=0)
         ), 0),
         db.func.coalesce(db.func.sum(VenteLigne.total_ttc), 0)
-    ).join(Vente, Vente.numero_vente == VenteLigne.numero_vente).filter(
-        Vente.statut == 'validee',
-        VenteLigne.created_at >= debut,
-        VenteLigne.produit_id.isnot(None)
-    ).group_by(VenteLigne.produit_id).all()
+    ).select_from(VenteLigne).join(
+        Vente, Vente.numero_vente == VenteLigne.numero_vente
+    ).join(
+        Produit, Produit.code_produit == VenteLigne.produit_code
+    ).filter(*filtres).group_by(Produit.id).all()
 
     total_ca = float(sum(ca or 0 for _, _, ca in rows))
 
@@ -3121,6 +3140,7 @@ def commandes_stats_ventes():
     }
     return jsonify({
         'jours': jours,
+        'date': date_str or None,
         'debut': debut.isoformat(),
         'total_ca': round(total_ca, 2),
         'nb_produits': len(produits),

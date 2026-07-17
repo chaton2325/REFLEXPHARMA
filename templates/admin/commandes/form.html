@@ -235,6 +235,13 @@
           <i class="fas fa-cash-register me-1"></i> Vendus aujourd'hui
         </button>
         <div class="d-flex align-items-center gap-1">
+          <button type="button" class="btn btn-outline-info btn-sm btn-strategie" data-strategie="date" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Recommande les quantités vendues à la date choisie">
+            <i class="fas fa-calendar-day me-1"></i> Vendus à une date
+          </button>
+          <input type="date" id="dateVendu" class="form-control form-control-sm" style="width:auto;border-radius:8px;font-size:0.78rem;">
+        </div>
+        <div class="d-flex align-items-center gap-1">
           <button type="button" class="btn btn-outline-primary btn-sm btn-strategie" data-strategie="pareto" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
                   title="Loi des 20/80 : produits qui cumulent 80% du chiffre d'affaires sur la période. Quantités = ventes de la période − stock actuel">
             <i class="fas fa-chart-pie me-1"></i> Top ventes 20/80
@@ -266,7 +273,7 @@
       <h5><i class="fas fa-pills me-2 text-primary"></i>Produits du fournisseur</h5>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         <div class="form-check form-switch" style="font-size:0.78rem;">
-          <input class="form-check-input" type="checkbox" id="filtreRemplis" style="cursor:pointer;">
+          <input class="form-check-input" type="checkbox" id="filtreRemplis" checked style="cursor:pointer;">
           <label class="form-check-label text-muted" for="filtreRemplis" style="cursor:pointer;">
             <i class="fas fa-shopping-basket me-1"></i>Panier uniquement (<span id="panierCount">0</span>)
           </label>
@@ -355,6 +362,11 @@
         <i class="fas fa-box-open" style="font-size:1.8rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
         Ce fournisseur n'a aucun produit dans le catalogue.
       </div>
+      <div id="panierVide" class="text-center py-4 text-muted" style="display:none;">
+        <i class="fas fa-shopping-basket" style="font-size:1.8rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+        Le panier est vide — utilisez l'ajout rapide ou une stratégie de l'assistant,<br>
+        ou décochez « Panier uniquement » pour voir tout le catalogue du fournisseur.
+      </div>
     </div>
   </div>
 
@@ -388,6 +400,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const recapBar = document.getElementById('recapBar');
     const searchProduit = document.getElementById('searchProduit');
     const aucunProduit = document.getElementById('aucunProduit');
+    const panierVide = document.getElementById('panierVide');
     const rows = Array.from(document.querySelectorAll('#produitsTable tbody tr'));
     const prix = {};
     {% for p in produits %}prix[{{ p.id }}] = {{ (p.prix_unite or 0)|round(4) }};
@@ -405,13 +418,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const fid = fournisseurSelect.value;
         const query = searchProduit.value.trim().toLowerCase();
         const remplisSeul = filtreRemplis.checked;
-        let visibles = 0;
+        let visibles = 0, affiches = 0;
         rows.forEach(row => {
             const qte = parseInt(row.querySelector('.qte-input').value, 10) || 0;
             const match = row.dataset.fournisseur === fid
                 && (!query || row.dataset.search.includes(query))
                 && (!remplisSeul || qte > 0);
             row.style.display = match ? '' : 'none';
+            if (match) affiches++;
             if (row.dataset.fournisseur === fid) visibles++;
             // On vide les quantités des produits d'autres fournisseurs pour éviter les surprises
             if (row.dataset.fournisseur !== fid) {
@@ -422,6 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
         assistantCard.style.display = fid ? 'block' : 'none';
         recapBar.style.display = fid ? 'flex' : 'none';
         aucunProduit.style.display = (fid && visibles === 0) ? 'block' : 'none';
+        panierVide.style.display = (fid && visibles > 0 && affiches === 0 && remplisSeul && !query) ? 'block' : 'none';
         majRecap();
     }
 
@@ -466,6 +481,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const assistantSpinner = document.getElementById('assistantSpinner');
     const assistantFeedback = document.getElementById('assistantFeedback');
     const paretoPeriode = document.getElementById('paretoPeriode');
+    const dateVendu = document.getElementById('dateVendu');
+    (function initDateVendu() {
+        const d = new Date();
+        const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        dateVendu.value = iso;
+        dateVendu.max = iso;
+    })();
     const FEEDBACK_DEFAUT = "Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.";
     const statsCache = {};
 
@@ -474,12 +496,12 @@ document.addEventListener('DOMContentLoaded', function() {
         assistantFeedback.style.color = couleur || '#7a8896';
     }
 
-    function chargerStats(jours) {
-        if (statsCache[jours]) return Promise.resolve(statsCache[jours]);
+    function chargerStats(query) {
+        if (statsCache[query]) return Promise.resolve(statsCache[query]);
         assistantSpinner.classList.remove('d-none');
-        return fetch(assistantCard.dataset.statsUrl + '?jours=' + jours, { headers: { 'Accept': 'application/json' } })
+        return fetch(assistantCard.dataset.statsUrl + '?' + query, { headers: { 'Accept': 'application/json' } })
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => { statsCache[jours] = data; return data; })
+            .then(data => { statsCache[query] = data; return data; })
             .finally(() => assistantSpinner.classList.add('d-none'));
     }
 
@@ -515,28 +537,47 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             resumeStrategie(strategie === 'rupture' ? 'Ruptures de stock' : 'Stock de sécurité', remplis, unites, ignores);
 
-        } else if (strategie === 'jour' || strategie === 'pareto') {
-            const jours = strategie === 'jour' ? 0 : parseInt(paretoPeriode.value, 10);
-            chargerStats(jours).then(data => {
+        } else if (strategie === 'jour' || strategie === 'pareto' || strategie === 'date') {
+            let query;
+            if (strategie === 'pareto') {
+                query = 'jours=' + parseInt(paretoPeriode.value, 10);
+            } else if (strategie === 'date') {
+                if (!dateVendu.value) {
+                    feedbackAssistant('<i class="fas fa-calendar-day me-1"></i>Choisissez d\'abord une date à côté du bouton « Vendus à une date ».', '#e37400');
+                    return;
+                }
+                query = 'date=' + dateVendu.value;
+            } else {
+                query = 'jours=0';
+            }
+            chargerStats(query).then(data => {
                 let remplis = 0, unites = 0;
                 lignes.forEach(row => {
                     const info = data.produits[row.dataset.produit];
                     if (!info) return;
                     let q = 0;
-                    if (strategie === 'jour') {
-                        q = Math.ceil(info.unites);
-                    } else if (info.pareto) {
-                        // Ventes de la période, déduction faite du stock actuel
-                        q = Math.ceil(info.unites) - (parseInt(row.dataset.stock, 10) || 0);
+                    if (strategie === 'pareto') {
+                        if (info.pareto) {
+                            // Ventes de la période, déduction faite du stock actuel
+                            q = Math.ceil(info.unites) - (parseInt(row.dataset.stock, 10) || 0);
+                        }
+                    } else {
+                        // Vendu uniquement en sous-unités (plaquette, comprimé...) : on propose 1 unité minimum
+                        q = Math.max(Math.ceil(info.unites), 1);
                     }
                     if (q > 0) {
                         row.querySelector('.qte-input').value = q;
                         remplis++; unites += q;
                     }
                 });
-                const nom = strategie === 'jour'
-                    ? "Vendus aujourd'hui"
-                    : 'Top ventes 20/80 sur ' + jours + ' j (' + data.nb_pareto + ' produit(s) Pareto tous fournisseurs)';
+                let nom;
+                if (strategie === 'jour') {
+                    nom = "Vendus aujourd'hui";
+                } else if (strategie === 'date') {
+                    nom = 'Vendus le ' + dateVendu.value.split('-').reverse().join('/');
+                } else {
+                    nom = 'Top ventes 20/80 sur ' + data.jours + ' j (' + data.nb_pareto + ' produit(s) Pareto tous fournisseurs)';
+                }
                 resumeStrategie(nom, remplis, unites, 0);
             }).catch(() => {
                 feedbackAssistant('<i class="fas fa-triangle-exclamation me-1"></i>Impossible de charger les statistiques de ventes. Réessayez.', '#d93025');
@@ -593,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const input = row.querySelector('.qte-input');
         const nouvelleQte = (parseInt(input.value, 10) || 0) + 1;
         input.value = nouvelleQte;
-        majRecap();
+        afficherProduits(); // rend la ligne visible si le filtre « Panier uniquement » est actif
         const infos = infosLigne(row);
         feedbackAssistant('<i class="fas fa-cart-plus me-1"></i><strong>' + infos.nom + '</strong> ajouté au panier (quantité : ' + nouvelleQte + ').', '#1e8e3e');
         // Si la ligne est visible dans le tableau, on la montre
