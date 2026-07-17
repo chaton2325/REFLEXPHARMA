@@ -26,6 +26,7 @@ from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
+from models.finance import OperationFinanciere
 
 from config import config
 

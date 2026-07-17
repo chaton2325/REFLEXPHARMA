@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}Finance - ReflexPharma{% endblock %}
+
+{% macro montant(v) -%}
+{{ "{:,.2f}".format(v or 0).replace(',', ' ').replace('.', ',') }}
+{%- endmacro %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #f4faf8 !important; }
+
+    .page-header {
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #0d3b2e 0%, #16a085 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.25rem 1.4rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; }
+    .stat-card .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    .stat-card .stat-sub { font-size: 0.72rem; color: #7a8896; margin-top: 0.15rem; }
+    .stat-card-solde { border: 2px solid #16a085; background: linear-gradient(135deg, #ffffff 0%, #eafaf5 100%); }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+    .card-header-custom {
+        background: linear-gradient(135deg, #eafaf5, #d3f2e8);
+        border-bottom: 1px solid #bfe9d9;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px 14px 0 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #0d3b2e;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .preset-btn {
+        font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 0.25rem 0.75rem;
+        border: 1px solid #16a085; color: #0d5c4a; background: #fff; transition: all 0.15s;
+    }
+    .preset-btn:hover, .preset-btn.active { background: #eafaf5; color: #0d3b2e; transform: translateY(-1px); }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e); color: #fff; font-size: 0.66rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.4px; padding: 0.6rem 0.7rem; border: none; white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.55rem 0.7rem; vertical-align: middle; font-size: 0.82rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fbfffe; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #f0faf6; }
+
+    .badge-encaissement { background: linear-gradient(135deg,#1e8e3e,#28a745); color: #fff; font-size: 0.68rem; padding: 0.3rem 0.6rem; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+    .badge-decaissement { background: linear-gradient(135deg,#c0392b,#e74c3c); color: #fff; font-size: 0.68rem; padding: 0.3rem 0.6rem; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+    .amount-encaissement { color: #1e8e3e; font-weight: 700; }
+    .amount-decaissement { color: #c0392b; font-weight: 700; }
+    .cell-sub { font-size: 0.7rem; color: #7a8896; }
+
+    .mobile-card { border-radius: 12px; padding: 0.75rem 0.85rem; border: 1px solid #d3f2e8; background: #fbfffe; }
+    .mobile-card:nth-child(even) { background: #f0faf6; }
+
+    .fade-in { opacity: 0; transform: translateY(12px); animation: fadeInUp 0.4s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+    .stagger-3 { animation-delay: 0.15s; }
+
+    @media (max-width: 575.98px) {
+        .page-header { padding: 1.1rem; border-radius: 12px; }
+        .page-header h1 { font-size: 1.15rem; }
+        .stat-card { padding: 0.85rem 1rem; }
+        .stat-card .stat-number { font-size: 1.2rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Finance</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-sack-dollar me-2"></i>Finance</h1>
+        <p class="mb-0">Chiffre d'affaires et bénéfice sur la période choisie, et solde de caisse actuel (cumul du bénéfice ajusté par vos encaissements et décaissements).</p>
+    </div>
+  </div>
+</div>
+
+<!-- Indicateurs -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4 fade-in stagger-1">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-receipt"></i></div>
+      <div>
+        <div class="stat-number">{{ montant(totals.ttc) }} €</div>
+        <div class="stat-label">Chiffre d'affaires TTC</div>
+        <div class="stat-sub">{{ totals.count }} vente(s) sur la période</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4 fade-in stagger-2">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
+      <div>
+        <div class="stat-number">{{ montant(totals.benefice) }} €</div>
+        <div class="stat-label">Bénéfice</div>
+        <div class="stat-sub">Sur la période affichée</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4 fade-in stagger-3">
+    <div class="stat-card stat-card-solde d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#d3f2e8,#a8e6cf);color:#0d3b2e;"><i class="fas fa-vault"></i></div>
+      <div>
+        <div class="stat-number">{{ montant(solde_actuel) }} €</div>
+        <div class="stat-label">Solde actuel</div>
+        <div class="stat-sub">Indépendant de la période — toujours à jour</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtre de periode (CA et Benefice uniquement) -->
+<form method="GET" class="card-form mb-4 fade-in stagger-1">
+    <div class="p-3">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="preset-btn" data-preset="aujourdhui">Aujourd'hui</button>
+            <button type="button" class="preset-btn" data-preset="semaine">Cette semaine</button>
+            <button type="button" class="preset-btn" data-preset="mois">Ce mois</button>
+            <button type="button" class="preset-btn" data-preset="annee">Cette année</button>
+        </div>
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label">Du</label>
+                <input type="date" name="date_from" id="dateFrom" class="form-control form-control-sm" value="{{ date_from.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Au</label>
+                <input type="date" name="date_to" id="dateTo" class="form-control form-control-sm" value="{{ date_to.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="col-12 col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-sm flex-fill fw-bold text-white" style="background:linear-gradient(135deg,#0d5c4a,#16a085);border:none;"><i class="fas fa-filter me-1"></i> Appliquer</button>
+                <a href="{{ url_for('admin.finance_dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-rotate-left me-1"></i> Réinitialiser</a>
+            </div>
+        </div>
+        <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>Ce filtre ne s'applique qu'au chiffre d'affaires et au bénéfice ci-dessus ; le solde actuel reste indépendant de la période.</div>
+    </div>
+</form>
+
+<!-- Operations financieres -->
+<div class="card-form fade-in stagger-2">
+    <div class="card-header-custom">
+        <span><i class="fas fa-money-bill-transfer me-1"></i> Opérations financières (encaissements / décaissements)</span>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('admin.export_operations_financieres_pdf', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d')) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période en PDF">
+                <i class="fas fa-file-pdf me-1"></i> PDF
+            </a>
+            <a href="{{ url_for('admin.export_operations_financieres_excel', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d')) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période en Excel">
+                <i class="fas fa-file-excel me-1"></i> Excel
+            </a>
+            <button type="button" class="btn btn-sm text-white fw-bold" style="background:linear-gradient(135deg,#1e8e3e,#28a745);border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#encaissementModal">
+                <i class="fas fa-plus me-1"></i> Encaissement
+            </button>
+            <button type="button" class="btn btn-sm text-white fw-bold" style="background:linear-gradient(135deg,#c0392b,#e74c3c);border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#decaissementModal">
+                <i class="fas fa-minus me-1"></i> Décaissement
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile -->
+    <div class="d-md-none p-3" style="display:flex;flex-direction:column;gap:0.6rem;">
+        {% for op in operations %}
+        <div class="mobile-card">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                {% if op.type == 'encaissement' %}
+                <span class="badge-encaissement"><i class="fas fa-arrow-down me-1"></i>Encaissement</span>
+                {% else %}
+                <span class="badge-decaissement"><i class="fas fa-arrow-up me-1"></i>Décaissement</span>
+                {% endif %}
+                <span class="{{ 'amount-encaissement' if op.type == 'encaissement' else 'amount-decaissement' }}">{{ montant(op.montant) }} €</span>
+            </div>
+            <div class="fw-semibold" style="font-size:0.85rem;">{{ op.raison }}</div>
+            {% if op.note %}<div class="cell-sub">{{ op.note }}</div>{% endif %}
+            <div class="cell-sub mt-1"><i class="fas fa-user me-1"></i>{{ op.created_by_nom or 'N/A' }} · {{ op.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+            <div class="text-end mt-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteOpModal{{ op.id }}"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-money-bill-transfer fa-2x mb-2 d-block" style="color:#16a085;"></i>
+            Aucune opération sur cette période — élargissez la période ou ajoutez-en une ci-dessus.
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Desktop -->
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th class="text-end">Montant (€)</th>
+                    <th>Raison</th>
+                    <th>Date</th>
+                    <th>Enregistré par</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for op in operations %}
+                <tr>
+                    <td>
+                        {% if op.type == 'encaissement' %}
+                        <span class="badge-encaissement"><i class="fas fa-arrow-down me-1"></i>Encaissement</span>
+                        {% else %}
+                        <span class="badge-decaissement"><i class="fas fa-arrow-up me-1"></i>Décaissement</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end {{ 'amount-encaissement' if op.type == 'encaissement' else 'amount-decaissement' }}">{{ montant(op.montant) }}</td>
+                    <td>
+                        {{ op.raison }}
+                        {% if op.note %}<div class="cell-sub text-truncate" style="max-width:260px;" title="{{ op.note }}">{{ op.note }}</div>{% endif %}
+                    </td>
+                    <td style="font-size:0.78rem;">{{ op.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td class="cell-sub">{{ op.created_by_nom or 'N/A' }}</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteOpModal{{ op.id }}" title="Supprimer"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="fas fa-money-bill-transfer fa-2x mb-2 d-block" style="color:#16a085;"></i>
+                        Aucune opération sur cette période — élargissez la période ou ajoutez-en une ci-dessus.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Encaissement -->
+<div class="modal fade" id="encaissementModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:14px;">
+      <form method="POST" action="{{ url_for('admin.create_operation_financiere') }}">
+        <input type="hidden" name="type" value="encaissement">
+        <div class="modal-header" style="background:linear-gradient(135deg,#1e8e3e,#28a745);color:#fff;border-radius:14px 14px 0 0;">
+          <h5 class="modal-title"><i class="fas fa-arrow-down me-2"></i>Nouvel encaissement</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Montant (€) <span class="text-danger">*</span></label>
+            <input type="number" name="montant" class="form-control" step="0.01" min="0.01" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Raison <span class="text-danger">*</span></label>
+            <input type="text" name="raison" class="form-control" maxlength="200" placeholder="Ex : apport de capital, remboursement..." required>
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Note (optionnelle)</label>
+            <textarea name="note" class="form-control" rows="2" maxlength="500"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+          <button type="submit" class="btn text-white fw-bold" style="background:linear-gradient(135deg,#1e8e3e,#28a745);border-radius:10px;">
+            <i class="fas fa-check me-1"></i> Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Decaissement -->
+<div class="modal fade" id="decaissementModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:14px;">
+      <form method="POST" action="{{ url_for('admin.create_operation_financiere') }}">
+        <input type="hidden" name="type" value="decaissement">
+        <div class="modal-header" style="background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border-radius:14px 14px 0 0;">
+          <h5 class="modal-title"><i class="fas fa-arrow-up me-2"></i>Nouveau décaissement</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Solde actuel : <strong>{{ montant(solde_actuel) }} €</strong>. Un décaissement supérieur au solde sera refusé.</div>
+          <div class="mb-3">
+            <label class="form-label">Montant (€) <span class="text-danger">*</span></label>
+            <input type="number" name="montant" class="form-control" step="0.01" min="0.01" max="{{ '%.2f'|format(solde_actuel) }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Raison <span class="text-danger">*</span></label>
+            <input type="text" name="raison" class="form-control" maxlength="200" placeholder="Ex : retrait du gérant, paiement d'une charge..." required>
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Note (optionnelle)</label>
+            <textarea name="note" class="form-control" rows="2" maxlength="500"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+          <button type="submit" class="btn text-white fw-bold" style="background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:10px;">
+            <i class="fas fa-check me-1"></i> Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modals de suppression -->
+{% for op in operations %}
+<div class="modal fade" id="deleteOpModal{{ op.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-triangle-exclamation text-danger me-2"></i>Supprimer cette opération ?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Voulez-vous vraiment supprimer {{ 'l\'encaissement' if op.type == 'encaissement' else 'le décaissement' }} de <strong>{{ montant(op.montant) }} €</strong> ({{ op.raison }}) ?
+        Le solde actuel sera recalculé en conséquence.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_operation_financiere', id=op.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+
+    function toIso(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const now = new Date();
+            let debut, fin = new Date(now);
+            switch (btn.dataset.preset) {
+                case 'aujourdhui':
+                    debut = new Date(now);
+                    break;
+                case 'semaine':
+                    debut = new Date(now);
+                    debut.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+                    break;
+                case 'mois':
+                    debut = new Date(now.getFullYear(), now.getMonth(), 1);
+                    break;
+                case 'annee':
+                    debut = new Date(now.getFullYear(), 0, 1);
+                    break;
+            }
+            dateFrom.value = toIso(debut);
+            dateTo.value = toIso(fin);
+        });
+    });
+});
+</script>
+{% endblock %}

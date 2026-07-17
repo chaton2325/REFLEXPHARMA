@@ -20,6 +20,7 @@ FEATURES = {
     'gestion_inventaire': "Gérer l'inventaire",
     'gestion_commandes': 'Gérer les commandes fournisseurs',
     'module_impots': 'Gérer les impôts (déclaration des taxes)',
+    'gestion_finance': 'Gérer les finances (CA, bénéfice, solde)',
     'gestion_parametres': 'Gérer les paramètres de l\'application'
 }
 

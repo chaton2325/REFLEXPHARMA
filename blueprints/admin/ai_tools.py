@@ -38,6 +38,10 @@ from models.commande import Commande, CommandeLigne
 from models.declaration_impot import DeclarationImpot
 from models.setting import Setting
 from .bon_commande_pdf import build_bon_commande_pdf
+from .finance_reports import (
+    compute_solde_actuel, compute_totaux_operations, query_operations_financieres,
+    build_operations_financieres_pdf, build_operations_financieres_excel
+)
 from models.user import User
 from models.poste import Poste
 from utils.permissions import FEATURES
@@ -908,6 +912,132 @@ def tool_generer_bon_commande_pdf(user, recherche=None):
         'numero_commande': commande.numero,
         'fournisseur': commande.fournisseur_nom,
         'statut': commande.statut,
+        'nom_fichier': nom_public,
+        'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Finance (chiffre d'affaires, benefice, solde de tresorerie, operations
+# financieres manuelles). Le benefice est toujours une donnee pure deduite des
+# ventes ; le solde est un cumul ajuste par les operations manuelles, qui
+# n'ecrivent jamais dans Vente/VenteLigne (voir finance_reports.py).
+# ---------------------------------------------------------------------------
+
+def tool_resume_finance(user, periode='ce_mois', date_debut=None, date_fin=None):
+    """Chiffre d'affaires et benefice sur la periode demandee, et solde de
+    tresorerie actuel. Le solde est TOUJOURS global (cumul du benefice depuis
+    toujours, ajuste par les encaissements/decaissements manuels) : il ne
+    depend pas de la periode demandee ici, contrairement au CA et au benefice."""
+    denied = _check_access(user, 'gestion_finance')
+    if denied:
+        return denied
+    start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+    ventes = _ventes_periode_fiscale(start_dt, end_dt)
+    totaux = _totaux_fiscaux(ventes)
+    encaissements_periode, decaissements_periode = compute_totaux_operations(start_dt, end_dt)
+
+    return {
+        'periode': label,
+        'nombre_ventes': totaux['nombre_ventes'],
+        'chiffre_affaires_ttc': totaux['total_ttc'],
+        'chiffre_affaires_ht': totaux['total_ht'],
+        'benefice_periode': totaux['total_benefice'],
+        'encaissements_manuels_sur_la_periode': _round2(encaissements_periode),
+        'decaissements_manuels_sur_la_periode': _round2(decaissements_periode),
+        'solde_actuel': _round2(compute_solde_actuel()),
+        'note_solde': (
+            "Le solde actuel est un cumul depuis toujours (benefice total + encaissements - "
+            "decaissements), independant de la periode demandee ci-dessus."
+        ),
+    }
+
+
+def tool_operations_financieres(user, type_operation=None, periode=None, date_debut=None, date_fin=None, limite=20):
+    """Liste les operations financieres manuelles (encaissements/decaissements),
+    les plus recentes en premier. Sans periode : tout l'historique."""
+    denied = _check_access(user, 'gestion_finance')
+    if denied:
+        return denied
+    limite = max(1, min(int(limite or 20), 100))
+    type_operation = (type_operation or '').strip()
+    if type_operation and type_operation not in ('encaissement', 'decaissement'):
+        raise ValueError("Parametre 'type_operation' invalide. Valeurs valides : encaissement, decaissement.")
+
+    start_dt = end_dt = None
+    label = 'toutes périodes'
+    if periode:
+        start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+
+    operations = query_operations_financieres(start_dt, end_dt, type_operation or None)[:limite]
+    return {
+        'periode': label,
+        'nombre_operations': len(operations),
+        'operations': [
+            {
+                'type': o.type,
+                'montant': _round2(o.montant),
+                'raison': o.raison,
+                'note': o.note,
+                'enregistre_par': o.created_by_nom,
+                'date': o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else None,
+            }
+            for o in operations
+        ],
+    }
+
+
+def tool_generer_export_operations_financieres_pdf(user, periode=None, date_debut=None, date_fin=None):
+    """Genere l'export PDF OFFICIEL des operations financieres : passe par
+    exactement le meme constructeur que l'export du module Finance
+    (finance_reports.py), donc le document est identique a celui de
+    l'application. Sans periode : tout l'historique des operations."""
+    denied = _check_access(user, 'gestion_finance')
+    if denied:
+        return denied
+    start_dt = end_dt = None
+    label = 'toutes périodes'
+    if periode:
+        start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+
+    operations = query_operations_financieres(start_dt, end_dt)
+    titre = 'Opérations financières'
+    filepath, filename, nom_public = _preparer_fichier_rapport(titre, 'pdf')
+    build_operations_financieres_pdf(
+        filepath, operations, label,
+        tire_par=f'{user.nom} {user.prenom}' if user else 'Assistant IA',
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
+        solde_actuel=compute_solde_actuel())
+    return {
+        'pdf_genere': True,
+        'titre': titre,
+        'periode': label,
+        'nombre_operations': len(operations),
+        'nom_fichier': nom_public,
+        'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
+    }
+
+
+def tool_generer_export_operations_financieres_excel(user, periode=None, date_debut=None, date_fin=None):
+    """Comme tool_generer_export_operations_financieres_pdf, mais produit le
+    classeur Excel officiel des operations financieres."""
+    denied = _check_access(user, 'gestion_finance')
+    if denied:
+        return denied
+    start_dt = end_dt = None
+    label = 'toutes périodes'
+    if periode:
+        start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+
+    operations = query_operations_financieres(start_dt, end_dt)
+    titre = 'Opérations financières'
+    filepath, filename, nom_public = _preparer_fichier_rapport(titre, 'xlsx')
+    build_operations_financieres_excel(filepath, operations, label, solde_actuel=compute_solde_actuel())
+    return {
+        'excel_genere': True,
+        'titre': titre,
+        'periode': label,
+        'nombre_operations': len(operations),
         'nom_fichier': nom_public,
         'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
     }
@@ -1788,6 +1918,10 @@ TOOL_FUNCTIONS = {
     'commandes_produit': tool_commandes_produit,
     'stats_commandes': tool_stats_commandes,
     'generer_bon_commande_pdf': tool_generer_bon_commande_pdf,
+    'resume_finance': tool_resume_finance,
+    'operations_financieres': tool_operations_financieres,
+    'generer_export_operations_financieres_pdf': tool_generer_export_operations_financieres_pdf,
+    'generer_export_operations_financieres_excel': tool_generer_export_operations_financieres_excel,
     'liste_inventaires': tool_liste_inventaires,
     'detail_inventaire': tool_detail_inventaire,
     'liste_declarations_impots': tool_liste_declarations_impots,
@@ -2344,6 +2478,96 @@ AI_TOOLS = [
                 'type': 'object',
                 'properties': {
                     'recherche': {'type': 'string', 'description': "Numero de commande (ex: CMD-20260717-001, recherche partielle) OU nom du fournisseur (prend alors sa commande la plus recente). Laisser vide pour la derniere commande toutes confondues."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'resume_finance',
+            'description': (
+                "Donne, pour une periode donnee, le chiffre d'affaires (HT/TTC) et le benefice, ainsi "
+                "que le solde de tresorerie ACTUEL (toujours global, jamais limite a la periode : c'est "
+                "un cumul du benefice depuis toujours, ajuste par les encaissements/decaissements "
+                "manuels). A utiliser pour 'quel est le CA/benefice de ce mois', 'quel est le solde "
+                "actuel/de caisse', 'combien a-t-on de tresorerie'. Le module Finance est distinct du "
+                "solde des CLIENTS (credit compte client) : ne pas confondre avec solde_client."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': _PERIODE_DESC},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                },
+                'required': ['periode'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'operations_financieres',
+            'description': (
+                "Liste les operations financieres manuelles (encaissements et decaissements de caisse) "
+                "avec leur raison, du module Finance : montant, raison, note, qui l'a enregistree, "
+                "date. A utiliser pour 'quels encaissements/decaissements ont ete faits', 'pourquoi le "
+                "solde a change', 'historique des mouvements de caisse'. Sans periode, renvoie tout "
+                "l'historique."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'type_operation': {'type': 'string', 'enum': ['encaissement', 'decaissement'], 'description': "Filtre optionnel sur le type d'operation. Laisser vide pour les deux."},
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': "Filtre optionnel : " + _PERIODE_DESC + " Laisser vide pour tout l'historique."},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum d'operations a retourner (defaut 20, max 100)."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'generer_export_operations_financieres_pdf',
+            'description': (
+                "Genere l'export PDF OFFICIEL des operations financieres (encaissements/decaissements), "
+                "strictement identique a celui du module Finance de l'application (memes styles, meme "
+                "recapitulatif, tableau pleine largeur). A utiliser DES QU'ON demande 'exporte les "
+                "operations financieres en PDF', 'le PDF des encaissements/decaissements' — pour un "
+                "Excel, utilise generer_export_operations_financieres_excel a la place. Sans periode, "
+                "exporte tout l'historique. Apres l'appel, un bouton de telechargement s'affiche "
+                "automatiquement sous ton message : ne redonne pas l'URL."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': "Periode a exporter (optionnelle). " + _PERIODE_DESC + " Laisser vide pour tout l'historique."},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'generer_export_operations_financieres_excel',
+            'description': (
+                "Genere l'export Excel (.xlsx) OFFICIEL des operations financieres (encaissements/"
+                "decaissements), strictement identique a celui du module Finance de l'application. A "
+                "utiliser DES QU'ON demande un fichier Excel/tableur des operations financieres — pour "
+                "un PDF, utilise generer_export_operations_financieres_pdf a la place. Sans periode, "
+                "exporte tout l'historique."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': "Periode a exporter (optionnelle). " + _PERIODE_DESC + " Laisser vide pour tout l'historique."},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
                 },
             },
         },

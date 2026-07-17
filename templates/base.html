@@ -467,6 +467,13 @@
             </a>
             {% endif %}
 
+            {% if current_user.has_permission('gestion_finance') %}
+            <a href="{{ url_for('admin.finance_dashboard') }}" class="nav-link" title="Finance">
+                <i class="fas fa-sack-dollar"></i>
+                <span class="nav-label">Finance</span>
+            </a>
+            {% endif %}
+
             {% if current_user.has_permission('module_impots') %}
             <a href="{{ url_for('admin.list_declarations_impots') }}" class="nav-link" title="Impôts & Taxes">
                 <i class="fas fa-landmark"></i>
@@ -637,6 +644,10 @@
 
             {% if current_user.has_permission('gestion_ventes') %}
             <a href="{{ url_for('admin.list_ventes') }}"><i class="fas fa-cash-register"></i>Ventes</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_finance') %}
+            <a href="{{ url_for('admin.finance_dashboard') }}"><i class="fas fa-sack-dollar"></i>Finance</a>
             {% endif %}
 
             {% if current_user.has_permission('module_impots') %}

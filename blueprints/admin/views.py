@@ -27,9 +27,10 @@ from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
+from models.finance import OperationFinanciere
 from extensions import db
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from collections import defaultdict
 import secrets
 import json
@@ -38,6 +39,10 @@ from utils.permissions import FEATURES
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
+from .finance_reports import (
+    compute_solde_actuel, query_operations_financieres, label_periode_dates,
+    build_operations_financieres_pdf, build_operations_financieres_excel
+)
 
 def superadmin_required(f):
     @wraps(f)
@@ -5143,7 +5148,8 @@ def build_assistant_system_prompt():
     date_str = f"{_JOURS_FR[today.weekday()]} {today.day} {_MOIS_FR[today.month - 1]} {today.year}"
     return (
         "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
-        "(stock, ventes, clients, groupes clients, fournisseurs, commandes fournisseurs, "
+        "(stock, ventes, clients, groupes clients, fournisseurs, commandes fournisseurs, finance "
+        "(chiffre d'affaires, bénéfice, solde de trésorerie, opérations d'encaissement/décaissement), "
         "inventaires, statistiques, déclarations d'impôts/taxes). "
         f"Nous sommes le {date_str}. "
         "Tu aides le personnel de la pharmacie de deux façons : "
@@ -5174,7 +5180,11 @@ def build_assistant_system_prompt():
         "utilise generer_rapport_excel de la même façon (si le format n'est pas précisé, choisis le PDF). "
         "Exception : pour le bon de commande d'une commande fournisseur ('bon de commande', 'PDF de la commande "
         "CMD-...'), appelle directement generer_bon_commande_pdf, qui produit le document officiel identique à "
-        "celui du module Commandes — jamais generer_rapport_pdf pour ce cas. "
+        "celui du module Commandes — jamais generer_rapport_pdf pour ce cas. De même, pour exporter les "
+        "opérations financières (encaissements/décaissements) en PDF ou Excel, utilise "
+        "generer_export_operations_financieres_pdf ou generer_export_operations_financieres_excel — jamais "
+        "generer_rapport_pdf/excel pour ce cas non plus, ces outils dédiés produisent le document officiel du "
+        "module Finance. "
         "Ne propose jamais un export si ce n'est pas demandé. "
         "Après avoir appelé generer_rapport_pdf ou generer_rapport_excel, ne redonne PAS l'URL ni un lien de "
         "téléchargement dans ta réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous "
@@ -6349,3 +6359,136 @@ def export_declaration_impot_excel(id):
     output.seek(0)
     filename = f'declaration_impots_{declaration.reference}_{declaration.periode_debut.strftime("%Y%m%d")}_{declaration.periode_fin.strftime("%Y%m%d")}.xlsx'
     return send_file(output, download_name=filename, as_attachment=True)
+
+
+# ==============================================================================
+# MODULE FINANCE (CHIFFRE D'AFFAIRES, BENEFICE, SOLDE)
+# ==============================================================================
+
+@admin.route('/finance')
+@login_required
+@permission_required('gestion_finance')
+def finance_dashboard():
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    if not date_from and not date_to:
+        today = date.today()
+        date_from = today.replace(day=1)
+        date_to = today
+
+    start_dt = datetime(date_from.year, date_from.month, date_from.day)
+    end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59)
+    ventes_periode = Vente.query.filter(
+        Vente.statut == 'validee',
+        Vente.created_at >= start_dt,
+        Vente.created_at <= end_dt
+    ).all()
+    totals = compute_impots_summary(ventes_periode)  # count / ht / tva / benefice / ttc
+
+    operations = query_operations_financieres(start_dt, end_dt)
+
+    return render_template(
+        'admin/finance/dashboard.html',
+        date_from=date_from,
+        date_to=date_to,
+        totals=totals,
+        solde_actuel=compute_solde_actuel(),
+        operations=operations
+    )
+
+
+@admin.route('/finance/operations/export/pdf')
+@login_required
+@permission_required('gestion_finance')
+def export_operations_financieres_pdf():
+    import io
+
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    start_dt = datetime(date_from.year, date_from.month, date_from.day) if date_from else None
+    end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59) if date_to else None
+    operations = query_operations_financieres(start_dt, end_dt)
+
+    output = io.BytesIO()
+    build_operations_financieres_pdf(
+        output, operations, label_periode_dates(date_from, date_to),
+        tire_par=f'{current_user.nom} {current_user.prenom}',
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
+        solde_actuel=compute_solde_actuel())
+    output.seek(0)
+    return send_file(output, mimetype='application/pdf', as_attachment=True,
+                     download_name=f'operations_financieres_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf')
+
+
+@admin.route('/finance/operations/export/excel')
+@login_required
+@permission_required('gestion_finance')
+def export_operations_financieres_excel():
+    import io
+
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    start_dt = datetime(date_from.year, date_from.month, date_from.day) if date_from else None
+    end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59) if date_to else None
+    operations = query_operations_financieres(start_dt, end_dt)
+
+    output = io.BytesIO()
+    build_operations_financieres_excel(
+        output, operations, label_periode_dates(date_from, date_to),
+        solde_actuel=compute_solde_actuel())
+    output.seek(0)
+    return send_file(output, mimetype=_XLSX_MIMETYPE, as_attachment=True,
+                     download_name=f'operations_financieres_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx')
+
+
+@admin.route('/finance/operations/create', methods=['POST'])
+@login_required
+@permission_required('gestion_finance')
+def create_operation_financiere():
+    type_operation = (request.form.get('type') or '').strip()
+    if type_operation not in ('encaissement', 'decaissement'):
+        flash("Type d'opération invalide.", 'danger')
+        return redirect(url_for('admin.finance_dashboard'))
+
+    raison = (request.form.get('raison') or '').strip()
+    if not raison:
+        flash('Veuillez préciser une raison pour cette opération.', 'warning')
+        return redirect(url_for('admin.finance_dashboard'))
+
+    try:
+        montant = float(request.form.get('montant') or 0)
+    except ValueError:
+        montant = 0
+    if montant <= 0:
+        flash('Le montant doit être supérieur à 0.', 'warning')
+        return redirect(url_for('admin.finance_dashboard'))
+
+    if type_operation == 'decaissement':
+        solde_actuel = compute_solde_actuel()
+        if montant > solde_actuel:
+            flash(f"Décaissement refusé : le solde actuel ({solde_actuel:.2f} €) est insuffisant.", 'danger')
+            return redirect(url_for('admin.finance_dashboard'))
+
+    db.session.add(OperationFinanciere(
+        type=type_operation,
+        montant=montant,
+        raison=raison,
+        note=(request.form.get('note') or '').strip() or None,
+        created_by_id=current_user.id,
+        created_by_nom=f'{current_user.prenom} {current_user.nom}'
+    ))
+    db.session.commit()
+    libelle = 'Encaissement' if type_operation == 'encaissement' else 'Décaissement'
+    flash(f'{libelle} de {montant:.2f} € enregistré avec succès.', 'success')
+    return redirect(url_for('admin.finance_dashboard'))
+
+
+@admin.route('/finance/operations/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_finance')
+def delete_operation_financiere(id):
+    operation = OperationFinanciere.query.get_or_404(id)
+    db.session.delete(operation)
+    db.session.commit()
+    flash('Opération supprimée : le solde a été recalculé en conséquence.', 'success')
+    return redirect(url_for('admin.finance_dashboard'))
