@@ -78,6 +78,16 @@
 
   .produits-scroll { max-height: 520px; overflow-y: auto; }
 
+  /* Cadres des critères de l'assistant : un cadre par critère,
+     les réglages associés (date, période) partagent le cadre de leur bouton */
+  .groupe-critere {
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid #dde4ec;
+    border-radius: 12px;
+    background: #fafcfe;
+  }
+
   /* Recherche + ajout au panier */
   .ajout-panier-bar {
     background: #f5f9ff;
@@ -222,26 +232,32 @@
     </div>
     <div class="card-body" style="padding:1rem 1.5rem;">
       <div class="d-flex flex-wrap gap-2 align-items-center">
-        <button type="button" class="btn btn-outline-danger btn-sm btn-strategie" data-strategie="securite" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
-                title="Remplit les produits au niveau ou sous leur stock de sécurité (complète jusqu'à 2× le seuil)">
-          <i class="fas fa-battery-quarter me-1"></i> Stock de sécurité
-        </button>
-        <button type="button" class="btn btn-outline-dark btn-sm btn-strategie" data-strategie="rupture" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
-                title="Remplit les produits en rupture totale (stock à 0, seuil défini)">
-          <i class="fas fa-box-open me-1"></i> Ruptures de stock
-        </button>
-        <button type="button" class="btn btn-outline-success btn-sm btn-strategie" data-strategie="jour" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
-                title="Recommande les quantités vendues aujourd'hui (réassort quotidien)">
-          <i class="fas fa-cash-register me-1"></i> Vendus aujourd'hui
-        </button>
-        <div class="d-flex align-items-center gap-1">
+        <div class="groupe-critere">
+          <button type="button" class="btn btn-outline-danger btn-sm btn-strategie" data-strategie="securite" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Remplit les produits au niveau ou sous leur stock de sécurité (complète jusqu'à 2× le seuil)">
+            <i class="fas fa-battery-quarter me-1"></i> Stock de sécurité
+          </button>
+        </div>
+        <div class="groupe-critere">
+          <button type="button" class="btn btn-outline-dark btn-sm btn-strategie" data-strategie="rupture" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Remplit les produits en rupture totale (stock à 0, seuil défini)">
+            <i class="fas fa-box-open me-1"></i> Ruptures de stock
+          </button>
+        </div>
+        <div class="groupe-critere">
+          <button type="button" class="btn btn-outline-success btn-sm btn-strategie" data-strategie="jour" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Recommande les quantités vendues aujourd'hui (réassort quotidien)">
+            <i class="fas fa-cash-register me-1"></i> Vendus aujourd'hui
+          </button>
+        </div>
+        <div class="groupe-critere">
           <button type="button" class="btn btn-outline-info btn-sm btn-strategie" data-strategie="date" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
                   title="Recommande les quantités vendues à la date choisie">
             <i class="fas fa-calendar-day me-1"></i> Vendus à une date
           </button>
           <input type="date" id="dateVendu" class="form-control form-control-sm" style="width:auto;border-radius:8px;font-size:0.78rem;">
         </div>
-        <div class="d-flex align-items-center gap-1">
+        <div class="groupe-critere">
           <button type="button" class="btn btn-outline-primary btn-sm btn-strategie" data-strategie="pareto" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
                   title="Loi des 20/80 : produits qui cumulent 80% du chiffre d'affaires sur la période. Quantités = ventes de la période − stock actuel">
             <i class="fas fa-chart-pie me-1"></i> Top ventes 20/80
@@ -254,13 +270,17 @@
             <option value="90">90 jours</option>
           </select>
         </div>
-        <button type="button" class="btn btn-outline-warning btn-sm btn-strategie" data-strategie="peremption" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
-                title="Remplace les unités des lots périmés ou périmant sous 30 jours">
-          <i class="fas fa-hourglass-end me-1"></i> Péremption proche (30 j)
-        </button>
-        <button type="button" id="btnViderQuantites" class="btn btn-light border btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;margin-left:auto;">
-          <i class="fas fa-eraser me-1"></i> Vider les quantités
-        </button>
+        <div class="groupe-critere">
+          <button type="button" class="btn btn-outline-warning btn-sm btn-strategie" data-strategie="peremption" style="border-radius:8px;font-size:0.78rem;font-weight:600;"
+                  title="Remplace les unités des lots périmés ou périmant sous 30 jours">
+            <i class="fas fa-hourglass-end me-1"></i> Péremption proche (30 j)
+          </button>
+        </div>
+        <div class="groupe-critere" style="margin-left:auto;">
+          <button type="button" id="btnViderQuantites" class="btn btn-light border btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;">
+            <i class="fas fa-eraser me-1"></i> Vider les quantités
+          </button>
+        </div>
       </div>
       <div id="assistantFeedback" class="small mt-2" style="min-height:1.2em;color:#7a8896;">
         Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.

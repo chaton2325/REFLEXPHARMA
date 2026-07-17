@@ -934,17 +934,21 @@
             if (!attachment || !attachment.url) return;
             const div = document.createElement('div');
             div.className = 'ai-msg ai-msg-bot ai-pdf-card';
+            const isExcel = attachment.type === 'excel' || /\.xlsx$/i.test(attachment.nom_fichier || '');
             const titre = escapeHtml(attachment.titre || 'Rapport');
-            const nomFichier = escapeHtml(attachment.nom_fichier || 'rapport.pdf');
+            const nomFichier = escapeHtml(attachment.nom_fichier || (isExcel ? 'rapport.xlsx' : 'rapport.pdf'));
             const url = escapeHtml(attachment.url);
+            const icone = isExcel ? 'fa-file-excel' : 'fa-file-pdf';
+            const iconeStyle = isExcel ? ' style="color:#1e8e3e;"' : '';
+            const libelle = isExcel ? 'Télécharger le fichier Excel' : 'Télécharger le PDF';
             div.innerHTML = `
                 <div class="ai-pdf-card-inner">
-                    <i class="fas fa-file-pdf"></i>
+                    <i class="fas ${icone}"${iconeStyle}></i>
                     <div class="ai-pdf-card-info">
                         <div class="ai-pdf-card-title">${titre}</div>
                         <div class="ai-pdf-card-name">${nomFichier}</div>
                     </div>
-                    <a href="${url}" target="_blank" rel="noopener" class="ai-pdf-card-btn" title="Télécharger le PDF">
+                    <a href="${url}" target="_blank" rel="noopener" class="ai-pdf-card-btn" title="${libelle}">
                         <i class="fas fa-download"></i>
                     </a>
                 </div>

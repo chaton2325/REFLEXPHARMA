@@ -34,6 +34,7 @@ from models.groupe_fournisseur import GroupeFournisseur
 from models.client import Client
 from models.groupe_client import GroupeClient
 from models.inventaire import Inventaire, InventaireLigne
+from models.commande import Commande, CommandeLigne
 from models.declaration_impot import DeclarationImpot
 from models.user import User
 from models.poste import Poste
@@ -671,6 +672,204 @@ def tool_sorties_stock_produit(user, nom_produit, periode='ce_mois', date_debut=
             }
             for nom, n, u, su, ssu, v in rows
         ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Commandes fournisseurs
+# ---------------------------------------------------------------------------
+
+_STATUTS_COMMANDE = ('en_cours', 'livree', 'annulee')
+
+
+def _serialize_commande(c, avec_lignes=False):
+    lignes = c.lignes
+    data = {
+        'numero': c.numero,
+        'statut': c.statut,
+        'fournisseur': c.fournisseur_nom,
+        'note': c.note,
+        'est_une_relance_de': c.relance_de_numero,
+        'creee_le': c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else None,
+        'creee_par': c.created_by_nom,
+        'livree_le': c.livree_at.strftime('%Y-%m-%d %H:%M') if c.livree_at else None,
+        'receptionnee_par': c.livree_by_nom,
+        'nombre_lignes': len(lignes),
+        'quantite_totale_commandee': int(c.total_commande or 0),
+        'montant_commande_ht': _round2(c.montant_commande_ht),
+    }
+    if c.statut == 'livree':
+        data.update({
+            'quantite_totale_livree': int(c.total_livre or 0),
+            'montant_livre_ht': _round2(c.montant_livre_ht),
+            'nombre_lignes_avec_ecart': c.nb_lignes_ecart,
+            'total_unites_manquantes': int(c.total_manquant or 0),
+        })
+    if avec_lignes:
+        data['lignes'] = [
+            {
+                'produit': l.produit_nom,
+                'code_produit': l.produit_code,
+                'quantite_commandee': int(l.quantite_commandee or 0),
+                'quantite_livree': int(l.quantite_livree) if l.quantite_livree is not None else None,
+                'ecart': int(l.ecart) if l.ecart is not None else None,
+                'prix_unite_ht': _round2(l.prix_unite_ht),
+                'montant_commande_ht': _round2(l.montant_commande_ht),
+                'stock_unites_au_moment_de_la_commande': int(l.stock_unites_au_moment or 0),
+            }
+            for l in lignes
+        ]
+    return data
+
+
+def tool_liste_commandes(user, statut=None, fournisseur=None, periode=None, date_debut=None, date_fin=None, limite=10):
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    limite = max(1, min(int(limite or 10), 50))
+    query = Commande.query
+
+    statut = (statut or '').strip()
+    if statut:
+        if statut not in _STATUTS_COMMANDE:
+            raise ValueError(f"Statut inconnu: '{statut}'. Valeurs valides : {', '.join(_STATUTS_COMMANDE)}.")
+        query = query.filter(Commande.statut == statut)
+
+    fournisseur = (fournisseur or '').strip()
+    if fournisseur:
+        query = query.filter(Commande.fournisseur_nom.ilike(f'%{fournisseur}%'))
+
+    label_periode = None
+    if periode:
+        start_dt, end_dt, label_periode = _resolve_periode(periode, date_debut, date_fin)
+        query = query.filter(Commande.created_at >= start_dt, Commande.created_at <= end_dt)
+
+    total = query.count()
+    commandes = query.order_by(Commande.created_at.desc()).limit(limite).all()
+
+    return {
+        'periode': label_periode or 'toutes périodes',
+        'nombre_total_correspondant': total,
+        'commandes': [_serialize_commande(c) for c in commandes],
+    }
+
+
+def tool_detail_commande(user, recherche=None):
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    recherche = (recherche or '').strip()
+    if recherche:
+        commande = Commande.query.filter(
+            Commande.numero.ilike(f'%{recherche}%')
+        ).order_by(Commande.created_at.desc()).first()
+        if not commande:
+            commande = Commande.query.filter(
+                Commande.fournisseur_nom.ilike(f'%{recherche}%')
+            ).order_by(Commande.created_at.desc()).first()
+        if not commande:
+            return {'trouve': False, 'message': f"Aucune commande ne correspond a '{recherche}' (ni par numero, ni par fournisseur)."}
+    else:
+        commande = Commande.query.order_by(Commande.created_at.desc()).first()
+        if not commande:
+            return {'trouve': False, 'message': "Aucune commande enregistree pour le moment."}
+
+    relances = Commande.query.filter_by(relance_de_numero=commande.numero).order_by(Commande.created_at.asc()).all()
+    return {
+        'trouve': True,
+        **_serialize_commande(commande, avec_lignes=True),
+        'relances_de_cette_commande': [
+            {'numero': r.numero, 'statut': r.statut, 'creee_le': r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else None}
+            for r in relances
+        ],
+    }
+
+
+def tool_commandes_produit(user, nom_produit, limite=10):
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    nom_produit = (nom_produit or '').strip()
+    if not nom_produit:
+        raise ValueError("Le parametre nom_produit est requis.")
+    limite = max(1, min(int(limite or 10), 50))
+
+    rows = db.session.query(CommandeLigne, Commande).join(
+        Commande, CommandeLigne.commande_id == Commande.id
+    ).filter(
+        or_(
+            CommandeLigne.produit_nom.ilike(f'%{nom_produit}%'),
+            CommandeLigne.produit_code.ilike(f'%{nom_produit}%')
+        )
+    ).order_by(Commande.created_at.desc()).limit(limite).all()
+
+    if not rows:
+        return {'trouve': False, 'message': f"Aucune commande ne contient de produit correspondant a '{nom_produit}'."}
+
+    return {
+        'trouve': True,
+        'nombre_lignes': len(rows),
+        'commandes': [
+            {
+                'numero': c.numero,
+                'date': c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else None,
+                'fournisseur': c.fournisseur_nom,
+                'statut': c.statut,
+                'produit': l.produit_nom,
+                'quantite_commandee': int(l.quantite_commandee or 0),
+                'quantite_livree': int(l.quantite_livree) if l.quantite_livree is not None else None,
+                'ecart': int(l.ecart) if l.ecart is not None else None,
+            }
+            for l, c in rows
+        ],
+    }
+
+
+def tool_stats_commandes(user, periode='ce_mois', date_debut=None, date_fin=None):
+    denied = _check_access(user, 'gestion_commandes')
+    if denied:
+        return denied
+    start_dt, end_dt, label = _resolve_periode(periode, date_debut, date_fin)
+    commandes = Commande.query.filter(
+        Commande.created_at >= start_dt,
+        Commande.created_at <= end_dt
+    ).all()
+
+    par_statut = {s: 0 for s in _STATUTS_COMMANDE}
+    montant_commande = 0.0
+    montant_livre = 0.0
+    nb_avec_ecart = 0
+    unites_manquantes = 0
+    par_fournisseur = {}
+    for c in commandes:
+        par_statut[c.statut] = par_statut.get(c.statut, 0) + 1
+        montant_commande += c.montant_commande_ht
+        if c.statut == 'livree':
+            montant_livre += c.montant_livre_ht
+            if c.a_ecart:
+                nb_avec_ecart += 1
+            unites_manquantes += c.total_manquant
+        entry = par_fournisseur.setdefault(c.fournisseur_nom, {'nombre_commandes': 0, 'montant_commande_ht': 0.0})
+        entry['nombre_commandes'] += 1
+        entry['montant_commande_ht'] += c.montant_commande_ht
+
+    top_fournisseurs = sorted(
+        (
+            {'fournisseur': nom, 'nombre_commandes': v['nombre_commandes'], 'montant_commande_ht': _round2(v['montant_commande_ht'])}
+            for nom, v in par_fournisseur.items()
+        ),
+        key=lambda e: e['montant_commande_ht'], reverse=True
+    )[:5]
+
+    return {
+        'periode': label,
+        'nombre_commandes': len(commandes),
+        'par_statut': par_statut,
+        'montant_total_commande_ht': _round2(montant_commande),
+        'montant_total_livre_ht': _round2(montant_livre),
+        'nombre_commandes_livrees_avec_ecart': nb_avec_ecart,
+        'total_unites_manquantes_a_la_livraison': int(unites_manquantes),
+        'top_fournisseurs_par_montant': top_fournisseurs,
     }
 
 
@@ -1319,7 +1518,7 @@ REPORTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     'ai_reports'
 )
-REPORT_FILENAME_RE = re.compile(r'^[0-9a-f]{32}__[A-Za-z0-9_-]+\.pdf$')
+REPORT_FILENAME_RE = re.compile(r'^[0-9a-f]{32}__[A-Za-z0-9_-]+\.(pdf|xlsx)$')
 
 
 def _cleanup_old_reports(max_age_hours=48):
@@ -1395,31 +1594,110 @@ def _build_pdf_report(filepath, titre, sections):
     doc.build(story)
 
 
-def tool_generer_rapport_pdf(user, titre, sections):
-    """Pas de restriction propre a cet outil : il ne fait que mettre en forme des
-    donnees deja obtenues (et donc deja verifiees) via d'autres outils."""
+def _build_excel_report(filepath, titre, sections):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Rapport'
+    header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    row = 1
+    ws.cell(row=row, column=1, value=titre).font = Font(bold=True, size=14, color='2C3E50')
+    row += 1
+    ws.cell(row=row, column=1, value=f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} — ReflexPharma").font = Font(size=9, color='7A8896')
+    row += 2
+
+    for section in sections or []:
+        section_title = (section.get('titre_section') or '').strip()
+        if section_title:
+            ws.cell(row=row, column=1, value=section_title).font = Font(bold=True, size=12, color='3498DB')
+            row += 1
+
+        texte = (section.get('texte') or '').strip()
+        if texte:
+            for line in texte.split('\n'):
+                if line.strip():
+                    ws.cell(row=row, column=1, value=line.strip())
+                    row += 1
+
+        tableau = section.get('tableau') or {}
+        colonnes = tableau.get('colonnes') or []
+        lignes = tableau.get('lignes') or []
+        if colonnes and lignes:
+            for ci, col in enumerate(colonnes, start=1):
+                cell = ws.cell(row=row, column=ci, value=str(col))
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center')
+            row += 1
+            for ligne in lignes:
+                for ci, valeur in enumerate(ligne, start=1):
+                    if isinstance(valeur, (int, float)) and not isinstance(valeur, bool):
+                        ws.cell(row=row, column=ci, value=valeur)
+                    else:
+                        ws.cell(row=row, column=ci, value='' if valeur is None else str(valeur))
+                row += 1
+        row += 1
+
+    for col_idx in range(1, (ws.max_column or 1) + 1):
+        longueur = max(
+            (len(str(ws.cell(row=r, column=col_idx).value or '')) for r in range(1, ws.max_row + 1)),
+            default=0
+        )
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max(12, longueur + 2), 50)
+
+    wb.save(filepath)
+
+
+def _preparer_fichier_rapport(titre, extension):
+    """Chemin + nom public d'un nouveau fichier de rapport (token non devinable)."""
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    _cleanup_old_reports()
+    token = uuid.uuid4().hex
+    ascii_titre = unicodedata.normalize('NFKD', titre).encode('ascii', 'ignore').decode('ascii')
+    safe_titre = re.sub(r'[^A-Za-z0-9_-]+', '_', ascii_titre).strip('_') or 'rapport'
+    filename = f'{token}__{safe_titre}.{extension}'
+    return os.path.join(REPORTS_DIR, filename), filename, f'{safe_titre}.{extension}'
+
+
+def _valider_sections_rapport(titre, sections):
     titre = (titre or 'Rapport ReflexPharma').strip() or 'Rapport ReflexPharma'
     if not isinstance(sections, list) or not sections:
         raise ValueError(
             "Le parametre 'sections' est requis et doit contenir au moins une section "
             "(avec un titre_section et du texte et/ou un tableau)."
         )
+    return titre
 
-    os.makedirs(REPORTS_DIR, exist_ok=True)
-    _cleanup_old_reports()
 
-    token = uuid.uuid4().hex
-    ascii_titre = unicodedata.normalize('NFKD', titre).encode('ascii', 'ignore').decode('ascii')
-    safe_titre = re.sub(r'[^A-Za-z0-9_-]+', '_', ascii_titre).strip('_') or 'rapport'
-    filename = f'{token}__{safe_titre}.pdf'
-    filepath = os.path.join(REPORTS_DIR, filename)
-
+def tool_generer_rapport_pdf(user, titre, sections):
+    """Pas de restriction propre a cet outil : il ne fait que mettre en forme des
+    donnees deja obtenues (et donc deja verifiees) via d'autres outils."""
+    titre = _valider_sections_rapport(titre, sections)
+    filepath, filename, nom_public = _preparer_fichier_rapport(titre, 'pdf')
     _build_pdf_report(filepath, titre, sections)
-
     return {
         'pdf_genere': True,
         'titre': titre,
-        'nom_fichier': f'{safe_titre}.pdf',
+        'nom_fichier': nom_public,
+        'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
+    }
+
+
+def tool_generer_rapport_excel(user, titre, sections):
+    """Comme tool_generer_rapport_pdf mais produit un classeur Excel (.xlsx) : meme
+    structure de sections, rendue dans une feuille unique (titres, textes, tableaux)."""
+    titre = _valider_sections_rapport(titre, sections)
+    filepath, filename, nom_public = _preparer_fichier_rapport(titre, 'xlsx')
+    _build_excel_report(filepath, titre, sections)
+    return {
+        'excel_genere': True,
+        'titre': titre,
+        'nom_fichier': nom_public,
         'url_telechargement': url_for('admin.assistant_download_report', filename=filename),
     }
 
@@ -1455,6 +1733,10 @@ TOOL_FUNCTIONS = {
     'clients_sans_groupe': tool_clients_sans_groupe,
     'top_clients_solde': tool_top_clients_solde,
     'solde_total_clients_et_groupes': tool_solde_total_clients_et_groupes,
+    'liste_commandes': tool_liste_commandes,
+    'detail_commande': tool_detail_commande,
+    'commandes_produit': tool_commandes_produit,
+    'stats_commandes': tool_stats_commandes,
     'liste_inventaires': tool_liste_inventaires,
     'detail_inventaire': tool_detail_inventaire,
     'liste_declarations_impots': tool_liste_declarations_impots,
@@ -1468,6 +1750,7 @@ TOOL_FUNCTIONS = {
     'modules_disponibles': tool_modules_disponibles,
     'mes_modules_accessibles': tool_mes_modules_accessibles,
     'generer_rapport_pdf': tool_generer_rapport_pdf,
+    'generer_rapport_excel': tool_generer_rapport_excel,
 }
 
 
@@ -1905,6 +2188,97 @@ AI_TOOLS = [
     {
         'type': 'function',
         'function': {
+            'name': 'liste_commandes',
+            'description': (
+                "Liste les commandes FOURNISSEURS (reapprovisionnement de la pharmacie, numeros "
+                "CMD-...) : numero, fournisseur, statut (en_cours = passee mais pas encore "
+                "receptionnee, livree, annulee), qui l'a creee et quand, quantites et montant HT "
+                "commandes, et pour les livrees les ecarts de livraison (manquants). Une commande "
+                "marquee 'est_une_relance_de' est une re-commande des produits manquants d'une "
+                "commande d'origine. A utiliser pour 'quelles commandes sont en cours', 'liste des "
+                "commandes', 'les commandes de tel fournisseur', 'a-t-on recu nos commandes'. "
+                "Ne PAS confondre avec les ventes aux clients."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'statut': {'type': 'string', 'enum': list(_STATUTS_COMMANDE), 'description': "Filtre optionnel sur le statut. Laisser vide pour toutes les commandes."},
+                    'fournisseur': {'type': 'string', 'description': "Filtre optionnel sur le nom du fournisseur (recherche partielle, texte uniquement)."},
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': "Filtre optionnel : " + _PERIODE_DESC + " Laisser vide pour toutes les periodes."},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum de commandes a retourner (defaut 10, max 50)."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'detail_commande',
+            'description': (
+                "Donne le detail complet d'une commande fournisseur : chaque ligne produit avec la "
+                "quantite commandee, la quantite livree et l'ecart (negatif = manquant a la "
+                "livraison), les montants HT, le stock au moment de la commande, ainsi que les "
+                "eventuelles relances creees a partir de cette commande. Sans parametre 'recherche', "
+                "renvoie la commande la plus recente (donc 'la derniere commande'). A utiliser pour "
+                "'que contient la commande CMD-..., 'quels produits manquaient a la livraison', "
+                "'detail de ma derniere commande'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Numero de commande (ex: CMD-20260717-001, recherche partielle) OU nom du fournisseur (renvoie alors sa commande la plus recente). Laisser vide pour la derniere commande toutes confondues."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'commandes_produit',
+            'description': (
+                "Historique des commandes fournisseurs contenant un produit donne (recherche par nom "
+                "ou code produit), de la plus recente a la plus ancienne : numero, date, fournisseur, "
+                "statut, quantite commandee/livree et ecart. A utiliser pour 'quand a-t-on commande "
+                "tel produit pour la derniere fois', 'combien de tel produit a-t-on commande', 'ce "
+                "produit est-il deja en commande'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'nom_produit': {'type': 'string', 'description': "Nom ou code du produit recherche (recherche partielle, insensible a la casse)."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum de lignes a retourner (defaut 10, max 50)."},
+                },
+                'required': ['nom_produit'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'stats_commandes',
+            'description': (
+                "Resume des commandes fournisseurs sur une periode : nombre de commandes par statut "
+                "(en_cours/livree/annulee), montant total HT commande et livre, nombre de commandes "
+                "livrees avec ecart, total d'unites manquantes a la livraison, et top fournisseurs "
+                "par montant commande. A utiliser pour 'combien avons-nous commande ce mois', "
+                "'montant des commandes en cours', 'quels fournisseurs commande-t-on le plus'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'periode': {'type': 'string', 'enum': PERIODES_VALIDES, 'description': _PERIODE_DESC},
+                    'date_debut': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                    'date_fin': {'type': 'string', 'description': "AAAA-MM-JJ, si periode='personnalise'."},
+                },
+                'required': ['periode'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
             'name': 'liste_inventaires',
             'description': (
                 "Liste l'historique des inventaires (titre, statut en_cours/valide/annule, date et "
@@ -2108,9 +2482,12 @@ AI_TOOLS = [
                 "Genere un rapport PDF telechargeable a partir de donnees deja obtenues via d'autres "
                 "outils, et le rend disponible en telechargement dans le chat. N'utilise cet outil QUE "
                 "si l'utilisateur demande explicitement un PDF, un rapport, un document ou une "
-                "impression des resultats — jamais spontanement. Appelle d'abord le(s) outil(s) "
-                "necessaires pour obtenir les donnees demandees, PUIS appelle cet outil avec un titre "
-                "et le contenu structure (texte et/ou tableaux) a inclure dans le document."
+                "impression des resultats — jamais spontanement. Si l'utilisateur demande un fichier "
+                "Excel, un tableur ou un .xlsx, utilise generer_rapport_excel a la place (memes "
+                "parametres). Si le format n'est pas precise pour un 'export' ou un 'rapport', choisis "
+                "le PDF. Appelle d'abord le(s) outil(s) necessaires pour obtenir les donnees demandees, "
+                "PUIS appelle cet outil avec un titre et le contenu structure (texte et/ou tableaux) a "
+                "inclure dans le document."
             ),
             'parameters': {
                 'type': 'object',
@@ -2133,6 +2510,53 @@ AI_TOOLS = [
                                             'type': 'array',
                                             'items': {'type': 'array', 'items': {'type': 'string'}},
                                             'description': "Lignes du tableau, chaque ligne etant une liste de valeurs (une par colonne, converties en texte).",
+                                        },
+                                    },
+                                },
+                            },
+                            'required': ['titre_section'],
+                        },
+                    },
+                },
+                'required': ['titre', 'sections'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'generer_rapport_excel',
+            'description': (
+                "Genere un classeur Excel (.xlsx) telechargeable a partir de donnees deja obtenues "
+                "via d'autres outils, et le rend disponible en telechargement dans le chat. N'utilise "
+                "cet outil QUE si l'utilisateur demande explicitement un fichier Excel, un tableur, un "
+                ".xlsx ou un export 'pour travailler les donnees' — jamais spontanement. Pour un PDF, "
+                "un document ou une impression, utilise generer_rapport_pdf a la place. Appelle "
+                "d'abord le(s) outil(s) necessaires pour obtenir les donnees demandees, PUIS appelle "
+                "cet outil avec un titre et le contenu structure : privilégie les tableaux (colonnes + "
+                "lignes), c'est ce qui rend un fichier Excel utile."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'titre': {'type': 'string', 'description': "Titre du classeur (ex: 'Commandes en cours - 17/07/2026')."},
+                    'sections': {
+                        'type': 'array',
+                        'description': "Sections composant le classeur, dans l'ordre d'affichage (rendues les unes sous les autres dans la feuille).",
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'titre_section': {'type': 'string', 'description': "Titre de la section."},
+                                'texte': {'type': 'string', 'description': "Texte libre de la section (optionnel), une phrase par ligne."},
+                                'tableau': {
+                                    'type': 'object',
+                                    'description': "Tableau optionnel pour cette section (fortement recommande pour un Excel).",
+                                    'properties': {
+                                        'colonnes': {'type': 'array', 'items': {'type': 'string'}, 'description': "Noms des colonnes."},
+                                        'lignes': {
+                                            'type': 'array',
+                                            'items': {'type': 'array', 'items': {'type': 'string'}},
+                                            'description': "Lignes du tableau, chaque ligne etant une liste de valeurs (une par colonne).",
                                         },
                                     },
                                 },

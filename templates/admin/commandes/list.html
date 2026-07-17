@@ -94,9 +94,17 @@
       <h1><i class="fas fa-truck me-2"></i>Commandes Fournisseurs</h1>
       <p>Passez des commandes, suivez les livraisons et comparez le commandé au livré.</p>
     </div>
-    <a href="{{ url_for('admin.create_commande') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
-      <i class="fas fa-plus me-1"></i> Nouvelle Commande
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('admin.export_commandes_pdf') }}" class="btn btn-outline-light btn-sm" style="font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la liste des commandes en PDF">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <a href="{{ url_for('admin.export_commandes_excel') }}" class="btn btn-outline-light btn-sm" style="font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la liste des commandes en Excel">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.create_commande') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+        <i class="fas fa-plus me-1"></i> Nouvelle Commande
+      </a>
+    </div>
   </div>
 </div>
 

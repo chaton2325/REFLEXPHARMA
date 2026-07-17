@@ -3257,6 +3257,268 @@ def show_commande(id):
     return render_template('admin/commandes/show.html', commande=commande, origine=origine,
                            relances=relances, created=created, livree_confirm=livree_confirm)
 
+_COMMANDE_STATUT_LABELS = {'en_cours': 'En cours', 'livree': 'Livrée', 'annulee': 'Annulée'}
+
+_XLSX_MIMETYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+
+def _style_commandes_worksheets(sheets):
+    from openpyxl.styles import Alignment, Font, PatternFill
+    for worksheet in sheets:
+        worksheet.freeze_panes = 'A2'
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True, color='FFFFFF')
+            cell.fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+            cell.alignment = Alignment(horizontal='center')
+        for column_cells in worksheet.columns:
+            longueur = max((len(str(c.value)) if c.value is not None else 0 for c in column_cells), default=0)
+            worksheet.column_dimensions[column_cells[0].column_letter].width = min(max(12, longueur + 2), 40)
+
+
+def _commande_ligne_row(commande, ligne):
+    return {
+        'Commande': commande.numero,
+        'Fournisseur': commande.fournisseur_nom,
+        'Statut': _COMMANDE_STATUT_LABELS.get(commande.statut, commande.statut),
+        'Produit': ligne.produit_nom,
+        'Code': ligne.produit_code or '',
+        'Qte commandee': ligne.quantite_commandee or 0,
+        'Qte livree': ligne.quantite_livree if ligne.quantite_livree is not None else '',
+        'Ecart': ligne.ecart if ligne.ecart is not None else '',
+        'Prix unite HT': round(ligne.prix_unite_ht or 0, 2),
+        'Montant HT commande': round(ligne.montant_commande_ht, 2),
+    }
+
+@admin.route('/commandes/export/excel')
+@login_required
+@permission_required('gestion_commandes')
+def export_commandes_excel():
+    import io
+    import pandas as pd
+
+    commandes = Commande.query.order_by(Commande.created_at.desc()).all()
+    rows, lignes_rows = [], []
+    for c in commandes:
+        livree = c.statut == 'livree'
+        rows.append({
+            'Numero': c.numero,
+            'Date': c.created_at.strftime('%d/%m/%Y %H:%M') if c.created_at else '',
+            'Fournisseur': c.fournisseur_nom,
+            'Statut': _COMMANDE_STATUT_LABELS.get(c.statut, c.statut),
+            'Relance de': c.relance_de_numero or '',
+            'Creee par': c.created_by_nom or '',
+            'Lignes': len(c.lignes),
+            'Qte commandee': c.total_commande,
+            'Montant HT commande': round(c.montant_commande_ht, 2),
+            'Qte livree': c.total_livre if livree else '',
+            'Montant HT livre': round(c.montant_livre_ht, 2) if livree else '',
+            'Lignes avec ecart': c.nb_lignes_ecart if livree else '',
+            'Unites manquantes': c.total_manquant if livree else '',
+            'Livree le': c.livree_at.strftime('%d/%m/%Y %H:%M') if c.livree_at else '',
+            'Receptionnee par': c.livree_by_nom or '',
+        })
+        lignes_rows.extend(_commande_ligne_row(c, l) for l in c.lignes)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Commandes')
+        pd.DataFrame(lignes_rows).to_excel(writer, index=False, sheet_name='Lignes')
+        _style_commandes_worksheets(writer.sheets.values())
+    output.seek(0)
+    return send_file(output, mimetype=_XLSX_MIMETYPE, as_attachment=True,
+                     download_name=f'commandes_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx')
+
+@admin.route('/commandes/export/pdf')
+@login_required
+@permission_required('gestion_commandes')
+def export_commandes_pdf():
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    commandes = Commande.query.order_by(Commande.created_at.desc()).all()
+    nb_en_cours = sum(1 for c in commandes if c.statut == 'en_cours')
+    nb_livrees = sum(1 for c in commandes if c.statut == 'livree')
+    nb_ecarts = sum(1 for c in commandes if c.statut == 'livree' and c.a_ecart)
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=18, bottomMargin=18, leftMargin=18, rightMargin=18)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=7, leading=9))
+    elements = [
+        Paragraph('Commandes fournisseurs - ReflexPharma', styles['Title']),
+        Paragraph(
+            f'Date du tirage : {datetime.now().strftime("%d/%m/%Y %H:%M")} | '
+            f'Tire par : {current_user.nom} {current_user.prenom} | '
+            f'Commandes : {len(commandes)} (en cours : {nb_en_cours}, livrees : {nb_livrees}, avec ecart : {nb_ecarts})',
+            styles['Small']),
+        Spacer(1, 8)
+    ]
+
+    data = [['Numero', 'Date', 'Fournisseur', 'Statut', 'Lignes', 'Qte cmd', 'Montant HT', 'Manquants']]
+    for c in commandes:
+        data.append([
+            c.numero,
+            c.created_at.strftime('%d/%m/%Y') if c.created_at else '',
+            c.fournisseur_nom[:28],
+            _COMMANDE_STATUT_LABELS.get(c.statut, c.statut),
+            str(len(c.lignes)),
+            str(c.total_commande),
+            f'{c.montant_commande_ht:.2f}',
+            str(c.total_manquant) if c.statut == 'livree' and c.total_manquant else '',
+        ])
+    elements.append(Table(data, repeatRows=1, style=TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7FAFD')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ])))
+    doc.build(elements)
+    output.seek(0)
+    return send_file(output, mimetype='application/pdf', as_attachment=True,
+                     download_name=f'commandes_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf')
+
+@admin.route('/commandes/<int:id>/export/excel')
+@login_required
+@permission_required('gestion_commandes')
+def export_commande_excel(id):
+    import io
+    import pandas as pd
+
+    commande = Commande.query.get_or_404(id)
+    livree = commande.statut == 'livree'
+    infos = [
+        {'Champ': 'Numero', 'Valeur': commande.numero},
+        {'Champ': 'Statut', 'Valeur': _COMMANDE_STATUT_LABELS.get(commande.statut, commande.statut)},
+        {'Champ': 'Fournisseur', 'Valeur': commande.fournisseur_nom},
+        {'Champ': 'Creee le', 'Valeur': commande.created_at.strftime('%d/%m/%Y %H:%M') if commande.created_at else ''},
+        {'Champ': 'Creee par', 'Valeur': commande.created_by_nom or ''},
+        {'Champ': 'Relance de', 'Valeur': commande.relance_de_numero or ''},
+        {'Champ': 'Note', 'Valeur': commande.note or ''},
+        {'Champ': 'Quantite commandee', 'Valeur': commande.total_commande},
+        {'Champ': 'Montant HT commande', 'Valeur': round(commande.montant_commande_ht, 2)},
+    ]
+    if livree:
+        infos.extend([
+            {'Champ': 'Livree le', 'Valeur': commande.livree_at.strftime('%d/%m/%Y %H:%M') if commande.livree_at else ''},
+            {'Champ': 'Receptionnee par', 'Valeur': commande.livree_by_nom or ''},
+            {'Champ': 'Quantite livree', 'Valeur': commande.total_livre},
+            {'Champ': 'Montant HT livre', 'Valeur': round(commande.montant_livre_ht, 2)},
+            {'Champ': 'Unites manquantes', 'Valeur': commande.total_manquant},
+        ])
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(infos).to_excel(writer, index=False, sheet_name='Commande')
+        pd.DataFrame([_commande_ligne_row(commande, l) for l in commande.lignes]).to_excel(
+            writer, index=False, sheet_name='Lignes')
+        _style_commandes_worksheets(writer.sheets.values())
+    output.seek(0)
+    return send_file(output, mimetype=_XLSX_MIMETYPE, as_attachment=True,
+                     download_name=f'{commande.numero}.xlsx')
+
+@admin.route('/commandes/<int:id>/export/pdf')
+@login_required
+@permission_required('gestion_commandes')
+def export_commande_pdf(id):
+    """Bon de commande PDF : recapitulatif imprimable/envoyable au fournisseur."""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    commande = Commande.query.get_or_404(id)
+    livree = commande.statut == 'livree'
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=24, bottomMargin=24, leftMargin=24, rightMargin=24)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, leading=10))
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    # Les tableaux occupent presque toute la largeur utile de la page A4
+    largeur_utile = A4[0] - doc.leftMargin - doc.rightMargin
+
+    elements = [
+        Paragraph(f'Bon de commande {commande.numero}', styles['Title']),
+        Paragraph(
+            f'{pharmacy_name} | Date du tirage : {datetime.now().strftime("%d/%m/%Y %H:%M")} | '
+            f'Tire par : {current_user.nom} {current_user.prenom}',
+            styles['Small']),
+        Spacer(1, 10)
+    ]
+
+    infos = [
+        ['Fournisseur', commande.fournisseur_nom, 'Statut', _COMMANDE_STATUT_LABELS.get(commande.statut, commande.statut)],
+        ['Creee le', commande.created_at.strftime('%d/%m/%Y %H:%M') if commande.created_at else '', 'Creee par', commande.created_by_nom or ''],
+    ]
+    if commande.relance_de_numero:
+        infos.append(['Relance de', commande.relance_de_numero, '', ''])
+    if livree:
+        infos.append(['Livree le', commande.livree_at.strftime('%d/%m/%Y %H:%M') if commande.livree_at else '',
+                      'Receptionnee par', commande.livree_by_nom or ''])
+    if commande.note:
+        infos.append(['Note', commande.note, '', ''])
+    elements.append(Table(infos, colWidths=[largeur_utile * p for p in (0.15, 0.37, 0.15, 0.33)], style=TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F9FAFB')),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+    ])))
+    elements.append(Spacer(1, 12))
+
+    produit_style = ParagraphStyle('CelluleProduit', parent=styles['Normal'], fontSize=8, leading=10)
+
+    if livree:
+        colWidths = [largeur_utile * p for p in (0.33, 0.13, 0.10, 0.11, 0.08, 0.11, 0.14)]
+        data = [['Produit', 'Code', 'Qte cmd', 'Qte livree', 'Ecart', 'Prix U. HT', 'Montant HT']]
+        for l in commande.lignes:
+            data.append([
+                Paragraph(l.produit_nom, produit_style), l.produit_code or '',
+                str(l.quantite_commandee or 0),
+                str(l.quantite_livree) if l.quantite_livree is not None else '',
+                str(l.ecart) if l.ecart else '',
+                f'{(l.prix_unite_ht or 0):.2f}', f'{l.montant_commande_ht:.2f}',
+            ])
+        data.append(['TOTAL', '', str(commande.total_commande), str(commande.total_livre),
+                     str(-commande.total_manquant) if commande.total_manquant else '',
+                     '', f'{commande.montant_commande_ht:.2f}'])
+    else:
+        colWidths = [largeur_utile * p for p in (0.46, 0.16, 0.13, 0.11, 0.14)]
+        data = [['Produit', 'Code', 'Qte commandee', 'Prix U. HT', 'Montant HT']]
+        for l in commande.lignes:
+            data.append([
+                Paragraph(l.produit_nom, produit_style), l.produit_code or '',
+                str(l.quantite_commandee or 0),
+                f'{(l.prix_unite_ht or 0):.2f}', f'{l.montant_commande_ht:.2f}',
+            ])
+        data.append(['TOTAL', '', str(commande.total_commande), '', f'{commande.montant_commande_ht:.2f}'])
+
+    elements.append(Table(data, colWidths=colWidths, repeatRows=1, style=TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F7FAFD')]),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#EAF1F8')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ])))
+    doc.build(elements)
+    output.seek(0)
+    return send_file(output, mimetype='application/pdf', as_attachment=True,
+                     download_name=f'bon_commande_{commande.numero}.pdf')
+
 @admin.route('/commandes/<int:id>/relancer', methods=['POST'])
 @login_required
 @permission_required('gestion_commandes')
@@ -4962,8 +5224,8 @@ def build_assistant_system_prompt():
     date_str = f"{_JOURS_FR[today.weekday()]} {today.day} {_MOIS_FR[today.month - 1]} {today.year}"
     return (
         "Tu es l'assistante virtuelle de ReflexPharma, un logiciel de gestion de pharmacie "
-        "(stock, ventes, clients, groupes clients, fournisseurs, inventaires, statistiques, "
-        "déclarations d'impôts/taxes). "
+        "(stock, ventes, clients, groupes clients, fournisseurs, commandes fournisseurs, "
+        "inventaires, statistiques, déclarations d'impôts/taxes). "
         f"Nous sommes le {date_str}. "
         "Tu aides le personnel de la pharmacie de deux façons : "
         "1) l'utilisation du logiciel (où trouver une fonctionnalité, comment faire une action, comprendre un chiffre affiché) ; "
@@ -4989,10 +5251,13 @@ def build_assistant_system_prompt():
         "(des listes à puces pour les classements, pas de longs paragraphes). "
         "Si l'utilisateur demande explicitement un PDF, un rapport, un document ou une impression des résultats, "
         "récupère d'abord les données via le(s) outil(s) pertinent(s) puis appelle generer_rapport_pdf avec ces "
-        "données pour produire un fichier téléchargeable ; ne propose jamais un PDF si ce n'est pas demandé. "
-        "Après avoir appelé generer_rapport_pdf, ne redonne PAS l'URL ni un lien de téléchargement dans ta "
-        "réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous ton message. Contente-toi "
-        "de confirmer brièvement que le PDF est prêt (et résume les chiffres clés si utile). "
+        "données pour produire un fichier téléchargeable ; s'il demande un fichier Excel, un tableur ou un .xlsx, "
+        "utilise generer_rapport_excel de la même façon (si le format n'est pas précisé, choisis le PDF). "
+        "Ne propose jamais un export si ce n'est pas demandé. "
+        "Après avoir appelé generer_rapport_pdf ou generer_rapport_excel, ne redonne PAS l'URL ni un lien de "
+        "téléchargement dans ta réponse texte : un bouton de téléchargement s'affiche déjà automatiquement sous "
+        "ton message. Contente-toi de confirmer brièvement que le fichier est prêt (et résume les chiffres clés "
+        "si utile). "
         "Réponds toujours en français. "
         "Les outils de données auxquels tu as accès dépendent des permissions de la personne qui te parle : "
         "certains modules peuvent ne pas t'être proposés du tout dans la liste d'outils disponibles, ou un "
@@ -5075,11 +5340,16 @@ def assistant_chat():
                 except (ValueError, TypeError):
                     arguments = {}
                 result = call_ai_tool(function_name, arguments, current_user)
-                if function_name == 'generer_rapport_pdf' and isinstance(result, dict) and result.get('pdf_genere'):
+                if (
+                    function_name in ('generer_rapport_pdf', 'generer_rapport_excel')
+                    and isinstance(result, dict)
+                    and (result.get('pdf_genere') or result.get('excel_genere'))
+                ):
                     pdf_attachment = {
                         'url': result.get('url_telechargement'),
                         'titre': result.get('titre'),
                         'nom_fichier': result.get('nom_fichier'),
+                        'type': 'excel' if result.get('excel_genere') else 'pdf',
                     }
                 messages.append({
                     'role': 'tool',
@@ -5098,16 +5368,20 @@ def assistant_chat():
 @admin.route('/assistant/rapport/<path:filename>')
 @login_required
 def assistant_download_report(filename):
-    """Sert un PDF genere par l'assistant IA. Le nom de fichier contient un token
-    aleatoire (uuid4) genere a la creation : non devinable, donc seul un lien recu
-    dans le chat permet d'y acceder (en plus de la connexion requise)."""
+    """Sert un rapport (PDF ou Excel) genere par l'assistant IA. Le nom de fichier
+    contient un token aleatoire (uuid4) genere a la creation : non devinable, donc
+    seul un lien recu dans le chat permet d'y acceder (en plus de la connexion requise)."""
     if not REPORT_FILENAME_RE.match(filename):
         abort(404)
     filepath = os.path.join(REPORTS_DIR, filename)
     if not os.path.isfile(filepath):
         abort(404)
     display_name = filename.split('__', 1)[1]
-    return send_file(filepath, mimetype='application/pdf', as_attachment=True, download_name=display_name)
+    mimetype = (
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        if filename.endswith('.xlsx') else 'application/pdf'
+    )
+    return send_file(filepath, mimetype=mimetype, as_attachment=True, download_name=display_name)
 
 
 # ==============================================================================
