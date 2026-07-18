@@ -22,12 +22,12 @@ from models.stock_exit_log import StockExitLog
 from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
-from models.vente import Vente, VenteLigne
+from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
-from models.finance import OperationFinanciere
+from models.finance import OperationFinanciere, RaisonFinanciere
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta, date
@@ -1461,13 +1461,14 @@ def get_filtered_ventes(default_today=False):
     return ventes
 
 def compute_ventes_totals_reels(ventes):
-    """Agrege benefice (marge coefficient) et TVA effective sur un ensemble de ventes,
-    en une seule requete SQL plutot que ligne par ligne en Python."""
+    """Agrege benefice (PVHT - prix d'achat, ou ancienne deduction pour les ventes
+    historiques) et TVA effective sur un ensemble de ventes, en une seule requete
+    SQL plutot que ligne par ligne en Python."""
     numero_list = [vente.numero_vente for vente in ventes]
     if not numero_list:
         return {'tva_reelle': 0.0, 'benefice': 0.0}
     tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
-    benefice_expr = db.func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+    benefice_expr = benefice_ligne_sql_expr()
     tva_sum, benefice_sum = db.session.query(
         db.func.coalesce(db.func.sum(tva_expr), 0.0),
         db.func.coalesce(db.func.sum(benefice_expr), 0.0)
@@ -6415,7 +6416,9 @@ def finance_dashboard():
         date_to=date_to,
         totals=totals,
         solde_actuel=compute_solde_actuel(),
-        operations=operations
+        operations=operations,
+        raisons_encaissement=RaisonFinanciere.query.filter_by(type='encaissement').order_by(RaisonFinanciere.nom.asc()).all(),
+        raisons_decaissement=RaisonFinanciere.query.filter_by(type='decaissement').order_by(RaisonFinanciere.nom.asc()).all()
     )
 
 
@@ -6474,7 +6477,11 @@ def create_operation_financiere():
 
     raison = (request.form.get('raison') or '').strip()
     if not raison:
-        flash('Veuillez préciser une raison pour cette opération.', 'warning')
+        flash('Veuillez sélectionner une raison pour cette opération.', 'warning')
+        return redirect(url_for('admin.finance_dashboard'))
+    if not RaisonFinanciere.query.filter_by(nom=raison, type=type_operation).first():
+        libelle_type = "d'encaissement" if type_operation == 'encaissement' else 'de décaissement'
+        flash(f"Raison inconnue : choisissez une raison {libelle_type} dans la liste (bouton « Raisons » pour en créer).", 'danger')
         return redirect(url_for('admin.finance_dashboard'))
 
     try:
@@ -6514,3 +6521,63 @@ def delete_operation_financiere(id):
     db.session.commit()
     flash('Opération supprimée : le solde a été recalculé en conséquence.', 'success')
     return redirect(url_for('admin.finance_dashboard'))
+
+
+@admin.route('/finance/raisons')
+@login_required
+@permission_required('gestion_finance')
+def list_raisons_financieres():
+    """Page dédiée de gestion des raisons d'opérations financières, avec recherche
+    et filtre par type. Même permission que le module Finance : sans accès au
+    module, aucun accès aux raisons."""
+    q = (request.args.get('q') or '').strip()
+    type_filtre = (request.args.get('type') or '').strip()
+
+    query = RaisonFinanciere.query
+    if type_filtre in ('encaissement', 'decaissement'):
+        query = query.filter_by(type=type_filtre)
+    if q:
+        query = query.filter(RaisonFinanciere.nom.ilike(f'%{q}%'))
+    raisons = query.order_by(RaisonFinanciere.type.asc(), RaisonFinanciere.nom.asc()).all()
+
+    return render_template(
+        'admin/finance/raisons.html',
+        raisons=raisons,
+        nb_encaissement=RaisonFinanciere.query.filter_by(type='encaissement').count(),
+        nb_decaissement=RaisonFinanciere.query.filter_by(type='decaissement').count()
+    )
+
+
+@admin.route('/finance/raisons/create', methods=['POST'])
+@login_required
+@permission_required('gestion_finance')
+def create_raison_financiere():
+    type_raison = (request.form.get('type') or '').strip()
+    if type_raison not in ('encaissement', 'decaissement'):
+        flash('Précisez le type de la raison : encaissement ou décaissement.', 'warning')
+        return redirect(url_for('admin.list_raisons_financieres'))
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        flash('Le nom de la raison est requis.', 'warning')
+        return redirect(url_for('admin.list_raisons_financieres'))
+    if RaisonFinanciere.query.filter(RaisonFinanciere.type == type_raison, RaisonFinanciere.nom.ilike(nom)).first():
+        libelle_type = "d'encaissement" if type_raison == 'encaissement' else 'de décaissement'
+        flash(f"La raison {libelle_type} « {nom} » existe déjà.", 'warning')
+        return redirect(url_for('admin.list_raisons_financieres'))
+    db.session.add(RaisonFinanciere(type=type_raison, nom=nom))
+    db.session.commit()
+    libelle_type = 'encaissements' if type_raison == 'encaissement' else 'décaissements'
+    flash(f'Raison « {nom} » créée : elle est maintenant proposée pour les {libelle_type}.', 'success')
+    return redirect(url_for('admin.list_raisons_financieres'))
+
+
+@admin.route('/finance/raisons/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_finance')
+def delete_raison_financiere(id):
+    raison = RaisonFinanciere.query.get_or_404(id)
+    nom = raison.nom
+    db.session.delete(raison)
+    db.session.commit()
+    flash(f'Raison « {nom} » supprimée. Les opérations déjà enregistrées avec cette raison sont conservées.', 'success')
+    return redirect(url_for('admin.list_raisons_financieres'))

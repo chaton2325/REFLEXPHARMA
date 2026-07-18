@@ -25,7 +25,7 @@ from flask import url_for
 from sqlalchemy import func, or_
 
 from extensions import db
-from models.vente import Vente, VenteLigne
+from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
 from models.stock import Stock
 from models.stock_exit_log import StockExitLog
 from models.produit import Produit
@@ -1370,12 +1370,13 @@ def _ventes_periode_fiscale(start_dt, end_dt):
 
 def _totaux_fiscaux(ventes):
     """HT / TVA effective / benefice / TTC agreges en SQL sur les lignes de vente,
-    comme compute_ventes_totals_reels() cote vues (TVA reelle hors marge coefficient)."""
+    comme compute_ventes_totals_reels() cote vues (benefice = PVHT - prix d'achat,
+    ou ancienne deduction pour les ventes historiques)."""
     numeros = [v.numero_vente for v in ventes]
     tva_reelle, benefice = 0.0, 0.0
     if numeros:
         tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
-        benefice_expr = func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+        benefice_expr = benefice_ligne_sql_expr()
         tva_sum, benefice_sum = db.session.query(
             func.coalesce(func.sum(tva_expr), 0.0),
             func.coalesce(func.sum(benefice_expr), 0.0)

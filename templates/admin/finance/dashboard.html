@@ -173,6 +173,9 @@
             <a href="{{ url_for('admin.export_operations_financieres_excel', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d')) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période en Excel">
                 <i class="fas fa-file-excel me-1"></i> Excel
             </a>
+            <a href="{{ url_for('admin.list_raisons_financieres') }}" class="btn btn-outline-secondary btn-sm" title="Créer ou supprimer les raisons proposées lors d'une opération">
+                <i class="fas fa-tags me-1"></i> Raisons
+            </a>
             <button type="button" class="btn btn-sm text-white fw-bold" style="background:linear-gradient(135deg,#1e8e3e,#28a745);border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#encaissementModal">
                 <i class="fas fa-plus me-1"></i> Encaissement
             </button>
@@ -273,7 +276,16 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Raison <span class="text-danger">*</span></label>
-            <input type="text" name="raison" class="form-control" maxlength="200" placeholder="Ex : apport de capital, remboursement..." required>
+            <select name="raison" class="form-select" required>
+              <option value="">Choisir une raison d'encaissement...</option>
+              {% for r in raisons_encaissement %}
+              <option value="{{ r.nom }}">{{ r.nom }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              {% if raisons_encaissement %}Il manque une raison ?{% else %}Aucune raison d'encaissement définie :{% endif %}
+              <a href="{{ url_for('admin.list_raisons_financieres') }}">gérer les raisons</a>.
+            </div>
           </div>
           <div class="mb-0">
             <label class="form-label">Note (optionnelle)</label>
@@ -309,7 +321,16 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Raison <span class="text-danger">*</span></label>
-            <input type="text" name="raison" class="form-control" maxlength="200" placeholder="Ex : retrait du gérant, paiement d'une charge..." required>
+            <select name="raison" class="form-select" required>
+              <option value="">Choisir une raison de décaissement...</option>
+              {% for r in raisons_decaissement %}
+              <option value="{{ r.nom }}">{{ r.nom }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              {% if raisons_decaissement %}Il manque une raison ?{% else %}Aucune raison de décaissement définie :{% endif %}
+              <a href="{{ url_for('admin.list_raisons_financieres') }}">gérer les raisons</a>.
+            </div>
           </div>
           <div class="mb-0">
             <label class="form-label">Note (optionnelle)</label>

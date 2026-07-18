@@ -138,3 +138,20 @@ class VenteLigne(db.Model):
 
     def __repr__(self):
         return f'<VenteLigne {self.produit_nom} x {self.quantite}>'
+
+
+def benefice_ligne_sql_expr():
+    """Expression SQL du benefice d'une ligne de vente, a utiliser dans les
+    agregations (SUM). Meme logique que la propriete VenteLigne.benefice :
+    PVHT - prix d'achat pour les lignes qui ont un prix_achat_unitaire (ventes
+    posterieures a la correction du calcul des prix), sinon l'ancienne deduction
+    TTC - HT - TVA reelle pour les lignes historiques."""
+    tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
+    benefice_legacy = db.func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+    benefice_reel = db.func.greatest(
+        VenteLigne.total_ht - (VenteLigne.prix_achat_unitaire * VenteLigne.quantite), 0.0
+    )
+    return db.case(
+        (VenteLigne.prix_achat_unitaire.isnot(None), benefice_reel),
+        else_=benefice_legacy
+    )

@@ -6,18 +6,17 @@ ce qui garantit des calculs et des documents strictement identiques.
 from datetime import datetime
 
 from extensions import db
-from models.vente import Vente, VenteLigne
+from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
 from models.finance import OperationFinanciere
 from utils.currencies import devise_active
 
 
 def compute_benefice_total_all_time():
-    """Bénéfice cumulé (marge coefficient, hors TVA effective) sur TOUTES les ventes
-    validées depuis toujours, calculé en une requête SQL directement sur les lignes
-    de vente — jamais stocké nulle part, jamais modifié par les opérations
-    financières (encaissements/décaissements)."""
-    tva_expr = VenteLigne.total_ht * (VenteLigne.tva_pourcentage / 100.0)
-    benefice_expr = db.func.greatest(VenteLigne.total_ttc - VenteLigne.total_ht - tva_expr, 0.0)
+    """Bénéfice cumulé (PVHT - prix d'achat, ou ancienne déduction pour les ventes
+    historiques) sur TOUTES les ventes validées depuis toujours, calculé en une
+    requête SQL directement sur les lignes de vente — jamais stocké nulle part,
+    jamais modifié par les opérations financières (encaissements/décaissements)."""
+    benefice_expr = benefice_ligne_sql_expr()
     total = db.session.query(db.func.coalesce(db.func.sum(benefice_expr), 0.0)).join(
         Vente, Vente.numero_vente == VenteLigne.numero_vente
     ).filter(Vente.statut == 'validee').scalar()

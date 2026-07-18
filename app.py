@@ -26,7 +26,7 @@ from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
-from models.finance import OperationFinanciere
+from models.finance import OperationFinanciere, RaisonFinanciere
 
 from config import config
 
@@ -87,6 +87,24 @@ def ensure_database_schema(app):
             db.session.execute(text("ALTER TABLE vente_lignes DROP CONSTRAINT IF EXISTS vente_lignes_vente_id_fkey;"))
             db.session.execute(text("ALTER TABLE vente_lignes ALTER COLUMN vente_id DROP NOT NULL;"))
             db.session.execute(text("UPDATE vente_lignes SET numero_vente = ventes.numero_vente FROM ventes WHERE vente_lignes.vente_id = ventes.id AND (vente_lignes.numero_vente IS NULL OR vente_lignes.numero_vente = '');"))
+        except Exception:
+            db.session.rollback()
+
+        # Les raisons financieres sont typees (encaissement/decaissement) : les raisons
+        # creees avant cette distinction sont classees en decaissement (a ajuster dans
+        # l'interface si besoin), et l'unicite du nom devient une unicite par type.
+        try:
+            db.session.execute(text("ALTER TABLE raisons_financieres ADD COLUMN IF NOT EXISTS type VARCHAR(20);"))
+            db.session.execute(text("UPDATE raisons_financieres SET type = 'decaissement' WHERE type IS NULL;"))
+            db.session.execute(text("ALTER TABLE raisons_financieres ALTER COLUMN type SET NOT NULL;"))
+            db.session.execute(text("ALTER TABLE raisons_financieres DROP CONSTRAINT IF EXISTS raisons_financieres_nom_key;"))
+            db.session.execute(text("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_raison_financiere_type_nom') THEN
+                        ALTER TABLE raisons_financieres ADD CONSTRAINT uq_raison_financiere_type_nom UNIQUE (type, nom);
+                    END IF;
+                END $$;
+            """))
         except Exception:
             db.session.rollback()
 

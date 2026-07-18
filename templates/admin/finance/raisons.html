@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Raisons des opérations - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #f4faf8 !important; }
+
+    .page-header {
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #0d3b2e 0%, #16a085 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+    .card-header-custom {
+        background: linear-gradient(135deg, #eafaf5, #d3f2e8);
+        border-bottom: 1px solid #bfe9d9;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px 14px 0 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #0d3b2e;
+    }
+
+    .stat-pill {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        border-radius: 999px; padding: 0.3rem 0.85rem;
+        font-size: 0.78rem; font-weight: 700;
+    }
+    .stat-pill-enc { background: #e6f7ee; color: #157347; border: 1px solid #b5e6cb; }
+    .stat-pill-dec { background: #fdf0ee; color: #c0392b; border: 1px solid #f5d5cf; }
+
+    .badge-encaissement { background: linear-gradient(135deg,#1e8e3e,#28a745); color: #fff; font-size: 0.68rem; padding: 0.3rem 0.6rem; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+    .badge-decaissement { background: linear-gradient(135deg,#c0392b,#e74c3c); color: #fff; font-size: 0.68rem; padding: 0.3rem 0.6rem; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e); color: #fff; font-size: 0.66rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.4px; padding: 0.6rem 0.8rem; border: none; white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.55rem 0.8rem; vertical-align: middle; font-size: 0.85rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fbfffe; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #f0faf6; }
+    .cell-sub { font-size: 0.72rem; color: #7a8896; }
+
+    .mobile-card { border-radius: 12px; padding: 0.7rem 0.85rem; border: 1px solid #d3f2e8; background: #fbfffe; }
+    .mobile-card:nth-child(even) { background: #f0faf6; }
+
+    @media (max-width: 575.98px) {
+        .page-header { padding: 1.1rem; border-radius: 12px; }
+        .page-header h1 { font-size: 1.1rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{{ url_for('admin.finance_dashboard') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#0d3b2e;" title="Retour au module Finance">
+        <i class="fas fa-arrow-left"></i>
+      </a>
+      <div>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-1">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.finance_dashboard') }}">Finance</a></li>
+            <li class="breadcrumb-item active">Raisons</li>
+          </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-tags me-2"></i>Raisons des opérations</h1>
+        <p class="mb-0">Les raisons proposées lors d'un encaissement ou d'un décaissement. Les supprimer ne modifie jamais les opérations déjà enregistrées.</p>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="stat-pill stat-pill-enc"><i class="fas fa-arrow-down"></i>{{ nb_encaissement }} encaissement(s)</span>
+      <span class="stat-pill stat-pill-dec"><i class="fas fa-arrow-up"></i>{{ nb_decaissement }} décaissement(s)</span>
+    </div>
+  </div>
+</div>
+
+<!-- Création -->
+<div class="card-form mb-3">
+  <div class="card-header-custom"><i class="fas fa-plus me-1"></i> Nouvelle raison</div>
+  <form method="POST" action="{{ url_for('admin.create_raison_financiere') }}" class="p-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-sm-3 col-md-2">
+        <label class="form-label">Type <span class="text-danger">*</span></label>
+        <select name="type" class="form-select form-select-sm" required>
+          <option value="encaissement">Encaissement</option>
+          <option value="decaissement">Décaissement</option>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-md-7">
+        <label class="form-label">Nom de la raison <span class="text-danger">*</span></label>
+        <input type="text" name="nom" class="form-control form-control-sm" maxlength="200" placeholder="Ex : apport de capital, loyer, retrait du gérant..." required>
+      </div>
+      <div class="col-12 col-sm-3 col-md-3 d-grid">
+        <button type="submit" class="btn btn-sm text-white fw-bold" style="background:linear-gradient(135deg,#0d5c4a,#16a085);border:none;border-radius:8px;">
+          <i class="fas fa-plus me-1"></i> Ajouter
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Recherche et filtre -->
+<form method="GET" class="card-form mb-3">
+  <div class="p-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-6">
+        <label class="form-label">Recherche</label>
+        <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Nom de la raison...">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Type</label>
+        <select name="type" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          <option value="encaissement" {% if request.args.get('type') == 'encaissement' %}selected{% endif %}>Encaissement</option>
+          <option value="decaissement" {% if request.args.get('type') == 'decaissement' %}selected{% endif %}>Décaissement</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill"><i class="fas fa-filter me-1"></i> Filtrer</button>
+        <a href="{{ url_for('admin.list_raisons_financieres') }}" class="btn btn-outline-secondary btn-sm" title="Réinitialiser"><i class="fas fa-rotate-left"></i></a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Liste : cartes mobiles -->
+<div class="d-md-none" style="display:flex;flex-direction:column;gap:0.6rem;">
+  {% for r in raisons %}
+  <div class="mobile-card d-flex align-items-center justify-content-between gap-2">
+    <div style="min-width:0;">
+      <div class="fw-semibold text-truncate" style="font-size:0.88rem;">{{ r.nom }}</div>
+      <div class="mt-1">
+        {% if r.type == 'encaissement' %}
+        <span class="badge-encaissement"><i class="fas fa-arrow-down me-1"></i>Encaissement</span>
+        {% else %}
+        <span class="badge-decaissement"><i class="fas fa-arrow-up me-1"></i>Décaissement</span>
+        {% endif %}
+        <span class="cell-sub ms-1">{{ r.created_at.strftime('%d/%m/%Y') }}</span>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('admin.delete_raison_financiere', id=r.id) }}" class="d-inline flex-shrink-0">
+      <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer cette raison (les opérations déjà enregistrées la conservent)">
+        <i class="fas fa-trash"></i>
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-4 card-form">
+    <i class="fas fa-tags fa-2x mb-2 d-block" style="color:#16a085;"></i>
+    {% if request.args.get('q') or request.args.get('type') %}
+    Aucune raison ne correspond à cette recherche.
+    {% else %}
+    Aucune raison pour le moment. Créez-en une ci-dessus.
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Liste : tableau desktop -->
+<div class="card-form d-none d-md-block">
+  <div class="table-responsive">
+    <table class="table table-custom align-middle mb-0">
+      <thead>
+        <tr>
+          <th style="width:160px;">Type</th>
+          <th>Nom</th>
+          <th style="width:130px;">Créée le</th>
+          <th class="text-end" style="width:90px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in raisons %}
+        <tr>
+          <td>
+            {% if r.type == 'encaissement' %}
+            <span class="badge-encaissement"><i class="fas fa-arrow-down me-1"></i>Encaissement</span>
+            {% else %}
+            <span class="badge-decaissement"><i class="fas fa-arrow-up me-1"></i>Décaissement</span>
+            {% endif %}
+          </td>
+          <td class="fw-semibold">{{ r.nom }}</td>
+          <td class="cell-sub">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('admin.delete_raison_financiere', id=r.id) }}" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer cette raison (les opérations déjà enregistrées la conservent)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-4">
+            <i class="fas fa-tags fa-2x mb-2 d-block" style="color:#16a085;"></i>
+            {% if request.args.get('q') or request.args.get('type') %}
+            Aucune raison ne correspond à cette recherche.
+            {% else %}
+            Aucune raison pour le moment. Créez-en une ci-dessus.
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
