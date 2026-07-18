@@ -6485,7 +6485,8 @@ def finance_dashboard():
     ).all()
     totals = compute_impots_summary(ventes_periode)  # count / ht / tva / benefice / ttc
 
-    operations = query_operations_financieres(start_dt, end_dt)
+    raison_filtre = (request.args.get('raison') or '').strip()
+    operations = query_operations_financieres(start_dt, end_dt, raison_filtre=raison_filtre or None)
 
     return render_template(
         'admin/finance/dashboard.html',
@@ -6494,6 +6495,7 @@ def finance_dashboard():
         totals=totals,
         solde_actuel=compute_solde_actuel(),
         operations=operations,
+        raison_filtre=raison_filtre,
         raisons_encaissement=RaisonFinanciere.query.filter_by(type='encaissement').order_by(RaisonFinanciere.nom.asc()).all(),
         raisons_decaissement=RaisonFinanciere.query.filter_by(type='decaissement').order_by(RaisonFinanciere.nom.asc()).all()
     )
@@ -6509,14 +6511,16 @@ def export_operations_financieres_pdf():
     date_to = parse_date_filter((request.args.get('date_to') or '').strip())
     start_dt = datetime(date_from.year, date_from.month, date_from.day) if date_from else None
     end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59) if date_to else None
-    operations = query_operations_financieres(start_dt, end_dt)
+    raison_filtre = (request.args.get('raison') or '').strip()
+    operations = query_operations_financieres(start_dt, end_dt, raison_filtre=raison_filtre or None)
 
     output = io.BytesIO()
     build_operations_financieres_pdf(
         output, operations, label_periode_dates(date_from, date_to),
         tire_par=f'{current_user.nom} {current_user.prenom}',
         pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
-        solde_actuel=compute_solde_actuel())
+        solde_actuel=compute_solde_actuel(),
+        raison_filtre=raison_filtre or None)
     output.seek(0)
     return send_file(output, mimetype='application/pdf', as_attachment=True,
                      download_name=f'operations_financieres_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf')
@@ -6532,12 +6536,14 @@ def export_operations_financieres_excel():
     date_to = parse_date_filter((request.args.get('date_to') or '').strip())
     start_dt = datetime(date_from.year, date_from.month, date_from.day) if date_from else None
     end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59) if date_to else None
-    operations = query_operations_financieres(start_dt, end_dt)
+    raison_filtre = (request.args.get('raison') or '').strip()
+    operations = query_operations_financieres(start_dt, end_dt, raison_filtre=raison_filtre or None)
 
     output = io.BytesIO()
     build_operations_financieres_excel(
         output, operations, label_periode_dates(date_from, date_to),
-        solde_actuel=compute_solde_actuel())
+        solde_actuel=compute_solde_actuel(),
+        raison_filtre=raison_filtre or None)
     output.seek(0)
     return send_file(output, mimetype=_XLSX_MIMETYPE, as_attachment=True,
                      download_name=f'operations_financieres_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx')

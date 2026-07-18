@@ -51,9 +51,9 @@ def compute_solde_actuel():
     return compute_benefice_total_all_time() + encaissements - decaissements
 
 
-def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None):
-    """Opérations financières filtrées par intervalle de dates et/ou type, les plus
-    récentes en premier."""
+def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None, raison_filtre=None):
+    """Opérations financières filtrées par intervalle de dates, type et/ou raison,
+    les plus récentes en premier."""
     query = OperationFinanciere.query
     if start_dt is not None:
         query = query.filter(OperationFinanciere.created_at >= start_dt)
@@ -61,6 +61,8 @@ def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None):
         query = query.filter(OperationFinanciere.created_at <= end_dt)
     if type_filtre in ('encaissement', 'decaissement'):
         query = query.filter(OperationFinanciere.type == type_filtre)
+    if raison_filtre:
+        query = query.filter(OperationFinanciere.raison == raison_filtre)
     return query.order_by(OperationFinanciere.created_at.desc()).all()
 
 
@@ -75,7 +77,7 @@ def label_periode_dates(date_from=None, date_to=None):
     return "toutes périodes"
 
 
-def build_operations_financieres_pdf(target, operations, periode_label, tire_par, pharmacy_name, solde_actuel=None):
+def build_operations_financieres_pdf(target, operations, periode_label, tire_par, pharmacy_name, solde_actuel=None, raison_filtre=None):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -91,12 +93,16 @@ def build_operations_financieres_pdf(target, operations, periode_label, tire_par
     total_encaissements = sum(o.montant or 0 for o in operations if o.type == 'encaissement')
     total_decaissements = sum(o.montant or 0 for o in operations if o.type == 'decaissement')
 
+    titre = f'Opérations financières - {pharmacy_name}'
+    if raison_filtre:
+        titre += f' — Raison : {raison_filtre}'
     elements = [
-        Paragraph(f'Opérations financières - {pharmacy_name}', styles['Title']),
+        Paragraph(titre, styles['Title']),
         Paragraph(
             f'Période : {periode_label} | Date du tirage : {datetime.now().strftime("%d/%m/%Y %H:%M")} | '
             f'Tiré par : {tire_par}',
             styles['Small']),
+        Paragraph(f'Filtres : Raison = {raison_filtre}' if raison_filtre else 'Filtres : aucun', styles['Small']),
         Spacer(1, 8)
     ]
 
@@ -145,7 +151,7 @@ def build_operations_financieres_pdf(target, operations, periode_label, tire_par
     doc.build(elements)
 
 
-def build_operations_financieres_excel(target, operations, periode_label, solde_actuel=None):
+def build_operations_financieres_excel(target, operations, periode_label, solde_actuel=None, raison_filtre=None):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -158,16 +164,20 @@ def build_operations_financieres_excel(target, operations, periode_label, solde_
     total_encaissements = sum(o.montant or 0 for o in operations if o.type == 'encaissement')
     total_decaissements = sum(o.montant or 0 for o in operations if o.type == 'decaissement')
 
-    ws['A1'] = 'Opérations financières'
+    titre = 'Opérations financières'
+    if raison_filtre:
+        titre += f' — Raison : {raison_filtre}'
+    ws['A1'] = titre
     ws['A1'].font = Font(bold=True, size=14, color='0D3B2E')
     ws['A2'] = f'Période : {periode_label}'
     ws['A3'] = f'Généré le {datetime.now().strftime("%d/%m/%Y %H:%M")}'
     ws['A4'] = (f"Nombre d'opérations : {len(operations)} | Total encaissements : {total_encaissements:.2f} {devise} | "
                 f"Total décaissements : {total_decaissements:.2f} {devise}")
+    ws['A5'] = f'Filtres : Raison = {raison_filtre}' if raison_filtre else 'Filtres : aucun'
     if solde_actuel is not None:
-        ws['A5'] = f'Solde actuel : {solde_actuel:.2f} {devise}'
+        ws['A6'] = f'Solde actuel : {solde_actuel:.2f} {devise}'
 
-    header_row = 7
+    header_row = 8
     columns = ['Date', 'Type', f'Montant ({devise})', 'Raison', 'Enregistré par', 'Note']
     header_fill = PatternFill(start_color='0D3B2E', end_color='0D3B2E', fill_type='solid')
     header_font = Font(bold=True, color='FFFFFF')

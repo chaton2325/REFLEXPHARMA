@@ -145,32 +145,52 @@
             <button type="button" class="preset-btn" data-preset="annee">Cette année</button>
         </div>
         <div class="row g-3 align-items-end">
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <label class="form-label">Du</label>
                 <input type="date" name="date_from" id="dateFrom" class="form-control form-control-sm" value="{{ date_from.strftime('%Y-%m-%d') }}">
             </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <label class="form-label">Au</label>
                 <input type="date" name="date_to" id="dateTo" class="form-control form-control-sm" value="{{ date_to.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Raison (encaissement/décaissement)</label>
+                <select name="raison" class="form-select form-select-sm">
+                    <option value="">Toutes les raisons</option>
+                    {% if raisons_encaissement %}
+                    <optgroup label="Encaissements">
+                        {% for r in raisons_encaissement %}
+                        <option value="{{ r.nom }}" {% if raison_filtre == r.nom %}selected{% endif %}>{{ r.nom }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if raisons_decaissement %}
+                    <optgroup label="Décaissements">
+                        {% for r in raisons_decaissement %}
+                        <option value="{{ r.nom }}" {% if raison_filtre == r.nom %}selected{% endif %}>{{ r.nom }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                </select>
             </div>
             <div class="col-12 col-md-4 d-flex gap-2">
                 <button type="submit" class="btn btn-sm flex-fill fw-bold text-white" style="background:linear-gradient(135deg,#0d5c4a,#16a085);border:none;"><i class="fas fa-filter me-1"></i> Appliquer</button>
                 <a href="{{ url_for('admin.finance_dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-rotate-left me-1"></i> Réinitialiser</a>
             </div>
         </div>
-        <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>Ce filtre ne s'applique qu'au chiffre d'affaires et au bénéfice ci-dessus ; le solde actuel reste indépendant de la période.</div>
+        <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>La période (dates) ne s'applique qu'au chiffre d'affaires et au bénéfice ci-dessus ; le solde actuel reste indépendant de la période. Le filtre par raison s'applique à la liste des opérations financières ci-dessous.</div>
     </div>
 </form>
 
 <!-- Operations financieres -->
 <div class="card-form fade-in stagger-2">
     <div class="card-header-custom">
-        <span><i class="fas fa-money-bill-transfer me-1"></i> Opérations financières (encaissements / décaissements)</span>
+        <span><i class="fas fa-money-bill-transfer me-1"></i> Opérations financières (encaissements / décaissements){% if raison_filtre %} — Raison : {{ raison_filtre }}{% endif %}</span>
         <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('admin.export_operations_financieres_pdf', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d')) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période en PDF">
+            <a href="{{ url_for('admin.export_operations_financieres_pdf', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d'), raison=raison_filtre or none) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période (et de cette raison) en PDF">
                 <i class="fas fa-file-pdf me-1"></i> PDF
             </a>
-            <a href="{{ url_for('admin.export_operations_financieres_excel', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d')) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période en Excel">
+            <a href="{{ url_for('admin.export_operations_financieres_excel', date_from=date_from.strftime('%Y-%m-%d'), date_to=date_to.strftime('%Y-%m-%d'), raison=raison_filtre or none) }}" class="btn btn-outline-secondary btn-sm" title="Exporter les opérations de cette période (et de cette raison) en Excel">
                 <i class="fas fa-file-excel me-1"></i> Excel
             </a>
             <a href="{{ url_for('admin.list_raisons_financieres') }}" class="btn btn-outline-secondary btn-sm" title="Créer ou supprimer les raisons proposées lors d'une opération">
