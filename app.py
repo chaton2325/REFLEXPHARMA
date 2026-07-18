@@ -45,6 +45,12 @@ def ensure_database_schema(app):
             'commandes': [
                 ('relance_de_numero', 'VARCHAR(40)')
             ],
+            'stock_entries': [
+                # Lie un lot de stock a la ligne de commande fournisseur dont il provient
+                # (entree en stock rapide depuis le module Commandes) : reference souple,
+                # sans contrainte FK ajoutee en ALTER (coherent avec le reste du self-heal).
+                ('commande_ligne_id', 'INTEGER')
+            ],
             'ventes': [
                 ('montant_recu', 'FLOAT DEFAULT 0'),
                 ('montant_hors_solde', 'FLOAT DEFAULT 0'),

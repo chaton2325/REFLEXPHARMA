@@ -26,7 +26,11 @@ def setup_database():
                 # La table permissions est déjà gérée par create_all car nouvelle
             ],
             'stock_entries': [
-                ('qr_tire', 'BOOLEAN DEFAULT FALSE')
+                ('qr_tire', 'BOOLEAN DEFAULT FALSE'),
+                # Lie un lot de stock a la ligne de commande fournisseur dont il provient
+                # (entree en stock rapide depuis le module Commandes) : reference souple,
+                # sans contrainte FK ajoutee en ALTER (coherent avec le reste du self-heal).
+                ('commande_ligne_id', 'INTEGER')
             ],
             'produits': [
                 ('stock_securite', 'INTEGER DEFAULT 0')

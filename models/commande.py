@@ -115,5 +115,25 @@ class CommandeLigne(db.Model):
     def montant_livre_ht(self):
         return (self.quantite_livree or 0) * (self.prix_unite_ht or 0)
 
+    @property
+    def quantite_cible_stock(self):
+        """Quantite de reference pour le suivi de mise en stock : livree si deja
+        renseignee, sinon commandee."""
+        return self.quantite_livree if self.quantite_livree is not None else (self.quantite_commandee or 0)
+
+    @property
+    def quantite_mise_en_stock(self):
+        """Unites deja entrees en stock a partir de cette ligne (via l'entree en
+        stock rapide depuis le module Commandes)."""
+        return sum((s.quantite_unites or 0) for s in self.stocks_lies)
+
+    @property
+    def quantite_restante_a_stocker(self):
+        return max(self.quantite_cible_stock - self.quantite_mise_en_stock, 0)
+
+    @property
+    def entierement_mise_en_stock(self):
+        return self.quantite_cible_stock > 0 and self.quantite_restante_a_stocker == 0
+
     def __repr__(self):
         return f'<CommandeLigne {self.produit_nom} (C: {self.quantite_commandee}, L: {self.quantite_livree})>'

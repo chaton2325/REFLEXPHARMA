@@ -424,6 +424,7 @@
 </div>
 {% endif %}
 
+{% set peut_gerer_stock = current_user.has_permission('gestion_stock') %}
 <form method="POST" action="{{ url_for('admin.livraison_commande', id=commande.id) }}" id="livraisonForm">
   <div class="card-custom">
     <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
@@ -444,6 +445,10 @@
             <th>Commandé</th>
             <th>Livré</th>
             <th>Écart</th>
+            {% if peut_gerer_stock %}
+            <th class="col-masquable">Mis en stock</th>
+            <th class="text-end">Stock</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -483,6 +488,30 @@
                 <span class="text-muted">—</span>
               {% endif %}
             </td>
+            {% if peut_gerer_stock %}
+            <td class="col-masquable">
+              {% if l.produit_id and l.produit %}
+                {% if l.entierement_mise_en_stock %}
+                <span class="badge-conforme"><i class="fas fa-check me-1"></i>{{ l.quantite_mise_en_stock }} u.</span>
+                {% elif l.quantite_mise_en_stock > 0 %}
+                <span class="badge-ecart-plus">{{ l.quantite_mise_en_stock }} / {{ l.quantite_cible_stock }} u.</span>
+                {% else %}
+                <span class="badge-attente">0 / {{ l.quantite_cible_stock }} u.</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if l.produit_id and l.produit and commande.statut != 'annulee' %}
+              <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#stockLigneModal{{ l.id }}" style="border-radius:8px;" title="Entrée en stock rapide">
+                <i class="fas fa-box-open"></i>
+              </button>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -492,7 +521,11 @@
     <div class="p-3 p-sm-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
       <span class="small text-muted">
         <i class="fas fa-circle-info me-1"></i>
+        {% if peut_gerer_stock %}
+        Cliquez sur <i class="fas fa-box-open"></i> pour entrer un produit en stock (numéro de BL et date de péremption requis) — ou utilisez le module <a href="{{ url_for('admin.manage_stock') }}">Stock</a> pour les cas plus complexes.
+        {% else %}
         La mise en stock physique (lots, dates de péremption) se fait ensuite dans le module <a href="{{ url_for('admin.manage_stock') }}">Stock</a>.
+        {% endif %}
       </span>
       <div class="d-flex flex-wrap gap-2">
         {% if commande.statut == 'livree' and commande.lignes_manquantes %}
@@ -512,6 +545,52 @@
     {% endif %}
   </div>
 </form>
+
+{% if peut_gerer_stock and commande.statut != 'annulee' %}
+{% for l in commande.lignes %}
+{% if l.produit_id and l.produit %}
+<!-- Modal entrée en stock rapide - ligne {{ l.id }} -->
+<div class="modal fade" id="stockLigneModal{{ l.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <form method="POST" action="{{ url_for('admin.commande_ligne_entree_stock', commande_id=commande.id, ligne_id=l.id) }}">
+        <div class="modal-header" style="background:linear-gradient(135deg,#1e8e3e,#28a745);color:#fff;border-radius:14px 14px 0 0;">
+          <h5 class="modal-title"><i class="fas fa-box-open me-2"></i>Entrée en stock — {{ l.produit_nom }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Produit et quantité pré-remplis depuis la commande <strong>{{ commande.numero }}</strong>.
+            Il ne manque que le numéro de BL et la date de péremption du lot reçu.
+          </p>
+          <div class="mb-3">
+            <label class="form-label">Quantité à mettre en stock (unités) <span class="text-danger">*</span></label>
+            <input type="number" min="1" step="1" name="quantite_unites" class="form-control" required
+                   value="{{ l.quantite_restante_a_stocker if l.quantite_restante_a_stocker > 0 else l.quantite_cible_stock }}">
+            <div class="form-text">{{ l.quantite_mise_en_stock }} u. déjà en stock sur {{ l.quantite_cible_stock }} u. {{ 'livrée(s)' if commande.statut == 'livree' else 'commandée(s)' }}.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Numéro de BL <span class="text-danger">*</span></label>
+            <input type="text" name="numero_bl" class="form-control" required placeholder="Ex: BL-2026-000154">
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Date de péremption <span class="text-danger">*</span></label>
+            <input type="date" name="date_peremption" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+          <button type="submit" class="btn text-white fw-bold" style="background:linear-gradient(135deg,#1e8e3e,#28a745);border-radius:10px;">
+            <i class="fas fa-check me-1"></i> Ajouter au stock
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
 
 {% if commande.statut == 'livree' and commande.lignes_manquantes %}
 <!-- Modal relance des manquants -->

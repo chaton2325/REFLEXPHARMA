@@ -2085,9 +2085,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Ajoute (ou incremente) un produit scanne dans le panier. Reutilisee par le scan
-    // camera et le scan par douchette USB/Bluetooth.
-    function addScannedProductToCart(produitId) {
-        playCartAddSound();
+    // camera et le scan par douchette USB/Bluetooth. Le son est desactive pour le scan
+    // camera (silent: true) : suspicion utilisateur qu'il perturbe la reprise du scan
+    // suivant sur certains mobiles.
+    function addScannedProductToCart(produitId, options) {
+        options = options || {};
+        if (!options.silent) playCartAddSound();
         produitId = String(produitId);
         const lines = Array.from(body.querySelectorAll('.sale-line'));
 
@@ -2343,6 +2346,12 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastScannedCode = null;
     let lastScannedAt = 0;
     const SCAN_COOLDOWN_MS = 1800;
+    // Sans timeout, un fetch qui reste en attente (reseau instable/coupe pendant le
+    // scan) laissait "processing" bloque a true pour toujours : plus aucun scan
+    // suivant n'etait traite (silencieusement ignore par le "if (processing) return"
+    // plus haut) et l'indicateur "Recherche du produit..." restait affiche en
+    // permanence, masquant en plus le flux camera par-dessus lequel il est pose.
+    const SCAN_FETCH_TIMEOUT_MS = 8000;
 
     function handleScannedCode(code) {
         const now = Date.now();
@@ -2354,13 +2363,17 @@ document.addEventListener('DOMContentLoaded', function () {
         showAlert('Recherche du produit...', 'info');
         showScanLoading();
 
-        fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(code)}`)
+        const controller = ('AbortController' in window) ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), SCAN_FETCH_TIMEOUT_MS) : null;
+
+        fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(code)}`, controller ? { signal: controller.signal } : {})
             .then((response) => response.json())
             .then((data) => {
+                clearTimeout(timeoutId);
                 hideScanLoading();
                 if (data.success) {
                     if (typeof window.ReflexAddScannedProduct === 'function') {
-                        window.ReflexAddScannedProduct(data.produit_id);
+                        window.ReflexAddScannedProduct(data.produit_id, { silent: true });
                     }
                     showAlert(`<i class="fas fa-check-circle me-1"></i> Ajouté : ${data.nom}. Continuez à scanner ou fermez la fenêtre.`, 'success');
                 } else {
@@ -2369,11 +2382,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 processing = false;
             })
-            .catch(() => {
+            .catch((err) => {
+                clearTimeout(timeoutId);
                 hideScanLoading();
                 beep(false);
-                showAlert('Erreur de connexion au serveur.', 'danger');
+                const timedOut = err && err.name === 'AbortError';
+                showAlert(timedOut ? 'Le serveur met trop de temps à répondre. Réessayez.' : 'Erreur de connexion au serveur.', 'danger');
                 processing = false;
+                // Permet de rescanner immediatement le meme code plutot que d'attendre
+                // la fin du cooldown apres un echec.
+                lastScannedCode = null;
             });
     }
 

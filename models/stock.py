@@ -19,6 +19,10 @@ class Stock(db.Model):
     quantite_unites = db.Column(db.Integer, nullable=False, default=0)
     quantite_sous_unites = db.Column(db.Integer, nullable=False, default=0)
     quantite_sous_sous_unites = db.Column(db.Integer, nullable=False, default=0)
+    # Lot cree via l'entree en stock rapide depuis une commande fournisseur (module
+    # Commandes) : reference "souple" (SET NULL si la ligne est supprimee), utilisee
+    # uniquement pour afficher la progression de mise en stock sur la commande.
+    commande_ligne_id = db.Column(db.Integer, db.ForeignKey('commande_lignes.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -26,6 +30,7 @@ class Stock(db.Model):
         'Produit',
         backref=db.backref('stocks', lazy=True, cascade='all, delete-orphan')
     )
+    commande_ligne = db.relationship('CommandeLigne', backref=db.backref('stocks_lies', lazy=True))
 
     @staticmethod
     def _safe_price(value):

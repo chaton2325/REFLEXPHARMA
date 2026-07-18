@@ -3537,6 +3537,57 @@ def livraison_commande(id):
     flash(f'Quantités livrées de la commande {commande.numero} ajustées.', 'success')
     return redirect(url_for('admin.show_commande', id=commande.id))
 
+@admin.route('/commandes/<int:commande_id>/lignes/<int:ligne_id>/entree-stock', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def commande_ligne_entree_stock(commande_id, ligne_id):
+    """Entrée en stock rapide depuis une ligne de commande fournisseur : le produit
+    et la quantité sont pré-remplis depuis la commande, il ne manque que le numéro
+    de BL et la date de péremption du lot reçu (informations que la commande ne
+    connaît pas). Réutilise exactement la même logique que le formulaire générique
+    du module Stock (perform_stock_entry)."""
+    commande = Commande.query.get_or_404(commande_id)
+    ligne = CommandeLigne.query.filter_by(id=ligne_id, commande_id=commande.id).first_or_404()
+
+    if commande.statut == 'annulee':
+        flash("Cette commande est annulée : impossible d'y entrer du stock.", 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+    if not ligne.produit_id or not ligne.produit:
+        flash(f"{ligne.produit_nom} n'existe plus au catalogue : utilisez le module Stock pour cette entrée.", 'danger')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+
+    numero_bl_raw = (request.form.get('numero_bl') or '').strip()
+    date_peremption_str = (request.form.get('date_peremption') or '').strip()
+    if not numero_bl_raw:
+        flash('Veuillez préciser le numéro du BL.', 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+    if not date_peremption_str:
+        flash('Veuillez préciser la date de péremption.', 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+    try:
+        date_peremption = datetime.strptime(date_peremption_str, '%Y-%m-%d').date()
+    except ValueError:
+        flash('La date de péremption est invalide.', 'danger')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+
+    try:
+        quantite_unites = max(0, int(request.form.get('quantite_unites') or 0))
+    except ValueError:
+        quantite_unites = 0
+    if quantite_unites <= 0:
+        flash('Veuillez préciser une quantité à mettre en stock.', 'warning')
+        return redirect(url_for('admin.show_commande', id=commande.id))
+
+    stock, _ = perform_stock_entry(
+        ligne.produit, numero_bl_raw, date_peremption,
+        quantite_unites, 0, 0,
+        reason_id=None, reason_text=f'Livraison commande {commande.numero}',
+        commande_ligne_id=ligne.id
+    )
+    db.session.commit()
+    flash(f'{quantite_unites} unité(s) de {ligne.produit_nom} ajoutée(s) au stock (lot {stock.code_suivi}).', 'success')
+    return redirect(url_for('admin.show_commande', id=commande.id))
+
 @admin.route('/commandes/<int:id>/annuler', methods=['POST'])
 @login_required
 @permission_required('gestion_commandes')
@@ -3562,6 +3613,66 @@ def delete_commande(id):
     return redirect(url_for('admin.list_commandes'))
 
 # --- GESTION DU STOCK ---
+def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites, quantite_sous_unites,
+                         quantite_sous_sous_unites, reason_id, reason_text, commande_ligne_id=None):
+    """Cree ou complete un lot de stock (Stock + StockModification associe). Utilise
+    a la fois par le formulaire generique du module Stock et par l'entree en stock
+    rapide depuis une ligne de commande fournisseur. Ne fait pas le commit : a la
+    charge de l'appelant, qui gere aussi la validation des champs en amont."""
+    numero_bl = Stock.normalize_bl(numero_bl_raw)
+    code_suivi = Stock.build_tracking_code(produit.code_produit, numero_bl, date_peremption)
+
+    stock = Stock.query.filter_by(
+        produit_id=produit.id,
+        numero_bl=numero_bl,
+        date_peremption=date_peremption
+    ).first()
+    if stock is None:
+        stock = Stock(
+            produit_id=produit.id,
+            numero_bl=numero_bl,
+            date_peremption=date_peremption,
+            code_suivi=code_suivi,
+            quantite_unites=quantite_unites,
+            quantite_sous_unites=quantite_sous_unites,
+            quantite_sous_sous_unites=quantite_sous_sous_unites,
+            commande_ligne_id=commande_ligne_id
+        )
+        db.session.add(stock)
+        db.session.flush()
+        create_stock_modification(
+            stock=stock,
+            produit=produit,
+            action='create',
+            reason=reason_text,
+            reason_id=reason_id,
+            old_values=(0, 0, 0),
+            new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites),
+            old_qr_tire=False,
+            new_qr_tire=stock.qr_tire
+        )
+        message = f'Stock initial ajouté pour {produit.nom}.'
+    else:
+        old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+        stock.quantite_unites += quantite_unites
+        stock.quantite_sous_unites += quantite_sous_unites
+        stock.quantite_sous_sous_unites += quantite_sous_sous_unites
+        if commande_ligne_id and stock.commande_ligne_id is None:
+            stock.commande_ligne_id = commande_ligne_id
+        create_stock_modification(
+            stock=stock,
+            produit=produit,
+            action='adjust',
+            reason=reason_text,
+            reason_id=reason_id,
+            old_values=old_values,
+            new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
+            old_qr_tire=stock.qr_tire,
+            new_qr_tire=stock.qr_tire
+        )
+        message = f'Stock mis à jour pour {produit.nom} ({stock.code_suivi}).'
+    return stock, message
+
 @admin.route('/stock', methods=['GET', 'POST'])
 @login_required
 @permission_required('gestion_stock')
@@ -3576,7 +3687,7 @@ def manage_stock():
         reason_text = (request.form.get('reason') or '').strip()
         numero_bl_raw = (request.form.get('numero_bl') or '').strip()
         date_peremption_str = (request.form.get('date_peremption') or '').strip()
-        
+
         if not reason_id and not reason_text:
             flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
             return redirect(url_for('admin.manage_stock'))
@@ -3593,59 +3704,15 @@ def manage_stock():
             flash('La date de péremption est invalide.', 'danger')
             return redirect(url_for('admin.manage_stock'))
 
-        numero_bl = Stock.normalize_bl(numero_bl_raw)
-
         quantite_unites = int(request.form.get('quantite_unites') or 0)
         quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
         quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
-        code_suivi = Stock.build_tracking_code(produit.code_produit, numero_bl, date_peremption)
 
-        stock = Stock.query.filter_by(
-            produit_id=produit_id,
-            numero_bl=numero_bl,
-            date_peremption=date_peremption
-        ).first()
-        if stock is None:
-            stock = Stock(
-                produit_id=produit_id,
-                numero_bl=numero_bl,
-                date_peremption=date_peremption,
-                code_suivi=code_suivi,
-                quantite_unites=quantite_unites,
-                quantite_sous_unites=quantite_sous_unites,
-                quantite_sous_sous_unites=quantite_sous_sous_unites
-            )
-            db.session.add(stock)
-            db.session.flush()
-            create_stock_modification(
-                stock=stock,
-                produit=produit,
-                action='create',
-                reason=reason_text,
-                reason_id=reason_id,
-                old_values=(0, 0, 0),
-                new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites),
-                old_qr_tire=False,
-                new_qr_tire=stock.qr_tire
-            )
-            message = f'Stock initial ajouté pour {produit.nom}.'
-        else:
-            old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
-            stock.quantite_unites += quantite_unites
-            stock.quantite_sous_unites += quantite_sous_unites
-            stock.quantite_sous_sous_unites += quantite_sous_sous_unites
-            create_stock_modification(
-                stock=stock,
-                produit=produit,
-                action='adjust',
-                reason=reason_text,
-                reason_id=reason_id,
-                old_values=old_values,
-                new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
-                old_qr_tire=stock.qr_tire,
-                new_qr_tire=stock.qr_tire
-            )
-            message = f'Stock mis à jour pour {produit.nom} ({stock.code_suivi}).'
+        stock, message = perform_stock_entry(
+            produit, numero_bl_raw, date_peremption,
+            quantite_unites, quantite_sous_unites, quantite_sous_sous_unites,
+            reason_id, reason_text
+        )
 
         db.session.commit()
         flash(message, 'success')
