@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         document.getElementById('recapLignes').textContent = lignes;
         document.getElementById('recapQuantite').textContent = quantite;
-        document.getElementById('recapMontant').textContent = montant > 0 ? '≈ ' + montant.toFixed(2) + ' € HT' : '';
+        document.getElementById('recapMontant').textContent = montant > 0 ? '≈ ' + montant.toFixed(2) + ' {{ devise }} HT' : '';
         document.getElementById('panierCount').textContent = lignes;
     }
 

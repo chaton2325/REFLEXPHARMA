@@ -399,7 +399,7 @@
             </div>
             <div class="mb-3">
               <div style="font-size:0.78rem;color:#7a8896;font-weight:500;">Salaire mensuel</div>
-              <div style="font-size:0.9rem;color:#1a1a2e;">{{ "%.2f"|format(user.salaire_mensuel) if user.salaire_mensuel else 'N/A' }} €</div>
+              <div style="font-size:0.9rem;color:#1a1a2e;">{{ "%.2f"|format(user.salaire_mensuel) if user.salaire_mensuel else 'N/A' }} {{ devise }}</div>
             </div>
           </div>
         </div>

@@ -755,7 +755,7 @@
         <div class="col-5 text-muted">Quantité:</div>
         <div class="col-7">U:{{ item.quantite_unites_sortie }} S/U:{{ item.quantite_sous_unites_sortie }} SS/U:{{ item.quantite_sous_sous_unites_sortie }}</div>
         <div class="col-5 text-muted">Perte TTC:</div>
-        <div class="col-7 fw-bold text-danger">{{ "%.2f"|format(prices.total_ttc) }} €</div>
+        <div class="col-7 fw-bold text-danger">{{ "%.2f"|format(prices.total_ttc) }} {{ devise }}</div>
       </div>
     </div>
     {% else %}

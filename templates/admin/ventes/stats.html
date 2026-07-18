@@ -551,7 +551,7 @@
                         y: { 
                             beginAtZero: true,
                             ticks: {
-                                callback: function(value) { return value.toLocaleString('fr-FR') + ' €'; }
+                                callback: function(value) { return value.toLocaleString('fr-FR') + ' {{ devise }}'; }
                             }
                         }
                     }
@@ -583,7 +583,7 @@
                         </p>
                         <div class="mt-2">
                             Chiffre d'affaires estimé pour le <strong>${dateStr}</strong> : 
-                            <span class="h5 mb-0 ms-2 fw-bold text-primary">${predictedValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                            <span class="h5 mb-0 ms-2 fw-bold text-primary">${predictedValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {{ devise }}</span>
                         </div>
                     </div>
                 </div>

@@ -323,9 +323,9 @@
           </div>
         </div>
         <div class="mt-3 small text-muted">
-          Montant estimé : <strong>{{ "%.2f"|format(commande.montant_commande_ht) }} € HT</strong> commandé
+          Montant estimé : <strong>{{ "%.2f"|format(commande.montant_commande_ht) }} {{ devise }} HT</strong> commandé
           {% if commande.statut == 'livree' %}
-          · <strong>{{ "%.2f"|format(commande.montant_livre_ht) }} € HT</strong> livré
+          · <strong>{{ "%.2f"|format(commande.montant_livre_ht) }} {{ devise }} HT</strong> livré
           {% endif %}
         </div>
       </div>

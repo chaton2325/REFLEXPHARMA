@@ -107,7 +107,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-receipt"></i></div>
       <div>
-        <div class="stat-number">{{ montant(totals.ttc) }} €</div>
+        <div class="stat-number">{{ montant(totals.ttc) }} {{ devise }}</div>
         <div class="stat-label">Chiffre d'affaires TTC</div>
         <div class="stat-sub">{{ totals.count }} vente(s) sur la période</div>
       </div>
@@ -117,7 +117,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
       <div>
-        <div class="stat-number">{{ montant(totals.benefice) }} €</div>
+        <div class="stat-number">{{ montant(totals.benefice) }} {{ devise }}</div>
         <div class="stat-label">Bénéfice</div>
         <div class="stat-sub">Sur la période affichée</div>
       </div>
@@ -127,7 +127,7 @@
     <div class="stat-card stat-card-solde d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#d3f2e8,#a8e6cf);color:#0d3b2e;"><i class="fas fa-vault"></i></div>
       <div>
-        <div class="stat-number">{{ montant(solde_actuel) }} €</div>
+        <div class="stat-number">{{ montant(solde_actuel) }} {{ devise }}</div>
         <div class="stat-label">Solde actuel</div>
         <div class="stat-sub">Indépendant de la période — toujours à jour</div>
       </div>
@@ -192,7 +192,7 @@
                 {% else %}
                 <span class="badge-decaissement"><i class="fas fa-arrow-up me-1"></i>Décaissement</span>
                 {% endif %}
-                <span class="{{ 'amount-encaissement' if op.type == 'encaissement' else 'amount-decaissement' }}">{{ montant(op.montant) }} €</span>
+                <span class="{{ 'amount-encaissement' if op.type == 'encaissement' else 'amount-decaissement' }}">{{ montant(op.montant) }} {{ devise }}</span>
             </div>
             <div class="fw-semibold" style="font-size:0.85rem;">{{ op.raison }}</div>
             {% if op.note %}<div class="cell-sub">{{ op.note }}</div>{% endif %}
@@ -215,7 +215,7 @@
             <thead>
                 <tr>
                     <th>Type</th>
-                    <th class="text-end">Montant (€)</th>
+                    <th class="text-end">Montant ({{ devise }})</th>
                     <th>Raison</th>
                     <th>Date</th>
                     <th>Enregistré par</th>
@@ -268,7 +268,7 @@
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label class="form-label">Montant (€) <span class="text-danger">*</span></label>
+            <label class="form-label">Montant ({{ devise }}) <span class="text-danger">*</span></label>
             <input type="number" name="montant" class="form-control" step="0.01" min="0.01" required>
           </div>
           <div class="mb-3">
@@ -302,9 +302,9 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Solde actuel : <strong>{{ montant(solde_actuel) }} €</strong>. Un décaissement supérieur au solde sera refusé.</div>
+          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Solde actuel : <strong>{{ montant(solde_actuel) }} {{ devise }}</strong>. Un décaissement supérieur au solde sera refusé.</div>
           <div class="mb-3">
-            <label class="form-label">Montant (€) <span class="text-danger">*</span></label>
+            <label class="form-label">Montant ({{ devise }}) <span class="text-danger">*</span></label>
             <input type="number" name="montant" class="form-control" step="0.01" min="0.01" max="{{ '%.2f'|format(solde_actuel) }}" required>
           </div>
           <div class="mb-3">
@@ -337,7 +337,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        Voulez-vous vraiment supprimer {{ 'l\'encaissement' if op.type == 'encaissement' else 'le décaissement' }} de <strong>{{ montant(op.montant) }} €</strong> ({{ op.raison }}) ?
+        Voulez-vous vraiment supprimer {{ 'l\'encaissement' if op.type == 'encaissement' else 'le décaissement' }} de <strong>{{ montant(op.montant) }} {{ devise }}</strong> ({{ op.raison }}) ?
         Le solde actuel sera recalculé en conséquence.
       </div>
       <div class="modal-footer">

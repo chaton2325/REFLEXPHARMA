@@ -964,7 +964,7 @@
       <!-- 1. Le seul chiffre à connaître : le montant à encaisser -->
       <div class="pay-hero mb-3">
         <div class="pay-hero-label">Total à encaisser</div>
-        <div class="pay-hero-value"><span id="paymentTotalTtc">0.00</span> €</div>
+        <div class="pay-hero-value"><span id="paymentTotalTtc">0.00</span> {{ devise }}</div>
         <div class="pay-hero-sub">dont HT <span id="paymentTotalHt">0.00</span> · TVA <span id="paymentTotalTax">0.00</span></div>
       </div>
 
@@ -980,7 +980,7 @@
         </div>
         <div class="pay-step-body">
           <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
-          <div class="pay-step-rest">Pris sur le groupe : <strong><span id="groupDebitPreview">0.00</span> €</strong> · Reste après cette étape : <strong><span id="remainingAfterGroup">0.00</span> €</strong></div>
+          <div class="pay-step-rest">Pris sur le groupe : <strong><span id="groupDebitPreview">0.00</span> {{ devise }}</strong> · Reste après cette étape : <strong><span id="remainingAfterGroup">0.00</span> {{ devise }}</strong></div>
         </div>
       </div>
 
@@ -1024,7 +1024,7 @@
             <div class="col-12">
               <div class="pay-change">
                 <div class="pay-change-label">Monnaie à rendre</div>
-                <div class="pay-change-value"><span id="changeDue">0.00</span> €</div>
+                <div class="pay-change-value"><span id="changeDue">0.00</span> {{ devise }}</div>
               </div>
             </div>
           </div>
@@ -1038,19 +1038,19 @@
         </div>
         <div class="pay-banner pay-banner-warn d-none" id="payBannerMissing">
           <i class="fas fa-triangle-exclamation"></i>
-          <span>Il manque <strong><span id="amountRemaining">0.00</span> €</strong> à répartir avant d'enregistrer.</span>
+          <span>Il manque <strong><span id="amountRemaining">0.00</span> {{ devise }}</strong> à répartir avant d'enregistrer.</span>
         </div>
         <div class="pay-banner pay-banner-warn d-none" id="payBannerExcess">
           <i class="fas fa-triangle-exclamation"></i>
-          <span>Trop réparti : retirez <strong><span id="payBannerExcessValue">0.00</span> €</strong> des paiements.</span>
+          <span>Trop réparti : retirez <strong><span id="payBannerExcessValue">0.00</span> {{ devise }}</strong> des paiements.</span>
         </div>
         <div class="pay-banner pay-banner-info d-none" id="payBannerCash">
           <i class="fas fa-hand-holding-dollar"></i>
-          <span>Reste à encaisser : <strong><span id="payBannerCashValue">0.00</span> €</strong> en espèces — saisissez le montant reçu.</span>
+          <span>Reste à encaisser : <strong><span id="payBannerCashValue">0.00</span> {{ devise }}</strong> en espèces — saisissez le montant reçu.</span>
         </div>
         <div class="pay-banner pay-banner-ok d-none" id="payBannerOk">
           <i class="fas fa-circle-check"></i>
-          <span>Paiement complet — prêt à enregistrer.<span id="payBannerChangeWrap" class="d-none"> Monnaie à rendre : <strong><span id="payBannerChangeValue">0.00</span> €</strong></span></span>
+          <span>Paiement complet — prêt à enregistrer.<span id="payBannerChangeWrap" class="d-none"> Monnaie à rendre : <strong><span id="payBannerChangeValue">0.00</span> {{ devise }}</strong></span></span>
         </div>
       </div>
 

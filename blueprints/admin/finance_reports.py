@@ -8,6 +8,7 @@ from datetime import datetime
 from extensions import db
 from models.vente import Vente, VenteLigne
 from models.finance import OperationFinanciere
+from utils.currencies import devise_active
 
 
 def compute_benefice_total_all_time():
@@ -87,6 +88,7 @@ def build_operations_financieres_pdf(target, operations, periode_label, tire_par
     # Le tableau occupe presque toute la largeur utile de la page A4
     largeur_utile = A4[0] - doc.leftMargin - doc.rightMargin
 
+    devise = devise_active()
     total_encaissements = sum(o.montant or 0 for o in operations if o.type == 'encaissement')
     total_decaissements = sum(o.montant or 0 for o in operations if o.type == 'decaissement')
 
@@ -100,9 +102,9 @@ def build_operations_financieres_pdf(target, operations, periode_label, tire_par
     ]
 
     summary = [
-        ["Nombre d'opérations", str(len(operations)), 'Total encaissements', f'{total_encaissements:.2f} €'],
-        ['Total décaissements', f'{total_decaissements:.2f} €', 'Solde actuel',
-         f'{solde_actuel:.2f} €' if solde_actuel is not None else '-'],
+        ["Nombre d'opérations", str(len(operations)), 'Total encaissements', f'{total_encaissements:.2f} {devise}'],
+        ['Total décaissements', f'{total_decaissements:.2f} {devise}', 'Solde actuel',
+         f'{solde_actuel:.2f} {devise}' if solde_actuel is not None else '-'],
     ]
     elements.append(Table(summary, colWidths=[largeur_utile * p for p in (0.25, 0.25, 0.25, 0.25)], style=TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
@@ -121,7 +123,7 @@ def build_operations_financieres_pdf(target, operations, periode_label, tire_par
             o.created_at.strftime('%d/%m/%Y %H:%M') if o.created_at else '',
             'Encaissement' if o.type == 'encaissement' else 'Décaissement',
             Paragraph(o.raison or '', cell_style),
-            f'{(o.montant or 0):.2f} €',
+            f'{(o.montant or 0):.2f} {devise}',
             o.created_by_nom or '',
             Paragraph(o.note or '', cell_style),
         ])
@@ -153,6 +155,7 @@ def build_operations_financieres_excel(target, operations, periode_label, solde_
     ws = wb.active
     ws.title = 'Opérations'
 
+    devise = devise_active()
     total_encaissements = sum(o.montant or 0 for o in operations if o.type == 'encaissement')
     total_decaissements = sum(o.montant or 0 for o in operations if o.type == 'decaissement')
 
@@ -160,13 +163,13 @@ def build_operations_financieres_excel(target, operations, periode_label, solde_
     ws['A1'].font = Font(bold=True, size=14, color='0D3B2E')
     ws['A2'] = f'Période : {periode_label}'
     ws['A3'] = f'Généré le {datetime.now().strftime("%d/%m/%Y %H:%M")}'
-    ws['A4'] = (f"Nombre d'opérations : {len(operations)} | Total encaissements : {total_encaissements:.2f} € | "
-                f"Total décaissements : {total_decaissements:.2f} €")
+    ws['A4'] = (f"Nombre d'opérations : {len(operations)} | Total encaissements : {total_encaissements:.2f} {devise} | "
+                f"Total décaissements : {total_decaissements:.2f} {devise}")
     if solde_actuel is not None:
-        ws['A5'] = f'Solde actuel : {solde_actuel:.2f} €'
+        ws['A5'] = f'Solde actuel : {solde_actuel:.2f} {devise}'
 
     header_row = 7
-    columns = ['Date', 'Type', 'Montant (€)', 'Raison', 'Enregistré par', 'Note']
+    columns = ['Date', 'Type', f'Montant ({devise})', 'Raison', 'Enregistré par', 'Note']
     header_fill = PatternFill(start_color='0D3B2E', end_color='0D3B2E', fill_type='solid')
     header_font = Font(bold=True, color='FFFFFF')
     for ci, col in enumerate(columns, start=1):

@@ -592,9 +592,9 @@
               </div>
               <div class="small text-muted mt-1">BL: {{ stock.numero_bl }} | Péremp: {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
               <div class="small mt-1">
-                <span class="amount-benefice">Bénéf: {{ "%.2f"|format(stock.benefice_total) }} €</span>
+                <span class="amount-benefice">Bénéf: {{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
                 &nbsp;·&nbsp;
-                <span class="amount-tva">TVA: {{ "%.2f"|format(stock.tva_total) }} €</span>
+                <span class="amount-tva">TVA: {{ "%.2f"|format(stock.tva_total) }} {{ devise }}</span>
               </div>
             </div>
             <button type="button" class="btn btn-outline-info btn-action flex-shrink-0" data-bs-toggle="modal" data-bs-target="#viewStockModal{{ stock.id }}" title="Voir les détails">
@@ -672,12 +672,12 @@
               <td data-sort-value="{{ stock.quantite_totale }}" class="text-nowrap fw-semibold" style="font-family:Consolas,monospace;">
                 {{ stock.quantite_unites }}U{% if stock.quantite_sous_unites %} + {{ stock.quantite_sous_unites }}S/U{% endif %}{% if stock.quantite_sous_sous_unites %} + {{ stock.quantite_sous_sous_unites }}SS/U{% endif %}
               </td>
-              <td data-sort-value="{{ stock.prix_ttc_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">{{ "%.2f"|format(stock.prix_ttc_total) }} €</td>
+              <td data-sort-value="{{ stock.prix_ttc_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">{{ "%.2f"|format(stock.prix_ttc_total) }} {{ devise }}</td>
               <td data-sort-value="{{ stock.benefice_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">
-                <span class="amount-benefice">{{ "%.2f"|format(stock.benefice_total) }} €</span>
+                <span class="amount-benefice">{{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
               </td>
               <td data-sort-value="{{ stock.tva_total }}" class="fw-semibold" style="font-family:Consolas,monospace;">
-                <span class="amount-tva">{{ "%.2f"|format(stock.tva_total) }} €</span>
+                <span class="amount-tva">{{ "%.2f"|format(stock.tva_total) }} {{ devise }}</span>
               </td>
               <td class="text-end">
                 <div class="table-actions btn-group">
@@ -825,19 +825,19 @@
         </div>
         <div class="d-flex justify-content-between mb-1">
           <span class="text-muted">Total HT (prix de base)</span>
-          <span class="fw-semibold">{{ "%.2f"|format(stock.prix_ht_total) }} €</span>
+          <span class="fw-semibold">{{ "%.2f"|format(stock.prix_ht_total) }} {{ devise }}</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <span class="text-muted">Bénéfice (marge coefficient)</span>
-          <span class="fw-semibold amount-benefice">{{ "%.2f"|format(stock.benefice_total) }} €</span>
+          <span class="fw-semibold amount-benefice">{{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <span class="text-muted">TVA effective</span>
-          <span class="fw-semibold amount-tva">{{ "%.2f"|format(stock.tva_total) }} €</span>
+          <span class="fw-semibold amount-tva">{{ "%.2f"|format(stock.tva_total) }} {{ devise }}</span>
         </div>
         <div class="d-flex justify-content-between pt-1 border-top">
           <span class="text-muted fw-semibold">Total TTC</span>
-          <span class="fw-bold">{{ "%.2f"|format(stock.prix_ttc_total) }} €</span>
+          <span class="fw-bold">{{ "%.2f"|format(stock.prix_ttc_total) }} {{ devise }}</span>
         </div>
         <hr class="my-3">
         <div class="d-flex flex-wrap gap-2">
@@ -948,7 +948,7 @@
               <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
               <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
             </div>
-            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 € HT / Bénéf. 0.00 € / TVA 0.00 € / 0.00 € TTC</span></div>
+            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Bénéf. 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
             <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
             <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
           </div>
@@ -966,10 +966,10 @@
           </div>
           <div class="border rounded p-3 bg-success bg-opacity-10 mb-3">
             <div class="small text-muted mb-2">Estimation de la saisie</div>
-            <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 €</span></div>
-            <div class="small mb-1"><strong>Bénéfice:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 €</span></div>
-            <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 €</span></div>
-            <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 €</span></div>
+            <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
+            <div class="small mb-1"><strong>Bénéfice:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
+            <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
+            <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
           </div>
           <div class="mb-3">
             <label for="reason_id_mobile" class="form-label">Raison de l'entrée (pré-définie)</label>
@@ -1382,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (mProduit) {
         function mOption() { return mProduit.options[mProduit.selectedIndex]; }
         function mNormalizeBl(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[\\/]/g, '-'); }
-        function mFormat(v) { return Number(v || 0).toFixed(2) + ' €'; }
+        function mFormat(v) { return Number(v || 0).toFixed(2) + ' {{ devise }}'; }
 
         function mUpdateCond() {
             const cond = Number(mOption()?.dataset.conditionnement || 1);
@@ -1411,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const coefBadge = document.getElementById('prodCoefBadgeMobile');
             const tvaBadge = document.getElementById('prodTvaBadgeMobile');
             if (!opt || !opt.value) {
-                ue.textContent = '0.00 € HT / Bénéf. 0.00 € / TVA 0.00 € / 0.00 € TTC';
+                ue.textContent = '0.00 {{ devise }} HT / Bénéf. 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC';
                 se.textContent = 'N/A'; sse.textContent = 'N/A';
                 coefBadge.textContent = 'Coef. x1.00'; tvaBadge.textContent = 'TVA 0%';
                 return;

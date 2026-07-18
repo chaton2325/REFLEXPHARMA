@@ -338,8 +338,8 @@
               {% endif %}
             </div>
             <div style="font-size:0.85rem;margin-top:0.3rem;">
-              <span class="fw-semibold">Achat {{ "%.2f"|format(p.prix_unite or 0) }} €</span>
-              <small class="text-success ms-1">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
+              <span class="fw-semibold">Achat {{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</span>
+              <small class="text-success ms-1">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }} TTC</small>
             </div>
           </div>
           <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
@@ -392,8 +392,8 @@
             </td>
             <td><span class="badge bg-info text-dark badge-produit">Cond {{ p.conditionnement }}</span></td>
             <td>
-              <div class="fw-semibold" style="color:#1a1a2e;">Achat {{ "%.2f"|format(p.prix_unite or 0) }} €</div>
-              <small class="text-success">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} € TTC</small>
+              <div class="fw-semibold" style="color:#1a1a2e;">Achat {{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</div>
+              <small class="text-success">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }} TTC</small>
             </td>
             <td>
               <div class="action-group">
@@ -469,30 +469,30 @@
                 <tbody>
                   <tr>
                     <td class="fw-semibold">Unité</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_unite_ht or 0) }} €</td>
-                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_unite or 0) }} €</td>
-                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} €</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_unite_ht or 0) }} {{ devise }}</td>
+                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }}</td>
                   </tr>
                   {% if p.prix_sous_unite is not none %}
                   <tr>
                     <td class="fw-semibold">Sous-unité</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_sous_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_sous_unite_ht or 0) }} €</td>
-                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_sous_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_sous_unite or 0) }} €</td>
-                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_sous_unite_ttc or 0) }} €</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_sous_unite_ht or 0) }} {{ devise }}</td>
+                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_sous_unite_ttc or 0) }} {{ devise }}</td>
                   </tr>
                   {% endif %}
                   {% if p.prix_sous_sous_unite is not none %}
                   <tr>
                     <td class="fw-semibold">Sous-sous-unité</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_sous_sous_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_sous_sous_unite_ht or 0) }} €</td>
-                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_sous_sous_unite or 0) }} €</td>
-                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_sous_sous_unite or 0) }} €</td>
-                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_sous_sous_unite_ttc or 0) }} €</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_sous_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.prix_vente_sous_sous_unite_ht or 0) }} {{ devise }}</td>
+                    <td class="text-end text-success">{{ "%.2f"|format(p.benefice_sous_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end">{{ "%.2f"|format(p.montant_tva_sous_sous_unite or 0) }} {{ devise }}</td>
+                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.prix_sous_sous_unite_ttc or 0) }} {{ devise }}</td>
                   </tr>
                   {% endif %}
                 </tbody>

@@ -143,7 +143,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;"><i class="fas fa-percent"></i></div>
             <div>
                 <div class="stat-number">{{ "{:,.2f}".format(stats_globales.tva_declaree).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">TVA déclarée (€)</div>
+                <div class="stat-label">TVA déclarée ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -152,7 +152,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-sack-dollar"></i></div>
             <div>
                 <div class="stat-number">{{ "{:,.2f}".format(stats_globales.ttc_declare).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">CA TTC déclaré (€)</div>
+                <div class="stat-label">CA TTC déclaré ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -258,10 +258,10 @@
                     <th>Référence</th>
                     <th>Période</th>
                     <th class="text-center">Ventes</th>
-                    <th class="text-end">HT (€)</th>
-                    <th class="text-end">TVA (€)</th>
-                    <th class="text-end">Bénéfice (€)</th>
-                    <th class="text-end">TTC (€)</th>
+                    <th class="text-end">HT ({{ devise }})</th>
+                    <th class="text-end">TVA ({{ devise }})</th>
+                    <th class="text-end">Bénéfice ({{ devise }})</th>
+                    <th class="text-end">TTC ({{ devise }})</th>
                     <th class="text-center">Statut</th>
                     <th>Déclarée</th>
                     <th class="text-end">Actions</th>

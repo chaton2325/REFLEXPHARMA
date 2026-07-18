@@ -248,21 +248,21 @@
               <label class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
               <div class="input-group">
                 <input type="number" step="0.01" name="prix_unite" id="prixAchatUnite" class="form-control" value="{{ produit.prix_unite if produit else '0.00' }}" required>
-                <span class="input-group-text">€</span>
+                <span class="input-group-text">{{ devise }}</span>
               </div>
             </div>
             <div class="col-sm-6 col-md-4" id="divPrixSous" style="display: none;">
               <label class="form-label">Prix d'achat (Sous-Unité)</label>
               <div class="input-group">
                 <input type="number" step="0.01" name="prix_sous_unite" id="prixAchatSousUnite" class="form-control" value="{{ produit.prix_sous_unite if (produit and produit.prix_sous_unite) else '' }}">
-                <span class="input-group-text">€</span>
+                <span class="input-group-text">{{ devise }}</span>
               </div>
             </div>
             <div class="col-sm-6 col-md-4" id="divPrixSousSous" style="display: none;">
               <label class="form-label">Prix d'achat (Sous-Sous-Unité)</label>
               <div class="input-group">
                 <input type="number" step="0.01" name="prix_sous_sous_unite" id="prixAchatSousSousUnite" class="form-control" value="{{ produit.prix_sous_sous_unite if (produit and produit.prix_sous_sous_unite) else '' }}">
-                <span class="input-group-text">€</span>
+                <span class="input-group-text">{{ devise }}</span>
               </div>
             </div>
           </div>
@@ -335,10 +335,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="col-sm-6 col-md-3">
                     <div class="p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e9ecef;">
                         <div class="small fw-bold text-muted mb-2">${niveau.label}</div>
-                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${formatMoney(prixVenteHt)} €</span></div>
-                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Bénéfice</span><span class="fw-semibold text-success">${formatMoney(benefice)} €</span></div>
-                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${formatMoney(tauxTva)}%)</span><span class="fw-semibold">${formatMoney(montantTva)} €</span></div>
-                        <div class="d-flex justify-content-between small pt-1 mt-1" style="border-top:1px solid #e9ecef;"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${formatMoney(prixVenteTtc)} €</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${formatMoney(prixVenteHt)} {{ devise }}</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Bénéfice</span><span class="fw-semibold text-success">${formatMoney(benefice)} {{ devise }}</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${formatMoney(tauxTva)}%)</span><span class="fw-semibold">${formatMoney(montantTva)} {{ devise }}</span></div>
+                        <div class="d-flex justify-content-between small pt-1 mt-1" style="border-top:1px solid #e9ecef;"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${formatMoney(prixVenteTtc)} {{ devise }}</span></div>
                     </div>
                 </div>
             `;

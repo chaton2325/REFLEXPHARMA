@@ -183,7 +183,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;"><i class="fas fa-file-invoice"></i></div>
             <div>
                 <div class="stat-number">{{ "{:,.2f}".format(summary.ht).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">Total HT (€)</div>
+                <div class="stat-label">Total HT ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -192,7 +192,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;"><i class="fas fa-percent"></i></div>
             <div>
                 <div class="stat-number amount-tva">{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">TVA effective (€)</div>
+                <div class="stat-label">TVA effective ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -201,7 +201,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
             <div>
                 <div class="stat-number amount-benefice">{{ "{:,.2f}".format(summary.benefice).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">Bénéfice (€)</div>
+                <div class="stat-label">Bénéfice ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -210,7 +210,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;"><i class="fas fa-sack-dollar"></i></div>
             <div>
                 <div class="stat-number">{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">Total TTC (€)</div>
+                <div class="stat-label">Total TTC ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -222,8 +222,8 @@
 <div class="alert alert-warning fade-in">
     <i class="fas fa-triangle-exclamation me-2"></i>
     Attention : les ventes recalculées aujourd'hui diffèrent des totaux gelés lors de la déclaration
-    (TVA gelée : {{ "{:,.2f}".format(declaration.total_tva).replace(',', ' ').replace('.', ',') }} € ·
-    TTC gelé : {{ "{:,.2f}".format(declaration.total_ttc).replace(',', ' ').replace('.', ',') }} €).
+    (TVA gelée : {{ "{:,.2f}".format(declaration.total_tva).replace(',', ' ').replace('.', ',') }} {{ devise }} ·
+    TTC gelé : {{ "{:,.2f}".format(declaration.total_ttc).replace(',', ' ').replace('.', ',') }} {{ devise }}).
 </div>
 {% endif %}
 {% endif %}
@@ -251,8 +251,8 @@
             <thead>
                 <tr>
                     <th>Taux de TVA</th>
-                    <th class="text-end">Base HT (€)</th>
-                    <th class="text-end">Montant TVA (€)</th>
+                    <th class="text-end">Base HT ({{ devise }})</th>
+                    <th class="text-end">Montant TVA ({{ devise }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -305,10 +305,10 @@
                     <th>Client</th>
                     <th>Employé</th>
                     <th>Mode paiement</th>
-                    <th class="text-end">HT (€)</th>
-                    <th class="text-end">TVA (€)</th>
-                    <th class="text-end">Bénéfice (€)</th>
-                    <th class="text-end">TTC (€)</th>
+                    <th class="text-end">HT ({{ devise }})</th>
+                    <th class="text-end">TVA ({{ devise }})</th>
+                    <th class="text-end">Bénéfice ({{ devise }})</th>
+                    <th class="text-end">TTC ({{ devise }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -360,7 +360,7 @@
             <div class="modal-body">
                 <p class="mb-2">Confirmez-vous que les taxes de la période <strong>{{ declaration.periode_label }}</strong> ont été déclarées ?</p>
                 <ul class="small text-muted mb-0">
-                    <li>{{ summary.count }} vente(s) — TVA : <strong>{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }} €</strong> — TTC : <strong>{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }} €</strong></li>
+                    <li>{{ summary.count }} vente(s) — TVA : <strong>{{ "{:,.2f}".format(summary.tva).replace(',', ' ').replace('.', ',') }} {{ devise }}</strong> — TTC : <strong>{{ "{:,.2f}".format(summary.ttc).replace(',', ' ').replace('.', ',') }} {{ devise }}</strong></li>
                     <li>Les totaux seront gelés avec la date et votre nom.</li>
                     <li>Vous pourrez rouvrir la période en cas d'erreur.</li>
                 </ul>

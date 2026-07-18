@@ -104,6 +104,14 @@ def create_app(config_name='default'):
     def load_user(user_id):
         return User.query.get(int(user_id))
 
+    # La devise choisie dans les paramètres est disponible dans TOUS les templates
+    # (variable `devise` = symbole, ex: €, FCFA, $), sans rien passer aux vues.
+    @app.context_processor
+    def inject_currency():
+        from utils.currencies import get_active_currency
+        active = get_active_currency()
+        return {'devise': active['symbole'], 'devise_code': active['code'], 'devise_nom': active['nom']}
+
     # Enregistrement des blueprints
     from blueprints.auth import auth as auth_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/auth')

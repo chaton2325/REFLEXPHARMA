@@ -36,6 +36,7 @@ import secrets
 import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
+from utils.currencies import CURRENCIES, CURRENCIES_BY_CODE, get_active_currency, devise_active
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
@@ -5101,9 +5102,10 @@ def export_produits_pdf():
     elements.append(Paragraph(f'Tiré par : {current_user.nom} {current_user.prenom} | Date : {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal']))
     elements.append(Spacer(1, 12))
     
+    devise = devise_active()
     data = [['Code', 'Nom', 'Fournisseur', 'Prix']]
     for p in produits:
-        data.append([p.code_produit, p.nom, p.fournisseur.nom if p.fournisseur else '-', f'{p.prix_unite} €'])
+        data.append([p.code_produit, p.nom, p.fournisseur.nom if p.fournisseur else '-', f'{p.prix_unite} {devise}'])
         
     table = Table(data, repeatRows=1, colWidths=[100, 200, 150, 80])
     table.setStyle(TableStyle([
@@ -5125,6 +5127,16 @@ def export_produits_pdf():
 @permission_required('gestion_parametres')
 def app_settings():
     if request.method == 'POST':
+        if request.form.get('form_name') == 'currency':
+            code = (request.form.get('currency_code') or '').strip().upper()
+            if code in CURRENCIES_BY_CODE:
+                Setting.set_value('currency_code', code, "Devise affichée partout dans l'application")
+                infos = CURRENCIES_BY_CODE[code]
+                flash(f"Monnaie changée : {infos['nom']} ({infos['symbole']}). Elle s'applique immédiatement partout.", 'success')
+            else:
+                flash('Monnaie inconnue : choisissez-la dans la liste.', 'danger')
+            return redirect(url_for('admin.app_settings'))
+
         pharmacy_name = request.form.get('pharmacy_name')
         if pharmacy_name:
             Setting.set_value('pharmacy_name', pharmacy_name)
@@ -5140,7 +5152,7 @@ def app_settings():
         'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
         'auto_print_enabled': Setting.get_value('auto_print_enabled', 'true') == 'true'
     }
-    return render_template('admin/settings.html', settings=settings)
+    return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
 
 
 # ==============================================================================
@@ -5180,7 +5192,8 @@ def build_assistant_system_prompt():
         "toi-même celui qui correspond dans les résultats — ne renvoie jamais 'aucun résultat' simplement "
         "parce que le filtre texte ne matchait pas un nombre. Ce principe s'applique à toute variante de "
         "formulation d'une recherche, pas seulement aux exemples ci-dessus. "
-        "Les montants sont en euros (€). Réponds de façon concise et claire, avec les chiffres clés mis en avant "
+        f"Les montants sont en {get_active_currency()['nom']} ({get_active_currency()['symbole']}). "
+        "Réponds de façon concise et claire, avec les chiffres clés mis en avant "
         "(des listes à puces pour les classements, pas de longs paragraphes). "
         "Si l'utilisateur demande explicitement un PDF, un rapport, un document ou une impression des résultats, "
         "récupère d'abord les données via le(s) outil(s) pertinent(s) puis appelle generer_rapport_pdf avec ces "
@@ -6197,7 +6210,7 @@ def export_declaration_impot_pdf(id):
 
     elements.append(Paragraph('Récapitulatif de la période', styles['Heading3']))
     recap = [
-        ['Nombre de ventes', 'Total HT (€)', 'TVA effective (€)', 'Bénéfice (€)', 'Total TTC (€)'],
+        ['Nombre de ventes', f'Total HT ({devise_active()})', f'TVA effective ({devise_active()})', f'Bénéfice ({devise_active()})', f'Total TTC ({devise_active()})'],
         [
             summary['count'],
             f"{summary['ht']:.2f}",
@@ -6217,7 +6230,7 @@ def export_declaration_impot_pdf(id):
     elements.append(Spacer(1, 10))
 
     elements.append(Paragraph('Répartition par taux de TVA', styles['Heading3']))
-    tva_data = [['Taux de TVA (%)', 'Base HT (€)', 'Montant TVA (€)']]
+    tva_data = [['Taux de TVA (%)', f'Base HT ({devise_active()})', f'Montant TVA ({devise_active()})']]
     for row in tva_breakdown:
         tva_data.append([f"{row['taux']:.2f}", f"{row['ht']:.2f}", f"{row['tva']:.2f}"])
     if not tva_breakdown:
@@ -6232,7 +6245,7 @@ def export_declaration_impot_pdf(id):
     elements.append(Spacer(1, 12))
 
     elements.append(Paragraph('Détail de toutes les ventes de la période', styles['Heading3']))
-    data = [['N° vente', 'Date', 'Client', 'Employé', 'Mode paiement', 'HT (€)', 'TVA (€)', 'Bénéfice (€)', 'TTC (€)']]
+    data = [['N° vente', 'Date', 'Client', 'Employé', 'Mode paiement', f'HT ({devise_active()})', f'TVA ({devise_active()})', f'Bénéfice ({devise_active()})', f'TTC ({devise_active()})']]
     for vente in ventes:
         data.append([
             Paragraph(vente.numero_vente or '-', styles['Cell']),
@@ -6287,23 +6300,24 @@ def export_declaration_impot_excel(id):
     summary = compute_impots_summary(ventes)
     tva_breakdown = compute_tva_breakdown(ventes)
     pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    devise = devise_active()
     generated_at = datetime.now()
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         synth_rows = [
             {'Indicateur': 'Nombre de ventes', 'Valeur': summary['count']},
-            {'Indicateur': 'Total HT (€)', 'Valeur': round(summary['ht'], 2)},
-            {'Indicateur': 'TVA effective (€)', 'Valeur': round(summary['tva'], 2)},
-            {'Indicateur': 'Bénéfice (€)', 'Valeur': round(summary['benefice'], 2)},
-            {'Indicateur': 'Total TTC (€)', 'Valeur': round(summary['ttc'], 2)},
+            {'Indicateur': f'Total HT ({devise})', 'Valeur': round(summary['ht'], 2)},
+            {'Indicateur': f'TVA effective ({devise})', 'Valeur': round(summary['tva'], 2)},
+            {'Indicateur': f'Bénéfice ({devise})', 'Valeur': round(summary['benefice'], 2)},
+            {'Indicateur': f'Total TTC ({devise})', 'Valeur': round(summary['ttc'], 2)},
         ]
         pd.DataFrame(synth_rows).to_excel(writer, index=False, sheet_name='Synthese', startrow=7)
 
         tva_rows = [
-            {'Taux de TVA (%)': row['taux'], 'Base HT (€)': round(row['ht'], 2), 'Montant TVA (€)': round(row['tva'], 2)}
+            {'Taux de TVA (%)': row['taux'], f'Base HT ({devise})': round(row['ht'], 2), f'Montant TVA ({devise})': round(row['tva'], 2)}
             for row in tva_breakdown
-        ] or [{'Taux de TVA (%)': '-', 'Base HT (€)': 0.0, 'Montant TVA (€)': 0.0}]
+        ] or [{'Taux de TVA (%)': '-', f'Base HT ({devise})': 0.0, f'Montant TVA ({devise})': 0.0}]
         pd.DataFrame(tva_rows).to_excel(writer, index=False, sheet_name='TVA par taux')
 
         vente_rows = [
@@ -6313,10 +6327,10 @@ def export_declaration_impot_excel(id):
                 'Client': vente.client_label,
                 'Employé': sale_employee_label(vente),
                 'Mode paiement': (vente.mode_paiement or '-').replace('_', ' '),
-                'HT (€)': round(money_value(vente.total_ht), 2),
-                'TVA (€)': round(vente.total_tva_reelle, 2),
-                'Bénéfice (€)': round(vente.total_benefice, 2),
-                'TTC (€)': round(money_value(vente.total_ttc), 2),
+                f'HT ({devise})': round(money_value(vente.total_ht), 2),
+                f'TVA ({devise})': round(vente.total_tva_reelle, 2),
+                f'Bénéfice ({devise})': round(vente.total_benefice, 2),
+                f'TTC ({devise})': round(money_value(vente.total_ttc), 2),
             }
             for vente in ventes
         ]
@@ -6326,10 +6340,10 @@ def export_declaration_impot_excel(id):
             'Client': '',
             'Employé': '',
             'Mode paiement': '',
-            'HT (€)': round(summary['ht'], 2),
-            'TVA (€)': round(summary['tva'], 2),
-            'Bénéfice (€)': round(summary['benefice'], 2),
-            'TTC (€)': round(summary['ttc'], 2),
+            f'HT ({devise})': round(summary['ht'], 2),
+            f'TVA ({devise})': round(summary['tva'], 2),
+            f'Bénéfice ({devise})': round(summary['benefice'], 2),
+            f'TTC ({devise})': round(summary['ttc'], 2),
         })
         pd.DataFrame(vente_rows).to_excel(writer, index=False, sheet_name='Ventes')
 
@@ -6474,7 +6488,7 @@ def create_operation_financiere():
     if type_operation == 'decaissement':
         solde_actuel = compute_solde_actuel()
         if montant > solde_actuel:
-            flash(f"Décaissement refusé : le solde actuel ({solde_actuel:.2f} €) est insuffisant.", 'danger')
+            flash(f"Décaissement refusé : le solde actuel ({solde_actuel:.2f} {devise_active()}) est insuffisant.", 'danger')
             return redirect(url_for('admin.finance_dashboard'))
 
     db.session.add(OperationFinanciere(
@@ -6487,7 +6501,7 @@ def create_operation_financiere():
     ))
     db.session.commit()
     libelle = 'Encaissement' if type_operation == 'encaissement' else 'Décaissement'
-    flash(f'{libelle} de {montant:.2f} € enregistré avec succès.', 'success')
+    flash(f'{libelle} de {montant:.2f} {devise_active()} enregistré avec succès.', 'success')
     return redirect(url_for('admin.finance_dashboard'))
 
 
