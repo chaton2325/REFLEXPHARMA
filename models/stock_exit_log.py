@@ -37,6 +37,12 @@ class StockExitLog(db.Model):
     prix_unite_ttc = db.Column(db.Float, nullable=False, default=0.0)
     prix_sous_unite_ttc = db.Column(db.Float, nullable=False, default=0.0)
     prix_sous_sous_unite_ttc = db.Column(db.Float, nullable=False, default=0.0)
+    # Snapshot du prix d'achat (PA) au moment de la sortie : permet de calculer le
+    # benefice reellement perdu (PVHT - PA), comme pour les ventes (voir
+    # VenteLigne.prix_achat_unitaire). NULL sur les sorties anterieures a cet ajout.
+    prix_achat_unite = db.Column(db.Float, nullable=True)
+    prix_achat_sous_unite = db.Column(db.Float, nullable=True)
+    prix_achat_sous_sous_unite = db.Column(db.Float, nullable=True)
     tva_pourcentage = db.Column(db.Float, nullable=False, default=0.0)
     total_sortie_ht = db.Column(db.Float, nullable=False, default=0.0)
     total_sortie_ttc = db.Column(db.Float, nullable=False, default=0.0)

@@ -73,6 +73,13 @@ def ensure_database_schema(app):
                 # des prix, juillet 2026) : NULL sur les ventes anterieures, pour ne pas
                 # recalculer retroactivement un benefice deja facture/declare.
                 ('prix_achat_unitaire', 'FLOAT')
+            ],
+            'stock_exit_logs': [
+                # Snapshot du prix d'achat au moment de la sortie (formule benefice/TVA
+                # alignee sur les ventes) : NULL sur les sorties anterieures.
+                ('prix_achat_unite', 'FLOAT'),
+                ('prix_achat_sous_unite', 'FLOAT'),
+                ('prix_achat_sous_sous_unite', 'FLOAT')
             ]
         }
 

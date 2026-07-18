@@ -111,6 +111,11 @@ def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
     prix_unite_ttc = float(stock.produit.prix_unite_ttc or 0)
     prix_sous_unite_ttc = float(stock.produit.prix_sous_unite_ttc or 0)
     prix_sous_sous_unite_ttc = float(stock.produit.prix_sous_sous_unite_ttc or 0)
+    # Snapshot du prix d'achat (PA) : permet de calculer le benefice reellement
+    # perdu (PVHT - PA) dans les statistiques, comme pour les ventes.
+    prix_achat_unite = float(stock.produit.prix_unite or 0)
+    prix_achat_sous_unite = float(stock.produit.prix_sous_unite or 0) if stock.produit.prix_sous_unite is not None else prix_achat_unite
+    prix_achat_sous_sous_unite = float(stock.produit.prix_sous_sous_unite or 0) if stock.produit.prix_sous_sous_unite is not None else prix_achat_unite
     total_sortie_ht = (
         exit_values[0] * prix_unite_ht
         + exit_values[1] * prix_sous_unite_ht
@@ -147,6 +152,9 @@ def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
         prix_unite_ttc=prix_unite_ttc,
         prix_sous_unite_ttc=prix_sous_unite_ttc,
         prix_sous_sous_unite_ttc=prix_sous_sous_unite_ttc,
+        prix_achat_unite=prix_achat_unite,
+        prix_achat_sous_unite=prix_achat_sous_unite,
+        prix_achat_sous_sous_unite=prix_achat_sous_sous_unite,
         tva_pourcentage=float(stock.produit.effectif_tva or 0),
         total_sortie_ht=total_sortie_ht,
         total_sortie_ttc=total_sortie_ttc,
@@ -4165,42 +4173,51 @@ def build_stock_exit_stats(exits=None):
         'total_ht': 0.0,
         'total_ttc': 0.0,
         'total_taxes': 0.0,
+        'total_benefice': 0.0,
         'today_count': 0,
         'today_ttc': 0.0,
         'today_taxes': 0.0,
+        'today_benefice': 0.0,
         'last_7_count': 0,
         'last_7_ttc': 0.0,
         'last_7_taxes': 0.0,
+        'last_7_benefice': 0.0,
         'last_30_count': 0,
         'last_30_ttc': 0.0,
         'last_30_taxes': 0.0,
+        'last_30_benefice': 0.0,
         'expired_count': 0,
         'expired_ttc': 0.0,
         'expired_taxes': 0.0,
+        'expired_benefice': 0.0,
         'quantity_total': 0,
         'avg_ttc': 0.0,
         'avg_taxes': 0.0,
+        'avg_benefice': 0.0,
         'avg_stock_age_days': 0.0
     }
 
-    daily = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
-    monthly = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
-    by_product = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_supplier = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_supplier_group = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_exit_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_stock_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_reason = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'quantity': 0})
-    by_tva = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0})
-    by_weekday = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
-    by_hour = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'ttc': 0.0})
+    daily = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'ttc': 0.0})
+    monthly = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'ttc': 0.0})
+    by_product = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_supplier = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_supplier_group = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_exit_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_stock_user = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_reason = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'quantity': 0})
+    by_tva = defaultdict(lambda: {'count': 0, 'ttc': 0.0, 'taxes': 0.0, 'benefice': 0.0})
+    by_weekday = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'ttc': 0.0})
+    by_hour = defaultdict(lambda: {'count': 0, 'ht': 0.0, 'taxes': 0.0, 'benefice': 0.0, 'ttc': 0.0})
     stock_age_days = []
 
     for item in exits:
         prices = get_exit_log_prices(item)
         total_ht = prices['total_ht']
         total_ttc = prices['total_ttc']
-        total_taxes = max(total_ttc - total_ht, 0)
+        # TVA reelle et benefice reellement perdu, meme formule que pour les ventes
+        # (voir get_exit_log_prices / models/vente.py).
+        total_taxes = prices['tva_reelle']
+        total_benefice = prices['benefice']
         quantity = (
             item.quantite_unites_sortie
             + item.quantite_sous_unites_sortie
@@ -4212,24 +4229,29 @@ def build_stock_exit_stats(exits=None):
         totals['total_ht'] += total_ht
         totals['total_ttc'] += total_ttc
         totals['total_taxes'] += total_taxes
+        totals['total_benefice'] += total_benefice
         totals['quantity_total'] += quantity
 
         if created_date == today:
             totals['today_count'] += 1
             totals['today_ttc'] += total_ttc
             totals['today_taxes'] += total_taxes
+            totals['today_benefice'] += total_benefice
         if (today - created_date).days <= 6:
             totals['last_7_count'] += 1
             totals['last_7_ttc'] += total_ttc
             totals['last_7_taxes'] += total_taxes
+            totals['last_7_benefice'] += total_benefice
         if (today - created_date).days <= 29:
             totals['last_30_count'] += 1
             totals['last_30_ttc'] += total_ttc
             totals['last_30_taxes'] += total_taxes
+            totals['last_30_benefice'] += total_benefice
         if item.date_peremption and item.date_peremption < created_date:
             totals['expired_count'] += 1
             totals['expired_ttc'] += total_ttc
             totals['expired_taxes'] += total_taxes
+            totals['expired_benefice'] += total_benefice
         if item.mise_en_stock_at:
             stock_age_days.append(max((created_at - item.mise_en_stock_at).days, 0))
 
@@ -4238,10 +4260,12 @@ def build_stock_exit_stats(exits=None):
         daily[day_key]['count'] += 1
         daily[day_key]['ht'] += total_ht
         daily[day_key]['taxes'] += total_taxes
+        daily[day_key]['benefice'] += total_benefice
         daily[day_key]['ttc'] += total_ttc
         monthly[month_key]['count'] += 1
         monthly[month_key]['ht'] += total_ht
         monthly[month_key]['taxes'] += total_taxes
+        monthly[month_key]['benefice'] += total_benefice
         monthly[month_key]['ttc'] += total_ttc
 
         product_key = f'{item.produit_nom} ({item.produit_code})'
@@ -4264,22 +4288,28 @@ def build_stock_exit_stats(exits=None):
         ]:
             bucket[key]['count'] += 1
             bucket[key]['ttc'] += total_ttc
+            bucket[key]['taxes'] += total_taxes
+            bucket[key]['benefice'] += total_benefice
             bucket[key]['quantity'] += quantity
 
         by_tva[tva_key]['count'] += 1
         by_tva[tva_key]['ttc'] += total_ttc
         by_tva[tva_key]['taxes'] += total_taxes
+        by_tva[tva_key]['benefice'] += total_benefice
         by_weekday[weekday_key]['count'] += 1
         by_weekday[weekday_key]['ht'] += total_ht
         by_weekday[weekday_key]['taxes'] += total_taxes
+        by_weekday[weekday_key]['benefice'] += total_benefice
         by_weekday[weekday_key]['ttc'] += total_ttc
         by_hour[hour_key]['count'] += 1
         by_hour[hour_key]['ht'] += total_ht
         by_hour[hour_key]['taxes'] += total_taxes
+        by_hour[hour_key]['benefice'] += total_benefice
         by_hour[hour_key]['ttc'] += total_ttc
 
     totals['avg_ttc'] = totals['total_ttc'] / totals['count'] if totals['count'] else 0
     totals['avg_taxes'] = totals['total_taxes'] / totals['count'] if totals['count'] else 0
+    totals['avg_benefice'] = totals['total_benefice'] / totals['count'] if totals['count'] else 0
     totals['avg_stock_age_days'] = sum(stock_age_days) / len(stock_age_days) if stock_age_days else 0
 
     def top_rows(bucket, limit=10):
@@ -4289,7 +4319,8 @@ def build_stock_exit_stats(exits=None):
                 'count': values['count'],
                 'quantity': values.get('quantity', 0),
                 'ttc': round(values['ttc'], 2),
-                'taxes': round(values.get('taxes', 0), 2)
+                'taxes': round(values.get('taxes', 0), 2),
+                'benefice': round(values.get('benefice', 0), 2)
             }
             for label, values in sorted(bucket.items(), key=lambda item: item[1]['ttc'], reverse=True)[:limit]
         ]
@@ -4301,6 +4332,7 @@ def build_stock_exit_stats(exits=None):
             'count': [bucket[label]['count'] for label in labels],
             'ht': [round(bucket[label].get('ht', 0), 2) for label in labels],
             'taxes': [round(bucket[label].get('taxes', 0), 2) for label in labels],
+            'benefice': [round(bucket[label].get('benefice', 0), 2) for label in labels],
             'ttc': [round(bucket[label]['ttc'], 2) for label in labels]
         }
 
@@ -4352,13 +4384,16 @@ def export_stock_exit_stats_excel():
             {'Indicateur': 'Sorties totales', 'Valeur': stats['totals']['count']},
             {'Indicateur': 'Quantite totale', 'Valeur': stats['totals']['quantity_total']},
             {'Indicateur': 'Total HT', 'Valeur': stats['totals']['total_ht']},
-            {'Indicateur': 'Taxes perdues', 'Valeur': stats['totals']['total_taxes']},
+            {'Indicateur': 'Taxes perdues (HT x TVA%)', 'Valeur': stats['totals']['total_taxes']},
+            {'Indicateur': 'Benefice perdu (PVHT - Prix achat)', 'Valeur': stats['totals']['total_benefice']},
             {'Indicateur': 'Perte / valeur TTC', 'Valeur': stats['totals']['total_ttc']},
             {'Indicateur': 'Sortie moyenne TTC', 'Valeur': stats['totals']['avg_ttc']},
             {'Indicateur': 'Taxes moyennes par sortie', 'Valeur': stats['totals']['avg_taxes']},
+            {'Indicateur': 'Benefice moyen perdu par sortie', 'Valeur': stats['totals']['avg_benefice']},
             {'Indicateur': 'Age moyen stock avant sortie', 'Valeur': stats['totals']['avg_stock_age_days']},
             {'Indicateur': 'Produits perimes sortis', 'Valeur': stats['totals']['expired_count']},
             {'Indicateur': 'Taxes perdues produits perimes', 'Valeur': stats['totals']['expired_taxes']},
+            {'Indicateur': 'Benefice perdu produits perimes', 'Valeur': stats['totals']['expired_benefice']},
             {'Indicateur': 'Perte TTC produits perimes', 'Valeur': stats['totals']['expired_ttc']}
         ]
         pd.DataFrame(summary_rows).to_excel(writer, index=False, sheet_name='Synthese', startrow=5)
@@ -4374,9 +4409,9 @@ def export_stock_exit_stats_excel():
 
         chart_sheet = writer.book.create_sheet('Courbes')
         chart_sheet['A1'] = 'Evolution quotidienne'
-        chart_sheet.append(['Date', 'Sorties', 'HT', 'Taxes', 'TTC'])
-        for label, count, ht, taxes, ttc in zip(stats['daily']['labels'], stats['daily']['count'], stats['daily']['ht'], stats['daily']['taxes'], stats['daily']['ttc']):
-            chart_sheet.append([label, count, ht, taxes, ttc])
+        chart_sheet.append(['Date', 'Sorties', 'HT', 'Taxes', 'Benefice', 'TTC'])
+        for label, count, ht, taxes, benefice, ttc in zip(stats['daily']['labels'], stats['daily']['count'], stats['daily']['ht'], stats['daily']['taxes'], stats['daily']['benefice'], stats['daily']['ttc']):
+            chart_sheet.append([label, count, ht, taxes, benefice, ttc])
 
         monthly_start = chart_sheet.max_row + 3
         chart_sheet.cell(monthly_start, 1, 'Evolution mensuelle')
@@ -4384,13 +4419,15 @@ def export_stock_exit_stats_excel():
         chart_sheet.cell(monthly_start + 1, 2, 'Sorties')
         chart_sheet.cell(monthly_start + 1, 3, 'HT')
         chart_sheet.cell(monthly_start + 1, 4, 'Taxes')
-        chart_sheet.cell(monthly_start + 1, 5, 'TTC')
-        for offset, (label, count, ht, taxes, ttc) in enumerate(zip(stats['monthly']['labels'], stats['monthly']['count'], stats['monthly']['ht'], stats['monthly']['taxes'], stats['monthly']['ttc']), start=monthly_start + 2):
+        chart_sheet.cell(monthly_start + 1, 5, 'Benefice')
+        chart_sheet.cell(monthly_start + 1, 6, 'TTC')
+        for offset, (label, count, ht, taxes, benefice, ttc) in enumerate(zip(stats['monthly']['labels'], stats['monthly']['count'], stats['monthly']['ht'], stats['monthly']['taxes'], stats['monthly']['benefice'], stats['monthly']['ttc']), start=monthly_start + 2):
             chart_sheet.cell(offset, 1, label)
             chart_sheet.cell(offset, 2, count)
             chart_sheet.cell(offset, 3, ht)
             chart_sheet.cell(offset, 4, taxes)
-            chart_sheet.cell(offset, 5, ttc)
+            chart_sheet.cell(offset, 5, benefice)
+            chart_sheet.cell(offset, 6, ttc)
 
         products_start = chart_sheet.max_row + 3
         chart_sheet.cell(products_start, 1, 'Top produits')
@@ -4433,9 +4470,9 @@ def export_stock_exit_stats_excel():
         if stats['daily']['labels']:
             daily_chart = LineChart()
             daily_chart.title = 'Sorties quotidiennes'
-            daily_chart.y_axis.title = 'HT / taxes / TTC / sorties'
+            daily_chart.y_axis.title = 'HT / taxes / benefice / TTC / sorties'
             daily_chart.x_axis.title = 'Date'
-            daily_chart.add_data(Reference(chart_sheet, min_col=2, max_col=5, min_row=2, max_row=2 + len(stats['daily']['labels'])), titles_from_data=True)
+            daily_chart.add_data(Reference(chart_sheet, min_col=2, max_col=6, min_row=2, max_row=2 + len(stats['daily']['labels'])), titles_from_data=True)
             daily_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=3, max_row=2 + len(stats['daily']['labels'])))
             daily_chart.height = 9
             daily_chart.width = 22
@@ -4443,11 +4480,11 @@ def export_stock_exit_stats_excel():
 
         if stats['monthly']['labels']:
             monthly_chart = BarChart()
-            monthly_chart.title = 'Valeur mensuelle HT / taxes / TTC'
+            monthly_chart.title = 'Valeur mensuelle HT / taxes / benefice / TTC'
             monthly_chart.y_axis.title = 'Valeur'
             monthly_chart.x_axis.title = 'Mois'
             monthly_end = monthly_start + 1 + len(stats['monthly']['labels'])
-            monthly_chart.add_data(Reference(chart_sheet, min_col=3, max_col=5, min_row=monthly_start + 1, max_row=monthly_end), titles_from_data=True)
+            monthly_chart.add_data(Reference(chart_sheet, min_col=3, max_col=6, min_row=monthly_start + 1, max_row=monthly_end), titles_from_data=True)
             monthly_chart.set_categories(Reference(chart_sheet, min_col=1, min_row=monthly_start + 2, max_row=monthly_end))
             monthly_chart.height = 8
             monthly_chart.width = 18
@@ -4514,13 +4551,16 @@ def export_stock_exit_stats_pdf():
         ['Sorties totales', stats['totals']['count']],
         ['Quantite totale', stats['totals']['quantity_total']],
         ['Total HT', f"{stats['totals']['total_ht']:.2f}"],
-        ['Taxes perdues', f"{stats['totals']['total_taxes']:.2f}"],
+        ['Taxes perdues (HT x TVA%)', f"{stats['totals']['total_taxes']:.2f}"],
+        ['Benefice perdu (PVHT - Prix achat)', f"{stats['totals']['total_benefice']:.2f}"],
         ['Perte / valeur TTC', f"{stats['totals']['total_ttc']:.2f}"],
         ['Sortie moyenne TTC', f"{stats['totals']['avg_ttc']:.2f}"],
         ['Taxes moyennes par sortie', f"{stats['totals']['avg_taxes']:.2f}"],
+        ['Benefice moyen perdu par sortie', f"{stats['totals']['avg_benefice']:.2f}"],
         ['Age moyen avant sortie', f"{stats['totals']['avg_stock_age_days']:.1f} j"],
         ['Produits perimes sortis', stats['totals']['expired_count']],
-        ['Taxes perdues produits perimes', f"{stats['totals']['expired_taxes']:.2f}"]
+        ['Taxes perdues produits perimes', f"{stats['totals']['expired_taxes']:.2f}"],
+        ['Benefice perdu produits perimes', f"{stats['totals']['expired_benefice']:.2f}"]
     ]
     elements.append(Table(summary, repeatRows=1, colWidths=[260, 240], style=[
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
@@ -4672,20 +4712,22 @@ def export_stock_exit_stats_pdf():
         elements.append(Spacer(1, 8))
 
     add_multi_line_chart(
-        'Courbe quotidienne HT / taxes / TTC',
+        'Courbe quotidienne HT / taxes / benefice / TTC',
         stats['daily']['labels'],
         [
             ('HT', stats['daily']['ht'], colors.HexColor('#198754')),
             ('Taxes', stats['daily']['taxes'], colors.HexColor('#FFC107')),
+            ('Benefice', stats['daily']['benefice'], colors.HexColor('#8E44AD')),
             ('TTC', stats['daily']['ttc'], colors.HexColor('#DC3545'))
         ]
     )
     add_grouped_vertical_chart(
-        'Valeur mensuelle HT / taxes / TTC',
+        'Valeur mensuelle HT / taxes / benefice / TTC',
         stats['monthly']['labels'],
         [
             ('HT', stats['monthly']['ht'], colors.HexColor('#198754')),
             ('Taxes', stats['monthly']['taxes'], colors.HexColor('#FFC107')),
+            ('Benefice', stats['monthly']['benefice'], colors.HexColor('#8E44AD')),
             ('TTC', stats['monthly']['ttc'], colors.HexColor('#DC3545'))
         ]
     )
@@ -4695,9 +4737,12 @@ def export_stock_exit_stats_pdf():
 
     def add_top_table(title, rows):
         elements.append(Paragraph(title, styles['Heading3']))
-        data = [['Libelle', 'Sorties', 'Qte', 'TTC']]
-        data.extend([[row['label'], row['count'], row.get('quantity', 0), f"{row['ttc']:.2f}"] for row in rows[:8]])
-        elements.append(Table(data, repeatRows=1, colWidths=[290, 60, 60, 90], style=[
+        data = [['Libelle', 'Sorties', 'Qte', 'Taxes', 'Benefice', 'TTC']]
+        data.extend([
+            [row['label'], row['count'], row.get('quantity', 0), f"{row.get('taxes', 0):.2f}", f"{row.get('benefice', 0):.2f}", f"{row['ttc']:.2f}"]
+            for row in rows[:8]
+        ])
+        elements.append(Table(data, repeatRows=1, colWidths=[190, 50, 50, 65, 65, 70], style=[
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#374151')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
@@ -4740,6 +4785,32 @@ def get_exit_log_prices(item):
             + item.quantite_sous_sous_unites_sortie * prix_sous_sous_unite_ttc
         )
 
+    tva_pourcentage = float(item.tva_pourcentage or 0)
+    # TVA reelle : calculee sur le HT au taux applique, comme pour les ventes
+    # (VenteLigne.tva_reelle), et non plus deduite du coefficient via TTC - HT.
+    tva_reelle = total_ht * (tva_pourcentage / 100)
+
+    prix_achat_unite = item.prix_achat_unite
+    prix_achat_sous_unite = item.prix_achat_sous_unite
+    prix_achat_sous_sous_unite = item.prix_achat_sous_sous_unite
+    if prix_achat_unite is None and prix_achat_sous_unite is None and prix_achat_sous_sous_unite is None:
+        total_achat = None
+    else:
+        total_achat = (
+            item.quantite_unites_sortie * float(prix_achat_unite or 0)
+            + item.quantite_sous_unites_sortie * float(prix_achat_sous_unite or 0)
+            + item.quantite_sous_sous_unites_sortie * float(prix_achat_sous_sous_unite or 0)
+        )
+
+    # Benefice reellement perdu (PVHT - PA) pour les sorties dont le PA a ete
+    # snapshotte ; sinon repli sur l'ancienne deduction (TTC - HT - TVA reelle),
+    # comme VenteLigne.benefice, pour ne pas modifier retroactivement les sorties
+    # anterieures a cet ajout.
+    if total_achat is not None:
+        benefice = max(total_ht - total_achat, 0)
+    else:
+        benefice = max(total_ttc - total_ht - tva_reelle, 0)
+
     return {
         'prix_unite_ht': prix_unite_ht,
         'prix_sous_unite_ht': prix_sous_unite_ht,
@@ -4747,9 +4818,11 @@ def get_exit_log_prices(item):
         'prix_unite_ttc': prix_unite_ttc,
         'prix_sous_unite_ttc': prix_sous_unite_ttc,
         'prix_sous_sous_unite_ttc': prix_sous_sous_unite_ttc,
-        'tva_pourcentage': float(item.tva_pourcentage or 0),
+        'tva_pourcentage': tva_pourcentage,
         'total_ht': total_ht,
-        'total_ttc': total_ttc
+        'total_ttc': total_ttc,
+        'tva_reelle': tva_reelle,
+        'benefice': benefice
     }
 
 def get_exit_log_supplier_info(item):
@@ -4786,6 +4859,8 @@ def build_stock_exit_log_rows(exits):
             'prix_ttc': f'U:{prices["prix_unite_ttc"]:.2f} S/U:{prices["prix_sous_unite_ttc"]:.2f} SS/U:{prices["prix_sous_sous_unite_ttc"]:.2f}',
             'tva': f'{prices["tva_pourcentage"]:.2f}',
             'total_ht': f'{prices["total_ht"]:.2f}',
+            'taxe_tva': f'{prices["tva_reelle"]:.2f}',
+            'benefice': f'{prices["benefice"]:.2f}',
             'total_ttc': f'{prices["total_ttc"]:.2f}',
             'avant': f'U:{item.old_quantite_unites} S/U:{item.old_quantite_sous_unites} SS/U:{item.old_quantite_sous_sous_unites}',
             'apres': f'U:{item.new_quantite_unites} S/U:{item.new_quantite_sous_unites} SS/U:{item.new_quantite_sous_sous_unites}'
@@ -4877,6 +4952,8 @@ def export_stock_exit_logs_excel():
             'prix_ttc': 'Prix unitaires TTC',
             'tva': 'TVA %',
             'total_ht': 'Total sortie HT',
+            'taxe_tva': 'TVA (montant)',
+            'benefice': 'Benefice perdu',
             'total_ttc': 'Perte / valeur TTC',
             'avant': 'Avant',
             'apres': 'Apres'
@@ -4905,7 +4982,7 @@ def export_stock_exit_logs_excel():
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
 
-        widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 18, 21, 21]
+        widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 16, 16, 18, 21, 21]
         for index, width in enumerate(widths, start=1):
             worksheet.column_dimensions[chr(64 + index)].width = width
         worksheet.freeze_panes = 'A6'

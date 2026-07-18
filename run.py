@@ -59,6 +59,11 @@ def setup_database():
                 ('prix_unite_ttc', 'FLOAT DEFAULT 0'),
                 ('prix_sous_unite_ttc', 'FLOAT DEFAULT 0'),
                 ('prix_sous_sous_unite_ttc', 'FLOAT DEFAULT 0'),
+                # Snapshot du prix d'achat au moment de la sortie (formule benefice/TVA
+                # alignee sur les ventes) : NULL sur les sorties anterieures.
+                ('prix_achat_unite', 'FLOAT'),
+                ('prix_achat_sous_unite', 'FLOAT'),
+                ('prix_achat_sous_sous_unite', 'FLOAT'),
                 ('tva_pourcentage', 'FLOAT DEFAULT 0'),
                 ('total_sortie_ht', 'FLOAT DEFAULT 0'),
                 ('total_sortie_ttc', 'FLOAT DEFAULT 0')
