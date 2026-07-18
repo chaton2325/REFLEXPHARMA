@@ -357,7 +357,51 @@
     line-height: 1.2;
   }
   .pay-stat .pay-sub { font-size: 0.54rem; color: #7a8896; }
-  .payment-preset { font-size: 0.68rem; padding: 0.2rem 0.55rem; }
+
+  /* Paiement simplifié : un gros montant, une monnaie, une bannière d'état */
+  .pay-hero {
+    background: linear-gradient(135deg, #eafaf1, #d9f2e4);
+    border: 1px solid #bfe9d2;
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    text-align: center;
+  }
+  .pay-hero-label { font-size: 0.6rem; font-weight: 700; color: #1e8e3e; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pay-hero-value { font-size: 1.35rem; font-weight: 800; color: #157347; line-height: 1.15; }
+  .pay-hero-sub { font-size: 0.6rem; color: #7a8896; }
+  .pay-change {
+    background: #f8f9fa; border: 1px dashed #ced4da; border-radius: 10px;
+    padding: 0.35rem 0.6rem; text-align: center; height: 100%;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .pay-change-label { font-size: 0.58rem; font-weight: 700; color: #7a8896; text-transform: uppercase; }
+  .pay-change-value { font-size: 1.05rem; font-weight: 800; color: #157347; }
+  .pay-banner {
+    display: flex; align-items: center; gap: 0.45rem;
+    border-radius: 10px; padding: 0.5rem 0.75rem;
+    font-size: 0.78rem; font-weight: 600;
+  }
+  .pay-banner-ok { background: #e6f7ee; border: 1px solid #b5e6cb; color: #157347; }
+  .pay-banner-warn { background: #fef3e8; border: 1px solid #f8ddc0; color: #b45309; }
+  .pay-banner-info { background: #e8f0fe; border: 1px solid #c5d9f7; color: #1a73e8; }
+  .pay-banner-muted { background: #f1f3f5; border: 1px solid #e3e7ea; color: #7a8896; }
+  .pay-details summary { font-size: 0.68rem; font-weight: 600; color: #7a8896; cursor: pointer; user-select: none; }
+  .pay-details summary:hover { color: #2c3e50; }
+  /* Étapes du paiement : numérotées automatiquement (les étapes masquées ne comptent pas) */
+  .paiement-body { counter-reset: paystep; }
+  .pay-step { border: 1px solid #e9ecef; border-radius: 10px; background: #fbfcfd; margin-bottom: 0.5rem; }
+  .pay-step-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.65rem; }
+  .pay-step-num { counter-increment: paystep; line-height: 0; }
+  .pay-step-num::before {
+    content: counter(paystep);
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #2c3e50; color: #fff; font-size: 0.66rem; font-weight: 700;
+  }
+  .pay-step-title { font-size: 0.8rem; font-weight: 700; color: #2c3e50; }
+  .pay-step-body { padding: 0 0.65rem 0.55rem 0.65rem; }
+  .pay-step-rest { font-size: 0.7rem; color: #7a8896; }
+  .pay-step-rest strong { color: #2c3e50; }
 
   /* Version mobile ultra-compacte : moins de scroll vertical, écritures réduites */
   @media (max-width: 575.98px) {
@@ -417,7 +461,10 @@
     .pay-stat .pay-value { font-size: 0.68rem; }
     .pay-stat .pay-sub { font-size: 0.52rem; }
 
-    .payment-preset { font-size: 0.6rem; padding: 0.18rem 0.45rem; }
+    .pay-hero { padding: 0.4rem 0.6rem; }
+    .pay-hero-value { font-size: 1.1rem; }
+    .pay-change-value { font-size: 0.9rem; }
+    .pay-banner { font-size: 0.68rem; padding: 0.4rem 0.55rem; }
 
     .action-bar { padding: 0.4rem 0.55rem; padding-bottom: calc(0.4rem + env(safe-area-inset-bottom)); gap: 0.5rem; }
     .action-cart-btn { width: 34px; height: 34px; border-radius: 9px; }
@@ -680,6 +727,7 @@
     }
     #receiptPreviewModal .modal-header,
     #receiptPreviewModal .modal-footer,
+    #receiptPreviewModal .receipt-confirm-zone,
     .btn, .navbar, .page-header, .text-muted, form, #productInfoModal, .action-bar, #cartRecapModal, .qr-scan-float-btn, #qrScanModal {
       display: none !important;
     }
@@ -869,11 +917,11 @@
                     data-stock-unite="{{ stock_totals.get(produit.id, {}).get('unite', 0) }}"
                     data-stock-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_unite', 0) }}"
                     data-stock-sous-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) }}"
-                    data-unite-ht="{{ produit.prix_unite or 0 }}"
+                    data-unite-ht="{{ produit.prix_vente_unite_ht or 0 }}"
                     data-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
-                    data-sous-unite-ht="{{ produit.prix_sous_unite or produit.prix_unite or 0 }}"
+                    data-sous-unite-ht="{{ produit.prix_vente_sous_unite_ht or produit.prix_vente_unite_ht or 0 }}"
                     data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
-                    data-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or produit.prix_unite or 0 }}"
+                    data-sous-sous-unite-ht="{{ produit.prix_vente_sous_sous_unite_ht or produit.prix_vente_unite_ht or 0 }}"
                     data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
                     data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (stock_expiry_dates.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
                 >
@@ -913,102 +961,125 @@
       <h5><i class="fas fa-money-bill-wave me-2 text-primary"></i>Paiement</h5>
     </div>
     <div class="p-3 p-sm-4 paiement-body">
-      <div class="row g-2 mb-2">
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Total HT</div>
-            <div class="pay-value" id="paymentTotalHt">0.00</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">TVA</div>
-            <div class="pay-value" id="paymentTotalTax">0.00</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Total TTC</div>
-            <div class="pay-value text-success" id="paymentTotalTtc">0.00</div>
-          </div>
-        </div>
-        <div class="col-6 client-account-section">
-          <div class="pay-stat">
-            <div class="pay-label">Part groupe calculée</div>
-            <div class="pay-value" id="paymentGroupShare">0.00</div>
-            <div class="pay-sub"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
-          </div>
-        </div>
-        <div class="col-6 client-account-section">
-          <div class="pay-stat">
-            <div class="pay-label">Part client calculée</div>
-            <div class="pay-value" id="paymentClientShare">0.00</div>
-            <div class="pay-sub"><span id="paymentClientPercent">100.00%</span> du TTC</div>
-          </div>
-        </div>
+      <!-- 1. Le seul chiffre à connaître : le montant à encaisser -->
+      <div class="pay-hero mb-3">
+        <div class="pay-hero-label">Total à encaisser</div>
+        <div class="pay-hero-value"><span id="paymentTotalTtc">0.00</span> €</div>
+        <div class="pay-hero-sub">dont HT <span id="paymentTotalHt">0.00</span> · TVA <span id="paymentTotalTax">0.00</span></div>
       </div>
 
-      <div class="row g-2 align-items-end">
-        <div class="col-6 client-account-section">
-          <div class="form-check">
+      <!-- Étape : part du groupe (client en compte avec groupe) -->
+      <div class="pay-step client-account-section">
+        <div class="pay-step-header">
+          <span class="pay-step-num"></span>
+          <span class="pay-step-title">Part du groupe</span>
+          <div class="form-check form-switch ms-auto mb-0">
             <input type="checkbox" class="form-check-input payment-input" id="useGroupBalance" name="use_group_balance" value="1">
-            <label class="form-check-label fw-bold small" for="useGroupBalance">Débiter la part groupe</label>
+            <label class="form-check-label small" for="useGroupBalance">Débiter</label>
           </div>
+        </div>
+        <div class="pay-step-body">
           <input type="hidden" name="montant_solde_groupe" id="amountGroupBalance" value="0">
-          <div class="small text-muted">Montant groupe : <span id="groupDebitPreview">0.00</span></div>
+          <div class="pay-step-rest">Pris sur le groupe : <strong><span id="groupDebitPreview">0.00</span> €</strong> · Reste après cette étape : <strong><span id="remainingAfterGroup">0.00</span> €</strong></div>
         </div>
-        <div class="col-6">
-          <label class="form-label">Payé hors solde</label>
-          <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
+      </div>
+
+      <!-- Étape : solde client (opt-in : décoché = rien pris sur le solde) -->
+      <div class="pay-step client-account-section">
+        <div class="pay-step-header">
+          <span class="pay-step-num"></span>
+          <span class="pay-step-title">Solde client</span>
+          <div class="form-check form-switch ms-auto mb-0">
+            <input type="checkbox" class="form-check-input" id="useClientBalance">
+            <label class="form-check-label small" for="useClientBalance">Utiliser</label>
+          </div>
         </div>
-        <div class="col-6 client-account-section">
-          <label class="form-label">Débiter solde client</label>
+        <div class="pay-step-body d-none" id="clientBalanceStepBody">
+          <label class="form-label">Montant débité du solde</label>
           <input type="number" min="0" step="0.01" name="montant_solde_client" id="amountClientBalance" class="form-control payment-input" value="0">
-          <div class="form-text">Le reste client peut être payé ici, hors solde, ou les deux.</div>
-        </div>
-        <div class="col-6">
-          <label class="form-label">Montant reçu</label>
-          <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
+          <div class="form-text">Après vente — Client : <span id="clientBalanceAfter">0.00</span> · Groupe : <span id="groupBalanceAfter">0.00</span></div>
         </div>
       </div>
 
-      <div class="d-flex flex-wrap gap-2 mt-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary payment-preset" data-preset="cash">Tout hors solde</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary payment-preset client-account-section" data-preset="client">Tout solde client</button>
+      <!-- Étape : espèces / hors solde = le reste, rempli automatiquement -->
+      <div class="pay-step">
+        <div class="pay-step-header">
+          <span class="pay-step-num"></span>
+          <span class="pay-step-title">Espèces / autre (hors solde)</span>
+        </div>
+        <div class="pay-step-body">
+          <div class="row g-2 align-items-stretch">
+            <div class="col-6">
+              <label class="form-label">À payer</label>
+              <input type="number" min="0" step="0.01" name="montant_hors_solde" id="amountExternal" class="form-control payment-input" value="0">
+              <div class="form-text client-account-section">Rempli automatiquement avec le reste.</div>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Montant reçu</label>
+              <div class="input-group">
+                <input type="number" min="0" step="0.01" name="montant_recu" id="amountReceived" class="form-control payment-input" value="0">
+                <button type="button" class="btn btn-outline-secondary" id="btnMontantExact" title="Le client donne le montant exact">Exact</button>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="pay-change">
+                <div class="pay-change-label">Monnaie à rendre</div>
+                <div class="pay-change-value"><span id="changeDue">0.00</span> €</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="row g-2 mt-1">
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Reste après groupe</div>
-            <div class="pay-value" id="remainingAfterGroup">0.00</div>
-          </div>
+      <!-- 4. Un seul indicateur à lire avant d'enregistrer -->
+      <div id="paymentStatusBanner" class="mt-3">
+        <div class="pay-banner pay-banner-muted" id="payBannerEmpty">
+          <i class="fas fa-cart-plus"></i><span>Ajoutez des produits au panier pour encaisser.</span>
         </div>
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Payé + solde client</div>
-            <div class="pay-value" id="amountCovered">0.00</div>
-          </div>
+        <div class="pay-banner pay-banner-warn d-none" id="payBannerMissing">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Il manque <strong><span id="amountRemaining">0.00</span> €</strong> à répartir avant d'enregistrer.</span>
         </div>
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Écart à corriger</div>
-            <div class="pay-value text-danger" id="amountRemaining">0.00</div>
-          </div>
+        <div class="pay-banner pay-banner-warn d-none" id="payBannerExcess">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Trop réparti : retirez <strong><span id="payBannerExcessValue">0.00</span> €</strong> des paiements.</span>
         </div>
-        <div class="col-6">
-          <div class="pay-stat">
-            <div class="pay-label">Monnaie à rendre</div>
-            <div class="pay-value text-success" id="changeDue">0.00</div>
-          </div>
+        <div class="pay-banner pay-banner-info d-none" id="payBannerCash">
+          <i class="fas fa-hand-holding-dollar"></i>
+          <span>Reste à encaisser : <strong><span id="payBannerCashValue">0.00</span> €</strong> en espèces — saisissez le montant reçu.</span>
         </div>
-        <div class="col-12 client-account-section">
-          <div class="pay-stat">
-            <div class="pay-label">Soldes après vente</div>
-            <div class="pay-sub">Client : <span id="clientBalanceAfter">0.00</span> / Groupe : <span id="groupBalanceAfter">0.00</span></div>
-          </div>
+        <div class="pay-banner pay-banner-ok d-none" id="payBannerOk">
+          <i class="fas fa-circle-check"></i>
+          <span>Paiement complet — prêt à enregistrer.<span id="payBannerChangeWrap" class="d-none"> Monnaie à rendre : <strong><span id="payBannerChangeValue">0.00</span> €</strong></span></span>
         </div>
       </div>
+
+      <!-- 5. Détail du calcul, replié par défaut (pour vérifier si besoin) -->
+      <details class="pay-details mt-2">
+        <summary><i class="fas fa-calculator me-1"></i>Détail du calcul</summary>
+        <div class="row g-2 mt-1">
+          <div class="col-6 client-account-section">
+            <div class="pay-stat">
+              <div class="pay-label">Part groupe calculée</div>
+              <div class="pay-value" id="paymentGroupShare">0.00</div>
+              <div class="pay-sub"><span id="paymentGroupPercent">0.00%</span> du TTC</div>
+            </div>
+          </div>
+          <div class="col-6 client-account-section">
+            <div class="pay-stat">
+              <div class="pay-label">Part client calculée</div>
+              <div class="pay-value" id="paymentClientShare">0.00</div>
+              <div class="pay-sub"><span id="paymentClientPercent">100.00%</span> du TTC</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="pay-stat">
+              <div class="pay-label">Payé + solde client</div>
+              <div class="pay-value" id="amountCovered">0.00</div>
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -1069,6 +1140,23 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light">
+                <!-- La confirmation d'abord (pas besoin de défiler le ticket pour valider) -->
+                <div class="receipt-confirm-zone mb-3">
+                    <div class="mb-3">
+                        <label for="modalValidationPassword" class="form-label small fw-bold">Confirmer avec votre mot de passe pour enregistrer</label>
+                        <input type="password" id="modalValidationPassword" class="form-control" placeholder="Entrez votre mot de passe" autocomplete="current-password">
+                        <div id="modalPasswordError" class="invalid-feedback">Mot de passe incorrect.</div>
+                    </div>
+                    <div class="d-flex flex-column flex-sm-row justify-content-sm-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Modifier la vente</button>
+                        <button type="button" class="btn btn-primary" id="confirmAndPrintBtn">
+                            <i class="fas fa-print me-1"></i> Imprimer et Enregistrer
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-3 text-muted small">
+                        <hr class="flex-grow-1 my-0"><span><i class="fas fa-receipt me-1"></i>Aperçu du ticket</span><hr class="flex-grow-1 my-0">
+                    </div>
+                </div>
                 <div id="receiptPreviewContent" class="receipt-preview-container">
                     <div class="receipt-header">
                         <h4>{{ pharmacy_name }}</h4>
@@ -1121,19 +1209,6 @@
                         <p class="mb-1">Merci de votre confiance !</p>
                         <p>Logiciel ReflexPharma</p>
                     </div>
-                </div>
-            </div>
-            <div class="modal-footer d-flex flex-column align-items-stretch">
-                <div class="mb-3">
-                    <label for="modalValidationPassword" class="form-label small fw-bold">Confirmer avec votre mot de passe pour enregistrer</label>
-                    <input type="password" id="modalValidationPassword" class="form-control" placeholder="Entrez votre mot de passe" autocomplete="current-password">
-                    <div id="modalPasswordError" class="invalid-feedback">Mot de passe incorrect.</div>
-                </div>
-                <div class="d-flex flex-column flex-sm-row justify-content-sm-end gap-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Modifier la vente</button>
-                    <button type="button" class="btn btn-primary" id="confirmAndPrintBtn">
-                        <i class="fas fa-print me-1"></i> Imprimer et Enregistrer
-                    </button>
                 </div>
             </div>
         </div>
@@ -1550,6 +1625,33 @@ document.addEventListener('DOMContentLoaded', function() {
         fieldById('amountClientBalance').classList.toggle('is-invalid', amountClientBalance > clientBalance);
         fieldById('useGroupBalance')?.classList.toggle('is-invalid', amountGroupBalance > groupBalance);
         fieldById('amountCovered').classList.toggle('text-danger', paymentExcess > 0.01);
+
+        // Bannière d'état du paiement : un seul indicateur à lire avant d'enregistrer
+        const bannerEmpty = fieldById('payBannerEmpty');
+        const bannerMissing = fieldById('payBannerMissing');
+        const bannerExcess = fieldById('payBannerExcess');
+        const bannerCash = fieldById('payBannerCash');
+        const bannerOk = fieldById('payBannerOk');
+        if (bannerEmpty && bannerMissing && bannerExcess && bannerCash && bannerOk) {
+            [bannerEmpty, bannerMissing, bannerExcess, bannerCash, bannerOk].forEach((el) => el.classList.add('d-none'));
+            const especesManquantes = amountExternal - amountReceived;
+            if (totalTtc <= 0.004) {
+                bannerEmpty.classList.remove('d-none');
+            } else if (paymentExcess > 0.01) {
+                fieldById('payBannerExcessValue').textContent = formatMoney(paymentExcess);
+                bannerExcess.classList.remove('d-none');
+            } else if (amountRemaining > 0.01) {
+                bannerMissing.classList.remove('d-none');
+            } else if (especesManquantes > 0.004) {
+                // Répartition équilibrée mais les espèces n'ont pas encore été reçues
+                fieldById('payBannerCashValue').textContent = formatMoney(especesManquantes);
+                bannerCash.classList.remove('d-none');
+            } else {
+                fieldById('payBannerChangeValue').textContent = formatMoney(changeDue);
+                fieldById('payBannerChangeWrap').classList.toggle('d-none', changeDue <= 0.004);
+                bannerOk.classList.remove('d-none');
+            }
+        }
     }
 
     function getCurrentSaleTotal() {
@@ -1574,11 +1676,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function syncClientBalanceFromExternal() {
         if (!clientSelect.value) return;
+        const clientToggle = fieldById('useClientBalance');
+        if (clientToggle && !clientToggle.checked) {
+            // Étape solde client désactivée : rien n'est pris sur le solde,
+            // le champ espèces reste la seule variable.
+            fieldById('amountClientBalance').value = '0';
+            updateSaleSummary();
+            return;
+        }
         const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
         const remainingAfterGroup = getRemainingAfterGroup();
         const externalAmount = toNumber(fieldById('amountExternal').value);
         const clientBalance = toNumber(selectedClient.dataset.solde);
         fieldById('amountClientBalance').value = Math.min(Math.max(remainingAfterGroup - externalAmount, 0), clientBalance).toFixed(2);
+        updateSaleSummary();
+    }
+
+    function applyClientBalanceToggleVisibility() {
+        const clientToggle = fieldById('useClientBalance');
+        const stepBody = fieldById('clientBalanceStepBody');
+        if (clientToggle && stepBody) {
+            stepBody.classList.toggle('d-none', !clientToggle.checked);
+        }
+    }
+
+    function recomputeCascade() {
+        // Recalcule la cascade de haut en bas : part groupe -> solde client -> espèces.
+        if (clientSelect.value) {
+            const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
+            const remaining = getRemainingAfterGroup();
+            const clientToggle = fieldById('useClientBalance');
+            const useClient = Boolean(clientToggle && clientToggle.checked);
+            const clientBalance = Math.max(toNumber(selectedClient.dataset.solde), 0);
+            const clientAmount = useClient ? Math.min(remaining, clientBalance) : 0;
+            fieldById('amountClientBalance').value = clientAmount.toFixed(2);
+            fieldById('amountExternal').value = Math.max(remaining - clientAmount, 0).toFixed(2);
+        }
         updateSaleSummary();
     }
 
@@ -1598,32 +1731,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const remainingAfterGroup = Math.max(totalTtc - groupAmount, 0);
         const covered = toNumber(fieldById('amountExternal').value) + toNumber(fieldById('amountClientBalance').value);
         return remainingAfterGroup - covered;
-    }
-
-    function applyPaymentPreset(preset) {
-        const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
-        const totalTtc = getCurrentSaleTotal();
-        const clientBalance = toNumber(selectedClient.dataset.solde);
-        const groupBalance = toNumber(selectedClient.dataset.groupeSolde);
-        const absorption = Math.min(Math.max(toNumber(selectedClient.dataset.absorption), 0), 100);
-        const externalInput = fieldById('amountExternal');
-        const clientInput = fieldById('amountClientBalance');
-        const receivedInput = fieldById('amountReceived');
-
-        externalInput.value = '0';
-        clientInput.value = '0';
-
-        if (preset === 'cash') {
-            const groupAmount = fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
-            const remaining = Math.max(totalTtc - groupAmount, 0);
-            externalInput.value = remaining.toFixed(2);
-            receivedInput.value = Math.max(toNumber(receivedInput.value), remaining).toFixed(2);
-        } else if (preset === 'client') {
-            const groupAmount = fieldById('useGroupBalance')?.checked ? totalTtc * (absorption / 100) : 0;
-            clientInput.value = Math.min(Math.max(totalTtc - groupAmount, 0), clientBalance).toFixed(2);
-        }
-
-        updateSaleSummary();
     }
 
     function showProductInfo(option) {
@@ -1657,6 +1764,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fieldById('useGroupBalance')) {
             fieldById('useGroupBalance').checked = false;
         }
+        if (fieldById('useClientBalance')) {
+            fieldById('useClientBalance').checked = false;
+        }
+        applyClientBalanceToggleVisibility();
     }
 
     function updateClientAccountVisibility() {
@@ -2040,9 +2151,14 @@ document.addEventListener('DOMContentLoaded', function() {
             clientSearchInput.value = '';
             resetClientBalancePayments();
         }
+        // Changement de client : on repart d'une cascade propre (solde non utilisé)
+        if (fieldById('useClientBalance')) {
+            fieldById('useClientBalance').checked = false;
+        }
+        applyClientBalanceToggleVisibility();
         updateClientAccountVisibility();
         filterSelectOptions(clientSelect, clientSearchInput.value);
-        updateSaleSummary();
+        recomputeCascade();
     });
     body.addEventListener('click', function(event) {
         const metaInfoTrigger = event.target.closest('[data-meta-info]');
@@ -2137,9 +2253,14 @@ document.addEventListener('DOMContentLoaded', function() {
         fieldById('amountClientBalance').value = Math.min(toNumber(fieldById('amountClientBalance').value), clientBalance).toFixed(2);
         syncExternalFromClientBalance();
     });
-    fieldById('useGroupBalance')?.addEventListener('change', syncClientBalanceFromExternal);
-    document.querySelectorAll('.payment-preset').forEach((button) => {
-        button.addEventListener('click', () => applyPaymentPreset(button.dataset.preset));
+    fieldById('useGroupBalance')?.addEventListener('change', recomputeCascade);
+    fieldById('useClientBalance')?.addEventListener('change', function() {
+        applyClientBalanceToggleVisibility();
+        recomputeCascade();
+    });
+    fieldById('btnMontantExact')?.addEventListener('click', function() {
+        fieldById('amountReceived').value = toNumber(fieldById('amountExternal').value).toFixed(2);
+        updateSaleSummary();
     });
     venteForm.addEventListener('submit', function(event) {
         if (venteForm.dataset.passwordChecked === '1') {
@@ -2149,8 +2270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSaleSummary();
         const paymentDifference = getPaymentDifference();
         if (Math.abs(paymentDifference) > 0.01) {
-            fieldById('amountRemaining').classList.add('text-danger');
-            fieldById('amountRemaining').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            fieldById('paymentStatusBanner').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
         showReceiptPreview();
@@ -2160,6 +2280,7 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshRemoveButtons();
     updateAllUnitOptions();
     updateClientAccountVisibility();
+    applyClientBalanceToggleVisibility();
     updateSaleSummary();
 
     // Après enregistrement, remplacer l'alerte flash par le modal succès animé

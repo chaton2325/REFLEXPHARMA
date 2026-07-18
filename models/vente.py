@@ -89,6 +89,11 @@ class VenteLigne(db.Model):
     quantite = db.Column(db.Float, nullable=False, default=1.0)
     prix_unitaire_ht = db.Column(db.Float, nullable=False, default=0.0)
     prix_unitaire_ttc = db.Column(db.Float, nullable=False, default=0.0)
+    # Prix d'achat unitaire au moment de la vente (snapshot) : permet de calculer le
+    # benefice reel (PVHT - PA) sans jamais modifier total_ht/total_ttc, qui restent
+    # ce qui a ete effectivement facture au client. Absent (None) sur les ventes
+    # anterieures a la correction du calcul des prix (juillet 2026) : voir benefice.
+    prix_achat_unitaire = db.Column(db.Float, nullable=True)
     tva_pourcentage = db.Column(db.Float, nullable=False, default=0.0)
     total_ht = db.Column(db.Float, nullable=False, default=0.0)
     total_tva = db.Column(db.Float, nullable=False, default=0.0)
@@ -101,13 +106,32 @@ class VenteLigne(db.Model):
         return self.total_ht * (self.tva_pourcentage / 100)
 
     @property
+    def total_achat(self):
+        """Cout d'achat total de la ligne (PA x quantite). None si prix_achat_unitaire
+        n'a pas ete enregistre (ventes anterieures a la correction du calcul des prix)."""
+        if self.prix_achat_unitaire is None:
+            return None
+        return self.prix_achat_unitaire * self.quantite
+
+    @property
     def benefice(self):
-        """Marge (coefficient) residuelle : ce que total_tva stocke en trop de la TVA reelle."""
+        """Marge (coefficient) : PVHT - PA. Pour les ventes anterieures a la correction
+        du calcul des prix (prix_achat_unitaire non renseigne), on retombe sur
+        l'ancienne formule (TTC - HT - TVA reelle) pour ne pas modifier retroactivement
+        des montants deja factures/declares."""
+        total_achat = self.total_achat
+        if total_achat is not None:
+            return max(self.total_ht - total_achat, 0)
         return max(self.total_ttc - self.total_ht - self.tva_reelle, 0)
 
     @property
     def coefficient_applique(self):
-        """Coefficient tel qu'applique au moment de la vente, deduit du benefice constate."""
+        """Coefficient tel qu'applique au moment de la vente (PVHT / PA), avec repli sur
+        l'ancienne deduction (via le benefice) pour les ventes anterieures a la
+        correction du calcul des prix."""
+        total_achat = self.total_achat
+        if total_achat:
+            return self.total_ht / total_achat
         if not self.total_ht:
             return 1.0
         return (self.total_ht + self.benefice) / self.total_ht

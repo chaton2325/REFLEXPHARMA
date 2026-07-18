@@ -243,29 +243,34 @@
             </div>
           </div>
 
-          <div class="row g-3 mb-4">
+          <div class="row g-3 mb-3">
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Prix Unité HT <span class="text-danger">*</span></label>
+              <label class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
               <div class="input-group">
-                <input type="number" step="0.01" name="prix_unite" class="form-control" value="{{ produit.prix_unite if produit else '0.00' }}" required>
+                <input type="number" step="0.01" name="prix_unite" id="prixAchatUnite" class="form-control" value="{{ produit.prix_unite if produit else '0.00' }}" required>
                 <span class="input-group-text">€</span>
               </div>
             </div>
             <div class="col-sm-6 col-md-4" id="divPrixSous" style="display: none;">
-              <label class="form-label">Prix Sous-Unité HT</label>
+              <label class="form-label">Prix d'achat (Sous-Unité)</label>
               <div class="input-group">
-                <input type="number" step="0.01" name="prix_sous_unite" class="form-control" value="{{ produit.prix_sous_unite if (produit and produit.prix_sous_unite) else '' }}">
+                <input type="number" step="0.01" name="prix_sous_unite" id="prixAchatSousUnite" class="form-control" value="{{ produit.prix_sous_unite if (produit and produit.prix_sous_unite) else '' }}">
                 <span class="input-group-text">€</span>
               </div>
             </div>
             <div class="col-sm-6 col-md-4" id="divPrixSousSous" style="display: none;">
-              <label class="form-label">Prix Sous-Sous-Unité HT</label>
+              <label class="form-label">Prix d'achat (Sous-Sous-Unité)</label>
               <div class="input-group">
-                <input type="number" step="0.01" name="prix_sous_sous_unite" class="form-control" value="{{ produit.prix_sous_sous_unite if (produit and produit.prix_sous_sous_unite) else '' }}">
+                <input type="number" step="0.01" name="prix_sous_sous_unite" id="prixAchatSousSousUnite" class="form-control" value="{{ produit.prix_sous_sous_unite if (produit and produit.prix_sous_sous_unite) else '' }}">
                 <span class="input-group-text">€</span>
               </div>
             </div>
           </div>
+          <div class="form-text small text-muted mb-3">
+            <i class="fas fa-circle-info me-1"></i>Prix payé au fournisseur. Le prix de vente HT, la TVA, le bénéfice et le prix TTC sont calculés automatiquement ci-dessous à partir de ce prix d'achat, du coefficient et du taux de TVA du fournisseur.
+          </div>
+
+          <div id="apercuPrix" class="row g-3 mb-4"></div>
 
           <hr class="my-4">
 
@@ -288,11 +293,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const divPrixSousSous = document.getElementById('divPrixSousSous');
     const fournSelect = document.getElementById('fournisseurSelect');
     const codeInput = document.getElementById('codeProduit');
+    const apercuDiv = document.getElementById('apercuPrix');
+    const prixAchatUnite = document.getElementById('prixAchatUnite');
+    const prixAchatSousUnite = document.getElementById('prixAchatSousUnite');
+    const prixAchatSousSousUnite = document.getElementById('prixAchatSousSousUnite');
 
     function updateFields() {
         const val = parseInt(condSelect.value);
         divPrixSous.style.display = val >= 2 ? 'block' : 'none';
         divPrixSousSous.style.display = val >= 3 ? 'block' : 'none';
+    }
+
+    function formatMoney(v) {
+        return (isFinite(v) ? v : 0).toFixed(2);
+    }
+
+    function renderApercuPrix() {
+        const selectedOption = fournSelect ? fournSelect.options[fournSelect.selectedIndex] : null;
+        if (!selectedOption || !selectedOption.value) {
+            apercuDiv.innerHTML = '';
+            return;
+        }
+        const coefficient = parseFloat(selectedOption.getAttribute('data-coeff')) || 1.0;
+        const tauxTva = parseFloat(selectedOption.getAttribute('data-tva')) || 0.0;
+        const niveaux = [
+            { label: 'Unité', input: prixAchatUnite, visible: true },
+            { label: 'Sous-unité', input: prixAchatSousUnite, visible: divPrixSous.style.display !== 'none' },
+            { label: 'Sous-sous-unité', input: prixAchatSousSousUnite, visible: divPrixSousSous.style.display !== 'none' },
+        ];
+
+        let html = '';
+        niveaux.forEach(function(niveau) {
+            if (!niveau.visible || !niveau.input) return;
+            const prixAchat = parseFloat(niveau.input.value);
+            if (!prixAchat || prixAchat <= 0) return;
+            const prixVenteHt = prixAchat * coefficient;
+            const montantTva = prixVenteHt * (tauxTva / 100);
+            const benefice = prixVenteHt - prixAchat;
+            const prixVenteTtc = prixVenteHt + montantTva;
+            html += `
+                <div class="col-sm-6 col-md-3">
+                    <div class="p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e9ecef;">
+                        <div class="small fw-bold text-muted mb-2">${niveau.label}</div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${formatMoney(prixVenteHt)} €</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Bénéfice</span><span class="fw-semibold text-success">${formatMoney(benefice)} €</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${formatMoney(tauxTva)}%)</span><span class="fw-semibold">${formatMoney(montantTva)} €</span></div>
+                        <div class="d-flex justify-content-between small pt-1 mt-1" style="border-top:1px solid #e9ecef;"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${formatMoney(prixVenteTtc)} €</span></div>
+                    </div>
+                </div>
+            `;
+        });
+        apercuDiv.innerHTML = html;
     }
 
     function updateSupplierInfo() {
@@ -306,6 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             infoDiv.style.display = 'none';
         }
+        renderApercuPrix();
     }
 
     function generateCode() {
@@ -316,13 +368,21 @@ document.addEventListener('DOMContentLoaded', function() {
         codeInput.value = `${prefix}-${random}`.substring(0, 13);
     }
 
-    condSelect.addEventListener('change', updateFields);
+    condSelect.addEventListener('change', function() { updateFields(); renderApercuPrix(); });
     if (fournSelect) {
+        // Sur creation : change de fournisseur -> nouveau code + apercu. Sur edition,
+        // le select est desactive donc cet evenement ne se declenche pas.
         fournSelect.addEventListener('change', generateCode);
     }
-    
+    [prixAchatUnite, prixAchatSousUnite, prixAchatSousSousUnite].forEach(function(input) {
+        if (input) input.addEventListener('input', renderApercuPrix);
+    });
+
     updateFields();
     if (!codeInput.value) generateCode();
+    // Necessaire meme en edition (fournisseur deja selectionne, select desactive) pour
+    // afficher le panneau fournisseur et l'apercu des prix.
+    updateSupplierInfo();
 });
 </script>
 {% endblock %}

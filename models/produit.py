@@ -44,15 +44,75 @@ class Produit(db.Model):
             return self.tva
         return self.fournisseur.effectif_tva if self.fournisseur else 20.0
 
-    def _calculate_ttc(self, prix_ht):
-        if prix_ht is None:
-            return None
+    # ------------------------------------------------------------------
+    # Logique de prix : prix_unite / prix_sous_unite / prix_sous_sous_unite
+    # stockent le PRIX D'ACHAT (PA). Tout le reste (prix de vente HT, TVA,
+    # bénéfice, prix de vente TTC) est dérivé du coefficient et du taux de
+    # TVA effectifs, jamais stocké :
+    #   PVHT = PA x coefficient
+    #   Bénéfice = PVHT - PA (= PA x (coefficient - 1))
+    #   TVA = PVHT x (taux / 100)  — calculée sur le PVHT, pas sur le PA
+    #   PVTTC = PVHT + TVA
+    # ------------------------------------------------------------------
 
-        coefficient = self.effectif_coefficient or 1.0
-        tva = self.effectif_tva or 0.0
-        marge_coefficient = (prix_ht * coefficient) - prix_ht
-        montant_tva = prix_ht * (tva / 100)
-        return prix_ht + marge_coefficient + montant_tva
+    def _prix_vente_ht(self, prix_achat):
+        if prix_achat is None:
+            return None
+        return prix_achat * (self.effectif_coefficient or 1.0)
+
+    def _benefice(self, prix_achat):
+        prix_vente_ht = self._prix_vente_ht(prix_achat)
+        if prix_vente_ht is None:
+            return None
+        return prix_vente_ht - prix_achat
+
+    def _montant_tva(self, prix_achat):
+        prix_vente_ht = self._prix_vente_ht(prix_achat)
+        if prix_vente_ht is None:
+            return None
+        return prix_vente_ht * ((self.effectif_tva or 0.0) / 100)
+
+    def _calculate_ttc(self, prix_achat):
+        prix_vente_ht = self._prix_vente_ht(prix_achat)
+        if prix_vente_ht is None:
+            return None
+        return prix_vente_ht + self._montant_tva(prix_achat)
+
+    @property
+    def prix_vente_unite_ht(self):
+        return self._prix_vente_ht(self.prix_unite)
+
+    @property
+    def prix_vente_sous_unite_ht(self):
+        return self._prix_vente_ht(self.prix_sous_unite)
+
+    @property
+    def prix_vente_sous_sous_unite_ht(self):
+        return self._prix_vente_ht(self.prix_sous_sous_unite)
+
+    @property
+    def benefice_unite(self):
+        return self._benefice(self.prix_unite)
+
+    @property
+    def benefice_sous_unite(self):
+        return self._benefice(self.prix_sous_unite)
+
+    @property
+    def benefice_sous_sous_unite(self):
+        return self._benefice(self.prix_sous_sous_unite)
+
+    @property
+    def montant_tva_unite(self):
+        return self._montant_tva(self.prix_unite)
+
+    @property
+    def montant_tva_sous_unite(self):
+        return self._montant_tva(self.prix_sous_unite)
+
+    @property
+    def montant_tva_sous_sous_unite(self):
+        return self._montant_tva(self.prix_sous_sous_unite)
 
     @property
     def prix_unite_ttc(self):

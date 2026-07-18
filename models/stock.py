@@ -44,11 +44,21 @@ class Stock(db.Model):
         return f'{produit_code}-{normalized_bl}-{full_date}'
 
     @property
-    def prix_ht_total(self):
+    def prix_achat_total(self):
+        """Cout d'achat total du lot (PA x quantites), base du benefice."""
         return (
             self.quantite_unites * self._safe_price(self.produit.prix_unite)
             + self.quantite_sous_unites * self._safe_price(self.produit.prix_sous_unite)
             + self.quantite_sous_sous_unites * self._safe_price(self.produit.prix_sous_sous_unite)
+        )
+
+    @property
+    def prix_ht_total(self):
+        """Valeur de vente HT totale du lot (PVHT x quantites)."""
+        return (
+            self.quantite_unites * self._safe_price(self.produit.prix_vente_unite_ht)
+            + self.quantite_sous_unites * self._safe_price(self.produit.prix_vente_sous_unite_ht)
+            + self.quantite_sous_sous_unites * self._safe_price(self.produit.prix_vente_sous_sous_unite_ht)
         )
 
     @property
@@ -65,9 +75,8 @@ class Stock(db.Model):
 
     @property
     def benefice_total(self):
-        """Marge (bénéfice) liée au coefficient, hors TVA."""
-        coefficient = self._safe_price(self.produit.effectif_coefficient) or 1.0
-        return self.prix_ht_total * (coefficient - 1)
+        """Marge (bénéfice) : valeur de vente HT - cout d'achat, hors TVA."""
+        return self.prix_ht_total - self.prix_achat_total
 
     @property
     def tva_total(self):

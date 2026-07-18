@@ -68,7 +68,11 @@ def ensure_database_schema(app):
                 ('produit_dates_peremption', 'TEXT'),
                 ('stock_unite_avant', 'FLOAT DEFAULT 0'),
                 ('stock_sous_unite_avant', 'FLOAT DEFAULT 0'),
-                ('stock_sous_sous_unite_avant', 'FLOAT DEFAULT 0')
+                ('stock_sous_sous_unite_avant', 'FLOAT DEFAULT 0'),
+                # Snapshot du prix d'achat au moment de la vente (correction du calcul
+                # des prix, juillet 2026) : NULL sur les ventes anterieures, pour ne pas
+                # recalculer retroactivement un benefice deja facture/declare.
+                ('prix_achat_unitaire', 'FLOAT')
             ]
         }
 

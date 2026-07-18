@@ -1392,11 +1392,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cond < 3) mQtySousSous.value = 0;
         }
 
-        function mUnitBreakdown(prixHt, coefficient, tvaTaux) {
-            const ht = Number(prixHt || 0);
-            const benefice = ht * (Number(coefficient || 1) - 1);
+        function mUnitBreakdown(prixAchat, coefficient, tvaTaux) {
+            // prixAchat = prix d'achat (PA). Prix de vente HT = PA x coefficient ;
+            // TVA calculee sur le prix de vente HT, pas sur le PA.
+            const achat = Number(prixAchat || 0);
+            const ht = achat * (Number(coefficient || 1) || 1);
+            const benefice = ht - achat;
             const tva = ht * (Number(tvaTaux || 0) / 100);
-            const ttc = ht + benefice + tva;
+            const ttc = ht + tva;
             return { ht, benefice, tva, ttc };
         }
 
@@ -1448,12 +1451,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 beneficeE.textContent = mFormat(0); tvaE.textContent = mFormat(0);
                 return;
             }
-            const coefficient = opt.dataset.coefficient;
+            const coefficient = Number(opt.dataset.coefficient || 1) || 1;
             const tvaTaux = opt.dataset.tvaTaux;
-            const ht = Number(mQtyUnites.value || 0) * Number(opt.dataset.prixUniteHt || 0) + Number(mQtySous.value || 0) * Number(opt.dataset.prixSousUniteHt || 0) + Number(mQtySousSous.value || 0) * Number(opt.dataset.prixSousSousUniteHt || 0);
-            const benefice = ht * (Number(coefficient || 1) - 1);
+            // Le prix d'achat total (qte x PA par niveau) est converti en prix de vente HT
+            // via le coefficient (identique pour tous les niveaux d'un meme produit).
+            const achat = Number(mQtyUnites.value || 0) * Number(opt.dataset.prixUniteHt || 0) + Number(mQtySous.value || 0) * Number(opt.dataset.prixSousUniteHt || 0) + Number(mQtySousSous.value || 0) * Number(opt.dataset.prixSousSousUniteHt || 0);
+            const ht = achat * coefficient;
+            const benefice = ht - achat;
             const tva = ht * (Number(tvaTaux || 0) / 100);
-            const ttc = ht + benefice + tva;
+            const ttc = ht + tva;
             htE.textContent = mFormat(ht); ttcE.textContent = mFormat(ttc); beneficeE.textContent = mFormat(benefice); tvaE.textContent = mFormat(tva);
         }
 

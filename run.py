@@ -119,6 +119,10 @@ def setup_database():
                 ('quantite', 'FLOAT DEFAULT 1'),
                 ('prix_unitaire_ht', 'FLOAT DEFAULT 0'),
                 ('prix_unitaire_ttc', 'FLOAT DEFAULT 0'),
+                # Snapshot du prix d'achat au moment de la vente (correction du calcul
+                # des prix, juillet 2026) : NULL sur les ventes anterieures, pour ne pas
+                # recalculer retroactivement un benefice deja facture/declare.
+                ('prix_achat_unitaire', 'FLOAT'),
                 ('tva_pourcentage', 'FLOAT DEFAULT 0'),
                 ('total_ht', 'FLOAT DEFAULT 0'),
                 ('total_tva', 'FLOAT DEFAULT 0'),

@@ -104,9 +104,9 @@ def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
         .first()
     )
     stocked_by = stock_creation.user if stock_creation and stock_creation.user else None
-    prix_unite_ht = float(stock.produit.prix_unite or 0)
-    prix_sous_unite_ht = float(stock.produit.prix_sous_unite or 0)
-    prix_sous_sous_unite_ht = float(stock.produit.prix_sous_sous_unite or 0)
+    prix_unite_ht = float(stock.produit.prix_vente_unite_ht or 0)
+    prix_sous_unite_ht = float(stock.produit.prix_vente_sous_unite_ht or 0)
+    prix_sous_sous_unite_ht = float(stock.produit.prix_vente_sous_sous_unite_ht or 0)
     prix_unite_ttc = float(stock.produit.prix_unite_ttc or 0)
     prix_sous_unite_ttc = float(stock.produit.prix_sous_unite_ttc or 0)
     prix_sous_sous_unite_ttc = float(stock.produit.prix_sous_sous_unite_ttc or 0)
@@ -1279,16 +1279,23 @@ def generate_numero_vente():
         count += 1
 
 def get_product_unit_price(produit, unite):
+    """Retourne (prix_vente_ht, prix_vente_ttc, prix_achat) pour l'unite demandee.
+    prix_vente_ht/ttc sont derives du prix d'achat via le coefficient (voir
+    models/produit.py) ; prix_achat est le snapshot brut a conserver sur la ligne
+    de vente pour pouvoir calculer un benefice reel (PVHT - PA)."""
     if unite == 'sous_unite':
-        prix_ht = produit.prix_sous_unite if produit.prix_sous_unite is not None else produit.prix_unite
+        prix_achat = produit.prix_sous_unite if produit.prix_sous_unite is not None else produit.prix_unite
+        prix_ht = produit.prix_vente_sous_unite_ht if produit.prix_sous_unite is not None else produit.prix_vente_unite_ht
         prix_ttc = produit.prix_sous_unite_ttc if produit.prix_sous_unite_ttc is not None else produit.prix_unite_ttc
     elif unite == 'sous_sous_unite':
-        prix_ht = produit.prix_sous_sous_unite if produit.prix_sous_sous_unite is not None else produit.prix_unite
+        prix_achat = produit.prix_sous_sous_unite if produit.prix_sous_sous_unite is not None else produit.prix_unite
+        prix_ht = produit.prix_vente_sous_sous_unite_ht if produit.prix_sous_sous_unite is not None else produit.prix_vente_unite_ht
         prix_ttc = produit.prix_sous_sous_unite_ttc if produit.prix_sous_sous_unite_ttc is not None else produit.prix_unite_ttc
     else:
-        prix_ht = produit.prix_unite
+        prix_achat = produit.prix_unite
+        prix_ht = produit.prix_vente_unite_ht
         prix_ttc = produit.prix_unite_ttc
-    return float(prix_ht or 0), float(prix_ttc or 0)
+    return float(prix_ht or 0), float(prix_ttc or 0), float(prix_achat or 0)
 
 def normalize_product_unit(produit, unite, stock_summary=None):
     conditionnement = min(max(int(produit.conditionnement or 1), 1), 3)
@@ -2087,7 +2094,7 @@ def create_vente():
                 return redirect(url_for('admin.create_vente'))
             requested_quantities[request_key] = requested_quantity
 
-            prix_ht, prix_ttc = get_product_unit_price(produit, unite)
+            prix_ht, prix_ttc, prix_achat = get_product_unit_price(produit, unite)
             ligne_total_ht = prix_ht * quantite
             ligne_total_ttc = prix_ttc * quantite
             ligne_total_tva = max(ligne_total_ttc - ligne_total_ht, 0)
@@ -2111,6 +2118,7 @@ def create_vente():
                 quantite=quantite,
                 prix_unitaire_ht=prix_ht,
                 prix_unitaire_ttc=prix_ttc,
+                prix_achat_unitaire=prix_achat,
                 tva_pourcentage=produit.effectif_tva or 0,
                 total_ht=ligne_total_ht,
                 total_tva=ligne_total_tva,
