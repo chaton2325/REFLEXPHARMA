@@ -181,6 +181,8 @@
   }
   .amount-benefice { color: #1e8e3e; }
   .amount-tva { color: #a5670a; }
+  .pricing-preview { background: #f8f9fa; }
+  html[data-bs-theme="dark"] .pricing-preview { background: #1c2733 !important; }
   /* Reduce clutter on medium screens: secondary tracking columns hide first */
   @media (max-width: 1199.98px) {
     .table-custom .col-entree { display: none !important; }
@@ -942,7 +944,7 @@
             <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
             <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
           </div>
-          <div class="border rounded p-3 bg-light mb-3">
+          <div class="border rounded p-3 pricing-preview mb-3">
             <div class="small text-muted mb-2 d-flex align-items-center gap-2">
               Tarification du produit sélectionné
               <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
