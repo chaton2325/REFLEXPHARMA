@@ -72,6 +72,41 @@
 
   .form-switch .form-check-input { width: 2.5em; height: 1.35em; }
 
+  /* Choix de la monnaie */
+  .devise-actuelle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.9rem;
+    border-radius: 10px;
+    background: #eafaf1;
+    border: 1px solid #bfe9d2;
+    font-size: 0.85rem;
+    color: #157347;
+    flex-wrap: wrap;
+  }
+  .devise-actuelle strong { color: #0d5c40; }
+  .devise-badge {
+    background: #157347;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    margin-left: auto;
+  }
+  .currency-listbox {
+    width: 100%;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    padding: 0.3rem;
+    outline: none;
+  }
+  .currency-listbox:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+  .currency-listbox option { padding: 0.35rem 0.5rem; border-radius: 6px; }
+  .currency-listbox option:checked { background: #3498db; color: #fff; }
+
   @media (max-width: 575.98px) {
     .page-header { padding: 0.8rem 1rem; border-radius: 12px; margin-bottom: 0.75rem !important; }
     .page-header h1 { font-size: 1.15rem; margin-bottom: 0.15rem; }
@@ -90,7 +125,7 @@
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-6">
+  <div class="col-lg-6 d-flex flex-column gap-3">
     <div class="card-custom">
       <div class="card-custom-header"><i class="fas fa-hospital"></i> Informations de la pharmacie</div>
       <div class="p-3 p-sm-4">
@@ -108,42 +143,7 @@
         </form>
       </div>
     </div>
-  </div>
 
-  <div class="col-lg-6">
-    <div class="card-custom">
-      <div class="card-custom-header"><i class="fas fa-coins"></i> Monnaie de l'application</div>
-      <div class="p-3 p-sm-4">
-        <p class="text-muted" style="font-size: 0.82rem;">
-          La devise choisie s'affiche partout dans l'application : catalogue, ventes, tickets,
-          stock, finance, exports PDF/Excel et assistant IA.
-          Devise actuelle : <strong>{{ devise_nom }} ({{ devise }})</strong>.
-        </p>
-        <form method="POST">
-          <input type="hidden" name="form_name" value="currency">
-          <div class="mb-2">
-            <label for="currencySearch" class="form-label">Rechercher une monnaie</label>
-            <input type="text" id="currencySearch" class="form-control form-control-sm" placeholder="Ex : franc, dollar, XOF, FCFA, ariary..." autocomplete="off">
-          </div>
-          <div class="mb-3">
-            <label for="currencySelect" class="form-label">Monnaie ({{ currencies|length }} disponibles)</label>
-            <select name="currency_code" id="currencySelect" class="form-select form-select-sm" size="8" required>
-              {% for code, nom, symbole in currencies %}
-              <option value="{{ code }}" data-search="{{ (code ~ ' ' ~ nom ~ ' ' ~ symbole)|lower }}" {% if code == devise_code %}selected{% endif %}>{{ code }} — {{ nom }} ({{ symbole }})</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save me-2"></i>Changer la monnaie
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-6">
     <div class="card-custom">
       <div class="card-custom-header"><i class="fas fa-print"></i> Impression automatique des tickets</div>
       <div class="p-3 p-sm-4">
@@ -185,6 +185,41 @@
       </div>
     </div>
   </div>
+
+  <div class="col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header"><i class="fas fa-coins"></i> Monnaie de l'application</div>
+      <div class="p-3 p-sm-4">
+        <div class="devise-actuelle mb-3">
+          <span>Devise actuelle</span>
+          <strong>{{ devise_nom }}</strong>
+          <span class="devise-badge">{{ devise }}</span>
+        </div>
+        <p class="text-muted mb-3" style="font-size: 0.82rem;">
+          Elle s'affiche partout : catalogue, ventes, tickets, stock, finance,
+          exports PDF/Excel et assistant IA. Le changement est immédiat.
+        </p>
+        <form method="POST">
+          <input type="hidden" name="form_name" value="currency">
+          <div class="mb-2 position-relative">
+            <label for="currencySearch" class="form-label">Changer de monnaie</label>
+            <input type="text" id="currencySearch" class="form-control" placeholder="Rechercher : franc, dollar, XOF, FCFA, ariary..." autocomplete="off">
+          </div>
+          <select name="currency_code" id="currencySelect" class="currency-listbox mb-1" size="8" required>
+            {% for code, nom, symbole in currencies %}
+            <option value="{{ code }}" data-search="{{ (code ~ ' ' ~ nom ~ ' ' ~ symbole)|lower }}" {% if code == devise_code %}selected{% endif %}>{{ code }} — {{ nom }} ({{ symbole }})</option>
+            {% endfor %}
+          </select>
+          <div class="form-text mb-3" id="currencyCount">{{ currencies|length }} monnaies — tapez pour filtrer, cliquez pour choisir.</div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-2"></i>Changer la monnaie
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
@@ -193,13 +228,28 @@ document.addEventListener('DOMContentLoaded', function () {
     // Recherche dans la liste des monnaies
     const currencySearch = document.getElementById('currencySearch');
     const currencySelect = document.getElementById('currencySelect');
+    const currencyCount = document.getElementById('currencyCount');
     if (currencySearch && currencySelect) {
+        const totalMonnaies = currencySelect.options.length;
         currencySearch.addEventListener('input', function () {
             const q = currencySearch.value.trim().toLowerCase();
+            let visibles = 0;
             Array.from(currencySelect.options).forEach(function (opt) {
-                opt.hidden = Boolean(q) && !opt.dataset.search.includes(q);
+                const cache = Boolean(q) && !opt.dataset.search.includes(q);
+                opt.hidden = cache;
+                if (!cache) visibles++;
             });
+            if (currencyCount) {
+                currencyCount.textContent = q
+                    ? (visibles === 0 ? 'Aucune monnaie ne correspond à « ' + currencySearch.value.trim() + ' ».'
+                                      : visibles + ' monnaie(s) correspondante(s) — cliquez pour choisir.')
+                    : totalMonnaies + ' monnaies — tapez pour filtrer, cliquez pour choisir.';
+            }
         });
+        // La monnaie active est visible d'emblée dans la liste
+        if (currencySelect.selectedIndex >= 0) {
+            currencySelect.options[currencySelect.selectedIndex].scrollIntoView({ block: 'nearest' });
+        }
     }
 
     const statusBox = document.getElementById('printerStatus');
