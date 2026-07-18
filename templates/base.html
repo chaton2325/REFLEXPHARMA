@@ -509,8 +509,19 @@
         html[data-bs-theme="dark"] .form-select:focus { background: #10161c !important; color: #dbe4ea !important; }
         html[data-bs-theme="dark"] .btn-action,
         html[data-bs-theme="dark"] .btn-outline-secondary,
-        html[data-bs-theme="dark"] .preset-btn,
         html[data-bs-theme="dark"] .btn-light.border { border-color: #2a3541 !important; color: #dbe4ea; }
+        /* Boutons de periode rapide (Aujourd'hui / Cette semaine / Ce mois / Cette annee) :
+           fond blanc code en dur, invisibles une fois assombris sans ce fond explicite */
+        html[data-bs-theme="dark"] .preset-btn {
+            background: #171f27 !important;
+            border-color: #2a3541 !important;
+            color: #dbe4ea !important;
+        }
+        html[data-bs-theme="dark"] .preset-btn:hover,
+        html[data-bs-theme="dark"] .preset-btn.active {
+            background: #202b36 !important;
+            color: #e8edf2 !important;
+        }
         html[data-bs-theme="dark"] .btn-light { background: #202b36 !important; color: #dbe4ea !important; border-color: #2a3541 !important; }
         html[data-bs-theme="dark"] hr { border-color: #2a3541; opacity: 1; }
         html[data-bs-theme="dark"] .text-muted { color: #8a94a0 !important; }
@@ -546,9 +557,16 @@
         html[data-bs-theme="dark"] .card-header-custom,
         html[data-bs-theme="dark"] .filters-toggle,
         html[data-bs-theme="dark"] .section-title,
-        html[data-bs-theme="dark"] .badge-code,
         html[data-bs-theme="dark"] .submit-overlay .overlay-title {
             color: #e8edf2 !important;
+        }
+        /* Badges "code" (code suivi, matricule, code produit...) : fond clair + texte
+           sombre fixe, invisibles une fois le fond assombri sans ce correctif */
+        html[data-bs-theme="dark"] .badge-code,
+        html[data-bs-theme="dark"] .bg-dark-subtle.text-dark {
+            background-color: #232f3b !important;
+            color: #dbe4ea !important;
+            border-color: #35414d !important;
         }
         html[data-bs-theme="dark"] .stat-card .stat-label,
         html[data-bs-theme="dark"] .stat-card .stat-sub,
@@ -604,6 +622,16 @@
         html[data-bs-theme="dark"] .treeview-row { border-bottom-color: #2a3541 !important; }
         html[data-bs-theme="dark"] .treeview-row:hover:not(:disabled),
         html[data-bs-theme="dark"] .treeview-row.active { background-color: #202b36 !important; }
+
+        /* Modal "Chemin de vie" (sorties de stock) : les 6 cartes internes ont un
+           fond blanc/gris clair code en dur, distinct du fond de la modale elle-meme */
+        html[data-bs-theme="dark"] .life-step,
+        html[data-bs-theme="dark"] .life-metric {
+            background: #1c2733 !important;
+            border-color: #2a3541 !important;
+            color: #dbe4ea;
+        }
+        html[data-bs-theme="dark"] .life-metric-label { color: #e8edf2 !important; }
 
 html[data-bs-theme="dark"] .main-content [style*="color:#1a1a2e" i],
 html[data-bs-theme="dark"] .main-content [style*="color: #1a1a2e" i] { color: #e8edf2 !important; }
