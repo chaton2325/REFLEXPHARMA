@@ -2,6 +2,17 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Applique le theme sauvegarde avant le premier rendu (evite le flash de theme).
+        (function () {
+            try {
+                var t = localStorage.getItem('reflexpharma-theme');
+                if (t === 'dark' || t === 'light') {
+                    document.documentElement.setAttribute('data-bs-theme', t);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}ReflexPharma{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -19,7 +30,7 @@
         * { box-sizing: border-box; }
 
         body {
-            background-color: #f8f9fa;
+            background: #f8f9fa;
             min-height: 100vh;
         }
 
@@ -246,11 +257,11 @@
         }
 
         .btn-primary {
-            background-color: var(--accent);
+            background: var(--accent);
             border: none;
         }
 
-        .btn-primary:hover { background-color: #2980b9; }
+        .btn-primary:hover { background: #2980b9; }
 
         /* ===== MOBILE BOTTOM NAV ===== */
         .mobile-bottom-nav {
@@ -389,6 +400,255 @@
             }
 
             .mobile-bottom-nav { display: flex; }
+        }
+
+        /* Bouton de bascule flottant, uniquement sur les pages sans barre de navigation (connexion) */
+        .theme-toggle-floating {
+            position: fixed; top: 1rem; right: 1rem; z-index: 1040;
+            width: 42px; height: 42px; border-radius: 50%; border: 1px solid #e9ecef;
+            background: #fff; color: #5a6775; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center; font-size: 1rem;
+            transition: transform 0.15s, background 0.15s;
+        }
+        .theme-toggle-floating:hover { transform: scale(1.06); color: var(--accent); }
+        html[data-bs-theme="dark"] .theme-toggle-floating {
+            background: #171f27; border-color: #2a3541; color: #9aa7b3;
+        }
+
+        /* ==============================================================
+           MODE SOMBRE / MODE CLAIR
+           Bascule via l'attribut data-bs-theme sur <html> (reutilise le
+           systeme natif de Bootstrap 5.3 pour les composants standards :
+           boutons, modales, formulaires, alertes, dropdowns).
+           Les regles ci-dessous couvrent en plus les classes maison qui
+           reviennent sur la quasi-totalite des pages (card-custom,
+           card-form, stat-card, table-custom, mobile-card...) et
+           neutralisent les couleurs de texte codees en dur dans les
+           attributs style="" des templates, sans modifier chaque page.
+           Reserve a l'ecran : jamais applique a l'impression. */
+        @media screen {
+        html[data-bs-theme="dark"] body { background: #10161c !important; color: #dbe4ea; }
+
+        html[data-bs-theme="dark"] { --sidebar-bg: #171f27; --accent: #5aa9e6; }
+        html[data-bs-theme="dark"] .sidebar { box-shadow: 2px 0 8px rgba(0,0,0,0.4); }
+        html[data-bs-theme="dark"] .sidebar-brand { border-bottom-color: #2a3541; }
+        html[data-bs-theme="dark"] .sidebar-brand span { color: #e8edf2; }
+        html[data-bs-theme="dark"] .sidebar-nav a,
+        html[data-bs-theme="dark"] .sidebar-nav .nav-link { color: #9aa7b3; }
+        html[data-bs-theme="dark"] .sidebar-nav a:hover,
+        html[data-bs-theme="dark"] .sidebar-nav .nav-link:hover { background: #202b36; color: var(--accent); }
+        html[data-bs-theme="dark"] .sidebar-nav a.active,
+        html[data-bs-theme="dark"] .sidebar-nav .nav-link.active { background: #1c2733; }
+        html[data-bs-theme="dark"] .sidebar-nav .sub-menu { background: #141b22; }
+        html[data-bs-theme="dark"] .sidebar-nav .nav-divider { background: #2a3541; }
+        html[data-bs-theme="dark"] .sidebar-footer { border-top-color: #2a3541; }
+        html[data-bs-theme="dark"] .sidebar-footer .nav-link { color: #9aa7b3; }
+        html[data-bs-theme="dark"] .sidebar-footer .nav-link:hover { background: #202b36; color: var(--accent); }
+        html[data-bs-theme="dark"] .sidebar-footer .user-block .user-name { color: #e8edf2; }
+        html[data-bs-theme="dark"] .sidebar-footer .user-block .user-role { color: #7a8896; }
+        html[data-bs-theme="dark"] .theme-toggle-btn { color: #9aa7b3; }
+        html[data-bs-theme="dark"] .theme-toggle-btn:hover { background: #202b36; color: var(--accent); }
+
+        html[data-bs-theme="dark"] .mobile-bottom-nav { background: #171f27 !important; border-top-color: #2a3541; box-shadow: 0 -2px 8px rgba(0,0,0,0.4); }
+        html[data-bs-theme="dark"] .mobile-bottom-nav a,
+        html[data-bs-theme="dark"] .mobile-bottom-nav .nav-more-btn { color: #9aa7b3; }
+
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body a { color: #dbe4ea; border-bottom-color: #2a3541; }
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body a:hover,
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body a:active { background: #202b36; }
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body .sub-menu { background: #141b22; }
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body .oc-divider { background: #10161c; }
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body .oc-user { border-top-color: #2a3541; }
+        html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body .oc-user strong { color: #e8edf2; }
+
+        html[data-bs-theme="dark"] .ai-assistant-panel { background: #171f27; border-color: #2a3541; }
+        html[data-bs-theme="dark"] .ai-assistant-messages { background: #10161c; }
+        html[data-bs-theme="dark"] .ai-msg-bot { background: #1c2733; border-color: #2a3541; color: #dbe4ea; }
+        html[data-bs-theme="dark"] .ai-assistant-input { background: #171f27; border-top-color: #2a3541; }
+        html[data-bs-theme="dark"] .ai-assistant-input input { background: #10161c; border-color: #2a3541; color: #dbe4ea; }
+        html[data-bs-theme="dark"] .ai-pdf-card { background: #1c2733; border-color: #2a3541; }
+        html[data-bs-theme="dark"] .ai-pdf-card-title { color: #e8edf2; }
+
+        html[data-bs-theme="dark"] .card-custom,
+        html[data-bs-theme="dark"] .card-form,
+        html[data-bs-theme="dark"] .stat-card,
+        html[data-bs-theme="dark"] .mobile-card,
+        html[data-bs-theme="dark"] .modal-content,
+        html[data-bs-theme="dark"] .supplier-info,
+        html[data-bs-theme="dark"] .printer-status,
+        html[data-bs-theme="dark"] .devise-actuelle {
+            background: #171f27 !important;
+            border-color: #2a3541 !important;
+            color: #dbe4ea;
+        }
+        html[data-bs-theme="dark"] .card-custom-header,
+        html[data-bs-theme="dark"] .card-header-custom,
+        html[data-bs-theme="dark"] .card-form .card-header,
+        html[data-bs-theme="dark"] .card-form > .card-header {
+            background: #1c2733 !important;
+            border-color: #2a3541 !important;
+        }
+        html[data-bs-theme="dark"] .table-custom thead th {
+            background: linear-gradient(135deg,#1c2733,#141b22) !important;
+            color: #dbe4ea !important;
+        }
+        html[data-bs-theme="dark"] .table-custom tbody td { background: #171f27 !important; color: #dbe4ea; border-bottom-color: #2a3541; }
+        html[data-bs-theme="dark"] .table-custom tbody tr:nth-child(even) td { background: #1a232c !important; }
+        html[data-bs-theme="dark"] .table-custom tbody tr:hover td { background: #202b36 !important; }
+        html[data-bs-theme="dark"] .search-wrapper .form-control,
+        html[data-bs-theme="dark"] .filter-select,
+        html[data-bs-theme="dark"] .currency-listbox,
+        html[data-bs-theme="dark"] .form-control,
+        html[data-bs-theme="dark"] .form-select {
+            background: #10161c !important;
+            border-color: #2a3541 !important;
+            color: #dbe4ea !important;
+        }
+        html[data-bs-theme="dark"] .form-control::placeholder { color: #6b7885; }
+        html[data-bs-theme="dark"] .form-control:focus,
+        html[data-bs-theme="dark"] .form-select:focus { background: #10161c !important; color: #dbe4ea !important; }
+        html[data-bs-theme="dark"] .btn-action,
+        html[data-bs-theme="dark"] .btn-outline-secondary,
+        html[data-bs-theme="dark"] .preset-btn,
+        html[data-bs-theme="dark"] .btn-light.border { border-color: #2a3541 !important; color: #dbe4ea; }
+        html[data-bs-theme="dark"] .btn-light { background: #202b36 !important; color: #dbe4ea !important; border-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] hr { border-color: #2a3541; opacity: 1; }
+        html[data-bs-theme="dark"] .text-muted { color: #8a94a0 !important; }
+        html[data-bs-theme="dark"] .border,
+        html[data-bs-theme="dark"] .border-top,
+        html[data-bs-theme="dark"] .border-bottom { border-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] a { color: #6ea8fe; }
+        html[data-bs-theme="dark"] footer.text-muted { color: #7a8896 !important; border-top-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] .receipt-preview-container { background: #fff !important; color: #000 !important; }
+
+        /* Page de connexion : la carte (moitie formulaire) a un fond blanc code en dur */
+        html[data-bs-theme="dark"] .login-card,
+        html[data-bs-theme="dark"] .login-form-panel { background: #171f27 !important; }
+        html[data-bs-theme="dark"] .login-form-panel .text-muted { color: #9aa7b3 !important; }
+
+        /* Sous-classes de texte codees en dur, quasi identiques copiees-collees dans
+           des dizaines de pages (titres de section, libelles de formulaire, textes
+           secondaires...) : une seule regle par selecteur suffit a couvrir toute
+           l'application. */
+        html[data-bs-theme="dark"] .feature-card,
+        html[data-bs-theme="dark"] .stat-card-solde {
+            background: #171f27 !important;
+            border-color: #2a3541 !important;
+        }
+        html[data-bs-theme="dark"] .stat-card .stat-number,
+        html[data-bs-theme="dark"] .feature-card h5,
+        html[data-bs-theme="dark"] .card-form .form-label,
+        html[data-bs-theme="dark"] .card-custom .form-label,
+        html[data-bs-theme="dark"] .form-custom .form-label,
+        html[data-bs-theme="dark"] .card-form .card-header h5,
+        html[data-bs-theme="dark"] .card-custom .card-header h5,
+        html[data-bs-theme="dark"] .card-custom-header,
+        html[data-bs-theme="dark"] .card-header-custom,
+        html[data-bs-theme="dark"] .filters-toggle,
+        html[data-bs-theme="dark"] .section-title,
+        html[data-bs-theme="dark"] .badge-code,
+        html[data-bs-theme="dark"] .submit-overlay .overlay-title {
+            color: #e8edf2 !important;
+        }
+        html[data-bs-theme="dark"] .stat-card .stat-label,
+        html[data-bs-theme="dark"] .stat-card .stat-sub,
+        html[data-bs-theme="dark"] .feature-card p,
+        html[data-bs-theme="dark"] .cell-sub,
+        html[data-bs-theme="dark"] .search-wrapper .search-icon,
+        html[data-bs-theme="dark"] .submit-overlay .overlay-sub {
+            color: #9aa7b3 !important;
+        }
+        html[data-bs-theme="dark"] .amount-benefice,
+        html[data-bs-theme="dark"] .statut-livree { color: #4ade80 !important; }
+        html[data-bs-theme="dark"] .amount-tva,
+        html[data-bs-theme="dark"] .rate-badge-tva { color: #e0a340 !important; }
+        html[data-bs-theme="dark"] .statut-en_cours { color: #fb923c !important; }
+        html[data-bs-theme="dark"] .rate-badge-coef { color: #6ea8fe !important; }
+        html[data-bs-theme="dark"] .submit-overlay { background: rgba(16,22,28,0.85) !important; }
+
+        /* Page Nouvelle vente : panneaux pastel et cartes de paiement propres a cette page */
+        html[data-bs-theme="dark"] .client-pane,
+        html[data-bs-theme="dark"] .info-pane,
+        html[data-bs-theme="dark"] .meta-box,
+        html[data-bs-theme="dark"] .client-pane .meta-box {
+            background: #171f27 !important;
+            border-color: #2a3541 !important;
+        }
+        html[data-bs-theme="dark"] #saleLinesBody > .sale-line:nth-child(odd) {
+            background: #241a1a !important; border-color: #4a2a2a !important;
+        }
+        html[data-bs-theme="dark"] #saleLinesBody > .sale-line:nth-child(even) {
+            background: #201a2a !important; border-color: #3a2a4a !important;
+        }
+        html[data-bs-theme="dark"] #saleLinesBody > .sale-line .meta-box { border-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] .pay-hero {
+            background: linear-gradient(135deg, #16241d, #14231c) !important;
+            border-color: #2a4a3a !important;
+        }
+        html[data-bs-theme="dark"] .pay-hero-value,
+        html[data-bs-theme="dark"] .pay-hero-label,
+        html[data-bs-theme="dark"] .pay-change-value { color: #4ade80 !important; }
+        html[data-bs-theme="dark"] .pay-change { background: #171f27 !important; border-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] .pay-banner-ok { background: #16241d !important; border-color: #2a4a3a !important; color: #4ade80 !important; }
+        html[data-bs-theme="dark"] .pay-banner-warn { background: #2a2015 !important; border-color: #4a3a20 !important; color: #fb923c !important; }
+        html[data-bs-theme="dark"] .pay-banner-info { background: #16202e !important; border-color: #2a3a4a !important; color: #6ea8fe !important; }
+        html[data-bs-theme="dark"] .pay-banner-muted { background: #171f27 !important; border-color: #2a3541 !important; color: #9aa7b3 !important; }
+        html[data-bs-theme="dark"] .pay-source { background: #171f27 !important; border-color: #2a3541 !important; }
+
+        /* Listes deroulantes de recherche (client/produit) : fond blanc code en dur */
+        html[data-bs-theme="dark"] .treeview-panel {
+            background: #171f27 !important;
+            border-color: #2a3541 !important;
+            color: #dbe4ea;
+        }
+        html[data-bs-theme="dark"] .treeview-row { border-bottom-color: #2a3541 !important; }
+        html[data-bs-theme="dark"] .treeview-row:hover:not(:disabled),
+        html[data-bs-theme="dark"] .treeview-row.active { background-color: #202b36 !important; }
+
+html[data-bs-theme="dark"] .main-content [style*="color:#1a1a2e" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #1a1a2e" i] { color: #e8edf2 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#2c3e50" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #2c3e50" i] { color: #e8edf2 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#1e8e3e" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #1e8e3e" i] { color: #4ade80 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#1a73e8" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #1a73e8" i] { color: #6ea8fe !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#d93025" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #d93025" i] { color: #f87171 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#dee2e6" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #dee2e6" i] { color: #5b6672 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#e37400" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #e37400" i] { color: #fb923c !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#7c3aed" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #7c3aed" i] { color: #a78bfa !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#495057" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #495057" i] { color: #b8c2cc !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#a5670a" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #a5670a" i] { color: #e0a340 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#7a8896" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #7a8896" i] { color: #9aa7b3 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#16a085" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #16a085" i] { color: #2dd4a8 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#dc3545" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #dc3545" i] { color: #f87171 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#7a4d00" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #7a4d00" i] { color: #d99a3d !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#0d3b2e" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #0d3b2e" i] { color: #7be0c4 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#e3a008" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #e3a008" i] { color: #f0b94d !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#3498db" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #3498db" i] { color: #5aa9e6 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#8e44ad" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #8e44ad" i] { color: #b57edc !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#000" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #000" i] { color: #d8dee3 !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#c0392b" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #c0392b" i] { color: #f1948a !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#922b21" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #922b21" i] { color: #e6a09b !important; }
+html[data-bs-theme="dark"] .main-content [style*="color:#adb5bd" i],
+html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8a94a0 !important; }
         }
     </style>
     {% block extra_head %}{% endblock %}
@@ -546,6 +806,10 @@
         </div>
 
         <div class="sidebar-footer">
+            <button type="button" class="nav-link theme-toggle-btn" id="themeToggleSidebar" title="Mode sombre / clair">
+                <i class="fas fa-moon theme-toggle-icon"></i>
+                <span class="nav-label theme-toggle-label">Mode sombre</span>
+            </button>
             <a href="{{ url_for('auth.change_password') }}" class="nav-link" title="Mot de passe">
                 <i class="fas fa-key"></i>
                 <span class="nav-label">Mot de passe</span>
@@ -704,6 +968,7 @@
 
             <div class="oc-divider"></div>
 
+            <a href="#" role="button" id="themeToggleOffcanvas"><i class="fas fa-moon theme-toggle-icon"></i><span class="theme-toggle-label">Mode sombre</span></a>
             <a href="{{ url_for('auth.change_password') }}"><i class="fas fa-key"></i>Changer le mot de passe</a>
             <a href="{{ url_for('auth.logout') }}" style="color:#dc3545;"><i class="fas fa-sign-out-alt"></i>Déconnexion</a>
 
@@ -713,6 +978,13 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
+    {% if not current_user.is_authenticated %}
+    {# Page de connexion : pas de barre de navigation, bouton flottant a la place #}
+    <button type="button" class="theme-toggle-floating" id="themeToggleFloating" title="Mode sombre / clair">
+        <i class="fas fa-moon"></i>
+    </button>
     {% endif %}
 
     {# ===== MAIN CONTENT ===== #}
@@ -1080,6 +1352,54 @@
                     }
                 });
             }
+        })();
+    </script>
+
+    <script>
+        // Mode sombre / clair : bascule commune a toutes les pages (barre laterale,
+        // tiroir mobile, bouton flottant sur la page de connexion). Choix mémorisé
+        // par navigateur (localStorage), applique immediatement partout.
+        (function() {
+            var STORAGE_KEY = 'reflexpharma-theme';
+            var boutons = [
+                document.getElementById('themeToggleSidebar'),
+                document.getElementById('themeToggleOffcanvas'),
+                document.getElementById('themeToggleFloating')
+            ].filter(Boolean);
+            if (!boutons.length) return;
+
+            function themeActuel() {
+                return document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
+            }
+
+            function majBoutons() {
+                var sombre = themeActuel() === 'dark';
+                boutons.forEach(function(btn) {
+                    var icone = btn.querySelector('i') || (btn.tagName === 'I' ? btn : null);
+                    var label = btn.querySelector('.theme-toggle-label');
+                    if (icone) {
+                        icone.classList.toggle('fa-moon', !sombre);
+                        icone.classList.toggle('fa-sun', sombre);
+                    }
+                    if (label) label.textContent = sombre ? 'Mode clair' : 'Mode sombre';
+                    btn.title = sombre ? 'Passer en mode clair' : 'Passer en mode sombre';
+                });
+            }
+
+            function appliquerTheme(theme) {
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+                majBoutons();
+            }
+
+            boutons.forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    appliquerTheme(themeActuel() === 'dark' ? 'light' : 'dark');
+                });
+            });
+
+            majBoutons();
         })();
     </script>
 </body>
