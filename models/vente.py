@@ -35,6 +35,12 @@ class Vente(db.Model):
     solde_groupe_avant = db.Column(db.Float, nullable=False, default=0.0)
     solde_groupe_apres = db.Column(db.Float, nullable=False, default=0.0)
 
+    # Programme de fidelite : points gagnes sur cette vente (regles produit/
+    # famille/rayon/section). La conversion des points (en solde client ou en
+    # cadeau) est une action independante sur la fiche client, pas un mode de
+    # paiement de la vente elle-meme.
+    points_gagnes = db.Column(db.Integer, nullable=False, default=0)
+
     auteur_id = db.Column(db.Integer, nullable=True)
     auteur_nom = db.Column(db.String(100))
     auteur_prenom = db.Column(db.String(100))

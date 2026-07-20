@@ -13,6 +13,7 @@ class Client(db.Model):
     email = db.Column(db.String(150), nullable=True, unique=True, index=True)
     telephone = db.Column(db.String(30), nullable=True)
     solde = db.Column(db.Float, nullable=False, default=0.0)
+    points_fidelite = db.Column(db.Integer, nullable=False, default=0)
     groupe_id = db.Column(db.Integer, db.ForeignKey('groupes_clients.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); overflow: hidden; }
+  .card-form .card-header { background: #f8f9fa; border-bottom: 1px solid #e9ecef; padding: 1rem 1.5rem; }
+  .card-form .card-header h5 { font-size: 1rem; font-weight: 600; color: #2c3e50; margin: 0; }
+  .card-form .card-body { padding: 1.5rem; }
+
+  .form-custom .form-label { font-size: 0.85rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.4rem; }
+  .form-custom .form-control { border-radius: 10px; border: 1px solid #e9ecef; padding: 0.55rem 0.85rem; font-size: 0.88rem; }
+  .form-custom .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .btn-rounded { border-radius: 10px; font-weight: 600; padding: 0.5rem 1.5rem; font-size: 0.88rem; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .card-form .card-body { padding: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('admin.list_cadeaux_fidelite') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#2c3e50;" title="Retour">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h1><i class="fas fa-gift me-2"></i>{{ title }}</h1>
+      <p>{{ "Modifiez ce cadeau du catalogue fidélité" if cadeau else "Ajoutez une récompense échangeable contre des points" }}.</p>
+    </div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-6">
+    <div class="card-form">
+      <div class="card-header">
+        <h5><i class="fas fa-info-circle me-2 text-primary"></i>{{ "Informations du cadeau" if cadeau else "Nouveau cadeau" }}</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="form-custom">
+          <div class="mb-3">
+            <label class="form-label">Nom du cadeau <span class="text-danger">*</span></label>
+            <input type="text" name="nom" class="form-control" value="{{ cadeau.nom if cadeau else '' }}" placeholder="ex: Trousse de premiers secours" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Points requis <span class="text-danger">*</span></label>
+            <input type="number" step="1" min="1" name="points_requis" class="form-control" value="{{ cadeau.points_requis if cadeau else '' }}" placeholder="ex: 500" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="3" placeholder="Description optionnelle du cadeau...">{{ cadeau.description if cadeau else '' }}</textarea>
+          </div>
+
+          <div class="form-check form-switch mb-4">
+            <input class="form-check-input" type="checkbox" id="actif" name="actif" {% if not cadeau or cadeau.actif %}checked{% endif %}>
+            <label class="form-check-label" for="actif">Disponible à l'échange</label>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{{ url_for('admin.list_cadeaux_fidelite') }}" class="btn btn-light border btn-rounded">Annuler</a>
+            <button type="submit" class="btn btn-primary btn-rounded">
+              <i class="fas fa-save me-1"></i> Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

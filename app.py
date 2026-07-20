@@ -27,6 +27,7 @@ from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
+from models.cadeau_fidelite import CadeauFidelite
 
 from config import config
 
@@ -40,7 +41,23 @@ def ensure_database_schema(app):
 
         columns_to_check = {
             'produits': [
-                ('stock_securite', 'INTEGER DEFAULT 0')
+                ('stock_securite', 'INTEGER DEFAULT 0'),
+                # Programme de fidelite : points/unite achetee. NULL = pas de regle sur
+                # ce produit (repli vers famille/rayon/section, voir Produit.points_fidelite_effectif).
+                ('points_fidelite', 'INTEGER')
+            ],
+            'familles': [
+                ('points_fidelite', 'INTEGER')
+            ],
+            'rayons': [
+                ('points_fidelite', 'INTEGER')
+            ],
+            'sections': [
+                ('points_fidelite', 'INTEGER')
+            ],
+            'clients': [
+                # Solde de points de fidelite du client.
+                ('points_fidelite', 'INTEGER DEFAULT 0')
             ],
             'commandes': [
                 ('relance_de_numero', 'VARCHAR(40)')
@@ -60,7 +77,9 @@ def ensure_database_schema(app):
                 ('solde_client_avant', 'FLOAT DEFAULT 0'),
                 ('solde_client_apres', 'FLOAT DEFAULT 0'),
                 ('solde_groupe_avant', 'FLOAT DEFAULT 0'),
-                ('solde_groupe_apres', 'FLOAT DEFAULT 0')
+                ('solde_groupe_apres', 'FLOAT DEFAULT 0'),
+                # Programme de fidelite : points gagnes sur cette vente.
+                ('points_gagnes', 'INTEGER DEFAULT 0')
             ],
             'vente_lignes': [
                 ('numero_vente', 'VARCHAR(80)'),

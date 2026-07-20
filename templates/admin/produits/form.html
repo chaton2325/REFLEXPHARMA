@@ -241,6 +241,14 @@
               </div>
               <div class="form-text small text-muted">Seuil en dessous duquel le stock est considéré comme faible.</div>
             </div>
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label">Points de fidélité</label>
+              <div class="input-group">
+                <input type="number" step="1" min="0" name="points_fidelite" class="form-control" value="{{ produit.points_fidelite if (produit and produit.points_fidelite is not none) else '' }}" placeholder="Hérite famille/rayon/section">
+                <span class="input-group-text">pts/unité</span>
+              </div>
+              <div class="form-text small text-muted">Laisser vide pour hériter de la règle de la famille, du rayon ou de la section.</div>
+            </div>
           </div>
 
           <div class="row g-3 mb-3">

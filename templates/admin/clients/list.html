@@ -160,8 +160,9 @@
 {% set clients_avec_groupe = clients|selectattr('groupe')|list|length %}
 {% set solde_total = clients|sum(attribute='solde') %}
 {% set clients_negatifs = clients|selectattr('solde', 'lt', 0)|list|length %}
+{% set points_total = clients|sum(attribute='points_fidelite') %}
 
-<div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
+<div class="row g-3 mb-4 row-cols-2 row-cols-lg-5">
   <div class="col">
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#eef0f3,#dde3ea);color:#2c3e50;">
@@ -203,6 +204,17 @@
       <div>
         <div class="stat-number">{{ clients_negatifs }}</div>
         <div class="stat-label">Soldes négatifs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#f4eefc,#e2d4f5);color:#6f42c1;">
+        <i class="fas fa-star"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ points_total }}</div>
+        <div class="stat-label">Points distribués</div>
       </div>
     </div>
   </div>
@@ -312,6 +324,7 @@
         <span class="text-muted">Aucun groupe</span>
         {% endif %}
         <span class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}">Solde {{ "%.2f"|format(client.solde) }}</span>
+        <span class="fw-bold" style="color:#6f42c1;">{{ client.points_fidelite }} pts</span>
       </div>
     </div>
     {% else %}
@@ -332,6 +345,7 @@
           <th>Contact</th>
           <th>Groupe</th>
           <th>Solde client</th>
+          <th>Points</th>
           <th>Dates</th>
           <th class="text-end">Actions</th>
         </tr>
@@ -360,6 +374,7 @@
           <td class="fw-bold {% if client.solde < 0 %}text-danger{% else %}text-success{% endif %}" style="font-family:Consolas,monospace;">
             {{ "%.2f"|format(client.solde) }}
           </td>
+          <td class="fw-bold" style="color:#6f42c1;font-family:Consolas,monospace;">{{ client.points_fidelite }}</td>
           <td>
             <div class="cell-sub">Creation: {{ client.created_at.strftime('%d/%m/%Y %H:%M') if client.created_at else '-' }}</div>
             <div class="cell-sub">Modif: {{ client.updated_at.strftime('%d/%m/%Y %H:%M') if client.updated_at else '-' }}</div>
@@ -382,7 +397,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center py-4 text-muted">Aucun client enregistré.</td></tr>
+        <tr><td colspan="8" class="text-center py-4 text-muted">Aucun client enregistré.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -404,8 +419,9 @@
                 <p class="mb-1"><strong>Téléphone:</strong> {{ client.telephone or '-' }}</p>
                 <p class="mb-1"><strong>Groupe:</strong> {{ client.groupe.nom if client.groupe else '-' }}</p>
                 <p class="mb-1"><strong>Solde client:</strong> {{ "%.2f"|format(client.solde) }}</p>
-                <p class="mb-0"><strong>Solde groupe:</strong> {{ "%.2f"|format(client.groupe.solde) if client.groupe else '-' }}</p>
-                <p class="mb-0"><strong>Absorption groupe:</strong> {{ "%.2f"|format(client.groupe.pourcentage_absorption) ~ '%' if client.groupe else '-' }}</p>
+                <p class="mb-1"><strong>Solde groupe:</strong> {{ "%.2f"|format(client.groupe.solde) if client.groupe else '-' }}</p>
+                <p class="mb-1"><strong>Absorption groupe:</strong> {{ "%.2f"|format(client.groupe.pourcentage_absorption) ~ '%' if client.groupe else '-' }}</p>
+                <p class="mb-0"><strong>Points de fidélité:</strong> {{ client.points_fidelite }}</p>
             </div>
             <div class="modal-footer">
                 <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-primary">Modifier</a>

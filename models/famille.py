@@ -8,7 +8,11 @@ class Famille(db.Model):
     nom = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
+    # Points de fidelite par unite achetee pour les produits de cette famille.
+    # NULL = pas de regle a ce niveau (le fallback continue vers rayon/section).
+    points_fidelite = db.Column(db.Integer, nullable=True)
+
     produits = db.relationship('Produit', backref='famille', lazy=True)
 
     def __repr__(self):

@@ -28,7 +28,11 @@ class Produit(db.Model):
 
     # Stock de securite (seuil d'alerte, exprime en unites)
     stock_securite = db.Column(db.Integer, default=0)
-    
+
+    # Points de fidelite par unite achetee. NULL = pas de regle sur ce produit
+    # (voir points_fidelite_effectif pour le repli vers famille/rayon/section).
+    points_fidelite = db.Column(db.Integer, nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -43,6 +47,21 @@ class Produit(db.Model):
         if self.tva is not None:
             return self.tva
         return self.fournisseur.effectif_tva if self.fournisseur else 20.0
+
+    @property
+    def points_fidelite_effectif(self):
+        """Points de fidelite par unite achetee, avec repli produit > famille >
+        rayon > section (la premiere valeur non NULL rencontree l'emporte, sans
+        cumul), sinon 0 si aucun niveau n'a de regle definie."""
+        if self.points_fidelite is not None:
+            return self.points_fidelite
+        if self.famille and self.famille.points_fidelite is not None:
+            return self.famille.points_fidelite
+        if self.rayon and self.rayon.points_fidelite is not None:
+            return self.rayon.points_fidelite
+        if self.section and self.section.points_fidelite is not None:
+            return self.section.points_fidelite
+        return 0
 
     # ------------------------------------------------------------------
     # Logique de prix : prix_unite / prix_sous_unite / prix_sous_sous_unite

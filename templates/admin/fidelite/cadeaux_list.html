@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Cadeaux fidélité - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef;
+  }
+  .table-custom tbody td { padding: 0.85rem 1rem; vertical-align: middle; border-bottom: 1px solid #f0f2f5; font-size: 0.88rem; }
+  .table-custom tbody tr:hover { background: #f8faff; }
+
+  .btn-action {
+    width: 34px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 0.85rem;
+  }
+  .action-group { display: flex; gap: 0.3rem; justify-content: flex-end; }
+
+  .mobile-card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f0f2f5; }
+
+  .points-badge {
+    background: linear-gradient(135deg, #e05e5e, #8b5cf6);
+    color: #fff; font-weight: 700; font-size: 0.76rem;
+    padding: 0.25em 0.7em; border-radius: 999px;
+  }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-gift me-2"></i>Cadeaux fidélité</h1>
+      <p>Catalogue des récompenses échangeables contre des points de fidélité.</p>
+    </div>
+    <a href="{{ url_for('admin.create_cadeau_fidelite') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+      <i class="fas fa-plus me-1"></i> Nouveau cadeau
+    </a>
+  </div>
+</div>
+
+<div class="card-custom">
+  <!-- Mobile cards -->
+  <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;">
+    {% for c in cadeaux %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ c.nom }}</div>
+          <div class="text-muted" style="font-size:0.78rem;">{{ c.description or 'Aucune description' }}</div>
+        </div>
+        <span class="points-badge">{{ c.points_requis }} pts</span>
+      </div>
+      <div class="mt-2 d-flex justify-content-between align-items-center">
+        {% if c.actif %}
+        <span class="badge bg-success">Actif</span>
+        {% else %}
+        <span class="badge bg-secondary">Inactif</span>
+        {% endif %}
+        <div class="d-flex gap-1">
+          <a href="{{ url_for('admin.edit_cadeau_fidelite', id=c.id) }}" class="btn btn-sm btn-outline-primary btn-action"><i class="fas fa-edit"></i></a>
+          <button type="button" class="btn btn-sm btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ c.id }}"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-gift" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun cadeau dans le catalogue.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Cadeau</th>
+          <th>Description</th>
+          <th>Coût</th>
+          <th>Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cadeaux %}
+        <tr>
+          <td><div class="fw-semibold" style="color:#1a1a2e;">{{ c.nom }}</div></td>
+          <td style="color:#495057;">{{ c.description or '-' }}</td>
+          <td><span class="points-badge">{{ c.points_requis }} pts</span></td>
+          <td>
+            {% if c.actif %}
+            <span class="badge bg-success">Actif</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactif</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="action-group">
+              <a href="{{ url_for('admin.edit_cadeau_fidelite', id=c.id) }}" class="btn btn-outline-primary btn-action" title="Modifier">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ c.id }}" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-4 text-muted">Aucun cadeau dans le catalogue.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for c in cadeaux %}
+<div class="modal fade" id="deleteModal{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">Supprimer le cadeau <strong>{{ c.nom }}</strong> du catalogue ?</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_cadeau_fidelite', id=c.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

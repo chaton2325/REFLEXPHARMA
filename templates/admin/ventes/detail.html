@@ -250,6 +250,9 @@
                 <div class="cell-sub">Solde client : {{ "%.2f"|format(vente.montant_solde_client) }}</div>
                 <div class="cell-sub">Solde groupe : {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
                 <div class="cell-sub">Après vente client/groupe : {{ "%.2f"|format(vente.solde_client_apres) }} / {{ "%.2f"|format(vente.solde_groupe_apres) }}</div>
+                {% if vente.client_matricule %}
+                <div class="cell-sub">Points fidélité gagnés : {{ vente.points_gagnes }}</div>
+                {% endif %}
             </div>
         </div>
     </div>

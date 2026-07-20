@@ -782,7 +782,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             </a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') or current_user.has_permission('gestion_fidelite') %}
             <div class="nav-group">
                 <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button" title="Clients">
                     <i class="fas fa-user-friends"></i>
@@ -798,6 +798,9 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                     {% endif %}
                     {% if current_user.has_permission('historique_clients') %}
                     <a href="{{ url_for('admin.list_client_modification_logs') }}"><span class="nav-label">Historique clients</span></a>
+                    {% endif %}
+                    {% if current_user.has_permission('gestion_fidelite') %}
+                    <a href="{{ url_for('admin.list_cadeaux_fidelite') }}"><span class="nav-label">Cadeaux fidélité</span></a>
                     {% endif %}
                 </div>
             </div>
@@ -959,7 +962,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             <a href="{{ url_for('admin.list_declarations_impots') }}"><i class="fas fa-landmark"></i>Impôts & Taxes</a>
             {% endif %}
 
-            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') %}
+            {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') or current_user.has_permission('gestion_fidelite') %}
             <a data-bs-toggle="collapse" href="#ocClientCollapse" role="button">
                 <i class="fas fa-user-friends"></i>Clients
                 <i class="fas fa-chevron-down chevron"></i>
@@ -973,6 +976,9 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                 {% endif %}
                 {% if current_user.has_permission('historique_clients') %}
                 <a href="{{ url_for('admin.list_client_modification_logs') }}">Historique clients</a>
+                {% endif %}
+                {% if current_user.has_permission('gestion_fidelite') %}
+                <a href="{{ url_for('admin.list_cadeaux_fidelite') }}">Cadeaux fidélité</a>
                 {% endif %}
             </div>
             {% endif %}

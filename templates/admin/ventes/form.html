@@ -786,7 +786,7 @@
           <label class="form-label">Client</label>
           <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
           <select name="client_id" class="form-select visually-hidden" id="clientSelect">
-            <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-search="client comptoir">Client comptoir</option>
+            <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-points-fidelite="0" data-search="client comptoir">Client comptoir</option>
             {% for client in clients %}
             <option
                 value="{{ client.id }}"
@@ -798,6 +798,7 @@
                 data-groupe="{{ client.groupe.nom if client.groupe else '' }}"
                 data-groupe-solde="{{ client.groupe.solde if client.groupe else 0 }}"
                 data-absorption="{{ client.groupe.pourcentage_absorption if client.groupe else 0 }}"
+                data-points-fidelite="{{ client.points_fidelite or 0 }}"
                 data-search="{{ (client.prenom ~ ' ' ~ client.nom ~ ' ' ~ client.matricule ~ ' ' ~ (client.email or '') ~ ' ' ~ (client.telephone or '') ~ ' ' ~ (client.groupe.nom if client.groupe else ''))|lower }}"
             >
                 {{ client.prenom }} {{ client.nom }} - {{ client.matricule }}
@@ -884,6 +885,18 @@
                 </div>
               </div>
             </div>
+            <div class="col-12 client-account-section">
+              <div class="stat-card d-flex align-items-center gap-2">
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f4eefc,#e2d4f5);color:#6f42c1;">
+                  <i class="fas fa-star"></i>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-number" id="pointsToEarn">0</div>
+                  <div class="stat-label">Points fidélité à gagner</div>
+                  <div class="stat-sub">Solde actuel du client : <span id="clientPointsBalance">0</span> points</div>
+                </div>
+              </div>
+            </div>
           </div>
           </div>
         </div>
@@ -939,6 +952,7 @@
                     data-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
                     data-sous-sous-unite-ht="{{ produit.prix_vente_sous_sous_unite_ht or produit.prix_vente_unite_ht or 0 }}"
                     data-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or produit.prix_unite_ttc or 0 }}"
+                    data-points-fidelite="{{ produit.points_fidelite_effectif }}"
                     data-search="{{ (produit.nom ~ ' ' ~ produit.code_produit ~ ' ' ~ (stock_tracking_codes.get(produit.id, [])|join(' ')) ~ ' ' ~ (stock_expiry_dates.get(produit.id, [])|join(' ')) ~ ' ' ~ (produit.fournisseur.nom if produit.fournisseur else '') ~ ' ' ~ (produit.fournisseur.groupe.nom if produit.fournisseur and produit.fournisseur.groupe else '') ~ ' ' ~ (produit.rayon.nom if produit.rayon else '') ~ ' ' ~ (produit.famille.nom if produit.famille else '') ~ ' ' ~ (produit.section.nom if produit.section else ''))|lower }}"
                 >
                     {{ produit.nom }} - {{ stock_tracking_codes.get(produit.id, [produit.code_produit])[0] }}
@@ -1582,6 +1596,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let totalHt = 0;
         let totalTtc = 0;
         let selectedCount = 0;
+        let pointsToEarn = 0;
         document.querySelectorAll('.sale-line').forEach((line) => {
             updateUnitOptions(line);
             updateLineStockState(line);
@@ -1594,6 +1609,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const quantity = Math.max(toNumber(quantityInput.value), 0);
             totalHt += getSelectedPrice(option, unitSelect.value, 'Ht') * quantity;
             totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * quantity;
+            if (option && option.value) {
+                pointsToEarn += toNumber(option.dataset.pointsFidelite) * quantity;
+            }
         });
 
         const cartBadge = document.getElementById('cartCountBadge');
@@ -1605,6 +1623,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
         updateClientMeta();
+        const pointsToEarnEl = fieldById('pointsToEarn');
+        if (pointsToEarnEl) pointsToEarnEl.textContent = Math.round(pointsToEarn);
+        const clientPointsBalanceEl = fieldById('clientPointsBalance');
+        if (clientPointsBalanceEl) clientPointsBalanceEl.textContent = Math.round(toNumber(selectedClient.dataset.pointsFidelite));
         const clientBalance = toNumber(selectedClient.dataset.solde);
         const groupName = selectedClient.dataset.groupe || '';
         const groupBalance = toNumber(selectedClient.dataset.groupeSolde);

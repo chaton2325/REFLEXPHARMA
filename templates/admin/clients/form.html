@@ -52,6 +52,11 @@
                             <label class="form-label fw-bold">Solde client</label>
                             <input type="number" step="0.01" name="solde" class="form-control" value="{{ client.solde if client else '0' }}" required>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Points de fidélité</label>
+                            <input type="number" step="1" min="0" name="points_fidelite" class="form-control" value="{{ client.points_fidelite if client else '0' }}" required>
+                            <div class="form-text">Correction manuelle du solde de points. Pour les convertir en solde ou en cadeau, utilisez les actions ci-dessous.</div>
+                        </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2 mt-4">
                         <a href="{{ url_for('admin.list_clients') }}" class="btn btn-light border">Annuler</a>
@@ -60,6 +65,52 @@
                 </form>
             </div>
         </div>
+
+        {% if client %}
+        <div class="card mt-4">
+            <div class="card-header bg-white"><h5 class="mb-0"><i class="fas fa-gift me-2 text-primary"></i>Programme de fidélité</h5></div>
+            <div class="card-body p-4">
+                <p class="text-muted small mb-3">
+                    Solde actuel : <strong>{{ client.points_fidelite }} points</strong>. Convertissez-les en solde client
+                    (utilisable en caisse) ou échangez-les contre un cadeau du catalogue.
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <form method="POST" action="{{ url_for('admin.convertir_points_solde', id=client.id) }}" class="border rounded p-3 h-100">
+                            <label class="form-label fw-bold small">Convertir en solde client</label>
+                            {% if fidelite_can_redeem %}
+                            <div class="input-group mb-2">
+                                <input type="number" step="1" min="1" max="{{ client.points_fidelite }}" name="points" class="form-control" placeholder="Points">
+                                <button type="submit" class="btn btn-outline-primary">Convertir</button>
+                            </div>
+                            <div class="form-text">Taux actuel : {{ fidelite_points_montant }} points = {{ '%.2f'|format(fidelite_points_valeur) }} {{ devise }}.</div>
+                            {% else %}
+                            <div class="alert alert-warning small mb-0">Taux de conversion non configuré (voir Paramètres).</div>
+                            {% endif %}
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <form method="POST" action="{{ url_for('admin.echanger_points_cadeau', id=client.id) }}" class="border rounded p-3 h-100">
+                            <label class="form-label fw-bold small">Échanger contre un cadeau</label>
+                            {% if cadeaux %}
+                            <div class="input-group mb-2">
+                                <select name="cadeau_id" class="form-select">
+                                    {% for c in cadeaux %}
+                                    <option value="{{ c.id }}" {% if c.points_requis > client.points_fidelite %}disabled{% endif %}>{{ c.nom }} — {{ c.points_requis }} pts</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary">Échanger</button>
+                            </div>
+                            <div class="form-text">Le stock/la remise physique du cadeau se gère hors application.</div>
+                            {% else %}
+                            <div class="alert alert-warning small mb-0">Aucun cadeau actif dans le <a href="{{ url_for('admin.list_cadeaux_fidelite') }}">catalogue</a>.</div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -141,6 +141,12 @@
             <textarea name="description" class="form-control" rows="3" placeholder="Description optionnelle de la section...">{{ section.description if section else '' }}</textarea>
           </div>
 
+          <div class="mb-4">
+            <label class="form-label">Points de fidélité / unité</label>
+            <input type="number" step="1" min="0" name="points_fidelite" class="form-control" value="{{ section.points_fidelite if (section and section.points_fidelite is not none) else '' }}" placeholder="Laisser vide = pas de règle à ce niveau">
+            <div class="form-text">Points gagnés par unité achetée pour un produit de cette section (dernier niveau du repli : produit &gt; famille &gt; rayon &gt; section).</div>
+          </div>
+
           <hr class="my-4">
 
           <div class="d-flex justify-content-end gap-2">

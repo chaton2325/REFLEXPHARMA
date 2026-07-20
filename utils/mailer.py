@@ -6,6 +6,7 @@ la page Paramètres, sans redémarrer le serveur.
 """
 import smtplib
 import ssl
+import threading
 from email.message import EmailMessage
 
 from models.setting import Setting
@@ -88,3 +89,21 @@ def send_email(to, subject, body, html=None):
         raise
     except Exception as exc:
         raise SmtpSendError(str(exc)) from exc
+
+
+def send_async(app, target, *args, **kwargs):
+    """Exécute target(*args, **kwargs) dans un thread daemon, avec le contexte
+    applicatif Flask nécessaire (accès DB/Settings), sans jamais bloquer ni faire
+    échouer l'appelant : toute exception (SMTP indisponible, pas d'internet...)
+    est avalée silencieusement, puisque c'est un envoi "best effort" en arrière-plan.
+
+    `app` doit être l'objet Flask réel (current_app._get_current_object()), pas
+    le proxy current_app, car le thread n'a plus de contexte de requête actif.
+    """
+    def runner():
+        with app.app_context():
+            try:
+                target(*args, **kwargs)
+            except Exception:
+                pass
+    threading.Thread(target=runner, daemon=True).start()

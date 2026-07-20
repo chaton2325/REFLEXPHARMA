@@ -28,6 +28,7 @@ from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
+from models.cadeau_fidelite import CadeauFidelite
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta, date
@@ -37,7 +38,11 @@ import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
 from utils.currencies import CURRENCIES, CURRENCIES_BY_CODE, get_active_currency, devise_active
-from utils.mailer import get_smtp_config, is_smtp_configured, send_email, SmtpConfigError, SmtpSendError, SMTP_ENCRYPTIONS
+from utils.mailer import (
+    get_smtp_config, is_smtp_configured, send_email, notifications_enabled, send_async,
+    SmtpConfigError, SmtpSendError, SMTP_ENCRYPTIONS
+)
+from utils import fidelite
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
@@ -670,8 +675,28 @@ def client_snapshot(client):
         'email': client.email,
         'telephone': client.telephone,
         'solde': client.solde,
+        'points_fidelite': client.points_fidelite,
         'groupe': client.groupe.nom if client.groupe else None
     }
+
+def _send_client_welcome_email(email, prenom, nom, matricule):
+    """E-mail de bienvenue envoye a la creation d'un client. Ne fait rien (au lieu
+    de lever une exception) si les notifications SMTP sont desactivees ou non
+    configurees : c'est ce qui rend l'envoi non-bloquant en l'absence d'internet,
+    combine a l'appel via send_async() qui tourne dans un thread separe."""
+    if not notifications_enabled() or not is_smtp_configured():
+        return
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    lignes = [
+        f"Bonjour {prenom} {nom},",
+        "",
+        f"Votre compte client a bien ete cree chez {pharmacy_name}.",
+        f"Matricule : {matricule}",
+    ]
+    if fidelite.is_active():
+        lignes += ["", "Vous cumulez desormais des points de fidelite a chaque achat, echangeables contre des reductions."]
+    lignes += ["", "Merci de votre confiance."]
+    send_email(to=email, subject=f"Bienvenue chez {pharmacy_name}", body="\n".join(lignes))
 
 def groupe_client_snapshot(groupe):
     return {
@@ -969,6 +994,7 @@ def create_client():
             email=email,
             telephone=request.form.get('telephone'),
             solde=float(request.form.get('solde') or 0),
+            points_fidelite=int(request.form.get('points_fidelite') or 0),
             groupe_id=int(groupe_id) if groupe_id else None
         )
         db.session.add(client)
@@ -981,6 +1007,14 @@ def create_client():
             new_values=client_snapshot(client)
         )
         db.session.commit()
+        # E-mail de bienvenue best-effort : jamais bloquant si SMTP/internet est
+        # indisponible (voir _send_client_welcome_email et utils.mailer.send_async).
+        if client.email:
+            send_async(
+                current_app._get_current_object(),
+                _send_client_welcome_email,
+                client.email, client.prenom, client.nom, client.matricule
+            )
         flash('Client ajoutÃ© avec succÃ¨s.', 'success')
         return redirect(url_for('admin.list_clients'))
 
@@ -1018,6 +1052,7 @@ def edit_client(id):
         client.email = email
         client.telephone = request.form.get('telephone')
         client.solde = float(request.form.get('solde') or 0)
+        client.points_fidelite = int(request.form.get('points_fidelite') or 0)
         client.groupe_id = int(groupe_id) if groupe_id else None
         db.session.flush()
         add_client_modification_log(
@@ -1032,7 +1067,14 @@ def edit_client(id):
         flash('Client mis Ã  jour avec succÃ¨s.', 'success')
         return redirect(url_for('admin.list_clients'))
 
-    return render_template('admin/clients/form.html', title='Modifier le client', client=client, groupes=groupes)
+    conversion_rate = fidelite.get_conversion_rate()
+    return render_template(
+        'admin/clients/form.html', title='Modifier le client', client=client, groupes=groupes,
+        cadeaux=CadeauFidelite.query.filter_by(actif=True).order_by(CadeauFidelite.points_requis.asc()).all(),
+        fidelite_can_redeem=fidelite.can_redeem(),
+        fidelite_points_montant=conversion_rate['points'],
+        fidelite_points_valeur=conversion_rate['valeur']
+    )
 
 @admin.route('/clients/delete/<int:id>', methods=['POST'])
 @login_required
@@ -1076,6 +1118,136 @@ def bulk_delete_clients():
     db.session.commit()
     flash(f'{deleted_count} client(s) supprimÃ©(s).', 'success')
     return redirect(url_for('admin.list_clients'))
+
+# --- PROGRAMME DE FIDELITE : CADEAUX ET CONVERSION DES POINTS ---
+# Les points sont attribues automatiquement a la vente (voir create_vente) selon les
+# regles definies sur les produits/familles/rayons/sections (Produit.points_fidelite_effectif).
+# Leur utilisation, elle, n'est PAS un mode de paiement en caisse : un client convertit
+# ses points, a tout moment, soit en solde client (reutilisable normalement en caisse
+# via l'etape "Solde client" deja existante), soit contre un cadeau du catalogue
+# ci-dessous — pour rester simple, sans complexifier le flux de vente.
+@admin.route('/fidelite/cadeaux')
+@login_required
+@permission_required('gestion_fidelite')
+def list_cadeaux_fidelite():
+    cadeaux = CadeauFidelite.query.order_by(CadeauFidelite.points_requis.asc()).all()
+    return render_template('admin/fidelite/cadeaux_list.html', cadeaux=cadeaux)
+
+@admin.route('/fidelite/cadeaux/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def create_cadeau_fidelite():
+    if request.method == 'POST':
+        nom = (request.form.get('nom') or '').strip()
+        points_requis = request.form.get('points_requis')
+        if not nom or not points_requis or not points_requis.isdigit() or int(points_requis) <= 0:
+            flash('Le nom et un nombre de points positif sont obligatoires.', 'danger')
+            return redirect(url_for('admin.create_cadeau_fidelite'))
+        cadeau = CadeauFidelite(
+            nom=nom,
+            points_requis=int(points_requis),
+            description=request.form.get('description'),
+            actif=bool(request.form.get('actif'))
+        )
+        db.session.add(cadeau)
+        db.session.commit()
+        flash('Cadeau ajouté au catalogue fidélité.', 'success')
+        return redirect(url_for('admin.list_cadeaux_fidelite'))
+    return render_template('admin/fidelite/cadeau_form.html', title='Ajouter un cadeau')
+
+@admin.route('/fidelite/cadeaux/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def edit_cadeau_fidelite(id):
+    cadeau = CadeauFidelite.query.get_or_404(id)
+    if request.method == 'POST':
+        nom = (request.form.get('nom') or '').strip()
+        points_requis = request.form.get('points_requis')
+        if not nom or not points_requis or not points_requis.isdigit() or int(points_requis) <= 0:
+            flash('Le nom et un nombre de points positif sont obligatoires.', 'danger')
+            return redirect(url_for('admin.edit_cadeau_fidelite', id=id))
+        cadeau.nom = nom
+        cadeau.points_requis = int(points_requis)
+        cadeau.description = request.form.get('description')
+        cadeau.actif = bool(request.form.get('actif'))
+        db.session.commit()
+        flash('Cadeau mis à jour.', 'success')
+        return redirect(url_for('admin.list_cadeaux_fidelite'))
+    return render_template('admin/fidelite/cadeau_form.html', cadeau=cadeau, title='Modifier le cadeau')
+
+@admin.route('/fidelite/cadeaux/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def delete_cadeau_fidelite(id):
+    cadeau = CadeauFidelite.query.get_or_404(id)
+    db.session.delete(cadeau)
+    db.session.commit()
+    flash('Cadeau supprimé du catalogue.', 'success')
+    return redirect(url_for('admin.list_cadeaux_fidelite'))
+
+@admin.route('/clients/<int:id>/fidelite/solde', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def convertir_points_solde(id):
+    client = Client.query.get_or_404(id)
+    points_raw = request.form.get('points')
+    points = int(points_raw) if points_raw and points_raw.isdigit() else 0
+    if points <= 0:
+        flash('Indiquez un nombre de points positif à convertir.', 'danger')
+        return redirect(url_for('admin.edit_client', id=id))
+    if not fidelite.can_redeem():
+        flash("Le taux de conversion des points n'est pas configuré (voir Paramètres).", 'danger')
+        return redirect(url_for('admin.edit_client', id=id))
+    if points > (client.points_fidelite or 0):
+        flash(f'Solde de points insuffisant. Disponible : {client.points_fidelite or 0}.', 'danger')
+        return redirect(url_for('admin.edit_client', id=id))
+
+    valeur = fidelite.points_to_value(points)
+    symbole = devise_active()
+    old_values = client_snapshot(client)
+    client.points_fidelite -= points
+    client.solde = (client.solde or 0) + valeur
+    add_client_modification_log(
+        entity_type='client',
+        action='fidelite_conversion_solde',
+        reference=client.matricule,
+        label=client.nom_complet,
+        old_values=old_values,
+        new_values=client_snapshot(client),
+        reason=f'{points} points convertis en {valeur:.2f} {symbole} de solde client'
+    )
+    db.session.commit()
+    flash(f'{points} points convertis en {valeur:.2f} {symbole} de solde client.', 'success')
+    return redirect(url_for('admin.edit_client', id=id))
+
+@admin.route('/clients/<int:id>/fidelite/cadeau', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def echanger_points_cadeau(id):
+    client = Client.query.get_or_404(id)
+    cadeau_id = request.form.get('cadeau_id')
+    cadeau = CadeauFidelite.query.get(cadeau_id) if cadeau_id else None
+    if not cadeau or not cadeau.actif:
+        flash('Cadeau introuvable ou plus disponible.', 'danger')
+        return redirect(url_for('admin.edit_client', id=id))
+    if cadeau.points_requis > (client.points_fidelite or 0):
+        flash(f'Solde de points insuffisant pour ce cadeau ({cadeau.points_requis} points requis, {client.points_fidelite or 0} disponibles).', 'danger')
+        return redirect(url_for('admin.edit_client', id=id))
+
+    old_values = client_snapshot(client)
+    client.points_fidelite -= cadeau.points_requis
+    add_client_modification_log(
+        entity_type='client',
+        action='fidelite_echange_cadeau',
+        reference=client.matricule,
+        label=client.nom_complet,
+        old_values=old_values,
+        new_values=client_snapshot(client),
+        reason=f'Cadeau remis : {cadeau.nom} ({cadeau.points_requis} points)'
+    )
+    db.session.commit()
+    flash(f'Cadeau "{cadeau.nom}" remis au client ({cadeau.points_requis} points déduits).', 'success')
+    return redirect(url_for('admin.edit_client', id=id))
 
 # --- GESTION DES GROUPES CLIENTS ---
 @admin.route('/clients/groupes')
@@ -2094,6 +2266,11 @@ def create_vente():
         total_ttc = 0
         lignes_count = 0
         requested_quantities = {}
+        # Points de fidelite gagnes sur cette vente (regles produit/famille/rayon/
+        # section, voir Produit.points_fidelite_effectif) : accumules seulement si
+        # le programme est actif et qu'un client (pas "Client comptoir") est choisi.
+        points_gagnes_total = 0
+        fidelite_active = fidelite.is_active()
 
         for index, produit_id in enumerate(produit_ids):
             if not produit_id:
@@ -2182,6 +2359,8 @@ def create_vente():
             total_tva += ligne_total_tva
             total_ttc += ligne_total_ttc
             lignes_count += 1
+            if fidelite_active:
+                points_gagnes_total += produit.points_fidelite_effectif * int(quantite)
 
         if lignes_count == 0:
             db.session.rollback()
@@ -2233,7 +2412,13 @@ def create_vente():
             client.solde = client_balance_before - montant_solde_client
         if client and client.groupe and montant_solde_groupe > 0:
             client.groupe.solde = group_balance_before - montant_solde_groupe
+        # Points de fidelite : credites au client apres la vente. Leur conversion
+        # (en solde ou en cadeau) est une action independante, pas un mode de
+        # paiement de cette vente (voir echanger_points_cadeau/convertir_points_solde).
+        if client and points_gagnes_total > 0:
+            client.points_fidelite = (client.points_fidelite or 0) + points_gagnes_total
 
+        vente.points_gagnes = points_gagnes_total if client else 0
         vente.total_ht = total_ht
         vente.total_tva = total_tva
         vente.total_ttc = total_ttc
@@ -2823,7 +3008,12 @@ def create_rayon():
         if Rayon.query.filter_by(nom=nom).first():
             flash('Ce rayon existe déjà.', 'danger')
             return redirect(url_for('admin.create_rayon'))
-        new_rayon = Rayon(nom=nom, description=request.form.get('description'))
+        points_fidelite = request.form.get('points_fidelite')
+        new_rayon = Rayon(
+            nom=nom,
+            description=request.form.get('description'),
+            points_fidelite=int(points_fidelite) if points_fidelite not in (None, '') else None
+        )
         db.session.add(new_rayon)
         db.session.commit()
         flash('Rayon ajouté avec succès.', 'success')
@@ -2836,8 +3026,10 @@ def create_rayon():
 def edit_rayon(id):
     rayon = Rayon.query.get_or_404(id)
     if request.method == 'POST':
+        points_fidelite = request.form.get('points_fidelite')
         rayon.nom = request.form.get('nom')
         rayon.description = request.form.get('description')
+        rayon.points_fidelite = int(points_fidelite) if points_fidelite not in (None, '') else None
         db.session.commit()
         flash('Rayon mis à jour.', 'success')
         return redirect(url_for('admin.list_rayons'))
@@ -2886,7 +3078,12 @@ def create_famille():
         if Famille.query.filter_by(nom=nom).first():
             flash('Cette famille existe déjà.', 'danger')
             return redirect(url_for('admin.create_famille'))
-        new_famille = Famille(nom=nom, description=request.form.get('description'))
+        points_fidelite = request.form.get('points_fidelite')
+        new_famille = Famille(
+            nom=nom,
+            description=request.form.get('description'),
+            points_fidelite=int(points_fidelite) if points_fidelite not in (None, '') else None
+        )
         db.session.add(new_famille)
         db.session.commit()
         flash('Famille ajoutée.', 'success')
@@ -2899,8 +3096,10 @@ def create_famille():
 def edit_famille(id):
     famille = Famille.query.get_or_404(id)
     if request.method == 'POST':
+        points_fidelite = request.form.get('points_fidelite')
         famille.nom = request.form.get('nom')
         famille.description = request.form.get('description')
+        famille.points_fidelite = int(points_fidelite) if points_fidelite not in (None, '') else None
         db.session.commit()
         flash('Famille mise à jour.', 'success')
         return redirect(url_for('admin.list_familles'))
@@ -2949,7 +3148,12 @@ def create_section():
         if Section.query.filter_by(nom=nom).first():
             flash('Cette section existe déjà.', 'danger')
             return redirect(url_for('admin.create_section'))
-        new_section = Section(nom=nom, description=request.form.get('description'))
+        points_fidelite = request.form.get('points_fidelite')
+        new_section = Section(
+            nom=nom,
+            description=request.form.get('description'),
+            points_fidelite=int(points_fidelite) if points_fidelite not in (None, '') else None
+        )
         db.session.add(new_section)
         db.session.commit()
         flash('Section ajoutée.', 'success')
@@ -2962,8 +3166,10 @@ def create_section():
 def edit_section(id):
     section = Section.query.get_or_404(id)
     if request.method == 'POST':
+        points_fidelite = request.form.get('points_fidelite')
         section.nom = request.form.get('nom')
         section.description = request.form.get('description')
+        section.points_fidelite = int(points_fidelite) if points_fidelite not in (None, '') else None
         db.session.commit()
         flash('Section mise à jour.', 'success')
         return redirect(url_for('admin.list_sections'))
@@ -3034,7 +3240,8 @@ def create_produit():
             prix_sous_sous_unite=float(request.form.get('prix_sous_sous_unite') or 0),
             coefficient=float(request.form.get('coefficient')) if request.form.get('coefficient') else None,
             tva=float(request.form.get('tva')) if request.form.get('tva') else None,
-            stock_securite=int(request.form.get('stock_securite') or 0)
+            stock_securite=int(request.form.get('stock_securite') or 0),
+            points_fidelite=int(request.form.get('points_fidelite')) if request.form.get('points_fidelite') not in (None, '') else None
         )
         db.session.add(new_produit)
         db.session.commit()
@@ -5357,6 +5564,30 @@ def app_settings():
             flash('Paramètres SMTP enregistrés.', 'success')
             return redirect(url_for('admin.app_settings'))
 
+        if request.form.get('form_name') == 'fidelite':
+            active = 'true' if request.form.get('fidelite_active') else 'false'
+            points_montant = (request.form.get('fidelite_points_montant') or '').strip()
+            points_valeur = (request.form.get('fidelite_points_valeur') or '').strip()
+
+            if not points_montant.isdigit() or int(points_montant) <= 0:
+                flash('Le nombre de points doit être un entier positif.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+            try:
+                valeur_float = float(points_valeur)
+            except ValueError:
+                flash('La valeur en devise doit être un nombre.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+            if valeur_float < 0:
+                flash('La valeur en devise ne peut pas être négative.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+
+            Setting.set_value('fidelite_active', active, 'Active le programme de fidélité (points + conversion)')
+            Setting.set_value('fidelite_points_montant', points_montant)
+            Setting.set_value('fidelite_points_valeur', points_valeur)
+
+            flash('Paramètres du programme de fidélité enregistrés.', 'success')
+            return redirect(url_for('admin.app_settings'))
+
         pharmacy_name = request.form.get('pharmacy_name')
         if pharmacy_name:
             Setting.set_value('pharmacy_name', pharmacy_name)
@@ -5381,6 +5612,9 @@ def app_settings():
         'smtp_from_name': smtp_config['from_name'],
         'smtp_configured': is_smtp_configured(smtp_config),
         'smtp_notifications_enabled': Setting.get_value('smtp_notifications_enabled', 'false') == 'true',
+        'fidelite_active': fidelite.is_active(),
+        'fidelite_points_montant': fidelite.get_conversion_rate()['points'] or '',
+        'fidelite_points_valeur': fidelite.get_conversion_rate()['valeur'] or '',
     }
     return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
 

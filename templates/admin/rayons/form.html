@@ -141,6 +141,12 @@
             <textarea name="description" class="form-control" rows="3" placeholder="Description optionnelle du rayon...">{{ rayon.description if rayon else '' }}</textarea>
           </div>
 
+          <div class="mb-4">
+            <label class="form-label">Points de fidélité / unité</label>
+            <input type="number" step="1" min="0" name="points_fidelite" class="form-control" value="{{ rayon.points_fidelite if (rayon and rayon.points_fidelite is not none) else '' }}" placeholder="Laisser vide = pas de règle à ce niveau">
+            <div class="form-text">Points gagnés par unité achetée pour un produit de ce rayon, sauf s'il a sa propre règle (produit &gt; famille &gt; rayon &gt; section).</div>
+          </div>
+
           <hr class="my-4">
 
           <div class="d-flex justify-content-end gap-2">
