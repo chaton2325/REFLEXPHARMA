@@ -547,6 +547,22 @@
     #venteForm { margin-bottom: 66px; }
   }
 
+  /* Le bouton flottant "assistant IA" (défini dans templates/base.html) est en
+     position fixed bas-droite : sur cette page il tombe pile sur les boutons
+     Annuler/Enregistrer de la barre d'action, ce qui les rend inaccessibles
+     (surtout sur mobile). On le remonte au-dessus, en s'appuyant sur la hauteur
+     réelle de la barre d'action (mesurée en JS -> --vente-action-bar-h).
+     !important nécessaire : le <style> du widget est injecté plus bas dans le
+     DOM de base.html donc il l'emporterait sinon à spécificité égale. */
+  .ai-assistant-widget {
+    bottom: calc(1.25rem + var(--vente-action-bar-h, 60px)) !important;
+  }
+  @media (max-width: 767.98px) {
+    .ai-assistant-widget {
+      bottom: calc(var(--bottom-h, 62px) + env(safe-area-inset-bottom) + 0.75rem + var(--vente-action-bar-h, 60px)) !important;
+    }
+  }
+
   /* Panier / Paiement côte à côte dès les petits écrans desktop (lg),
      avec défilement interne pour ne jamais scroller la page entière */
   @media (min-width: 992px) {
@@ -1103,7 +1119,7 @@
   </div>
   <div class="ms-auto d-flex align-items-center gap-2">
     <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-sm btn-outline-light">Annuler</a>
-    <button type="submit" form="venteForm" class="btn btn-success">
+    <button type="submit" form="venteForm" class="btn btn-success" disabled>
       <i class="fas fa-save me-1"></i> Enregistrer
     </button>
   </div>
@@ -1238,7 +1254,7 @@
         </div>
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
-          <button type="button" class="btn btn-primary btn-sm" id="recapSubmitBtn">
+          <button type="button" class="btn btn-primary btn-sm" id="recapSubmitBtn" disabled>
             <i class="fas fa-save me-1"></i> Enregistrer
           </button>
         </div>
@@ -1301,6 +1317,17 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[aria-hidden="true"]:not(.modal) input, [aria-hidden="true"]:not(.modal) button').forEach((element) => {
         element.disabled = true;
     });
+
+    // Remonte le widget assistant IA (base.html) au-dessus de la barre d'action fixe
+    // de cette page, pour qu'il ne masque plus les boutons Annuler/Enregistrer.
+    function syncActionBarOffset() {
+        const bar = document.querySelector('.action-bar');
+        if (bar) {
+            document.documentElement.style.setProperty('--vente-action-bar-h', `${bar.offsetHeight}px`);
+        }
+    }
+    syncActionBarOffset();
+    window.addEventListener('resize', syncActionBarOffset);
 
     function fieldById(id) {
         const matches = Array.from(document.querySelectorAll(`[id="${id}"]`));
@@ -1640,6 +1667,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const bannerExcess = fieldById('payBannerExcess');
         const bannerCash = fieldById('payBannerCash');
         const bannerOk = fieldById('payBannerOk');
+        let isReadyToSubmit = false;
         if (bannerEmpty && bannerMissing && bannerExcess && bannerCash && bannerOk) {
             [bannerEmpty, bannerMissing, bannerExcess, bannerCash, bannerOk].forEach((el) => el.classList.add('d-none'));
             const especesManquantes = amountExternal - amountReceived;
@@ -1658,8 +1686,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 fieldById('payBannerChangeValue').textContent = formatMoney(changeDue);
                 fieldById('payBannerChangeWrap').classList.toggle('d-none', changeDue <= 0.004);
                 bannerOk.classList.remove('d-none');
+                isReadyToSubmit = true;
             }
         }
+        // Le bouton Enregistrer ne doit être cliquable que lorsque la bannière
+        // "Paiement complet — prêt à enregistrer." est affichée : impossible sinon
+        // d'enregistrer une vente dont le montant réparti ne correspond pas au total.
+        document.querySelectorAll('.action-bar button[type="submit"], #recapSubmitBtn').forEach((btn) => {
+            btn.disabled = !isReadyToSubmit;
+        });
     }
 
     function getCurrentSaleTotal() {
