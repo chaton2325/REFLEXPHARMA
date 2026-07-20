@@ -38,6 +38,16 @@ def is_smtp_configured(config=None):
     return bool(config['host'] and config['from_email'])
 
 
+def notifications_enabled():
+    """True si l'admin a activé l'envoi de notifications par e-mail dans les paramètres.
+
+    À vérifier avant tout envoi de notification automatique (alertes stock, etc.) :
+    ce réglage ne fait qu'activer/désactiver l'intention, il ne dispense pas de
+    vérifier is_smtp_configured() avant d'appeler send_email().
+    """
+    return Setting.get_value('smtp_notifications_enabled', 'false') == 'true'
+
+
 def send_email(to, subject, body, html=None):
     """Envoie un e-mail texte (optionnellement avec une alternative HTML).
 

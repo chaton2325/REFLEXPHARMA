@@ -5332,6 +5332,7 @@ def app_settings():
             password = request.form.get('smtp_password') or ''
             from_email = (request.form.get('smtp_from_email') or '').strip()
             from_name = (request.form.get('smtp_from_name') or '').strip()
+            notifications_enabled = 'true' if request.form.get('smtp_notifications_enabled') else 'false'
 
             if not host or not from_email:
                 flash("Le serveur SMTP et l'adresse d'expédition sont obligatoires.", 'danger')
@@ -5350,6 +5351,8 @@ def app_settings():
                 Setting.set_value('smtp_password', password)
             Setting.set_value('smtp_from_email', from_email)
             Setting.set_value('smtp_from_name', from_name)
+            Setting.set_value('smtp_notifications_enabled', notifications_enabled,
+                               "Active l'envoi de notifications par e-mail via le SMTP configuré")
 
             flash('Paramètres SMTP enregistrés.', 'success')
             return redirect(url_for('admin.app_settings'))
@@ -5377,6 +5380,7 @@ def app_settings():
         'smtp_from_email': smtp_config['from_email'],
         'smtp_from_name': smtp_config['from_name'],
         'smtp_configured': is_smtp_configured(smtp_config),
+        'smtp_notifications_enabled': Setting.get_value('smtp_notifications_enabled', 'false') == 'true',
     }
     return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
 
