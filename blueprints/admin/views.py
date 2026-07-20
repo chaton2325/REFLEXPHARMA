@@ -37,6 +37,7 @@ import json
 from urllib.parse import quote
 from utils.permissions import FEATURES
 from utils.currencies import CURRENCIES, CURRENCIES_BY_CODE, get_active_currency, devise_active
+from utils.mailer import get_smtp_config, is_smtp_configured, send_email, SmtpConfigError, SmtpSendError, SMTP_ENCRYPTIONS
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
@@ -5321,6 +5322,38 @@ def app_settings():
                 flash('Monnaie inconnue : choisissez-la dans la liste.', 'danger')
             return redirect(url_for('admin.app_settings'))
 
+        if request.form.get('form_name') == 'smtp':
+            host = (request.form.get('smtp_host') or '').strip()
+            port = (request.form.get('smtp_port') or '').strip() or '587'
+            encryption = request.form.get('smtp_encryption') or 'starttls'
+            if encryption not in SMTP_ENCRYPTIONS:
+                encryption = 'starttls'
+            username = (request.form.get('smtp_username') or '').strip()
+            password = request.form.get('smtp_password') or ''
+            from_email = (request.form.get('smtp_from_email') or '').strip()
+            from_name = (request.form.get('smtp_from_name') or '').strip()
+
+            if not host or not from_email:
+                flash("Le serveur SMTP et l'adresse d'expédition sont obligatoires.", 'danger')
+                return redirect(url_for('admin.app_settings'))
+            if not port.isdigit():
+                flash('Le port SMTP doit être un nombre.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+
+            Setting.set_value('smtp_host', host, "Serveur SMTP sortant")
+            Setting.set_value('smtp_port', port)
+            Setting.set_value('smtp_encryption', encryption)
+            Setting.set_value('smtp_username', username)
+            # Mot de passe : un champ laissé vide conserve celui déjà enregistré,
+            # pour ne pas obliger à le ressaisir à chaque modification des autres champs.
+            if password:
+                Setting.set_value('smtp_password', password)
+            Setting.set_value('smtp_from_email', from_email)
+            Setting.set_value('smtp_from_name', from_name)
+
+            flash('Paramètres SMTP enregistrés.', 'success')
+            return redirect(url_for('admin.app_settings'))
+
         pharmacy_name = request.form.get('pharmacy_name')
         if pharmacy_name:
             Setting.set_value('pharmacy_name', pharmacy_name)
@@ -5332,11 +5365,47 @@ def app_settings():
         flash('Paramètres mis à jour avec succès.', 'success')
         return redirect(url_for('admin.app_settings'))
 
+    smtp_config = get_smtp_config()
     settings = {
         'pharmacy_name': Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
-        'auto_print_enabled': Setting.get_value('auto_print_enabled', 'true') == 'true'
+        'auto_print_enabled': Setting.get_value('auto_print_enabled', 'true') == 'true',
+        'smtp_host': smtp_config['host'],
+        'smtp_port': smtp_config['port'],
+        'smtp_encryption': smtp_config['encryption'],
+        'smtp_username': smtp_config['username'],
+        'smtp_password_set': bool(smtp_config['password']),
+        'smtp_from_email': smtp_config['from_email'],
+        'smtp_from_name': smtp_config['from_name'],
+        'smtp_configured': is_smtp_configured(smtp_config),
     }
     return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
+
+
+@admin.route('/settings/smtp/test', methods=['POST'])
+@login_required
+@permission_required('gestion_parametres')
+def test_smtp():
+    recipient = (request.form.get('recipient') or '').strip()
+    if not recipient:
+        return jsonify({'success': False, 'message': "Indiquez une adresse e-mail de destination pour le test."}), 400
+
+    nom_expediteur = f"{current_user.prenom} {current_user.nom}".strip() or current_user.username
+    try:
+        send_email(
+            to=recipient,
+            subject='Test SMTP - ReflexPharma',
+            body=(
+                "Ceci est un e-mail de test envoyé depuis les paramètres SMTP de ReflexPharma "
+                f"par {nom_expediteur} le {datetime.now().strftime('%d/%m/%Y à %H:%M')}.\n\n"
+                "Si vous recevez ce message, la configuration SMTP fonctionne correctement."
+            )
+        )
+    except SmtpConfigError as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 400
+    except SmtpSendError as exc:
+        return jsonify({'success': False, 'message': f"Échec de l'envoi : {exc}"}), 502
+
+    return jsonify({'success': True, 'message': f"E-mail de test envoyé avec succès à {recipient}."})
 
 
 # ==============================================================================

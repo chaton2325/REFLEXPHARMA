@@ -222,6 +222,94 @@
   </div>
 </div>
 
+<div class="row g-3 mt-0">
+  <div class="col-12">
+    <div class="card-custom">
+      <div class="card-custom-header"><i class="fas fa-envelope"></i> Serveur SMTP (envoi d'e-mails)</div>
+      <div class="p-3 p-sm-4">
+        <p class="text-muted mb-3" style="font-size: 0.82rem;">
+          Utilisé par l'application pour envoyer des e-mails. Renseignez les identifiants fournis par votre
+          hébergeur ou votre fournisseur de messagerie (Gmail, Outlook, OVH...).
+        </p>
+
+        <div class="printer-status {{ 'is-ready' if settings.smtp_configured else 'is-off' }} mb-3">
+          <span class="dot"></span>
+          <span>
+            {% if settings.smtp_configured %}
+              Configuré — prêt à envoyer des e-mails.
+            {% else %}
+              Non configuré — renseignez au moins le serveur et l'adresse d'expédition.
+            {% endif %}
+          </span>
+        </div>
+
+        <form method="POST" id="smtpForm">
+          <input type="hidden" name="form_name" value="smtp">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label for="smtp_host" class="form-label">Serveur SMTP</label>
+              <input type="text" class="form-control" id="smtp_host" name="smtp_host" value="{{ settings.smtp_host }}" placeholder="Ex: smtp.gmail.com" required>
+            </div>
+            <div class="col-md-4">
+              <label for="smtp_port" class="form-label">Port</label>
+              <input type="number" min="1" max="65535" class="form-control" id="smtp_port" name="smtp_port" value="{{ settings.smtp_port }}" placeholder="587" required>
+            </div>
+            <div class="col-md-4">
+              <label for="smtp_encryption" class="form-label">Chiffrement</label>
+              <select class="form-select" id="smtp_encryption" name="smtp_encryption">
+                <option value="starttls" {% if settings.smtp_encryption == 'starttls' %}selected{% endif %}>STARTTLS (recommandé, port 587)</option>
+                <option value="ssl" {% if settings.smtp_encryption == 'ssl' %}selected{% endif %}>SSL/TLS (port 465)</option>
+                <option value="none" {% if settings.smtp_encryption == 'none' %}selected{% endif %}>Aucun</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label for="smtp_username" class="form-label">Nom d'utilisateur</label>
+              <input type="text" class="form-control" id="smtp_username" name="smtp_username" value="{{ settings.smtp_username }}" placeholder="Souvent l'adresse e-mail" autocomplete="off">
+            </div>
+            <div class="col-md-4">
+              <label for="smtp_password" class="form-label">Mot de passe</label>
+              <input type="password" class="form-control" id="smtp_password" name="smtp_password" placeholder="{{ 'Laisser vide pour conserver le mot de passe actuel' if settings.smtp_password_set else 'Mot de passe SMTP' }}" autocomplete="new-password">
+            </div>
+            <div class="col-md-6">
+              <label for="smtp_from_email" class="form-label">Adresse d'expédition</label>
+              <input type="email" class="form-control" id="smtp_from_email" name="smtp_from_email" value="{{ settings.smtp_from_email }}" placeholder="Ex: contact@mapharmacie.com" required>
+            </div>
+            <div class="col-md-6">
+              <label for="smtp_from_name" class="form-label">Nom d'expéditeur</label>
+              <input type="text" class="form-control" id="smtp_from_name" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="Ex: ReflexPharma">
+            </div>
+          </div>
+          <div class="d-grid mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-2"></i>Enregistrer les paramètres SMTP
+            </button>
+          </div>
+        </form>
+
+        <hr class="my-4">
+
+        <div>
+          <label for="smtpTestRecipient" class="form-label">Tester la configuration</label>
+          <div class="input-group">
+            <input type="email" class="form-control" id="smtpTestRecipient" placeholder="destinataire@exemple.com" value="{{ current_user.email }}">
+            <button type="button" class="btn btn-outline-secondary" id="btnTestSmtp" {% if not settings.smtp_configured %}disabled{% endif %}>
+              <i class="fas fa-paper-plane me-1"></i> Envoyer un e-mail de test
+            </button>
+          </div>
+          <div class="form-text">
+            {% if settings.smtp_configured %}
+              Envoie un e-mail de test à l'adresse indiquée pour vérifier que tout fonctionne.
+            {% else %}
+              Enregistrez d'abord la configuration ci-dessus pour activer le test.
+            {% endif %}
+          </div>
+          <div id="smtpTestResult" class="mt-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -317,6 +405,53 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     refreshStatus();
+
+    // --- Test de la configuration SMTP ---
+    const btnTestSmtp = document.getElementById('btnTestSmtp');
+    const smtpTestRecipient = document.getElementById('smtpTestRecipient');
+    const smtpTestResult = document.getElementById('smtpTestResult');
+
+    function renderSmtpTestResult(type, message) {
+        smtpTestResult.innerHTML = '';
+        const alertBox = document.createElement('div');
+        alertBox.className = `alert alert-${type} py-2 small mb-0`;
+        alertBox.textContent = message;
+        smtpTestResult.appendChild(alertBox);
+    }
+
+    if (btnTestSmtp) {
+        btnTestSmtp.addEventListener('click', async function () {
+            const recipient = smtpTestRecipient.value.trim();
+            if (!recipient) {
+                renderSmtpTestResult('warning', 'Indiquez une adresse e-mail de destination.');
+                smtpTestRecipient.focus();
+                return;
+            }
+
+            const originalHtml = btnTestSmtp.innerHTML;
+            btnTestSmtp.disabled = true;
+            btnTestSmtp.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Envoi en cours...';
+            smtpTestResult.innerHTML = '';
+
+            try {
+                const formData = new FormData();
+                formData.append('recipient', recipient);
+                const response = await fetch('{{ url_for("admin.test_smtp") }}', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+                renderSmtpTestResult(data.success ? 'success' : 'danger', data.message || "Réponse inattendue du serveur.");
+            } catch (err) {
+                console.error(err);
+                renderSmtpTestResult('danger', "Erreur réseau : impossible de contacter le serveur.");
+            } finally {
+                btnTestSmtp.disabled = false;
+                btnTestSmtp.innerHTML = originalHtml;
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
