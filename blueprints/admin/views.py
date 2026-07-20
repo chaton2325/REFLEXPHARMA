@@ -1366,7 +1366,14 @@ def get_products_stock_expiry_dates(produits):
         expiries_by_product[produit.id] = expiries
     return expiries_by_product
 
-def consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
+def consume_product_stock_for_sale(produit, unite, quantite, numero_vente, preferred_code_suivi=None):
+    """Sort la quantite vendue du stock du produit. Si preferred_code_suivi est
+    fourni (lot identifie par un scan camera/douchette), la sortie se fait
+    EXCLUSIVEMENT sur ce lot - le stock physiquement scanne doit etre celui
+    reellement decremente, jamais un autre lot du meme produit (meme arrive plus
+    recemment). Si ce lot n'a pas assez de stock, la vente echoue (voir appelant) au
+    lieu de puiser ailleurs. Sans lot precise (selection manuelle), la sortie reste
+    en FEFO sur l'ensemble des lots, comme avant."""
     field_by_unit = {
         'unite': 'quantite_unites',
         'sous_unite': 'quantite_sous_unites',
@@ -1374,11 +1381,12 @@ def consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
     }
     field = field_by_unit.get(unite, 'quantite_unites')
     remaining = quantite
-    stocks = sorted(produit.stocks, key=lambda item: item.date_peremption)
-    for stock in stocks:
+
+    def consume_from(stock):
+        nonlocal remaining
         available = float(getattr(stock, field) or 0)
         if available <= 0 or remaining <= 0:
-            continue
+            return
         consumed = min(available, remaining)
         old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
         setattr(stock, field, int(round(available - consumed)))
@@ -1395,6 +1403,19 @@ def consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
             new_qr_tire=stock.qr_tire
         )
         remaining -= consumed
+
+    if preferred_code_suivi:
+        preferred_stock = next((s for s in produit.stocks if s.code_suivi == preferred_code_suivi), None)
+        if preferred_stock:
+            consume_from(preferred_stock)
+        return remaining <= 0.0001
+
+    stocks = sorted(produit.stocks, key=lambda item: item.date_peremption)
+    for stock in stocks:
+        if remaining <= 0:
+            break
+        consume_from(stock)
+
     return remaining <= 0.0001
 
 def get_filtered_ventes(default_today=False):
@@ -2066,6 +2087,7 @@ def create_vente():
         produit_ids = request.form.getlist('produit_id[]')
         unites = request.form.getlist('unite[]')
         quantites = request.form.getlist('quantite[]')
+        codes_suivi = request.form.getlist('code_suivi[]')
         total_ht = 0
         total_tva = 0
         total_ttc = 0
@@ -2104,6 +2126,15 @@ def create_vente():
                 return redirect(url_for('admin.create_vente'))
             requested_quantities[request_key] = requested_quantity
 
+            # Lot precisement scanne pour cette ligne (camera/douchette), si connu.
+            # On verifie qu'il appartient bien a ce produit avant de s'y fier : une
+            # ligne modifiee manuellement apres un scan (produit change) ne doit pas
+            # entrainer la sortie de stock d'un lot d'un autre produit.
+            code_suivi_raw = (codes_suivi[index] if index < len(codes_suivi) else '').strip()
+            preferred_code_suivi = None
+            if code_suivi_raw and any(s.code_suivi == code_suivi_raw for s in produit.stocks):
+                preferred_code_suivi = code_suivi_raw
+
             prix_ht, prix_ttc, prix_achat = get_product_unit_price(produit, unite)
             ligne_total_ht = prix_ht * quantite
             ligne_total_ttc = prix_ttc * quantite
@@ -2121,6 +2152,7 @@ def create_vente():
                 produit_conditionnement=produit.conditionnement or 1,
                 produit_codes_suivi=' | '.join(stock_tracking_codes.get(produit.id, [])),
                 produit_dates_peremption=' | '.join(stock_expiry_dates.get(produit.id, [])),
+                stock_code_suivi=preferred_code_suivi,
                 stock_unite_avant=float(stock_summary.get('unite', 0) or 0),
                 stock_sous_unite_avant=float(stock_summary.get('sous_unite', 0) or 0),
                 stock_sous_sous_unite_avant=float(stock_summary.get('sous_sous_unite', 0) or 0),
@@ -2134,9 +2166,16 @@ def create_vente():
                 total_tva=ligne_total_tva,
                 total_ttc=ligne_total_ttc
             ))
-            if not consume_product_stock_for_sale(produit, unite, quantite, numero_vente):
+            if not consume_product_stock_for_sale(produit, unite, quantite, numero_vente, preferred_code_suivi):
                 db.session.rollback()
-                flash(f'Impossible de sortir le stock pour {produit.nom}.', 'danger')
+                if preferred_code_suivi:
+                    flash(
+                        f'Stock insuffisant sur le lot scanné ({preferred_code_suivi}) pour {produit.nom}. '
+                        'Scannez un autre lot ou complétez la ligne manuellement.',
+                        'danger'
+                    )
+                else:
+                    flash(f'Impossible de sortir le stock pour {produit.nom}.', 'danger')
                 return redirect(url_for('admin.create_vente'))
             total_ht += ligne_total_ht
             total_tva += ligne_total_tva

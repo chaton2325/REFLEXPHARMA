@@ -929,6 +929,10 @@
                 </option>
                 {% endfor %}
               </select>
+              <!-- Lot (code_suivi) precisement scanne pour cette ligne : vide si le produit a
+                   ete choisi manuellement (recherche), sinon renseigne par le scan camera ou
+                   douchette, pour que la sortie de stock decremente exactement ce lot. -->
+              <input type="hidden" name="code_suivi[]" value="">
               <div class="treeview-panel product-results mb-2 d-none"></div>
               <div class="meta-box product-meta">
                 <div class="text-muted">Aucun produit sélectionné</div>
@@ -1514,10 +1518,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         productSearch.placeholder = getOptionTitle(selectedProduct);
+        const scannedLot = getLineCodeSuivi(line);
+        const lotInfo = scannedLot
+            ? `<span class="badge bg-success text-truncate d-none d-md-inline" title="Lot scanné : sortie de stock garantie sur ce lot"><i class="fas fa-qrcode me-1"></i>${escapeHtml(scannedLot)}</span>`
+            : `<span class="text-muted text-truncate d-none d-md-inline">${escapeHtml(selectedProduct.dataset.trackingCodes || selectedProduct.dataset.productCode || '-')}</span>`;
         productMeta.innerHTML = `
             <div class="d-flex align-items-center gap-2" style="min-width:0;">
                 <span class="fw-bold text-truncate">${escapeHtml(selectedProduct.textContent.split(' - ')[0])}</span>
-                <span class="text-muted text-truncate d-none d-md-inline">${escapeHtml(selectedProduct.dataset.trackingCodes || selectedProduct.dataset.productCode || '-')}</span>
+                ${lotInfo}
                 <span class="btn btn-sm btn-outline-info treeview-info-btn ms-auto flex-shrink-0" data-meta-info="1" title="Voir les détails"><i class="fas fa-info"></i></span>
             </div>
         `;
@@ -1967,11 +1975,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const lineTotal = price * qty;
             total += lineTotal;
             const unitLabel = unitSelect.value === 'sous_unite' ? 'SU' : unitSelect.value === 'sous_sous_unite' ? 'SSU' : 'U';
+            const scannedLot = getLineCodeSuivi(line);
+            const lotSuffix = scannedLot ? ` · Lot ${escapeHtml(scannedLot)}` : '';
             rows.push(`
                 <div class="recap-line d-flex align-items-center gap-2">
                     <div class="flex-grow-1" style="min-width:0;">
                         <div class="fw-bold text-truncate">${escapeHtml(getOptionTitle(option))}</div>
-                        <div class="text-muted" style="font-size:0.7rem;">${formatMoney(qty)} × ${formatMoney(price)} (${unitLabel})</div>
+                        <div class="text-muted" style="font-size:0.7rem;">${formatMoney(qty)} × ${formatMoney(price)} (${unitLabel})${lotSuffix}</div>
                     </div>
                     <div class="fw-bold text-success flex-shrink-0">${formatMoney(lineTotal)}</div>
                     <button type="button" class="btn btn-outline-danger btn-sm recap-remove flex-shrink-0" data-line-index="${index}" title="Retirer">
@@ -1999,6 +2009,7 @@ document.addEventListener('DOMContentLoaded', function() {
             line.querySelectorAll('select').forEach((select) => select.selectedIndex = 0);
             line.querySelector('.product-search').value = '';
             line.querySelector('input[name="quantite[]"]').value = '1';
+            line.querySelector('input[name="code_suivi[]"]').value = '';
             filterSelectOptions(line.querySelector('.product-select'), '', true);
         }
         refreshRemoveButtons();
@@ -2018,12 +2029,24 @@ document.addEventListener('DOMContentLoaded', function() {
         clone.querySelectorAll('select').forEach((select) => select.selectedIndex = 0);
         clone.querySelectorAll('.product-search').forEach((input) => input.value = '');
         clone.querySelector('input[name="quantite[]"]').value = '1';
+        clone.querySelector('input[name="code_suivi[]"]').value = '';
         body.appendChild(clone);
         clone.querySelector('.product-results').classList.add('d-none');
         filterSelectOptions(clone.querySelector('.product-select'), '', true);
         refreshRemoveButtons();
         updateAllUnitOptions();
         return clone;
+    }
+
+    // Lot (code_suivi) associe a une ligne du panier : vide = pas de lot precis
+    // (choix manuel, sortie en FEFO cote serveur), sinon le lot exact scanne.
+    function getLineCodeSuivi(line) {
+        const input = line.querySelector('input[name="code_suivi[]"]');
+        return input ? input.value : '';
+    }
+    function setLineCodeSuivi(line, codeSuivi) {
+        const input = line.querySelector('input[name="code_suivi[]"]');
+        if (input) input.value = codeSuivi || '';
     }
 
     function selectProductOnLine(line, produitId) {
@@ -2034,6 +2057,9 @@ document.addEventListener('DOMContentLoaded', function() {
         productSearch.value = selectedProduct && selectedProduct.value ? getOptionTitle(selectedProduct) : '';
         filterSelectOptions(productSelect, productSearch.value, true);
         line.querySelector('.product-results').classList.add('d-none');
+        // Une selection manuelle (recherche) n'identifie jamais un lot precis : on
+        // efface un eventuel code_suivi laisse par un scan precedent sur cette ligne.
+        setLineCodeSuivi(line, '');
         productSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
@@ -2088,15 +2114,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // camera et le scan par douchette USB/Bluetooth. Le son est desactive pour le scan
     // camera (silent: true) : suspicion utilisateur qu'il perturbe la reprise du scan
     // suivant sur certains mobiles.
+    //
+    // options.codeSuivi : lot exact identifie par le scan (renvoye par
+    // vente_scan_lookup). Deux lots differents du meme produit (ex: deux boites
+    // d'Efferalgan de codes de suivi differents) ne fusionnent JAMAIS sur la meme
+    // ligne : chaque lot garde sa propre ligne, pour que la sortie de stock cote
+    // serveur decremente exactement le lot physiquement scanne, pas un autre lot du
+    // meme produit choisi arbitrairement par date de peremption.
     function addScannedProductToCart(produitId, options) {
         options = options || {};
         if (!options.silent) playCartAddSound();
         produitId = String(produitId);
+        const codeSuivi = options.codeSuivi || '';
         const lines = Array.from(body.querySelectorAll('.sale-line'));
 
         const existingLine = lines.find((line) => {
             const select = line.querySelector('select[name="produit_id[]"]');
-            return select.value === produitId;
+            return select.value === produitId && getLineCodeSuivi(line) === codeSuivi;
         });
         if (existingLine) {
             const qtyInput = existingLine.querySelector('input[name="quantite[]"]');
@@ -2116,6 +2150,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         selectProductOnLine(targetLine, produitId);
+        setLineCodeSuivi(targetLine, codeSuivi);
         updateSaleSummary();
         targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         flashLine(targetLine);
@@ -2221,7 +2256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     input.value = '';
                     input.classList.remove('is-invalid');
-                    addScannedProductToCart(data.produit_id);
+                    addScannedProductToCart(data.produit_id, { codeSuivi: data.code_suivi });
                 } else {
                     input.classList.add('is-invalid');
                     setTimeout(() => input.classList.remove('is-invalid'), 1500);
@@ -2373,7 +2408,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 hideScanLoading();
                 if (data.success) {
                     if (typeof window.ReflexAddScannedProduct === 'function') {
-                        window.ReflexAddScannedProduct(data.produit_id, { silent: true });
+                        window.ReflexAddScannedProduct(data.produit_id, { silent: true, codeSuivi: data.code_suivi });
                     }
                     showAlert(`<i class="fas fa-check-circle me-1"></i> Ajouté : ${data.nom}. Continuez à scanner ou fermez la fenêtre.`, 'success');
                 } else {

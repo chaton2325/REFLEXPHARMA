@@ -82,6 +82,12 @@ class VenteLigne(db.Model):
     produit_conditionnement = db.Column(db.Integer)
     produit_codes_suivi = db.Column(db.Text)
     produit_dates_peremption = db.Column(db.Text)
+    # Lot (Stock.code_suivi) reellement scanne pour cette ligne, quand connu (scan
+    # camera/douchette) : permet de sortir le stock du lot physiquement vendu plutot
+    # que du lot le plus proche de la peremption (FEFO) choisi arbitrairement parmi
+    # tous les lots du produit. NULL pour une selection manuelle (pas de lot precis
+    # identifie), auquel cas le FEFO reste le comportement par defaut.
+    stock_code_suivi = db.Column(db.String(255), nullable=True)
     stock_unite_avant = db.Column(db.Float, nullable=False, default=0.0)
     stock_sous_unite_avant = db.Column(db.Float, nullable=False, default=0.0)
     stock_sous_sous_unite_avant = db.Column(db.Float, nullable=False, default=0.0)

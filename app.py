@@ -78,7 +78,10 @@ def ensure_database_schema(app):
                 # Snapshot du prix d'achat au moment de la vente (correction du calcul
                 # des prix, juillet 2026) : NULL sur les ventes anterieures, pour ne pas
                 # recalculer retroactivement un benefice deja facture/declare.
-                ('prix_achat_unitaire', 'FLOAT')
+                ('prix_achat_unitaire', 'FLOAT'),
+                # Lot reellement scanne (code_suivi) : sortie de stock precise au lot
+                # physiquement vendu plutot qu'au FEFO arbitraire. NULL si pas de scan.
+                ('stock_code_suivi', 'VARCHAR(255)')
             ],
             'stock_exit_logs': [
                 # Snapshot du prix d'achat au moment de la sortie (formule benefice/TVA

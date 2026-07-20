@@ -132,6 +132,9 @@ def setup_database():
                 # des prix, juillet 2026) : NULL sur les ventes anterieures, pour ne pas
                 # recalculer retroactivement un benefice deja facture/declare.
                 ('prix_achat_unitaire', 'FLOAT'),
+                # Lot reellement scanne (code_suivi) : sortie de stock precise au lot
+                # physiquement vendu plutot qu'au FEFO arbitraire. NULL si pas de scan.
+                ('stock_code_suivi', 'VARCHAR(255)'),
                 ('tva_pourcentage', 'FLOAT DEFAULT 0'),
                 ('total_ht', 'FLOAT DEFAULT 0'),
                 ('total_tva', 'FLOAT DEFAULT 0'),
