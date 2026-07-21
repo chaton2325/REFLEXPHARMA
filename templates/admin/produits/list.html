@@ -341,6 +341,11 @@
               <span class="fw-semibold">Achat {{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</span>
               <small class="text-success ms-1">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }} TTC</small>
             </div>
+            {% if p.points_fidelite_effectif %}
+            <div class="mt-1">
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ p.points_fidelite_effectif }} pts fidélité</span>
+            </div>
+            {% endif %}
           </div>
           <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ p.id }}" title="Détails">
             <i class="fas fa-eye"></i>
@@ -372,6 +377,7 @@
             <th>Rayon/Famille</th>
             <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
             <th onclick="sortTable(6)" style="cursor:pointer">Achat / Vente TTC <i class="fas fa-sort"></i></th>
+            <th>Points fidélité</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -394,6 +400,13 @@
             <td>
               <div class="fw-semibold" style="color:#1a1a2e;">Achat {{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</div>
               <small class="text-success">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }} TTC</small>
+            </td>
+            <td>
+              {% if p.points_fidelite_effectif %}
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ p.points_fidelite_effectif }} pts</span>
+              {% else %}
+              <span class="text-muted small">Aucun</span>
+              {% endif %}
             </td>
             <td>
               <div class="action-group">
@@ -450,6 +463,15 @@
             <p class="mb-1" style="font-size:0.88rem;"><strong>Coefficient effectif:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
             <p class="mb-1" style="font-size:0.88rem;"><strong>TVA effective:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
             <p class="mb-1" style="font-size:0.88rem;"><strong>Surcharge produit:</strong> {{ 'Oui' if p.coefficient is not none or p.tva is not none else 'Non' }}</p>
+            <p class="mb-1" style="font-size:0.88rem;">
+              <strong>Points fidélité:</strong>
+              {% if p.points_fidelite_effectif %}
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ p.points_fidelite_effectif }} pts/unité</span>
+              {% else %}
+              Aucun
+              {% endif %}
+              <span class="text-muted">({{ 'règle directe' if p.points_fidelite is not none else 'hérité famille/rayon/section' }})</span>
+            </p>
           </div>
           <div class="col-12"><hr class="my-0"></div>
           <div class="col-12">

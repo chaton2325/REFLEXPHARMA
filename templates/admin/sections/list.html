@@ -253,8 +253,11 @@
           <div style="flex:1;min-width:0;">
             <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ s.nom }}</div>
             <div class="text-muted" style="font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ s.description or 'Aucune description' }}</div>
-            <div class="mt-2">
+            <div class="mt-2 d-flex flex-wrap gap-1">
               <span class="badge bg-info text-dark" style="font-weight:500;">{{ s.produits|length }} produit(s)</span>
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;">
+                <i class="fas fa-star me-1"></i>{% if s.points_fidelite is not none %}{{ s.points_fidelite }} pts{% else %}Aucune règle{% endif %}
+              </span>
             </div>
           </div>
           <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ s.id }}" title="Détails">
@@ -284,6 +287,7 @@
             <th>Nom de la Section</th>
             <th>Description</th>
             <th>Produits</th>
+            <th>Points fidélité</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -298,6 +302,13 @@
             <td><div class="fw-semibold" style="color:#1a1a2e;">{{ s.nom }}</div></td>
             <td style="color:#495057;">{{ s.description or 'N/A' }}</td>
             <td><span class="badge bg-info text-dark" style="font-weight:500;">{{ s.produits|length }}</span></td>
+            <td>
+              {% if s.points_fidelite is not none %}
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ s.points_fidelite }} pts</span>
+              {% else %}
+              <span class="text-muted small">Aucune règle</span>
+              {% endif %}
+            </td>
             <td>
               <div class="action-group">
                 <a href="{{ url_for('admin.list_produits_by_section', id=s.id) }}" class="btn btn-outline-success btn-action" title="Voir les produits">
@@ -340,6 +351,14 @@
         <div class="mb-3">
           <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Description</h6>
           <p style="font-size:0.9rem;">{{ s.description or 'Aucune description.' }}</p>
+        </div>
+        <div class="mb-3">
+          <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Points fidélité</h6>
+          {% if s.points_fidelite is not none %}
+          <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ s.points_fidelite }} pts/unité</span>
+          {% else %}
+          <p class="text-muted small mb-0">Aucune règle définie sur cette section (les produits concernés utilisent la règle du niveau suivant dans la hiérarchie fidélité, si elle existe).</p>
+          {% endif %}
         </div>
         <div class="mb-3">
           <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Produits associés ({{ s.produits|length }})</h6>

@@ -79,7 +79,9 @@ def ensure_database_schema(app):
                 ('solde_groupe_avant', 'FLOAT DEFAULT 0'),
                 ('solde_groupe_apres', 'FLOAT DEFAULT 0'),
                 # Programme de fidelite : points gagnes sur cette vente.
-                ('points_gagnes', 'INTEGER DEFAULT 0')
+                ('points_gagnes', 'INTEGER DEFAULT 0'),
+                # Solde total de points fidelite du client juste apres cette vente.
+                ('points_totaux_apres', 'INTEGER DEFAULT 0')
             ],
             'vente_lignes': [
                 ('numero_vente', 'VARCHAR(80)'),
@@ -100,7 +102,9 @@ def ensure_database_schema(app):
                 ('prix_achat_unitaire', 'FLOAT'),
                 # Lot reellement scanne (code_suivi) : sortie de stock precise au lot
                 # physiquement vendu plutot qu'au FEFO arbitraire. NULL si pas de scan.
-                ('stock_code_suivi', 'VARCHAR(255)')
+                ('stock_code_suivi', 'VARCHAR(255)'),
+                # Points fidelite par unite au moment de la vente (snapshot).
+                ('produit_points_fidelite', 'INTEGER')
             ],
             'stock_exit_logs': [
                 # Snapshot du prix d'achat au moment de la sortie (formule benefice/TVA

@@ -40,6 +40,10 @@ class Vente(db.Model):
     # cadeau) est une action independante sur la fiche client, pas un mode de
     # paiement de la vente elle-meme.
     points_gagnes = db.Column(db.Integer, nullable=False, default=0)
+    # Solde total de points fidelite du client juste apres cette vente (snapshot
+    # historique, comme solde_client_apres) : reste fixe meme si le client
+    # gagne/echange des points sur des ventes ulterieures.
+    points_totaux_apres = db.Column(db.Integer, nullable=False, default=0)
 
     auteur_id = db.Column(db.Integer, nullable=True)
     auteur_nom = db.Column(db.String(100))
@@ -88,6 +92,12 @@ class VenteLigne(db.Model):
     produit_conditionnement = db.Column(db.Integer)
     produit_codes_suivi = db.Column(db.Text)
     produit_dates_peremption = db.Column(db.Text)
+    # Points fidelite par unite (Produit.points_fidelite_effectif) au moment de la
+    # vente (snapshot, comme produit_famille/produit_rayon) : permet de savoir si
+    # cette ligne etait soumise au programme de fidelite, independamment du fait
+    # que les points aient reellement ete credites (voir Vente.points_gagnes, qui
+    # depend aussi du client selectionne et de l'activation globale du programme).
+    produit_points_fidelite = db.Column(db.Integer, nullable=True)
     # Lot (Stock.code_suivi) reellement scanne pour cette ligne, quand connu (scan
     # camera/douchette) : permet de sortir le stock du lot physiquement vendu plutot
     # que du lot le plus proche de la peremption (FEFO) choisi arbitrairement parmi

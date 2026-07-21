@@ -467,6 +467,9 @@
         <span class="amount-benefice">Bénéf <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
         <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
         <span class="text-success">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
+        {% if vente.points_gagnes %}
+        <span class="text-warning">Pts <strong>{{ vente.points_gagnes }}</strong></span>
+        {% endif %}
       </div>
     </div>
     {% else %}
@@ -489,6 +492,7 @@
           <th class="text-end" title="Marge liée au coefficient produit">Bénéfice</th>
           <th class="text-end" title="TVA effective appliquée">TVA</th>
           <th class="text-end">TTC</th>
+          <th class="text-end col-points" title="Points fidélité gagnés sur cette vente">Points</th>
           <th class="text-end col-soldes">Soldes</th>
           <th class="text-end col-rendu">Rendu</th>
           <th class="col-auteur">Auteur</th>
@@ -514,6 +518,7 @@
           <td class="text-end fw-semibold amount-benefice" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_benefice) }}</td>
           <td class="text-end fw-semibold amount-tva" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_tva_reelle) }}</td>
           <td class="text-end fw-bold text-success" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_ttc) }}</td>
+          <td class="text-end col-points">{{ vente.points_gagnes if vente.points_gagnes else '-' }}</td>
           <td class="text-end col-soldes">
             <div class="cell-sub">Client: {{ "%.2f"|format(vente.montant_solde_client) }}</div>
             <div class="cell-sub">Groupe: {{ "%.2f"|format(vente.montant_solde_groupe) }}</div>
@@ -527,7 +532,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="11" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
+        <tr><td colspan="12" class="text-center py-4 text-muted">Aucune vente enregistree.</td></tr>
         {% endfor %}
       </tbody>
     </table>

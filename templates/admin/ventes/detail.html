@@ -50,6 +50,8 @@
   }
   .rate-badge-coef { background: #eef3fc; color: #1a5fb4; }
   .rate-badge-tva { background: #fdf1e0; color: #a5670a; }
+  .rate-badge-fid { background: #eafaf1; color: #1e8e3e; }
+  .rate-badge-fid-off { background: #f1f3f5; color: #6c757d; }
   .amount-benefice { color: #1e8e3e; }
   .amount-tva { color: #a5670a; }
 
@@ -167,7 +169,15 @@
                             <span>Heure: {{ vente.created_at.strftime('%H:%M') }}</span>
                         </div>
                         <div>Vendeur: {{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
+                        {% if vente.client_matricule %}
                         <div>Client: {{ vente.client_label }}</div>
+                        {% endif %}
+                        {% if fidelite_active and vente.points_gagnes %}
+                        <div>Points fidélité gagnés: {{ vente.points_gagnes }}</div>
+                        {% endif %}
+                        {% if fidelite_active and vente.client_matricule %}
+                        <div>Total points fidélité client: {{ vente.points_totaux_apres }}</div>
+                        {% endif %}
                     </div>
                     <table class="receipt-table small">
                         <thead>
@@ -277,6 +287,13 @@
             <div class="mt-1 d-flex gap-1">
                 <span class="rate-badge rate-badge-coef">x{{ "%.2f"|format(ligne.coefficient_applique) }}</span>
                 <span class="rate-badge rate-badge-tva">TVA {{ "%g"|format(ligne.tva_pourcentage) }}%</span>
+                {% if ligne.produit_points_fidelite is none %}
+                <span class="rate-badge rate-badge-fid-off">Fidélité inconnue</span>
+                {% elif ligne.produit_points_fidelite > 0 %}
+                <span class="rate-badge rate-badge-fid">★ {{ ligne.produit_points_fidelite }} pt{{ 's' if ligne.produit_points_fidelite > 1 else '' }}/u</span>
+                {% else %}
+                <span class="rate-badge rate-badge-fid-off">Sans points</span>
+                {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
                 <span>PU HT <strong>{{ "%.2f"|format(ligne.prix_unitaire_ht) }}</strong></span>
@@ -320,6 +337,13 @@
                         <div class="mt-1 d-flex gap-1">
                             <span class="rate-badge rate-badge-coef" title="Coefficient applique au moment de la vente">x{{ "%.2f"|format(ligne.coefficient_applique) }}</span>
                             <span class="rate-badge rate-badge-tva" title="TVA effective appliquee">TVA {{ "%g"|format(ligne.tva_pourcentage) }}%</span>
+                            {% if ligne.produit_points_fidelite is none %}
+                            <span class="rate-badge rate-badge-fid-off" title="Vente anterieure au suivi des points fidelite par ligne">Fidélité inconnue</span>
+                            {% elif ligne.produit_points_fidelite > 0 %}
+                            <span class="rate-badge rate-badge-fid" title="Points fidelite par unite au moment de la vente">★ {{ ligne.produit_points_fidelite }} pt{{ 's' if ligne.produit_points_fidelite > 1 else '' }}/u</span>
+                            {% else %}
+                            <span class="rate-badge rate-badge-fid-off" title="Aucune regle de points fidelite sur ce produit au moment de la vente">Sans points</span>
+                            {% endif %}
                         </div>
                     </td>
                     <td class="cell-sub col-detail">
@@ -375,7 +399,9 @@ document.addEventListener('DOMContentLoaded', function () {
         date: {{ (vente.created_at.strftime('%d/%m/%Y') if vente.created_at else '-')|tojson }},
         heure: {{ (vente.created_at.strftime('%H:%M') if vente.created_at else '-')|tojson }},
         vendeur: {{ ((vente.auteur_prenom or '') ~ ' ' ~ (vente.auteur_nom or ''))|tojson }},
-        client: {{ vente.client_label|tojson }},
+        client: {{ (vente.client_label if vente.client_matricule else '')|tojson }},
+        points: {{ (vente.points_gagnes if (fidelite_active and vente.points_gagnes) else '')|tojson }},
+        pointsTotaux: {{ (vente.points_totaux_apres if (fidelite_active and vente.client_matricule) else '')|tojson }},
         lignes: [
             {% for ligne in vente.lignes %}
             {

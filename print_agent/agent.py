@@ -136,7 +136,12 @@ def build_receipt_bytes(receipt):
     b.align('left')
     b.row('Date: ' + str(receipt.get('date') or ''), 'Heure: ' + str(receipt.get('heure') or ''))
     b.line('Vendeur: ' + str(receipt.get('vendeur') or ''))
-    b.line('Client: ' + str(receipt.get('client') or ''))
+    if receipt.get('client'):
+        b.line('Client: ' + str(receipt['client']))
+    if receipt.get('points'):
+        b.line('Points fidelite gagnes: ' + str(receipt['points']))
+    if receipt.get('pointsTotaux'):
+        b.line('Total points fidelite client: ' + str(receipt['pointsTotaux']))
     b.hr('-')
     for ligne in receipt.get('lignes') or []:
         b.line(ligne.get('nom', ''))

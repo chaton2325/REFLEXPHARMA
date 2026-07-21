@@ -85,6 +85,7 @@
   .cell-sub { font-size: 0.7rem; color: #7a8896; }
   .diff-block { font-size: 0.72rem; }
   .diff-block .diff-key { color: #7a8896; }
+  .badge-fidelite-cadeau { background: #8b5cf6; color: #fff; }
 
   #mobileHistoryList > .mobile-card:nth-child(odd) { background: #f7fafd; }
   #mobileHistoryList > .mobile-card:nth-child(even) { background: #ffffff; }
@@ -125,6 +126,13 @@
 {% endblock %}
 
 {% block content %}
+{% set action_labels = {
+  'create': 'Création',
+  'edit': 'Modification',
+  'delete': 'Suppression',
+  'fidelite_conversion_solde': 'Conversion en solde',
+  'fidelite_echange_cadeau': 'Échange cadeau'
+} %}
 <div class="page-header">
   <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
@@ -224,6 +232,8 @@
           <option value="create">Création</option>
           <option value="edit">Modification</option>
           <option value="delete">Suppression</option>
+          <option value="fidelite_conversion_solde">Fidélité : conversion en solde</option>
+          <option value="fidelite_echange_cadeau">Fidélité : échange cadeau</option>
         </select>
       </div>
       <div class="col-6 col-md-2">
@@ -271,8 +281,8 @@
           <span class="badge {% if log.entity_type == 'client' %}bg-primary{% else %}bg-info text-dark{% endif %}">
             {{ 'Client' if log.entity_type == 'client' else 'Groupe' }}
           </span>
-          <span class="badge {% if log.action == 'delete' %}bg-danger{% elif log.action == 'edit' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-            {{ log.action }}
+          <span class="badge {% if log.action == 'delete' %}bg-danger{% elif log.action == 'edit' %}bg-warning text-dark{% elif log.action == 'fidelite_conversion_solde' %}bg-info text-dark{% elif log.action == 'fidelite_echange_cadeau' %}badge-fidelite-cadeau{% else %}bg-success{% endif %}">
+            {{ action_labels.get(log.action, log.action) }}
           </span>
         </div>
       </div>
@@ -335,8 +345,8 @@
             </span>
           </td>
           <td>
-            <span class="badge {% if log.action == 'delete' %}bg-danger{% elif log.action == 'edit' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-              {{ log.action }}
+            <span class="badge {% if log.action == 'delete' %}bg-danger{% elif log.action == 'edit' %}bg-warning text-dark{% elif log.action == 'fidelite_conversion_solde' %}bg-info text-dark{% elif log.action == 'fidelite_echange_cadeau' %}badge-fidelite-cadeau{% else %}bg-success{% endif %}">
+              {{ action_labels.get(log.action, log.action) }}
             </span>
           </td>
           <td>{{ log.reference or '-' }}</td>

@@ -253,8 +253,11 @@
           <div style="flex:1;min-width:0;">
             <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ r.nom }}</div>
             <div class="text-muted" style="font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.description or 'Aucune description' }}</div>
-            <div class="mt-2">
+            <div class="mt-2 d-flex flex-wrap gap-1">
               <span class="badge bg-info text-dark" style="font-weight:500;">{{ r.produits|length }} produit(s)</span>
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;">
+                <i class="fas fa-star me-1"></i>{% if r.points_fidelite is not none %}{{ r.points_fidelite }} pts{% else %}Aucune règle{% endif %}
+              </span>
             </div>
           </div>
           <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#detailsModal{{ r.id }}" title="Détails">
@@ -284,6 +287,7 @@
             <th>Nom du Rayon</th>
             <th>Description</th>
             <th>Produits</th>
+            <th>Points fidélité</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -298,6 +302,13 @@
             <td><div class="fw-semibold" style="color:#1a1a2e;">{{ r.nom }}</div></td>
             <td style="color:#495057;">{{ r.description or 'N/A' }}</td>
             <td><span class="badge bg-info text-dark" style="font-weight:500;">{{ r.produits|length }}</span></td>
+            <td>
+              {% if r.points_fidelite is not none %}
+              <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ r.points_fidelite }} pts</span>
+              {% else %}
+              <span class="text-muted small">Aucune règle</span>
+              {% endif %}
+            </td>
             <td>
               <div class="action-group">
                 <a href="{{ url_for('admin.list_produits_by_rayon', id=r.id) }}" class="btn btn-outline-success btn-action" title="Voir les produits">
@@ -340,6 +351,14 @@
         <div class="mb-3">
           <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Description</h6>
           <p style="font-size:0.9rem;">{{ r.description or 'Aucune description.' }}</p>
+        </div>
+        <div class="mb-3">
+          <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Points fidélité</h6>
+          {% if r.points_fidelite is not none %}
+          <span class="badge" style="background:#8b5cf6;color:#fff;font-weight:500;"><i class="fas fa-star me-1"></i>{{ r.points_fidelite }} pts/unité</span>
+          {% else %}
+          <p class="text-muted small mb-0">Aucune règle définie sur ce rayon (les produits concernés utilisent la règle du niveau suivant dans la hiérarchie fidélité, si elle existe).</p>
+          {% endif %}
         </div>
         <div class="mb-3">
           <h6 class="text-muted text-uppercase small fw-semibold mb-2" style="letter-spacing:0.5px;">Produits associés ({{ r.produits|length }})</h6>

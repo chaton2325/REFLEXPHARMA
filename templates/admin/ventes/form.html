@@ -1203,7 +1203,9 @@
                             <span>Heure: <span id="previewTime"></span></span>
                         </div>
                         <div>Vendeur: <span id="previewVendeur">{{ current_user.prenom }} {{ current_user.nom }}</span></div>
-                        <div>Client: <span id="previewClient"></span></div>
+                        <div id="previewClientRow" class="d-none">Client: <span id="previewClient"></span></div>
+                        <div id="previewPointsRow" class="d-none">Points fidélité à gagner: <span id="previewPoints"></span></div>
+                        <div id="previewPointsTotalRow" class="d-none">Total points fidélité client: <span id="previewPointsTotal"></span></div>
                     </div>
                     <table class="receipt-table small">
                         <thead>
@@ -1589,6 +1591,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div><span class="text-muted">Matricule :</span> ${escapeHtml(selectedClient.dataset.clientMatricule || '-')}</div>
             <div><span class="text-muted">Contact :</span> ${escapeHtml(selectedClient.dataset.clientPhone || '-')} / ${escapeHtml(selectedClient.dataset.clientEmail || '-')}</div>
             <div><span class="text-muted">Groupe :</span> ${escapeHtml(selectedClient.dataset.groupe || 'Aucun groupe')}</div>
+            <div><span class="text-muted">Points fidélité :</span> ${Math.round(toNumber(selectedClient.dataset.pointsFidelite))}</div>
         `;
     }
 
@@ -1646,6 +1649,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (fieldById('useGroupBalance')) {
                 fieldById('useGroupBalance').checked = false;
             }
+        } else {
+            // « À payer » doit toujours absorber automatiquement ce qu'il reste une fois
+            // la part groupe et le solde client déduits, y compris quand le panier change
+            // (ajout/retrait d'article, quantité) après la sélection du client.
+            const amountClientBalanceValue = toNumber(fieldById('amountClientBalance').value);
+            fieldById('amountExternal').value = Math.max(remainingAfterGroup - amountClientBalanceValue, 0).toFixed(2);
         }
         const amountExternal = toNumber(fieldById('amountExternal').value);
         const amountClientBalance = toNumber(fieldById('amountClientBalance').value);
@@ -1800,6 +1809,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showProductInfo(option) {
         if (!option) return;
+        const pointsFidelite = Math.round(toNumber(option.dataset.pointsFidelite));
+        const pointsBadge = pointsFidelite > 0
+            ? `<span class="badge bg-success"><i class="fas fa-star me-1"></i>${pointsFidelite} point${pointsFidelite > 1 ? 's' : ''} / unité</span>`
+            : `<span class="badge bg-secondary">Aucun point fidélité</span>`;
         document.getElementById('productInfoTitle').textContent = getOptionTitle(option);
         document.getElementById('productInfoBody').innerHTML = `
             <div class="row g-3">
@@ -1818,6 +1831,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="col-md-4"><div class="text-muted small">Rayon</div><div>${escapeHtml(option.dataset.rayon || '-')}</div></div>
                 <div class="col-md-4"><div class="text-muted small">Famille</div><div>${escapeHtml(option.dataset.famille || '-')}</div></div>
                 <div class="col-md-4"><div class="text-muted small">Section</div><div>${escapeHtml(option.dataset.section || '-')}</div></div>
+                <div class="col-12"><div class="text-muted small">Fidélité</div><div>${pointsBadge}</div></div>
             </div>
         `;
         bootstrap.Modal.getOrCreateInstance(document.getElementById('productInfoModal')).show();
@@ -1852,7 +1866,18 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('previewTime').textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
         const selectedClient = clientSelect.options[clientSelect.selectedIndex] || clientSelect.options[0];
-        document.getElementById('previewClient').textContent = selectedClient.value ? (selectedClient.dataset.clientName || selectedClient.textContent) : 'Client comptoir';
+        document.getElementById('previewClientRow').classList.toggle('d-none', !selectedClient.value);
+        if (selectedClient.value) {
+            document.getElementById('previewClient').textContent = selectedClient.dataset.clientName || selectedClient.textContent;
+        }
+
+        const pointsToEarn = Math.round(toNumber(fieldById('pointsToEarn')?.textContent));
+        document.getElementById('previewPointsRow').classList.toggle('d-none', !(FIDELITE_ACTIVE && selectedClient.value && pointsToEarn > 0));
+        document.getElementById('previewPoints').textContent = pointsToEarn;
+
+        const pointsTotal = Math.round(toNumber(selectedClient.dataset.pointsFidelite)) + pointsToEarn;
+        document.getElementById('previewPointsTotalRow').classList.toggle('d-none', !(FIDELITE_ACTIVE && selectedClient.value));
+        document.getElementById('previewPointsTotal').textContent = pointsTotal;
 
         const linesBody = document.getElementById('previewLines');
         linesBody.innerHTML = '';
@@ -1907,6 +1932,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const AUTO_PRINT_ENABLED = {{ 'true' if auto_print_enabled else 'false' }};
+    const FIDELITE_ACTIVE = {{ 'true' if fidelite_active else 'false' }};
 
     function buildReceiptDataFromPreview() {
         const lignes = Array.from(document.querySelectorAll('#previewLines tr')).map((tr) => {
@@ -1924,7 +1950,9 @@ document.addEventListener('DOMContentLoaded', function() {
             date: document.getElementById('previewDate').textContent.trim(),
             heure: document.getElementById('previewTime').textContent.trim(),
             vendeur: document.getElementById('previewVendeur').textContent.trim(),
-            client: document.getElementById('previewClient').textContent.trim(),
+            client: document.getElementById('previewClientRow').classList.contains('d-none') ? '' : document.getElementById('previewClient').textContent.trim(),
+            points: document.getElementById('previewPointsRow').classList.contains('d-none') ? '' : document.getElementById('previewPoints').textContent.trim(),
+            pointsTotaux: document.getElementById('previewPointsTotalRow').classList.contains('d-none') ? '' : document.getElementById('previewPointsTotal').textContent.trim(),
             lignes: lignes,
             totalTtc: document.getElementById('previewTotalTtc').textContent.trim(),
             modePaiement: document.getElementById('previewModePaiement').textContent.trim(),

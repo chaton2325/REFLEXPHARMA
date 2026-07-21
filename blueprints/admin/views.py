@@ -2330,6 +2330,7 @@ def create_vente():
                 produit_conditionnement=produit.conditionnement or 1,
                 produit_codes_suivi=' | '.join(stock_tracking_codes.get(produit.id, [])),
                 produit_dates_peremption=' | '.join(stock_expiry_dates.get(produit.id, [])),
+                produit_points_fidelite=produit.points_fidelite_effectif,
                 stock_code_suivi=preferred_code_suivi,
                 stock_unite_avant=float(stock_summary.get('unite', 0) or 0),
                 stock_sous_unite_avant=float(stock_summary.get('sous_unite', 0) or 0),
@@ -2419,6 +2420,7 @@ def create_vente():
             client.points_fidelite = (client.points_fidelite or 0) + points_gagnes_total
 
         vente.points_gagnes = points_gagnes_total if client else 0
+        vente.points_totaux_apres = client.points_fidelite if client else 0
         vente.total_ht = total_ht
         vente.total_tva = total_tva
         vente.total_ttc = total_ttc
@@ -2444,7 +2446,8 @@ def create_vente():
         stock_expiry_dates=stock_expiry_dates,
         suggested_numero=generate_numero_vente(),
         pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
-        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true'
+        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true',
+        fidelite_active=fidelite.is_active()
     )
 
 @admin.route('/ventes/validate-password', methods=['POST'])
@@ -2463,7 +2466,8 @@ def detail_vente(id):
         'admin/ventes/detail.html',
         vente=vente,
         pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
-        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true'
+        auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true',
+        fidelite_active=fidelite.is_active()
     )
 
 @admin.route('/clients/<int:id>/achats')
@@ -2500,6 +2504,7 @@ def export_client_purchase_history_excel(id):
             'Prélevé solde client': vente.montant_solde_client or 0,
             'Prélevé solde groupe': vente.montant_solde_groupe or 0,
             'Mode de paiement': vente.mode_paiement,
+            'Points fidélité gagnés': vente.points_gagnes or 0,
         })
 
     output = io.BytesIO()
@@ -2509,7 +2514,7 @@ def export_client_purchase_history_excel(id):
         worksheet['A1'] = f'Historique des achats - {client.nom_complet}'
         worksheet['A2'] = f'Matricule : {client.matricule} | Groupe : {client.groupe.nom if client.groupe else "-"}'
         worksheet['A3'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom}'
-        worksheet['A4'] = f'Achats : {len(rows)} | Total TTC : {sum(v.total_ttc or 0 for v in ventes):.2f} | Solde actuel : {client.solde:.2f}'
+        worksheet['A4'] = f'Achats : {len(rows)} | Total TTC : {sum(v.total_ttc or 0 for v in ventes):.2f} | Solde actuel : {client.solde:.2f} | Points fidélité : {client.points_fidelite or 0}'
         header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF')
         thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
@@ -2562,13 +2567,14 @@ def export_client_purchase_history_pdf(id):
     ]
 
     summary_data = [[
-        'Nombre d\'achats', 'Total TTC cumulé', 'Solde actuel du client'
+        'Nombre d\'achats', 'Total TTC cumulé', 'Solde actuel du client', 'Points fidélité'
     ], [
         str(len(ventes)),
         f'{total_ttc:.2f}',
-        f'{client.solde:.2f}'
+        f'{client.solde:.2f}',
+        str(client.points_fidelite or 0)
     ]]
-    summary_table = Table(summary_data, colWidths=[178, 178, 178])
+    summary_table = Table(summary_data, colWidths=[133, 133, 133, 135])
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2583,7 +2589,7 @@ def export_client_purchase_history_pdf(id):
     elements.append(summary_table)
     elements.append(Spacer(1, 14))
 
-    data = [['Date', 'Vente', 'Produits achetés', 'TTC', 'Payé', 'Solde client', 'Solde groupe']]
+    data = [['Date', 'Vente', 'Produits achetés', 'TTC', 'Payé', 'Solde client', 'Solde groupe', 'Points']]
     for vente in ventes:
         produits_str = '\n'.join(f"{l.produit_nom} x{l.quantite:g}{l.unite}" for l in vente.lignes)
         data.append([
@@ -2594,9 +2600,10 @@ def export_client_purchase_history_pdf(id):
             f'{vente.montant_hors_solde or 0:.2f}',
             f'{vente.montant_solde_client or 0:.2f}',
             f'{vente.montant_solde_groupe or 0:.2f}',
+            str(vente.points_gagnes or 0),
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[60, 75, 195, 50, 45, 55, 55])
+    table = Table(data, repeatRows=1, colWidths=[55, 70, 165, 45, 40, 50, 50, 40])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
