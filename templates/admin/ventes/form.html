@@ -1976,6 +1976,21 @@ document.addEventListener('DOMContentLoaded', function() {
         window.print();
     }
 
+    // Focus automatique sur le mot de passe des que la fenetre de confirmation
+    // s'affiche (clic sur Enregistrer ou raccourci F8, voir plus bas) : evite un
+    // clic supplementaire avant de pouvoir taper le mot de passe.
+    document.getElementById('receiptPreviewModal').addEventListener('shown.bs.modal', function() {
+        document.getElementById('modalValidationPassword').focus();
+    });
+
+    // Entree dans le champ mot de passe = meme action que le bouton "Imprimer et
+    // Enregistrer" (F8 est gere globalement plus bas, avec la meme cible).
+    document.getElementById('modalValidationPassword').addEventListener('keydown', function(event) {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        document.getElementById('confirmAndPrintBtn').click();
+    });
+
     document.getElementById('confirmAndPrintBtn').addEventListener('click', function() {
         const passwordInput = document.getElementById('modalValidationPassword');
         const passwordError = document.getElementById('modalPasswordError');
@@ -2035,6 +2050,29 @@ document.addEventListener('DOMContentLoaded', function() {
         filterSelectOptions(clientSelect, clientSearchInput.value);
         clientSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
+
+    // Reconnaissance d'une carte de fidelite scannee (douchette ou camera) : les
+    // clients sont deja tous charges dans #clientSelect (voir data-client-matricule
+    // sur chaque <option>), donc la resolution se fait localement, sans aller-retour
+    // serveur. Renvoie true si un client correspond (et le selectionne), false sinon
+    // — auquel cas l'appelant doit traiter le code comme un scan produit classique.
+    //
+    // Ne fait AUCUNE manipulation du scroll/DOM au-dela de la selection elle-meme :
+    // cette fonction est aussi appelee depuis le scan camera (voir plus bas,
+    // window.ReflexSelectScannedClient), pendant que la modale de scan est ouverte —
+    // un scrollIntoView() sur la page principale, cachee derriere la modale, avait
+    // deja fige le flux video de la camera sur mobile (meme fragilite que celle
+    // documentee plus bas sur pause()/resume() du scanner).
+    function selectScannedClient(code) {
+        const option = Array.from(clientSelect.options).find(
+            (opt) => opt.dataset.clientMatricule && opt.dataset.clientMatricule === code
+        );
+        if (!option) return false;
+        selectClientFromTree(option.value);
+        return true;
+    }
+    // Expose pour le bloc de script du scanner camera (portee separee, voir plus bas).
+    window.ReflexSelectScannedClient = selectScannedClient;
 
     function refreshRemoveButtons() {
         const buttons = Array.from(document.querySelectorAll('.remove-line'));
@@ -2334,6 +2372,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const looksLikeScan = value.length >= 5 && avgMsPerChar < 40;
         if (!looksLikeScan) return;
         event.preventDefault();
+
+        // Meme point de saisie que les produits : une carte de fidelite scannee ici
+        // selectionne directement le client au lieu d'aller chercher un produit.
+        if (selectScannedClient(value)) {
+            input.value = '';
+            input.classList.remove('is-invalid');
+            const meta = document.getElementById('clientSelectedMeta');
+            if (meta) meta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
         const line = input.closest('.sale-line');
         fetch(`{{ url_for('admin.vente_scan_lookup') }}?code=${encodeURIComponent(value)}`)
             .then((response) => response.json())
@@ -2398,6 +2447,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         showReceiptPreview();
     });
+
+    // Raccourci clavier F8 : ouvre la fenetre de confirmation (comme un clic sur
+    // "Enregistrer", donc uniquement si le paiement est complet — voir isReadyToSubmit
+    // dans updateSaleSummary) puis, si la fenetre est deja ouverte, valide directement
+    // la vente (comme le bouton "Imprimer et Enregistrer"). Fonctionne depuis
+    // n'importe quel champ de la page pour ne pas obliger a cliquer d'abord.
+    document.addEventListener('keydown', function(event) {
+        if (event.key !== 'F8') return;
+        event.preventDefault();
+
+        const receiptModalEl = document.getElementById('receiptPreviewModal');
+        if (receiptModalEl.classList.contains('show')) {
+            document.getElementById('confirmAndPrintBtn').click();
+            return;
+        }
+
+        const submitBtn = document.querySelector('.action-bar button[type="submit"]');
+        if (submitBtn && !submitBtn.disabled) {
+            submitBtn.click();
+        }
+    });
+
     filterSelectOptions(clientSelect, '');
     document.querySelectorAll('.product-select').forEach((select) => filterSelectOptions(select, '', true));
     refreshRemoveButtons();
@@ -2479,6 +2550,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (processing) return;
         lastScannedCode = code;
         lastScannedAt = now;
+
+        // Carte de fidelite client : resolue localement (voir selectScannedClient
+        // dans le bloc de script principal), sans appel serveur ni etat "processing"
+        // puisqu'il n'y a rien d'asynchrone a attendre.
+        if (typeof window.ReflexSelectScannedClient === 'function' && window.ReflexSelectScannedClient(code)) {
+            showAlert('<i class="fas fa-id-card me-1"></i> Client sélectionné via sa carte de fidélité. Continuez à scanner ou fermez la fenêtre.', 'success');
+            return;
+        }
+
         processing = true;
         showAlert('Recherche du produit...', 'info');
         showScanLoading();
