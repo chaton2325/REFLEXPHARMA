@@ -34,6 +34,7 @@ from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta, date
 from collections import defaultdict
+from types import SimpleNamespace
 import secrets
 import json
 from urllib.parse import quote
@@ -47,7 +48,7 @@ from utils import fidelite
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
-from .carte_fidelite_pdf import build_cartes_fidelite_pdf
+from .carte_fidelite_render import build_cartes_fidelite_pdf, build_carte_fidelite_png
 from .finance_reports import (
     compute_solde_actuel, query_operations_financieres, label_periode_dates,
     build_operations_financieres_pdf, build_operations_financieres_excel
@@ -681,11 +682,15 @@ def client_snapshot(client):
         'groupe': client.groupe.nom if client.groupe else None
     }
 
-def _send_client_welcome_email(email, prenom, nom, matricule):
+def _send_client_welcome_email(email, prenom, nom, matricule, telephone, created_at):
     """E-mail de bienvenue envoye a la creation d'un client. Ne fait rien (au lieu
     de lever une exception) si les notifications SMTP sont desactivees ou non
     configurees : c'est ce qui rend l'envoi non-bloquant en l'absence d'internet,
-    combine a l'appel via send_async() qui tourne dans un thread separe."""
+    combine a l'appel via send_async() qui tourne dans un thread separe.
+
+    Recoit des valeurs primitives (pas l'objet Client) : send_async() execute cette
+    fonction dans un thread separe avec son propre contexte applicatif, l'instance
+    ORM d'origine ne serait plus attachee a une session valide a ce moment-la."""
     if not notifications_enabled() or not is_smtp_configured():
         return
     pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
@@ -695,10 +700,24 @@ def _send_client_welcome_email(email, prenom, nom, matricule):
         f"Votre compte client a bien ete cree chez {pharmacy_name}.",
         f"Matricule : {matricule}",
     ]
+    attachments = []
     if fidelite.is_active():
         lignes += ["", "Vous cumulez desormais des points de fidelite a chaque achat, echangeables contre des reductions."]
+        lignes += ["", "Votre carte de fidelite (avec votre QR code personnel) est jointe a cet e-mail."]
+        carte_client = SimpleNamespace(
+            nom=nom, prenom=prenom, matricule=matricule, telephone=telephone,
+            email=email, created_at=created_at
+        )
+        attachments.append((
+            f'carte_fidelite_{matricule}.png',
+            build_carte_fidelite_png(carte_client, pharmacy_name),
+            'image/png'
+        ))
     lignes += ["", "Merci de votre confiance."]
-    send_email(to=email, subject=f"Bienvenue chez {pharmacy_name}", body="\n".join(lignes))
+    send_email(
+        to=email, subject=f"Bienvenue chez {pharmacy_name}", body="\n".join(lignes),
+        attachments=attachments or None
+    )
 
 def groupe_client_snapshot(groupe):
     return {
@@ -1015,7 +1034,8 @@ def create_client():
             send_async(
                 current_app._get_current_object(),
                 _send_client_welcome_email,
-                client.email, client.prenom, client.nom, client.matricule
+                client.email, client.prenom, client.nom, client.matricule,
+                client.telephone, client.created_at
             )
         flash('Client ajoutÃ© avec succÃ¨s.', 'success')
         return redirect(url_for('admin.list_clients'))

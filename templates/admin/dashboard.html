@@ -797,6 +797,22 @@
   </div>
   {% endif %}
 
+  {% if current_user.has_permission('gestion_fidelite') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-4">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fce4ec,#f8d7e3);color:#c2185b;">
+        <i class="fas fa-gift"></i>
+      </div>
+      <h5>Programme de fidélité</h5>
+      <p>Gérez le catalogue de cadeaux échangeables contre des points et le suivi des cartes de fidélité.</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin.list_cadeaux_fidelite') }}" class="btn btn-outline-danger btn-sm" style="border-color:#c2185b;color:#c2185b;">Cadeaux</a>
+        <a href="{{ url_for('admin.list_cartes_fidelite') }}" class="btn btn-outline-danger btn-sm" style="border-color:#c2185b;color:#c2185b;">Cartes</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if current_user.has_permission('stats_sorties_stock') %}
   <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-4">
     <div class="feature-card">

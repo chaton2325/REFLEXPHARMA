@@ -1,11 +1,16 @@
-"""Construction du PDF des cartes de fidélité (format ID-1, 85.6 x 54 mm), envoyé en
-pièce jointe à l'imprimeur lors d'une demande d'impression. Une carte par client,
-plusieurs cartes par page en grille centrée automatiquement sur la page A4.
+"""Rendu de la carte de fidélité (format ID-1, 85.6 x 54 mm) sous deux formes :
+
+- PDF (build_cartes_fidelite_pdf) : pièce jointe envoyée à l'imprimeur lors d'une
+  demande d'impression groupée, une carte par client, plusieurs cartes par page.
+- PNG (build_carte_fidelite_png) : image unique jointe à l'e-mail de bienvenue d'un
+  client, quand le programme de fidélité est actif.
 
 Le dégradé (voir _card_gradient_image) reproduit fidèlement, en direction ET en
 couleurs, celui utilisé dans l'aperçu HTML de la carte (linear-gradient(135deg, ...)
-dans templates/admin/clients/carte_fidelite_apercu.html) : les deux rendus doivent
-rester visuellement identiques, seul le moteur de dessin diffère (CSS vs PDF)."""
+dans templates/admin/clients/carte_fidelite_apercu.html) : les trois rendus doivent
+rester visuellement proches, seul le moteur de dessin diffère (CSS / PDF / PNG)."""
+
+import os
 
 from reportlab.lib import colors
 
@@ -15,6 +20,17 @@ CARD_HEIGHT_MM = 54.0
 # Vert -> jaune (meme degrade, meme sens 135deg, que la carte affichee dans l'app).
 _COLOR_START = colors.HexColor('#1b5e20')
 _COLOR_END = colors.HexColor('#c9a227')
+
+# Police vendorisee (DejaVu Sans, licence libre) pour le rendu PNG : contrairement a
+# la police par defaut de Pillow, elle couvre les caracteres accentues francais
+# (é, è, à...), indispensables sur "CARTE DE FIDÉLITÉ" et les noms/villes clients.
+_FONT_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'static', 'vendor', 'dejavu-fonts'
+)
+_FONT_REGULAR = os.path.join(_FONT_DIR, 'DejaVuSans.ttf')
+_FONT_BOLD = os.path.join(_FONT_DIR, 'DejaVuSans-Bold.ttf')
+_FONT_CACHE = {}
 
 _GRADIENT_IMAGE_CACHE = {}
 
@@ -223,3 +239,130 @@ def build_cartes_fidelite_pdf(target, clients, pharmacy_name):
         draw_carte_fidelite(c, x, y, client, pharmacy_name)
 
     c.save()
+
+
+def build_carte_fidelite_png(client, pharmacy_name, px_per_mm=12):
+    """Rend la carte de fidélité d'un client en PNG (bytes), pour l'envoi par e-mail.
+    Même structure, mêmes couleurs et même dégradé que le PDF imprimeur
+    (draw_carte_fidelite) et l'aperçu HTML de l'application."""
+    import io
+    import qrcode
+    from PIL import Image, ImageDraw, ImageFont
+
+    width_px = int(CARD_WIDTH_MM * px_per_mm)
+    height_px = int(CARD_HEIGHT_MM * px_per_mm)
+    radius_px = int(4 * px_per_mm)
+    pad_px = int(5 * px_per_mm)
+    mm_per_pt = 25.4 / 72.0
+
+    def px_from_pt(size_pt):
+        return max(1, round(size_pt * mm_per_pt * px_per_mm))
+
+    def font(size_pt, bold=False):
+        size_px = px_from_pt(size_pt)
+        key = (bold, size_px)
+        cached = _FONT_CACHE.get(key)
+        if cached is None:
+            cached = ImageFont.truetype(_FONT_BOLD if bold else _FONT_REGULAR, size_px)
+            _FONT_CACHE[key] = cached
+        return cached
+
+    def white_alpha(alpha):
+        return (255, 255, 255, round(alpha * 255))
+
+    def truncate(text, text_font, max_width):
+        if draw.textlength(text, font=text_font) <= max_width:
+            return text
+        while text and draw.textlength(text + '…', font=text_font) > max_width:
+            text = text[:-1].rstrip()
+        return f'{text}…' if text else '…'
+
+    background = _card_gradient_image(px_per_mm).convert('RGBA')
+    overlay = Image.new('RGBA', (width_px, height_px), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay, 'RGBA')
+
+    # Cercle décoratif (même esprit que le PDF/HTML), au-dessus du coin haut-droit.
+    circle_r = int(20 * px_per_mm)
+    circle_cx, circle_cy = width_px - int(4 * px_per_mm), -int(6 * px_per_mm)
+    draw.ellipse(
+        [circle_cx - circle_r, circle_cy - circle_r, circle_cx + circle_r, circle_cy + circle_r],
+        fill=(255, 255, 255, 18)
+    )
+
+    # Bloc QR (fond blanc, coin bas-droit) — dessiné avant le texte pour connaître la
+    # largeur disponible pour la colonne de gauche.
+    qr_size = int(19 * px_per_mm)
+    qr_box_pad = int(1.5 * px_per_mm)
+    qr_x = width_px - pad_px - qr_size
+    qr_y = height_px - pad_px - qr_size
+    draw.rounded_rectangle(
+        [qr_x - qr_box_pad, qr_y - qr_box_pad, qr_x + qr_size + qr_box_pad, qr_y + qr_size + qr_box_pad],
+        radius=int(1.5 * px_per_mm), fill=(255, 255, 255, 255)
+    )
+    qr_img = qrcode.make(client.matricule).convert('RGBA').resize((qr_size, qr_size), Image.NEAREST)
+    overlay.paste(qr_img, (qr_x, qr_y), qr_img)
+
+    left_col_width = (qr_x - qr_box_pad) - pad_px - int(2 * px_per_mm)
+
+    # En-tête : nom de la pharmacie (a gauche) + libellé (a droite), chacun retreci si
+    # besoin pour ne jamais se chevaucher quelle que soit la longueur du nom configure.
+    label_text = 'CARTE DE FIDÉLITÉ'
+    label_font = font(6)
+    label_width = draw.textlength(label_text, font=label_font)
+    header_size = 9.0
+    header_max_width = width_px - 2 * pad_px - label_width - px_from_pt(6)
+    pharmacy_text = (pharmacy_name or 'REFLEXPHARMA').upper()
+    header_font = font(header_size, bold=True)
+    while header_size > 6.5 and draw.textlength(pharmacy_text, font=header_font) > header_max_width:
+        header_size -= 0.5
+        header_font = font(header_size, bold=True)
+    pharmacy_text = truncate(pharmacy_text, header_font, header_max_width)
+
+    draw.text((pad_px, pad_px), pharmacy_text, font=header_font, fill=(255, 255, 255, 255))
+    draw.text((width_px - pad_px, pad_px), label_text, font=label_font, fill=white_alpha(0.8), anchor='ra')
+
+    sep_y = pad_px + px_from_pt(header_size) + int(1.5 * px_per_mm)
+    draw.line([(pad_px, sep_y), (width_px - pad_px, sep_y)], fill=white_alpha(0.3), width=max(1, px_per_mm // 8))
+
+    # Nom du client, taille adaptative pour ne jamais chevaucher le QR.
+    nom_complet = f'{client.prenom} {client.nom}'.strip()
+    name_size = 13.0
+    name_font = font(name_size, bold=True)
+    while name_size > 9 and draw.textlength(nom_complet, font=name_font) > left_col_width:
+        name_size -= 0.5
+        name_font = font(name_size, bold=True)
+    nom_complet = truncate(nom_complet, name_font, left_col_width)
+    name_y = sep_y + int(3 * px_per_mm)
+    draw.text((pad_px, name_y), nom_complet, font=name_font, fill=(255, 255, 255, 255))
+
+    matricule_y = name_y + px_from_pt(name_size) + int(1 * px_per_mm)
+    draw.text((pad_px, matricule_y), client.matricule, font=font(8), fill=white_alpha(0.85))
+
+    # Contact + membre depuis, ancres depuis le bas de la carte.
+    contact = client.telephone or client.email or 'Non renseigné'
+    contact_font = font(7)
+    contact_text = truncate(f'Contact : {contact}', contact_font, left_col_width)
+    date_creation = client.created_at.strftime('%d/%m/%Y') if client.created_at else '-'
+
+    membre_y = height_px - pad_px - px_from_pt(6.5)
+    contact_y = membre_y - px_from_pt(7) - int(1 * px_per_mm)
+    draw.text((pad_px, contact_y), contact_text, font=contact_font, fill=white_alpha(0.75))
+    draw.text((pad_px, membre_y), f'Membre depuis le {date_creation}', font=font(6.5), fill=white_alpha(0.6))
+
+    composed = Image.alpha_composite(background, overlay)
+
+    # Masque coins arrondis (transparence) + bordure fine, appliqués en dernier.
+    mask = Image.new('L', (width_px, height_px), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, width_px - 1, height_px - 1], radius=radius_px, fill=255)
+    composed.putalpha(mask)
+
+    border = Image.new('RGBA', (width_px, height_px), (0, 0, 0, 0))
+    ImageDraw.Draw(border).rounded_rectangle(
+        [0, 0, width_px - 1, height_px - 1], radius=radius_px,
+        outline=(26, 26, 46, 255), width=max(1, px_per_mm // 6)
+    )
+    composed = Image.alpha_composite(composed, border)
+
+    buffer = io.BytesIO()
+    composed.save(buffer, format='PNG')
+    return buffer.getvalue()
