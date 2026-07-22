@@ -33,6 +33,11 @@ from models.fournisseur import Fournisseur
 from models.groupe_fournisseur import GroupeFournisseur
 from models.client import Client
 from models.groupe_client import GroupeClient
+from models.cadeau_fidelite import CadeauFidelite
+from models.client_modification_log import ClientModificationLog
+from models.famille import Famille
+from models.rayon import Rayon
+from models.section import Section
 from models.inventaire import Inventaire, InventaireLigne
 from models.commande import Commande, CommandeLigne
 from models.declaration_impot import DeclarationImpot
@@ -45,6 +50,7 @@ from .finance_reports import (
 from models.user import User
 from models.poste import Poste
 from utils.permissions import FEATURES
+from utils import fidelite
 
 
 # ---------------------------------------------------------------------------
@@ -1273,6 +1279,224 @@ def tool_solde_total_clients_et_groupes(user):
 
 
 # ---------------------------------------------------------------------------
+# Programme de fidelite (points + catalogue de cadeaux)
+#
+# Les points sont attribues automatiquement a la vente (voir create_vente dans
+# views.py) selon les regles definies sur les produits/familles/rayons/sections
+# (Produit.points_fidelite_effectif : premiere regle non-nulle rencontree dans
+# l'ordre produit > famille > rayon > section, sans cumul). Leur utilisation
+# n'est PAS un mode de paiement en caisse : un client convertit ses points, a
+# tout moment, soit en solde client (via un taux de conversion global), soit
+# contre un cadeau du catalogue ci-dessous.
+# ---------------------------------------------------------------------------
+
+def tool_programme_fidelite_infos(user):
+    """Statut global du programme de fidelite : actif ou non, taux de conversion
+    points -> devise, et si l'echange (en solde ou en cadeau) est possible en
+    l'etat actuel de la configuration."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    taux = fidelite.get_conversion_rate()
+    return {
+        'programme_actif': fidelite.is_active(),
+        'taux_de_conversion_configure': taux['points'] > 0 and taux['valeur'] > 0,
+        'points_par_conversion': taux['points'],
+        'valeur_par_conversion': _round2(taux['valeur']),
+        'echange_actuellement_possible': fidelite.can_redeem(),
+        'nombre_cadeaux_actifs_au_catalogue': CadeauFidelite.query.filter_by(actif=True).count(),
+        'note': (
+            "Les points sont attribues automatiquement a chaque vente selon des regles definies "
+            "sur les produits/familles/rayons/sections (voir l'outil regles_points_fidelite_produits). "
+            "Un client peut ensuite echanger ses points a tout moment, soit contre du solde client "
+            "(convertis selon ce taux), soit contre un cadeau du catalogue (voir catalogue_cadeaux_fidelite) "
+            "— ce n'est jamais un mode de paiement direct au moment d'une vente."
+        ),
+    }
+
+
+def tool_catalogue_cadeaux_fidelite(user, actifs_seulement=True):
+    """Liste le catalogue de cadeaux echangeables contre des points de fidelite."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    query = CadeauFidelite.query
+    if actifs_seulement:
+        query = query.filter_by(actif=True)
+    cadeaux = query.order_by(CadeauFidelite.points_requis.asc()).all()
+    return {
+        'nombre_cadeaux': len(cadeaux),
+        'cadeaux': [
+            {
+                'cadeau': c.nom,
+                'points_requis': c.points_requis,
+                'description': c.description,
+                'actif': bool(c.actif),
+            }
+            for c in cadeaux
+        ],
+    }
+
+
+def tool_points_fidelite_client(user, recherche):
+    """Points de fidelite d'un ou plusieurs clients (recherche par nom, prenom,
+    matricule ou email), avec leur equivalent en devise si convertis en solde, et
+    les cadeaux du catalogue actif qu'ils peuvent deja s'offrir avec leur solde
+    de points actuel."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    recherche = (recherche or '').strip()
+    if not recherche:
+        raise ValueError("Le parametre 'recherche' (nom, prenom, matricule ou email) est requis.")
+
+    clients = Client.query.filter(
+        or_(
+            Client.nom.ilike(f'%{recherche}%'),
+            Client.prenom.ilike(f'%{recherche}%'),
+            Client.matricule.ilike(f'%{recherche}%'),
+            Client.email.ilike(f'%{recherche}%')
+        )
+    ).limit(5).all()
+
+    if not clients:
+        return {'trouve': False, 'message': f"Aucun client ne correspond a '{recherche}'."}
+
+    cadeaux_actifs = CadeauFidelite.query.filter_by(actif=True).order_by(CadeauFidelite.points_requis.asc()).all()
+
+    return {
+        'trouve': True,
+        'resultats': [
+            {
+                'client': c.nom_complet,
+                'matricule': c.matricule,
+                'points_fidelite': c.points_fidelite or 0,
+                'equivalent_valeur_si_converti_en_solde': _round2(fidelite.points_to_value(c.points_fidelite or 0)),
+                'cadeaux_accessibles_des_maintenant': [
+                    cd.nom for cd in cadeaux_actifs if cd.points_requis <= (c.points_fidelite or 0)
+                ],
+            }
+            for c in clients
+        ],
+    }
+
+
+def tool_top_clients_points_fidelite(user, limite=10):
+    """Classement des clients ayant le plus de points de fidelite en solde actuellement."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    limite = max(1, min(int(limite or 10), 50))
+    clients = Client.query.filter(Client.points_fidelite > 0).order_by(
+        Client.points_fidelite.desc()
+    ).limit(limite).all()
+    return {
+        'classement': [
+            {'client': c.nom_complet, 'matricule': c.matricule, 'points_fidelite': c.points_fidelite}
+            for c in clients
+        ],
+    }
+
+
+def _regle_points_produit(p):
+    if p.points_fidelite is not None:
+        return p.points_fidelite, 'regle propre au produit'
+    if p.famille and p.famille.points_fidelite is not None:
+        return p.famille.points_fidelite, f'regle heritee de la famille "{p.famille.nom}"'
+    if p.rayon and p.rayon.points_fidelite is not None:
+        return p.rayon.points_fidelite, f'regle heritee du rayon "{p.rayon.nom}"'
+    if p.section and p.section.points_fidelite is not None:
+        return p.section.points_fidelite, f'regle heritee de la section "{p.section.nom}"'
+    return 0, 'aucune regle definie a aucun niveau'
+
+
+def tool_regles_points_fidelite_produits(user, nom_produit=None):
+    """Regles d'attribution de points de fidelite : soit pour un produit precis
+    (recherche par nom/code), soit la vue d'ensemble des regles definies au niveau
+    famille/rayon/section si aucun produit n'est precise. Les points sont attribues
+    PAR UNITE achetee, avec un ordre de priorite produit > famille > rayon > section
+    (la premiere regle non-vide rencontree l'emporte, sans cumul entre niveaux)."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    nom_produit = (nom_produit or '').strip()
+
+    if nom_produit:
+        produits = Produit.query.filter(
+            or_(
+                Produit.nom.ilike(f'%{nom_produit}%'),
+                Produit.code_produit.ilike(f'%{nom_produit}%')
+            )
+        ).limit(5).all()
+        if not produits:
+            return {'trouve': False, 'message': f"Aucun produit ne correspond a '{nom_produit}'."}
+        resultats = []
+        for p in produits:
+            points, source = _regle_points_produit(p)
+            resultats.append({
+                'produit': p.nom,
+                'code_produit': p.code_produit,
+                'points_fidelite_par_unite': points,
+                'regle_appliquee': source,
+            })
+        return {'trouve': True, 'resultats': resultats}
+
+    familles = Famille.query.filter(Famille.points_fidelite.isnot(None)).order_by(Famille.nom.asc()).all()
+    rayons = Rayon.query.filter(Rayon.points_fidelite.isnot(None)).order_by(Rayon.nom.asc()).all()
+    sections = Section.query.filter(Section.points_fidelite.isnot(None)).order_by(Section.nom.asc()).all()
+    nb_produits_regle_specifique = Produit.query.filter(Produit.points_fidelite.isnot(None)).count()
+
+    return {
+        'note': (
+            "Vue d'ensemble des regles definies par niveau (aucun produit precise). Pour un "
+            "produit donne, la regle appliquee suit l'ordre produit > famille > rayon > section."
+        ),
+        'nombre_produits_avec_regle_individuelle': nb_produits_regle_specifique,
+        'regles_par_famille': [{'famille': f.nom, 'points_par_unite': f.points_fidelite} for f in familles],
+        'regles_par_rayon': [{'rayon': r.nom, 'points_par_unite': r.points_fidelite} for r in rayons],
+        'regles_par_section': [{'section': s.nom, 'points_par_unite': s.points_fidelite} for s in sections],
+    }
+
+
+def tool_historique_fidelite_client(user, recherche=None, limite=20):
+    """Historique des operations d'echange de points de fidelite (conversion en
+    solde client ou en cadeau du catalogue), les plus recentes en premier.
+    Filtrable par client (nom, prenom ou matricule) ; sans filtre, tout
+    l'historique recent."""
+    denied = _check_access(user, 'gestion_fidelite')
+    if denied:
+        return denied
+    limite = max(1, min(int(limite or 20), 100))
+    query = ClientModificationLog.query.filter(
+        ClientModificationLog.action.in_(['fidelite_conversion_solde', 'fidelite_echange_cadeau'])
+    )
+    recherche = (recherche or '').strip()
+    if recherche:
+        query = query.filter(
+            or_(
+                ClientModificationLog.label.ilike(f'%{recherche}%'),
+                ClientModificationLog.reference.ilike(f'%{recherche}%')
+            )
+        )
+    logs = query.order_by(ClientModificationLog.created_at.desc()).limit(limite).all()
+
+    return {
+        'nombre': len(logs),
+        'operations': [
+            {
+                'client': log.label,
+                'matricule': log.reference,
+                'type': 'conversion_en_solde' if log.action == 'fidelite_conversion_solde' else 'echange_cadeau',
+                'detail': log.reason,
+                'effectue_par': f'{log.user_prenom} {log.user_nom}'.strip(),
+                'date': log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else None,
+            }
+            for log in logs
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Inventaires
 # ---------------------------------------------------------------------------
 
@@ -1914,6 +2138,12 @@ TOOL_FUNCTIONS = {
     'clients_sans_groupe': tool_clients_sans_groupe,
     'top_clients_solde': tool_top_clients_solde,
     'solde_total_clients_et_groupes': tool_solde_total_clients_et_groupes,
+    'programme_fidelite_infos': tool_programme_fidelite_infos,
+    'catalogue_cadeaux_fidelite': tool_catalogue_cadeaux_fidelite,
+    'points_fidelite_client': tool_points_fidelite_client,
+    'top_clients_points_fidelite': tool_top_clients_points_fidelite,
+    'regles_points_fidelite_produits': tool_regles_points_fidelite_produits,
+    'historique_fidelite_client': tool_historique_fidelite_client,
     'liste_commandes': tool_liste_commandes,
     'detail_commande': tool_detail_commande,
     'commandes_produit': tool_commandes_produit,
@@ -2369,6 +2599,108 @@ AI_TOOLS = [
             'name': 'solde_total_clients_et_groupes',
             'description': "Donne la somme totale des soldes de tous les clients et de tous les groupes clients.",
             'parameters': {'type': 'object', 'properties': {}},
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'programme_fidelite_infos',
+            'description': (
+                "Donne le statut global du programme de fidelite : actif ou non, le taux de "
+                "conversion des points en devise (ex: '100 points = 500 [devise]'), si l'echange "
+                "de points est actuellement possible, et le nombre de cadeaux actifs au catalogue. "
+                "A utiliser pour toute question generale du type 'le programme de fidelite est-il "
+                "actif', 'comment fonctionne la fidelite', 'quel est le taux de conversion des points'."
+            ),
+            'parameters': {'type': 'object', 'properties': {}},
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'catalogue_cadeaux_fidelite',
+            'description': (
+                "Liste le catalogue de cadeaux echangeables contre des points de fidelite (nom, "
+                "points requis, description, actif). A utiliser pour 'quels cadeaux sont "
+                "disponibles', 'catalogue de la fidelite', 'combien de points pour tel cadeau'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'actifs_seulement': {'type': 'boolean', 'description': "Ne renvoyer que les cadeaux actifs (defaut true). Mettre false pour inclure aussi les cadeaux desactives/retires du catalogue."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'points_fidelite_client',
+            'description': (
+                "Cherche un ou plusieurs clients par nom, prenom, matricule ou email et donne leur "
+                "solde de points de fidelite, son equivalent en devise s'il etait converti en solde "
+                "client, et la liste des cadeaux du catalogue qu'ils peuvent deja s'offrir avec ce "
+                "solde. A utiliser pour 'combien de points a tel client', 'ce client peut-il avoir "
+                "tel cadeau'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Nom, prenom, matricule ou email (recherche partielle)."},
+                },
+                'required': ['recherche'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'top_clients_points_fidelite',
+            'description': "Classe les clients ayant le plus de points de fidelite en solde actuellement.",
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'limite': {'type': 'integer', 'description': "Nombre de clients a retourner (defaut 10, max 50)."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'regles_points_fidelite_produits',
+            'description': (
+                "Donne les regles d'attribution de points de fidelite : soit pour un produit precis "
+                "(nombre de points par unite achetee et niveau d'ou vient la regle — produit, famille, "
+                "rayon ou section), soit une vue d'ensemble des regles definies par famille/rayon/section "
+                "si aucun produit n'est precise. A utiliser pour 'combien de points rapporte tel produit', "
+                "'quelles familles/rayons donnent des points de fidelite'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'nom_produit': {'type': 'string', 'description': "Nom ou code du produit recherche (recherche partielle). Laisser vide pour la vue d'ensemble des regles par famille/rayon/section."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'historique_fidelite_client',
+            'description': (
+                "Liste l'historique des echanges de points de fidelite (conversion en solde client "
+                "ou en cadeau du catalogue), les plus recents en premier, avec le detail de "
+                "l'operation et qui l'a effectuee. A utiliser pour 'quels echanges de points ont ete "
+                "faits', 'historique de la fidelite de tel client'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Filtre optionnel sur le nom ou le matricule du client (recherche partielle). Laisser vide pour tout l'historique recent."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum d'operations a retourner (defaut 20, max 100)."},
+                },
+            },
         },
     },
     {
