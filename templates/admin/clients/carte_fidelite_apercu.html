@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Carte de fidélité - {{ client.nom_complet }} - ReflexPharma{% endblock %}
+
+{% block content %}
+<style>
+  @page { size: A4 portrait; margin: 15mm; }
+
+  .apercu-toolbar {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .apercu-toolbar::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .apercu-toolbar h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; margin-bottom: 0.2rem; }
+  .apercu-toolbar p { color: rgba(255,255,255,0.72); font-size: 0.85rem; margin: 0; position: relative; z-index: 1; }
+  .apercu-toolbar .breadcrumb-item, .apercu-toolbar .breadcrumb-item a { color: rgba(255,255,255,0.65); font-size: 0.78rem; }
+  .apercu-toolbar .breadcrumb-item.active { color: rgba(255,255,255,0.9); }
+
+  .card-stage {
+    background: #eef1f5;
+    border-radius: 16px;
+    padding: 3rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Carte au format ID-1 (85.6 x 54 mm), agrandie a l'ecran pour la lisibilite.
+     Le design doit rester visuellement identique au PDF envoye a l'imprimeur
+     (voir blueprints/admin/carte_fidelite_pdf.py). */
+  .loyalty-card {
+    width: 380px;
+    height: 239.4px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #1b5e20 0%, #c9a227 100%);
+    box-shadow: 0 20px 45px rgba(30,70,20,0.28), 0 2px 8px rgba(0,0,0,0.12);
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border: 1px solid rgba(26,26,46,0.4);
+  }
+  .loyalty-card::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -30px;
+    width: 170px;
+    height: 170px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .loyalty-card .lc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+    position: relative;
+    z-index: 1;
+  }
+  .loyalty-card .lc-pharmacy { font-weight: 700; font-size: 0.82rem; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+  .loyalty-card .lc-label { font-size: 0.62rem; color: rgba(255,255,255,0.8); letter-spacing: 0.5px; white-space: nowrap; }
+
+  .loyalty-card .lc-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    position: relative;
+    z-index: 1;
+  }
+  .loyalty-card .lc-identity { min-width: 0; }
+  .loyalty-card .lc-name { font-weight: 700; font-size: 1.15rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loyalty-card .lc-matricule { font-size: 0.72rem; color: rgba(255,255,255,0.85); margin-top: 2px; letter-spacing: 0.3px; }
+  .loyalty-card .lc-contact { font-size: 0.68rem; color: rgba(255,255,255,0.75); margin-top: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loyalty-card .lc-since { font-size: 0.62rem; color: rgba(255,255,255,0.6); margin-top: 3px; }
+
+  .loyalty-card .lc-qr {
+    background: #fff;
+    border-radius: 7px;
+    padding: 7px;
+    flex-shrink: 0;
+    margin-left: 12px;
+    line-height: 0;
+  }
+  .loyalty-card .lc-qr img { width: 84px; height: 84px; display: block; }
+
+  .card-info-panel {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    padding: 1.25rem 1.5rem;
+  }
+  .card-info-panel dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.3px; color: #7a8896; font-weight: 600; }
+  .card-info-panel dd { font-size: 0.9rem; color: #1a1a2e; margin-bottom: 0.75rem; }
+
+  /* La carte elle-meme (.loyalty-card) simule un objet physique imprime : son degrade
+     sombre + texte blanc reste identique quel que soit le theme du site, aucun
+     override necessaire. Seuls le fond de la zone d'affichage et le panneau
+     d'informations (blancs codes en dur) doivent suivre le mode sombre du site. */
+  html[data-bs-theme="dark"] .card-stage { background: #10161c !important; }
+  html[data-bs-theme="dark"] .card-info-panel {
+    background: #171f27 !important;
+    border-color: #2a3541 !important;
+  }
+  html[data-bs-theme="dark"] .card-info-panel dt { color: #9aa7b3; }
+  html[data-bs-theme="dark"] .card-info-panel dd { color: #e8edf2; }
+
+  @media print {
+    nav, footer, .apercu-toolbar, .btn, .card-info-panel, .print-hide { display: none !important; }
+    .container, body { background: #fff !important; }
+    .card-stage { background: none !important; padding: 0 !important; }
+    .loyalty-card { box-shadow: none !important; margin: 0 auto; }
+  }
+
+  @media (max-width: 575.98px) {
+    .apercu-toolbar { padding: 1.1rem; border-radius: 12px; }
+    .card-stage { padding: 1.75rem 0.5rem; }
+    .loyalty-card { width: 320px; height: 201.6px; padding: 16px 18px; }
+    .loyalty-card .lc-qr img { width: 71px; height: 71px; }
+  }
+</style>
+
+<div class="apercu-toolbar print-hide">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.list_clients') }}">Clients</a></li>
+      <li class="breadcrumb-item active">Carte de fidélité</li>
+    </ol>
+  </nav>
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-id-card me-2"></i>Carte de fidélité</h1>
+      <p>Aperçu de la carte de {{ client.nom_complet }} — le QR code contient son matricule ({{ client.matricule }}).</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-light btn-sm" onclick="window.print()">
+        <i class="fas fa-print me-1"></i> Imprimer l'aperçu
+      </button>
+      <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Retour
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card-stage">
+      <div class="loyalty-card">
+        <div class="lc-header">
+          <span class="lc-pharmacy">{{ pharmacy_name|upper }}</span>
+          <span class="lc-label">CARTE DE FIDÉLITÉ</span>
+        </div>
+        <div class="lc-body">
+          <div class="lc-identity">
+            <div class="lc-name">{{ client.nom_complet }}</div>
+            <div class="lc-matricule">{{ client.matricule }}</div>
+            <div class="lc-contact">Contact : {{ client.telephone or client.email or 'Non renseigné' }}</div>
+            <div class="lc-since">Membre depuis le {{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '-' }}</div>
+          </div>
+          <div class="lc-qr">
+            <img src="{{ qr_image }}" alt="QR code {{ client.matricule }}">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card-info-panel print-hide">
+      <dl class="mb-0 row">
+        <dt class="col-5">Client</dt><dd class="col-7">{{ client.nom_complet }}</dd>
+        <dt class="col-5">Matricule</dt><dd class="col-7">{{ client.matricule }}</dd>
+        <dt class="col-5">Contact</dt><dd class="col-7">{{ client.telephone or client.email or '-' }}</dd>
+        <dt class="col-5">Membre depuis</dt><dd class="col-7">{{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '-' }}</dd>
+        <dt class="col-5">Points fidélité</dt><dd class="col-7">{{ client.points_fidelite }}</dd>
+      </dl>
+      <hr>
+      <p class="text-muted small mb-0">
+        Cet aperçu correspond exactement au visuel envoyé à l'imprimeur (format carte
+        ID-1, 85.6 × 54 mm). Pour la faire fabriquer, sélectionnez ce client dans la
+        liste des clients puis utilisez « Demander l'impression des cartes ».
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

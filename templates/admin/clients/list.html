@@ -119,6 +119,84 @@
     .mobile-card { padding: 0.5rem 0.6rem; border-radius: 9px; }
     .mobile-card .cell-sub { font-size: 0.64rem; }
   }
+
+  /* Overlay bloquant pendant l'envoi de la demande d'impression des cartes fidelite
+     (anti double-clic + empeche toute interaction tant que l'e-mail n'est pas parti) */
+  .submit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+  }
+  .submit-overlay.visible { display: flex; }
+  .submit-overlay .overlay-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.4rem 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    max-width: 90vw;
+  }
+  .submit-overlay .overlay-title { font-weight: 700; color: #1a1a2e; font-size: 0.95rem; }
+  .submit-overlay .overlay-sub { font-size: 0.8rem; color: #7a8896; }
+  html[data-bs-theme="dark"] .submit-overlay .overlay-box { background: #171f27 !important; }
+  html[data-bs-theme="dark"] .submit-overlay .overlay-title { color: #e8edf2; }
+  html[data-bs-theme="dark"] .submit-overlay .overlay-sub { color: #9aa7b3; }
+
+  /* Modal succes anime (envoi de la demande d'impression des cartes) */
+  #carteFideliteSuccessModal .modal-content {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #carteFideliteSuccessModal.show .modal-dialog {
+    animation: carteSuccessPop 0.45s cubic-bezier(0.18, 1.25, 0.4, 1) both;
+  }
+  @keyframes carteSuccessPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .success-checkmark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: #e6f7ee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPulse 1.4s ease-out 0.3s;
+  }
+  @keyframes successPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(30,142,62,0.35); }
+    100% { box-shadow: 0 0 0 26px rgba(30,142,62,0); }
+  }
+  .success-svg { width: 58px; height: 58px; }
+  .success-circle {
+    stroke: #1e8e3e;
+    stroke-width: 2.5;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: carteDrawCircle 0.6s ease-out 0.15s forwards;
+  }
+  @keyframes carteDrawCircle { to { stroke-dashoffset: 0; } }
+  .success-check {
+    stroke: #1e8e3e;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: carteDrawCheck 0.35s ease-out 0.7s forwards;
+  }
+  @keyframes carteDrawCheck { to { stroke-dashoffset: 0; } }
 </style>
 {% endblock %}
 
@@ -133,6 +211,11 @@
       <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal">
         <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
       </button>
+      {% if current_user.has_permission('gestion_fidelite') %}
+      <button type="button" id="sendCarteFideliteBtn" class="btn btn-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#sendCarteFideliteModal">
+        <i class="fas fa-id-card me-1"></i> Impression cartes (<span id="selectedCountCarte">0</span>)
+      </button>
+      {% endif %}
       <a href="{{ url_for('admin.export_clients_excel', **export_query) }}" class="btn btn-light btn-sm">
         <i class="fas fa-file-excel me-1"></i> Excel
       </a>
@@ -147,6 +230,11 @@
       {% if current_user.has_permission('historique_clients') %}
       <a href="{{ url_for('admin.list_client_modification_logs') }}" class="btn btn-light btn-sm">
         <i class="fas fa-history me-1"></i> Historique
+      </a>
+      {% endif %}
+      {% if current_user.has_permission('gestion_fidelite') %}
+      <a href="{{ url_for('admin.list_cartes_fidelite') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-id-card me-1"></i> Suivi cartes
       </a>
       {% endif %}
       <a href="{{ url_for('admin.create_client') }}" class="btn btn-light btn-sm">
@@ -297,6 +385,7 @@
 
 <div class="card-custom mb-3">
   <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_clients') }}" method="POST"></form>
+  <form id="carteFideliteForm" action="{{ url_for('admin.send_carte_fidelite_print_request') }}" method="POST"></form>
 
   <!-- Mobile cards: no horizontal scroll -->
   <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileClientList">
@@ -311,6 +400,11 @@
           <button type="button" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;" data-bs-toggle="modal" data-bs-target="#clientDetails{{ client.id }}">
             <i class="fas fa-eye" style="font-size:0.7rem;"></i>
           </button>
+          {% if current_user.has_permission('gestion_fidelite') %}
+          <a href="{{ url_for('admin.apercu_carte_fidelite', id=client.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;" title="Aperçu carte de fidélité">
+            <i class="fas fa-id-card" style="font-size:0.7rem;"></i>
+          </a>
+          {% endif %}
           <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
             <i class="fas fa-edit" style="font-size:0.7rem;"></i>
           </a>
@@ -387,6 +481,11 @@
               <a href="{{ url_for('admin.client_purchase_history', id=client.id) }}" class="btn btn-sm btn-outline-success" title="Historique des achats">
                 <i class="fas fa-receipt"></i>
               </a>
+              {% if current_user.has_permission('gestion_fidelite') %}
+              <a href="{{ url_for('admin.apercu_carte_fidelite', id=client.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu carte de fidélité">
+                <i class="fas fa-id-card"></i>
+              </a>
+              {% endif %}
               <a href="{{ url_for('admin.edit_client', id=client.id) }}" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-edit"></i>
               </a>
@@ -460,6 +559,80 @@
     </div>
 </div>
 
+{% if current_user.has_permission('gestion_fidelite') %}
+<div class="modal fade" id="sendCarteFideliteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border-radius:14px;border:none;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="fas fa-id-card me-2 text-primary"></i>Demande d'impression des cartes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Envoyer une demande d'impression pour les <strong id="modalSelectedCountCarte"></strong> carte(s) de fidélité sélectionnées ?</p>
+                <p class="text-muted small mb-0">
+                    Un PDF regroupant les cartes sera envoyé par e-mail à
+                    <strong>contact@joelcomputech.com</strong>. Le serveur SMTP doit être configuré
+                    et actif (voir Paramètres). Les cartes apparaîtront ensuite comme
+                    « en cours d'arrivée » dans le <a href="{{ url_for('admin.list_cartes_fidelite') }}" target="_blank">suivi des cartes</a>.
+                </p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="submitCarteFideliteForm();">
+                    <i class="fas fa-paper-plane me-1"></i> Envoyer la demande
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay bloquant pendant l'envoi (generation PDF + e-mail SMTP peuvent prendre
+     quelques secondes) : empeche toute autre action tant que la demande n'est pas partie -->
+<div class="submit-overlay" id="carteFideliteOverlay" aria-hidden="true">
+  <div class="overlay-box">
+    <span class="spinner-border text-primary" role="status" style="width:2.2rem;height:2.2rem;flex-shrink:0;"></span>
+    <div>
+      <div class="overlay-title">Envoi de la demande en cours...</div>
+      <div class="overlay-sub">Merci de rester sur cette fenêtre, ne fermez pas la page.</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% set carte_fidelite_messages = get_flashed_messages(category_filter=['carte_fidelite_success']) %}
+{% if carte_fidelite_messages %}
+<!-- Modal succes animee, affichee automatiquement apres l'envoi de la demande -->
+<div class="modal fade" id="carteFideliteSuccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <div class="success-checkmark mb-3">
+          <svg class="success-svg" viewBox="0 0 52 52" aria-hidden="true">
+            <circle class="success-circle" cx="26" cy="26" r="24" fill="none"/>
+            <path class="success-check" fill="none" d="M14 27l8 8 16-16"/>
+          </svg>
+        </div>
+        <h5 class="fw-bold mb-1">Demande envoyée !</h5>
+        <p class="text-muted small mb-3">{{ carte_fidelite_messages[0] }}</p>
+        <div class="d-flex justify-content-center gap-2">
+          <a href="{{ url_for('admin.list_cartes_fidelite') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-id-card me-1"></i> Suivi des cartes
+          </a>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
+            <i class="fas fa-check me-1"></i> Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('carteFideliteSuccessModal')).show();
+});
+</script>
+{% endif %}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const selectAll = document.getElementById('selectAll');
@@ -467,12 +640,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
     const selectedCount = document.getElementById('selectedCount');
     const modalSelectedCount = document.getElementById('modalSelectedCount');
+    const sendCarteFideliteBtn = document.getElementById('sendCarteFideliteBtn');
+    const selectedCountCarte = document.getElementById('selectedCountCarte');
+    const modalSelectedCountCarte = document.getElementById('modalSelectedCountCarte');
 
     function updateBulkState() {
         const count = checkboxes.filter((checkbox) => checkbox.checked).length;
         bulkDeleteBtn.classList.toggle('d-none', count === 0);
         selectedCount.textContent = count;
         modalSelectedCount.textContent = count;
+        if (sendCarteFideliteBtn) {
+            sendCarteFideliteBtn.classList.toggle('d-none', count === 0);
+            selectedCountCarte.textContent = count;
+            modalSelectedCountCarte.textContent = count;
+        }
     }
 
     if (selectAll) {
@@ -482,6 +663,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkState));
+
+    window.submitCarteFideliteForm = function() {
+        const form = document.getElementById('carteFideliteForm');
+        form.innerHTML = '';
+        checkboxes.filter((checkbox) => checkbox.checked).forEach((checkbox) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids[]';
+            input.value = checkbox.value;
+            form.appendChild(input);
+        });
+
+        // Ferme la modale de confirmation et affiche l'overlay bloquant : la generation
+        // du PDF + l'envoi SMTP peuvent prendre quelques secondes, on empeche toute
+        // autre action (double envoi, navigation) jusqu'a ce que la page se recharge.
+        const confirmModal = bootstrap.Modal.getInstance(document.getElementById('sendCarteFideliteModal'));
+        if (confirmModal) confirmModal.hide();
+        const overlay = document.getElementById('carteFideliteOverlay');
+        if (overlay) overlay.classList.add('visible');
+
+        form.submit();
+    };
+
+    // Si l'utilisateur revient en arriere (bfcache) sans que la page ait rechargee,
+    // on debloque l'ecran plutot que de le laisser fige derriere l'overlay.
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            const overlay = document.getElementById('carteFideliteOverlay');
+            if (overlay) overlay.classList.remove('visible');
+        }
+    });
 });
 </script>
 {% endblock %}

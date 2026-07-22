@@ -29,6 +29,7 @@ from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
+from models.carte_fidelite_commande import CarteFideliteCommande
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta, date
@@ -46,6 +47,7 @@ from utils import fidelite
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
+from .carte_fidelite_pdf import build_cartes_fidelite_pdf
 from .finance_reports import (
     compute_solde_actuel, query_operations_financieres, label_periode_dates,
     build_operations_financieres_pdf, build_operations_financieres_excel
@@ -1248,6 +1250,141 @@ def echanger_points_cadeau(id):
     db.session.commit()
     flash(f'Cadeau "{cadeau.nom}" remis au client ({cadeau.points_requis} points déduits).', 'success')
     return redirect(url_for('admin.edit_client', id=id))
+
+# --- CARTES DE FIDELITE : APERCU, DEMANDE D'IMPRESSION PAR E-MAIL, SUIVI RECEPTION ---
+# La carte physique est imprimee par un prestataire externe : on ne fait qu'envoyer,
+# par e-mail, un PDF pret a imprimer (une carte par client selectionne, voir
+# carte_fidelite_pdf.py) puis on suit la reception de chaque carte (statut en_cours/
+# recue), regroupees par lot = un envoi e-mail.
+CARTE_FIDELITE_PRINT_EMAIL = 'contact@joelcomputech.com'
+
+@admin.route('/clients/<int:id>/carte-fidelite')
+@login_required
+@permission_required('gestion_fidelite')
+def apercu_carte_fidelite(id):
+    client = Client.query.get_or_404(id)
+    return render_template(
+        'admin/clients/carte_fidelite_apercu.html',
+        client=client,
+        qr_image=build_qr_svg_data_uri(client.matricule, size=160),
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    )
+
+@admin.route('/clients/carte-fidelite/envoyer', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def send_carte_fidelite_print_request():
+    ids = [int(client_id) for client_id in request.form.getlist('ids[]') if client_id.isdigit()]
+    if not ids:
+        flash('Sélectionnez au moins un client pour demander l\'impression de sa carte.', 'warning')
+        return redirect(url_for('admin.list_clients'))
+
+    clients = Client.query.filter(Client.id.in_(ids)).order_by(Client.nom.asc(), Client.prenom.asc()).all()
+    if not clients:
+        flash('Aucun client valide sélectionné.', 'warning')
+        return redirect(url_for('admin.list_clients'))
+
+    if not is_smtp_configured():
+        flash("Impossible d'envoyer la demande : le serveur SMTP n'est pas configuré (voir Paramètres).", 'danger')
+        return redirect(url_for('admin.list_clients'))
+
+    import io
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    lot_numero = f"CARTE-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    buffer = io.BytesIO()
+    build_cartes_fidelite_pdf(buffer, clients, pharmacy_name)
+    buffer.seek(0)
+
+    liste_clients = '\n'.join(f'- {client.nom_complet} ({client.matricule})' for client in clients)
+    corps = (
+        f"Bonjour,\n\n"
+        f"Veuillez trouver ci-joint la demande d'impression de {len(clients)} carte(s) de fidélité "
+        f"pour {pharmacy_name} (référence lot : {lot_numero}).\n\n"
+        f"Clients concernés :\n{liste_clients}\n\n"
+        f"Merci de nous contacter pour toute question concernant cette commande.\n\n"
+        f"Cordialement,\n{pharmacy_name}"
+    )
+
+    try:
+        send_email(
+            to=CARTE_FIDELITE_PRINT_EMAIL,
+            subject=f"Demande d'impression de cartes de fidélité — {pharmacy_name} ({len(clients)})",
+            body=corps,
+            attachments=[(f'{lot_numero}.pdf', buffer.read(), 'application/pdf')]
+        )
+    except SmtpConfigError as exc:
+        flash(f'Configuration SMTP invalide : {exc}', 'danger')
+        return redirect(url_for('admin.list_clients'))
+    except SmtpSendError as exc:
+        flash(f"Échec de l'envoi de la demande : {exc}", 'danger')
+        return redirect(url_for('admin.list_clients'))
+
+    for client in clients:
+        db.session.add(CarteFideliteCommande(
+            lot_numero=lot_numero,
+            client_id=client.id,
+            client_nom=client.nom,
+            client_prenom=client.prenom,
+            client_matricule=client.matricule,
+            statut='en_cours',
+            demandee_par_nom=current_user.nom,
+            demandee_par_prenom=current_user.prenom
+        ))
+    db.session.commit()
+
+    flash(f"Demande d'impression envoyée à {CARTE_FIDELITE_PRINT_EMAIL} pour {len(clients)} carte(s) (lot {lot_numero}).", 'carte_fidelite_success')
+    return redirect(url_for('admin.list_clients'))
+
+@admin.route('/fidelite/cartes')
+@login_required
+@permission_required('gestion_fidelite')
+def list_cartes_fidelite():
+    statut_filtre = request.args.get('statut', 'en_cours')
+    query = CarteFideliteCommande.query
+    if statut_filtre in ('en_cours', 'recue'):
+        query = query.filter_by(statut=statut_filtre)
+    commandes = query.order_by(CarteFideliteCommande.demandee_at.desc()).all()
+
+    lots = {}
+    for commande in commandes:
+        lot = lots.setdefault(commande.lot_numero, {
+            'lot_numero': commande.lot_numero,
+            'demandee_at': commande.demandee_at,
+            'demandee_par': f'{commande.demandee_par_prenom} {commande.demandee_par_nom}'.strip(),
+            'cartes': []
+        })
+        lot['cartes'].append(commande)
+
+    lots_tries = sorted(lots.values(), key=lambda l: l['demandee_at'], reverse=True)
+    return render_template('admin/fidelite/cartes_list.html', lots=lots_tries, statut_filtre=statut_filtre)
+
+@admin.route('/fidelite/cartes/<int:id>/recue', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def marquer_carte_fidelite_recue(id):
+    commande = CarteFideliteCommande.query.get_or_404(id)
+    commande.statut = 'recue'
+    commande.recue_at = datetime.utcnow()
+    commande.recue_par_nom = current_user.nom
+    commande.recue_par_prenom = current_user.prenom
+    db.session.commit()
+    flash(f'Carte de {commande.client_label} marquée comme reçue.', 'success')
+    return redirect(url_for('admin.list_cartes_fidelite', statut=request.args.get('statut', 'en_cours')))
+
+@admin.route('/fidelite/cartes/lot/<lot_numero>/recu', methods=['POST'])
+@login_required
+@permission_required('gestion_fidelite')
+def marquer_lot_carte_fidelite_recu(lot_numero):
+    commandes = CarteFideliteCommande.query.filter_by(lot_numero=lot_numero, statut='en_cours').all()
+    for commande in commandes:
+        commande.statut = 'recue'
+        commande.recue_at = datetime.utcnow()
+        commande.recue_par_nom = current_user.nom
+        commande.recue_par_prenom = current_user.prenom
+    db.session.commit()
+    flash(f'{len(commandes)} carte(s) du lot {lot_numero} marquées comme reçues.', 'success')
+    return redirect(url_for('admin.list_cartes_fidelite', statut=request.args.get('statut', 'en_cours')))
 
 # --- GESTION DES GROUPES CLIENTS ---
 @admin.route('/clients/groupes')

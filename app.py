@@ -28,6 +28,7 @@ from models.declaration_impot import DeclarationImpot
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
+from models.carte_fidelite_commande import CarteFideliteCommande
 
 from config import config
 

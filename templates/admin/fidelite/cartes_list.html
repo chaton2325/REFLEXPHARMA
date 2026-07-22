@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Cartes de fidélité - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .filter-pills .btn { border-radius: 999px; font-size: 0.8rem; font-weight: 600; padding: 0.35rem 1rem; }
+
+  .lot-card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .lot-card-header {
+    padding: 0.9rem 1.25rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #edf2f7;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+  }
+  .lot-numero { font-weight: 700; color: #2c3e50; font-size: 0.9rem; }
+  .lot-meta { font-size: 0.76rem; color: #7a8896; }
+
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: #fff; color: #7a8896; font-size: 0.68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0.6rem 1rem; border-bottom: 2px solid #edf2f7;
+  }
+  .table-custom tbody td { padding: 0.65rem 1rem; vertical-align: middle; border-bottom: 1px solid #f5f7fa; font-size: 0.85rem; }
+  .table-custom tbody tr:last-child td { border-bottom: none; }
+
+  .badge-en-cours { background: #fff3cd; color: #8a6d1a; font-weight: 600; font-size: 0.72rem; padding: 0.3em 0.7em; border-radius: 999px; }
+  .badge-recue { background: #d7f3e3; color: #1e8e3e; font-weight: 600; font-size: 0.72rem; padding: 0.3em 0.7em; border-radius: 999px; }
+  .badge-code { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.2px; padding: 0.25em 0.65em; background: #f0f2f5; color: #2c3e50; border-radius: 6px; border: 1px solid #e0e4ea; }
+
+  .empty-state { text-align: center; padding: 3rem 1rem; color: #9aa5b1; }
+
+  html[data-bs-theme="dark"] .lot-card {
+    background: #171f27 !important;
+    border-color: #2a3541 !important;
+  }
+  html[data-bs-theme="dark"] .lot-card-header {
+    background: #1c2733 !important;
+    border-bottom-color: #2a3541 !important;
+  }
+  html[data-bs-theme="dark"] .lot-numero { color: #e8edf2; }
+  html[data-bs-theme="dark"] .lot-meta { color: #9aa7b3; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.1rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.15rem; }
+    .lot-card-header { padding: 0.75rem 0.9rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-id-card me-2"></i>Cartes de fidélité</h1>
+      <p>Suivi des demandes d'impression envoyées à l'imprimeur et de leur réception.</p>
+    </div>
+    <a href="{{ url_for('admin.list_clients') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+      <i class="fas fa-plus me-1"></i> Nouvelle demande
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mb-3 filter-pills">
+  <a href="{{ url_for('admin.list_cartes_fidelite', statut='en_cours') }}" class="btn {{ 'btn-warning' if statut_filtre == 'en_cours' else 'btn-outline-secondary' }}">
+    <i class="fas fa-truck me-1"></i> En cours d'arrivée
+  </a>
+  <a href="{{ url_for('admin.list_cartes_fidelite', statut='recue') }}" class="btn {{ 'btn-success' if statut_filtre == 'recue' else 'btn-outline-secondary' }}">
+    <i class="fas fa-check me-1"></i> Reçues
+  </a>
+  <a href="{{ url_for('admin.list_cartes_fidelite', statut='tous') }}" class="btn {{ 'btn-dark' if statut_filtre == 'tous' else 'btn-outline-secondary' }}">
+    Toutes
+  </a>
+</div>
+
+{% if not lots %}
+<div class="lot-card">
+  <div class="empty-state">
+    <i class="fas fa-id-card" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+    {% if statut_filtre == 'recue' %}
+    <p class="mb-0">Aucune carte reçue pour le moment.</p>
+    {% else %}
+    <p class="mb-0">Aucune carte en cours d'arrivée. Sélectionnez des clients depuis la liste des clients pour envoyer une demande d'impression.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="d-flex flex-column gap-3">
+  {% for lot in lots %}
+  <div class="lot-card">
+    <div class="lot-card-header">
+      <div>
+        <div class="lot-numero"><i class="fas fa-box me-1"></i> Lot {{ lot.lot_numero }}</div>
+        <div class="lot-meta">Demandé le {{ lot.demandee_at.strftime('%d/%m/%Y %H:%M') if lot.demandee_at else '-' }} par {{ lot.demandee_par }} &middot; {{ lot.cartes|length }} carte(s)</div>
+      </div>
+      {% set en_cours_du_lot = lot.cartes|selectattr('statut', 'equalto', 'en_cours')|list %}
+      {% if en_cours_du_lot %}
+      <form method="POST" action="{{ url_for('admin.marquer_lot_carte_fidelite_recu', lot_numero=lot.lot_numero, statut=statut_filtre) }}">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="fas fa-check-double me-1"></i> Marquer tout le lot reçu
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-custom">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Matricule</th>
+            <th>Statut</th>
+            <th>Détail</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for carte in lot.cartes %}
+          <tr>
+            <td class="fw-semibold" style="color:#1a1a2e;">{{ carte.client_label }}</td>
+            <td><span class="badge-code">{{ carte.client_matricule }}</span></td>
+            <td>
+              {% if carte.statut == 'recue' %}
+              <span class="badge-recue">Reçue</span>
+              {% else %}
+              <span class="badge-en-cours">En cours d'arrivée</span>
+              {% endif %}
+            </td>
+            <td class="cell-sub" style="font-size:0.76rem;color:#7a8896;">
+              {% if carte.statut == 'recue' %}
+              Reçue le {{ carte.recue_at.strftime('%d/%m/%Y %H:%M') if carte.recue_at else '-' }} par {{ carte.recue_par_prenom }} {{ carte.recue_par_nom }}
+              {% else %}
+              &mdash;
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if carte.client_id %}
+              <a href="{{ url_for('admin.apercu_carte_fidelite', id=carte.client_id) }}" class="btn btn-sm btn-outline-secondary me-1" title="Aperçu de la carte" target="_blank">
+                <i class="fas fa-eye"></i>
+              </a>
+              {% endif %}
+              {% if carte.statut == 'en_cours' %}
+              <form method="POST" action="{{ url_for('admin.marquer_carte_fidelite_recue', id=carte.id, statut=statut_filtre) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-success">
+                  <i class="fas fa-check me-1"></i> Marquer reçue
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

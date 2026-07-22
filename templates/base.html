@@ -801,6 +801,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                     {% endif %}
                     {% if current_user.has_permission('gestion_fidelite') %}
                     <a href="{{ url_for('admin.list_cadeaux_fidelite') }}"><span class="nav-label">Cadeaux fidélité</span></a>
+                    <a href="{{ url_for('admin.list_cartes_fidelite') }}"><span class="nav-label">Cartes de fidélité</span></a>
                     {% endif %}
                 </div>
             </div>
@@ -979,6 +980,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                 {% endif %}
                 {% if current_user.has_permission('gestion_fidelite') %}
                 <a href="{{ url_for('admin.list_cadeaux_fidelite') }}">Cadeaux fidélité</a>
+                <a href="{{ url_for('admin.list_cartes_fidelite') }}">Cartes de fidélité</a>
                 {% endif %}
             </div>
             {% endif %}
@@ -1040,10 +1042,14 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
+                        {# carte_fidelite_success est affichee dans une modale animee dediee
+                           (voir templates/admin/clients/list.html), pas dans la banniere generique #}
+                        {% if category != 'carte_fidelite_success' %}
                         <div class="alert alert-{{ category }} alert-dismissible fade show">
                             {{ message }}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
+                        {% endif %}
                     {% endfor %}
                 {% endif %}
             {% endwith %}

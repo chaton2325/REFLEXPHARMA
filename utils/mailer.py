@@ -49,8 +49,12 @@ def notifications_enabled():
     return Setting.get_value('smtp_notifications_enabled', 'false') == 'true'
 
 
-def send_email(to, subject, body, html=None):
-    """Envoie un e-mail texte (optionnellement avec une alternative HTML).
+def send_email(to, subject, body, html=None, attachments=None):
+    """Envoie un e-mail texte (optionnellement avec une alternative HTML et des
+    pièces jointes).
+
+    `attachments` : liste optionnelle de tuples (nom_fichier, contenu_bytes,
+    type_mime), ex: [('cartes.pdf', pdf_bytes, 'application/pdf')].
 
     Lève SmtpConfigError si la configuration est incomplète, ou SmtpSendError si la
     connexion/authentification/envoi échoue côté serveur SMTP.
@@ -73,6 +77,9 @@ def send_email(to, subject, body, html=None):
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype='html')
+    for filename, content, mimetype in (attachments or []):
+        maintype, _, subtype = (mimetype or 'application/octet-stream').partition('/')
+        message.add_attachment(content, maintype=maintype or 'application', subtype=subtype or 'octet-stream', filename=filename)
 
     try:
         if encryption == 'ssl':
