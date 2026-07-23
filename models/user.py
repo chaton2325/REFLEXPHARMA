@@ -19,8 +19,8 @@ class User(UserMixin, db.Model):
     date_prise_poste = db.Column(db.Date)
     salaire_mensuel = db.Column(db.Float)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -9,7 +9,7 @@ class GroupeFournisseur(db.Model):
     coefficient_defaut = db.Column(db.Float, default=1.0)
     tva_defaut = db.Column(db.Float, default=20.0)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     
     # Relation vers les fournisseurs
     fournisseurs = db.relationship('Fournisseur', backref='groupe', lazy=True)

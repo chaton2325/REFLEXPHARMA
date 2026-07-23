@@ -21,7 +21,7 @@ class CarteFideliteCommande(db.Model):
 
     statut = db.Column(db.String(20), nullable=False, default='en_cours', index=True)  # en_cours | recue
 
-    demandee_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    demandee_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     demandee_par_nom = db.Column(db.String(120), nullable=False)
     demandee_par_prenom = db.Column(db.String(120), nullable=False)
 

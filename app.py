@@ -29,6 +29,7 @@ from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
 from models.carte_fidelite_commande import CarteFideliteCommande
+from models.code_promo import CodePromo
 
 from config import config
 
@@ -82,7 +83,12 @@ def ensure_database_schema(app):
                 # Programme de fidelite : points gagnes sur cette vente.
                 ('points_gagnes', 'INTEGER DEFAULT 0'),
                 # Solde total de points fidelite du client juste apres cette vente.
-                ('points_totaux_apres', 'INTEGER DEFAULT 0')
+                ('points_totaux_apres', 'INTEGER DEFAULT 0'),
+                # Code promotionnel applique a cette vente (snapshot).
+                ('code_promo_id', 'INTEGER'),
+                ('code_promo_utilise', 'VARCHAR(50)'),
+                ('code_promo_pourcentage', 'FLOAT'),
+                ('code_promo_montant_deduit', 'FLOAT DEFAULT 0')
             ],
             'vente_lignes': [
                 ('numero_vente', 'VARCHAR(80)'),

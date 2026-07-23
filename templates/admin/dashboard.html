@@ -839,6 +839,19 @@
   </div>
   {% endif %}
 
+  {% if current_user.has_permission('gestion_codes_promo') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-5">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#e0f5f0,#b8e8dc);color:#00897b;">
+        <i class="fas fa-tags"></i>
+      </div>
+      <h5>Codes promo</h5>
+      <p>Créez des codes de réduction à budget cumulable, applicables lors des ventes.</p>
+      <a href="{{ url_for('admin.list_codes_promo') }}" class="btn btn-outline-success" style="border-color:#00897b;color:#00897b;">Ouvrir les codes promo</a>
+    </div>
+  </div>
+  {% endif %}
+
   {% if current_user.has_permission('module_impots') %}
   <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
     <div class="feature-card">

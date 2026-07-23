@@ -1002,6 +1002,21 @@
         <div class="pay-hero-sub">dont HT <span id="paymentTotalHt">0.00</span> · TVA <span id="paymentTotalTax">0.00</span></div>
       </div>
 
+      <!-- Étape : code promo (facultatif) -->
+      <div class="pay-step">
+        <div class="pay-step-header">
+          <span class="pay-step-num"></span>
+          <span class="pay-step-title">Code promo</span>
+        </div>
+        <div class="pay-step-body">
+          <input type="text" class="form-control text-uppercase" id="codePromoInput" name="code_promo" placeholder="Ex: PROMO10" autocomplete="off">
+          <div class="form-text" id="codePromoFeedback"></div>
+          <div class="pay-step-rest d-none" id="codePromoAppliedRow">
+            Réduction appliquée : <strong><span id="codePromoReductionValue">0.00</span> {{ devise }}</strong> (<span id="codePromoPercentValue">0</span>%)
+          </div>
+        </div>
+      </div>
+
       <!-- Étape : part du groupe (client en compte avec groupe) -->
       <div class="pay-step client-account-section">
         <div class="pay-step-header">
@@ -1221,6 +1236,7 @@
                         </tbody>
                     </table>
                     <div class="receipt-totals small">
+                        <div id="previewPromoRow" class="d-none">Code promo <span id="previewPromoCode"></span> (-<span id="previewPromoPercent"></span>%) : -<span id="previewPromoAmount">0.00</span></div>
                         <div class="d-flex justify-content-between fw-bold h5 mt-2">
                             <span>NET À PAYER (TTC)</span>
                             <span id="previewTotalTtc">0.00</span>
@@ -1267,6 +1283,7 @@
         <div>
           <span class="text-muted small">Total TTC</span>
           <span class="h5 mb-0 text-success ms-1" id="recapTotalTtc">0.00</span>
+          <div class="text-muted d-none" id="recapPromoNote" style="font-size:0.72rem;">Code promo appliqué : -<span id="recapPromoAmount">0.00</span></div>
         </div>
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
@@ -1360,6 +1377,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function formatMoney(value) {
         return moneyFormatter.format(value);
+    }
+
+    // Code promo applique au panier courant : rempli par verifyCodePromo() apres
+    // appel a /ventes/code-promo/verifier. null = aucun code valide applique.
+    let appliedPromoState = null; // { code, pourcentage, montant_restant }
+
+    function computePromoDiscount(rawTotalTtc) {
+        if (!appliedPromoState || rawTotalTtc <= 0) return 0;
+        return Math.min(rawTotalTtc * (appliedPromoState.pourcentage / 100), appliedPromoState.montant_restant);
+    }
+
+    let codePromoDebounceTimer = null;
+    async function verifyCodePromo(code) {
+        const feedback = fieldById('codePromoFeedback');
+        try {
+            const res = await fetch(`{{ url_for('admin.verifier_code_promo') }}?code=${encodeURIComponent(code)}`);
+            const data = await res.json();
+            if (data.valide) {
+                appliedPromoState = { code: code, pourcentage: data.pourcentage, montant_restant: data.montant_restant };
+                if (feedback) { feedback.textContent = data.message; feedback.classList.remove('text-danger'); feedback.classList.add('text-success'); }
+            } else {
+                appliedPromoState = null;
+                if (feedback) { feedback.textContent = data.message || 'Code promo introuvable.'; feedback.classList.remove('text-success'); feedback.classList.add('text-danger'); }
+            }
+        } catch (err) {
+            appliedPromoState = null;
+            if (feedback) { feedback.textContent = "Impossible de vérifier le code promo."; feedback.classList.remove('text-success'); feedback.classList.add('text-danger'); }
+        }
+        updateSaleSummary();
     }
 
     function escapeHtml(value) {
@@ -1617,6 +1663,24 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // Code promo : reduit totalHt/totalTtc AVANT tous les calculs de repartition
+        // ci-dessous (groupe/solde/especes), pour rester coherent avec create_vente()
+        // cote serveur qui applique la meme reduction avant ses propres checks.
+        const rawTotalTtc = totalTtc;
+        const promoDiscount = computePromoDiscount(rawTotalTtc);
+        if (promoDiscount > 0) {
+            const discountedTotalTtc = Math.round((rawTotalTtc - promoDiscount) * 100) / 100;
+            const ratio = rawTotalTtc ? (discountedTotalTtc / rawTotalTtc) : 0;
+            totalHt = Math.round(totalHt * ratio * 100) / 100;
+            totalTtc = discountedTotalTtc;
+        }
+        const codePromoAppliedRow = fieldById('codePromoAppliedRow');
+        if (codePromoAppliedRow) {
+            codePromoAppliedRow.classList.toggle('d-none', promoDiscount <= 0);
+            fieldById('codePromoReductionValue').textContent = formatMoney(promoDiscount);
+            fieldById('codePromoPercentValue').textContent = appliedPromoState ? formatMoney(appliedPromoState.pourcentage) : '0';
+        }
+
         const cartBadge = document.getElementById('cartCountBadge');
         if (cartBadge) cartBadge.textContent = `${selectedCount} article${selectedCount > 1 ? 's' : ''}`;
         const actionCount = document.getElementById('actionCartCount');
@@ -1737,7 +1801,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const option = productSelect.options[productSelect.selectedIndex];
             totalTtc += getSelectedPrice(option, unitSelect.value, 'Ttc') * Math.max(toNumber(quantityInput.value), 0);
         });
-        return totalTtc;
+        return Math.max(totalTtc - computePromoDiscount(totalTtc), 0);
     }
 
     function getRemainingAfterGroup() {
@@ -1906,6 +1970,14 @@ document.addEventListener('DOMContentLoaded', function() {
             linesBody.appendChild(tr);
         });
 
+        const promoApplied = Boolean(appliedPromoState) && !fieldById('codePromoAppliedRow')?.classList.contains('d-none');
+        document.getElementById('previewPromoRow').classList.toggle('d-none', !promoApplied);
+        if (promoApplied) {
+            document.getElementById('previewPromoCode').textContent = appliedPromoState.code;
+            document.getElementById('previewPromoPercent').textContent = fieldById('codePromoPercentValue').textContent;
+            document.getElementById('previewPromoAmount').textContent = fieldById('codePromoReductionValue').textContent;
+        }
+
         document.getElementById('previewTotalTtc').textContent = fieldById('paymentTotalTtc').textContent;
         document.getElementById('previewModePaiement').textContent = venteForm.querySelector('select[name="mode_paiement"]').value.replace('_', ' ');
 
@@ -1953,6 +2025,9 @@ document.addEventListener('DOMContentLoaded', function() {
             client: document.getElementById('previewClientRow').classList.contains('d-none') ? '' : document.getElementById('previewClient').textContent.trim(),
             points: document.getElementById('previewPointsRow').classList.contains('d-none') ? '' : document.getElementById('previewPoints').textContent.trim(),
             pointsTotaux: document.getElementById('previewPointsTotalRow').classList.contains('d-none') ? '' : document.getElementById('previewPointsTotal').textContent.trim(),
+            codePromo: document.getElementById('previewPromoRow').classList.contains('d-none') ? '' : document.getElementById('previewPromoCode').textContent.trim(),
+            codePromoPourcentage: document.getElementById('previewPromoRow').classList.contains('d-none') ? '' : document.getElementById('previewPromoPercent').textContent.trim(),
+            codePromoMontant: document.getElementById('previewPromoRow').classList.contains('d-none') ? '' : document.getElementById('previewPromoAmount').textContent.trim(),
             lignes: lignes,
             totalTtc: document.getElementById('previewTotalTtc').textContent.trim(),
             modePaiement: document.getElementById('previewModePaiement').textContent.trim(),
@@ -2114,7 +2189,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `);
         });
         recapBody.innerHTML = rows.length ? rows.join('') : '<div class="text-center text-muted py-3">Panier vide — ajoutez un article.</div>';
-        document.getElementById('recapTotalTtc').textContent = formatMoney(total);
+        // Le panier doit refleter le meme total "apres reduction" que le bloc
+        // Paiement (voir updateSaleSummary/getCurrentSaleTotal), sinon le code promo
+        // semble n'avoir aucun effet quand on ne regarde que cette modale.
+        const promoDiscount = computePromoDiscount(total);
+        document.getElementById('recapTotalTtc').textContent = formatMoney(Math.max(total - promoDiscount, 0));
+        document.getElementById('recapPromoNote').classList.toggle('d-none', promoDiscount <= 0);
+        document.getElementById('recapPromoAmount').textContent = formatMoney(promoDiscount);
         document.getElementById('recapCountBadge').textContent = `${count} article${count > 1 ? 's' : ''}`;
     }
 
@@ -2424,6 +2505,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const clientBalance = toNumber(selectedClient.dataset.solde);
         fieldById('amountClientBalance').value = Math.min(toNumber(fieldById('amountClientBalance').value), clientBalance).toFixed(2);
         syncExternalFromClientBalance();
+    });
+    fieldById('codePromoInput')?.addEventListener('input', function() {
+        clearTimeout(codePromoDebounceTimer);
+        const raw = this.value.trim().toUpperCase();
+        if (!raw) {
+            appliedPromoState = null;
+            const feedback = fieldById('codePromoFeedback');
+            if (feedback) { feedback.textContent = ''; feedback.classList.remove('text-danger', 'text-success'); }
+            updateSaleSummary();
+            return;
+        }
+        codePromoDebounceTimer = setTimeout(() => verifyCodePromo(raw), 400);
     });
     fieldById('useGroupBalance')?.addEventListener('change', recomputeCascade);
     fieldById('useClientBalance')?.addEventListener('change', function() {

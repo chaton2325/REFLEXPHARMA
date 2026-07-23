@@ -54,7 +54,7 @@ class StockExitLog(db.Model):
     new_quantite_sous_unites = db.Column(db.Integer, nullable=False, default=0)
     new_quantite_sous_sous_unites = db.Column(db.Integer, nullable=False, default=0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
 
     def __repr__(self):
         return f'<StockExitLog {self.produit_code} {self.code_suivi}>'

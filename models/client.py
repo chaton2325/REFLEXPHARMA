@@ -15,8 +15,8 @@ class Client(db.Model):
     solde = db.Column(db.Float, nullable=False, default=0.0)
     points_fidelite = db.Column(db.Integer, nullable=False, default=0)
     groupe_id = db.Column(db.Integer, db.ForeignKey('groupes_clients.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
     @property
     def nom_complet(self):

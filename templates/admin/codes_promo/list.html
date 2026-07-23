@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Codes promotionnels - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e9ecef;
+  }
+  .table-custom tbody td { padding: 0.85rem 1rem; vertical-align: middle; border-bottom: 1px solid #f0f2f5; font-size: 0.88rem; }
+  .table-custom tbody tr:hover { background: #f8faff; }
+
+  .btn-action {
+    width: 34px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 0.85rem;
+  }
+  .action-group { display: flex; gap: 0.3rem; justify-content: flex-end; }
+
+  .mobile-card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f0f2f5; }
+
+  .promo-badge {
+    background: linear-gradient(135deg, #e05e5e, #8b5cf6);
+    color: #fff; font-weight: 700; font-size: 0.76rem;
+    padding: 0.25em 0.7em; border-radius: 999px;
+  }
+
+  .promo-progress { height: 6px; border-radius: 999px; background: #eef1f5; overflow: hidden; min-width: 90px; }
+  .promo-progress-bar { height: 100%; background: linear-gradient(90deg, #3498db, #8b5cf6); }
+  .promo-budget-sub { font-size: 0.76rem; color: #6c757d; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-tags me-2"></i>Codes promotionnels</h1>
+      <p>Codes de réduction à budget cumulable, applicables lors des ventes.</p>
+    </div>
+    <a href="{{ url_for('admin.create_code_promo') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+      <i class="fas fa-plus me-1"></i> Nouveau code
+    </a>
+  </div>
+</div>
+
+<div class="card-custom">
+  <!-- Mobile cards -->
+  <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;">
+    {% for c in codes %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ c.code }}</div>
+          <div class="text-muted" style="font-size:0.78rem;">
+            {% if c.date_debut or c.date_fin %}
+            Du {{ c.date_debut.strftime('%d/%m/%Y') if c.date_debut else '...' }} au {{ c.date_fin.strftime('%d/%m/%Y') if c.date_fin else '...' }}
+            {% else %}
+            Sans date d'expiration
+            {% endif %}
+          </div>
+        </div>
+        <span class="promo-badge">-{{ "%g"|format(c.pourcentage_reduction) }}%</span>
+      </div>
+      <div class="mt-2">
+        <div class="promo-progress"><div class="promo-progress-bar" style="width:{{ (c.montant_utilise / c.montant_total * 100) if c.montant_total else 0 }}%;"></div></div>
+        <div class="promo-budget-sub mt-1">Utilisé {{ "%.2f"|format(c.montant_utilise) }} / {{ "%.2f"|format(c.montant_total) }} {{ devise }} · Restant {{ "%.2f"|format(c.montant_restant) }} {{ devise }}</div>
+      </div>
+      <div class="mt-2 d-flex justify-content-between align-items-center">
+        {% if not c.actif %}
+        <span class="badge bg-secondary">Inactif</span>
+        {% elif c.date_fin and c.date_fin < today %}
+        <span class="badge bg-warning text-dark">Expiré</span>
+        {% elif c.est_epuise %}
+        <span class="badge bg-danger">Épuisé</span>
+        {% elif c.date_debut and c.date_debut > today %}
+        <span class="badge bg-info text-dark">À venir</span>
+        {% else %}
+        <span class="badge bg-success">Actif</span>
+        {% endif %}
+        <div class="d-flex gap-1">
+          <form action="{{ url_for('admin.toggle_code_promo', id=c.id) }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-outline-secondary btn-action" title="{{ 'Désactiver' if c.actif else 'Activer' }}">
+              <i class="fas {{ 'fa-toggle-on' if c.actif else 'fa-toggle-off' }}"></i>
+            </button>
+          </form>
+          <a href="{{ url_for('admin.edit_code_promo', id=c.id) }}" class="btn btn-sm btn-outline-primary btn-action"><i class="fas fa-edit"></i></a>
+          <button type="button" class="btn btn-sm btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ c.id }}"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-tags" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucun code promotionnel créé.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Réduction</th>
+          <th>Budget</th>
+          <th>Validité</th>
+          <th>Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in codes %}
+        <tr>
+          <td><div class="fw-semibold" style="color:#1a1a2e;">{{ c.code }}</div></td>
+          <td><span class="promo-badge">-{{ "%g"|format(c.pourcentage_reduction) }}%</span></td>
+          <td>
+            <div class="promo-progress"><div class="promo-progress-bar" style="width:{{ (c.montant_utilise / c.montant_total * 100) if c.montant_total else 0 }}%;"></div></div>
+            <div class="promo-budget-sub mt-1">{{ "%.2f"|format(c.montant_utilise) }} / {{ "%.2f"|format(c.montant_total) }} {{ devise }} (restant {{ "%.2f"|format(c.montant_restant) }})</div>
+          </td>
+          <td style="color:#495057;font-size:0.82rem;">
+            {% if c.date_debut or c.date_fin %}
+            Du {{ c.date_debut.strftime('%d/%m/%Y') if c.date_debut else '...' }}<br>au {{ c.date_fin.strftime('%d/%m/%Y') if c.date_fin else '...' }}
+            {% else %}
+            Sans date d'expiration
+            {% endif %}
+          </td>
+          <td>
+            {% if not c.actif %}
+            <span class="badge bg-secondary">Inactif</span>
+            {% elif c.date_fin and c.date_fin < today %}
+            <span class="badge bg-warning text-dark">Expiré</span>
+            {% elif c.est_epuise %}
+            <span class="badge bg-danger">Épuisé</span>
+            {% elif c.date_debut and c.date_debut > today %}
+            <span class="badge bg-info text-dark">À venir</span>
+            {% else %}
+            <span class="badge bg-success">Actif</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="action-group">
+              <form action="{{ url_for('admin.toggle_code_promo', id=c.id) }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-outline-secondary btn-action" title="{{ 'Désactiver' if c.actif else 'Activer' }}">
+                  <i class="fas {{ 'fa-toggle-on' if c.actif else 'fa-toggle-off' }}"></i>
+                </button>
+              </form>
+              <a href="{{ url_for('admin.edit_code_promo', id=c.id) }}" class="btn btn-outline-primary btn-action" title="Modifier">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-outline-danger btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ c.id }}" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">Aucun code promotionnel créé.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for c in codes %}
+<div class="modal fade" id="deleteModal{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">Supprimer le code promo <strong>{{ c.code }}</strong> ? Les ventes déjà enregistrées avec ce code conservent leur réduction (historique conservé).</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_code_promo', id=c.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

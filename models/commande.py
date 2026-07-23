@@ -33,8 +33,8 @@ class Commande(db.Model):
     livree_by = db.relationship('User', foreign_keys=[livree_by_id])
     livree_by_nom = db.Column(db.String(200), nullable=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     @property
     def total_commande(self):
@@ -94,7 +94,7 @@ class CommandeLigne(db.Model):
     quantite_commandee = db.Column(db.Integer, nullable=False, default=0)
     quantite_livree = db.Column(db.Integer, nullable=True)  # None tant que non livrée
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     @property
     def ecart(self):

@@ -23,8 +23,8 @@ class Stock(db.Model):
     # Commandes) : reference "souple" (SET NULL si la ligne est supprimee), utilisee
     # uniquement pour afficher la progression de mise en stock sur la commande.
     commande_ligne_id = db.Column(db.Integer, db.ForeignKey('commande_lignes.id', ondelete='SET NULL'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     produit = db.relationship(
         'Produit',

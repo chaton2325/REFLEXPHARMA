@@ -9,7 +9,7 @@ class CadeauFidelite(db.Model):
     points_requis = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text)
     actif = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
         return f'<CadeauFidelite {self.nom} ({self.points_requis} pts)>'

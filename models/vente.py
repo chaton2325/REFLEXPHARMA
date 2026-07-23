@@ -45,12 +45,21 @@ class Vente(db.Model):
     # gagne/echange des points sur des ventes ulterieures.
     points_totaux_apres = db.Column(db.Integer, nullable=False, default=0)
 
+    # Code promotionnel applique a cette vente (snapshot, comme points_gagnes) :
+    # NULL si aucun code n'a ete utilise. Le pourcentage et le montant deduit sont
+    # figes au moment de la vente (le code peut etre modifie/desactive ensuite sans
+    # affecter retroactivement les ventes deja enregistrees).
+    code_promo_id = db.Column(db.Integer, nullable=True)
+    code_promo_utilise = db.Column(db.String(50), nullable=True)
+    code_promo_pourcentage = db.Column(db.Float, nullable=True)
+    code_promo_montant_deduit = db.Column(db.Float, nullable=False, default=0.0)
+
     auteur_id = db.Column(db.Integer, nullable=True)
     auteur_nom = db.Column(db.String(100))
     auteur_prenom = db.Column(db.String(100))
     auteur_email = db.Column(db.String(150))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
     @cached_property
     def lignes(self):
@@ -120,7 +129,7 @@ class VenteLigne(db.Model):
     total_ht = db.Column(db.Float, nullable=False, default=0.0)
     total_tva = db.Column(db.Float, nullable=False, default=0.0)
     total_ttc = db.Column(db.Float, nullable=False, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
     @property
     def tva_reelle(self):

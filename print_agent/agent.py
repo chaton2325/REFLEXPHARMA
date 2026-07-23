@@ -147,6 +147,11 @@ def build_receipt_bytes(receipt):
         b.line(ligne.get('nom', ''))
         b.row('  ' + str(ligne.get('qte', '')) + ' x ' + str(ligne.get('pu', '')), ligne.get('total', ''))
     b.hr('-')
+    if receipt.get('codePromo'):
+        b.row(
+            'Code promo ' + str(receipt['codePromo']) + ' (-' + str(receipt.get('codePromoPourcentage', '')) + '%)',
+            '-' + str(receipt.get('codePromoMontant', ''))
+        )
     b.bold(True).row('NET A PAYER (TTC)', receipt.get('totalTtc', '')).bold(False)
     b.hr('.')
     b.row('Paiement:', receipt.get('modePaiement', ''))

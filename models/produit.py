@@ -33,8 +33,8 @@ class Produit(db.Model):
     # (voir points_fidelite_effectif pour le repli vers famille/rayon/section).
     points_fidelite = db.Column(db.Integer, nullable=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     @property
     def effectif_coefficient(self):

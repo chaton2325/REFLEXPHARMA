@@ -16,6 +16,7 @@ FEATURES = {
     'gestion_groupes_clients': 'Gérer les groupes clients',
     'historique_clients': "Voir l'historique des clients",
     'gestion_ventes': 'Gérer les ventes',
+    'gestion_codes_promo': 'Gérer les codes promotionnels',
     'gestion_fidelite': 'Gérer le programme de fidélité (cadeaux, conversion des points, cartes de fidélité)',
     'stats_ventes': 'Voir les statistiques des ventes',
     'gestion_inventaire': "Gérer l'inventaire",

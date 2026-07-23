@@ -7,7 +7,7 @@ class Famille(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Points de fidelite par unite achetee pour les produits de cette famille.
     # NULL = pas de regle a ce niveau (le fallback continue vers rayon/section).

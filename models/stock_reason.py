@@ -8,7 +8,7 @@ class StockReason(db.Model):
     nom = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(20), nullable=False)  # 'ajout' or 'sortie'
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
         return f'<StockReason {self.nom} ({self.type})>'

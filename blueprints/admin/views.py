@@ -30,6 +30,7 @@ from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
 from models.carte_fidelite_commande import CarteFideliteCommande
+from models.code_promo import CodePromo
 from extensions import db
 from functools import wraps
 from datetime import datetime, timedelta, date
@@ -324,7 +325,7 @@ def build_stock_qr_report_rows(stocks):
 @admin.route('/dashboard')
 @login_required
 def dashboard():
-    today = datetime.utcnow().date()
+    today = datetime.now().date()
     today_start = datetime(today.year, today.month, today.day)
 
     produits_count = Produit.query.count()
@@ -367,7 +368,7 @@ def dashboard_alerts():
     """Alertes du tableau de bord : lots périmés encore en stock et produits
     sous leur stock de sécurité. Chaque type d'alerte n'est renvoyé que si
     l'utilisateur a la permission d'accéder à la page qui permet de le traiter."""
-    today = datetime.utcnow().date()
+    today = datetime.now().date()
     alerts = []
 
     if current_user.has_permission('gestion_stock'):
@@ -1385,7 +1386,7 @@ def list_cartes_fidelite():
 def marquer_carte_fidelite_recue(id):
     commande = CarteFideliteCommande.query.get_or_404(id)
     commande.statut = 'recue'
-    commande.recue_at = datetime.utcnow()
+    commande.recue_at = datetime.now()
     commande.recue_par_nom = current_user.nom
     commande.recue_par_prenom = current_user.prenom
     db.session.commit()
@@ -1399,7 +1400,7 @@ def marquer_lot_carte_fidelite_recu(lot_numero):
     commandes = CarteFideliteCommande.query.filter_by(lot_numero=lot_numero, statut='en_cours').all()
     for commande in commandes:
         commande.statut = 'recue'
-        commande.recue_at = datetime.utcnow()
+        commande.recue_at = datetime.now()
         commande.recue_par_nom = current_user.nom
         commande.recue_par_prenom = current_user.prenom
     db.session.commit()
@@ -2525,6 +2526,27 @@ def create_vente():
             flash('Ajoutez au moins un produit valide a la vente.', 'danger')
             return redirect(url_for('admin.create_vente'))
 
+        # Code promo : applique AVANT les calculs de couverture de paiement
+        # ci-dessous, qui doivent porter sur le total_ttc deja reduit.
+        code_promo_input = (request.form.get('code_promo') or '').strip().upper()
+        code_promo_obj = None
+        montant_reduction = 0.0
+        if code_promo_input:
+            code_promo_obj = CodePromo.query.filter(CodePromo.code.ilike(code_promo_input)).first()
+            if not code_promo_obj or not code_promo_obj.est_valide():
+                db.session.rollback()
+                flash('Code promo invalide, inactif, expiré ou budget épuisé.', 'danger')
+                return redirect(url_for('admin.create_vente'))
+            montant_reduction = round(min(total_ttc * (code_promo_obj.pourcentage_reduction / 100), code_promo_obj.montant_restant), 2)
+            if montant_reduction > 0:
+                nouveau_total_ttc = round(total_ttc - montant_reduction, 2)
+                ratio = (nouveau_total_ttc / total_ttc) if total_ttc else 0
+                total_ht = round(total_ht * ratio, 2)
+                total_ttc = nouveau_total_ttc
+                # total_tva derive du reste (jamais recalcule independamment) :
+                # garantit total_ht + total_tva == total_ttc a l'euro pres.
+                total_tva = round(total_ttc - total_ht, 2)
+
         montant_hors_solde = form_amount('montant_hors_solde')
         montant_solde_client = form_amount('montant_solde_client')
         use_group_balance = request.form.get('use_group_balance') == '1'
@@ -2578,6 +2600,12 @@ def create_vente():
 
         vente.points_gagnes = points_gagnes_total if client else 0
         vente.points_totaux_apres = client.points_fidelite if client else 0
+        vente.code_promo_id = code_promo_obj.id if code_promo_obj else None
+        vente.code_promo_utilise = code_promo_obj.code if code_promo_obj else None
+        vente.code_promo_pourcentage = code_promo_obj.pourcentage_reduction if code_promo_obj else None
+        vente.code_promo_montant_deduit = montant_reduction
+        if code_promo_obj and montant_reduction > 0:
+            code_promo_obj.montant_utilise = (code_promo_obj.montant_utilise or 0) + montant_reduction
         vente.total_ht = total_ht
         vente.total_tva = total_tva
         vente.total_ttc = total_ttc
@@ -2626,6 +2654,147 @@ def detail_vente(id):
         auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true',
         fidelite_active=fidelite.is_active()
     )
+
+@admin.route('/ventes/code-promo/verifier')
+@login_required
+@permission_required('gestion_ventes')
+def verifier_code_promo():
+    code = (request.args.get('code') or '').strip().upper()
+    if not code:
+        return jsonify({'valide': False, 'pourcentage': None, 'montant_restant': None, 'message': ''})
+    code_promo = CodePromo.query.filter(CodePromo.code.ilike(code)).first()
+    if not code_promo or not code_promo.est_valide():
+        return jsonify({
+            'valide': False, 'pourcentage': None, 'montant_restant': None,
+            'message': 'Code promo invalide, inactif, expiré ou épuisé.'
+        })
+    return jsonify({
+        'valide': True,
+        'pourcentage': code_promo.pourcentage_reduction,
+        'montant_restant': round(code_promo.montant_restant, 2),
+        'message': f'Code valide : -{code_promo.pourcentage_reduction:g}% (budget restant : {code_promo.montant_restant:.2f}).'
+    })
+
+# --- CODES PROMOTIONNELS : GESTION ET APPLICATION AUX VENTES ---
+# La reduction elle-meme (calcul, plafonnement au budget restant, snapshot sur la
+# vente) est appliquee dans create_vente() ci-dessus. Ce bloc ne gere que le
+# catalogue des codes (creation, edition, activation, suppression) : n'importe
+# quel utilisateur avec gestion_ventes peut APPLIQUER un code existant lors d'une
+# vente (voir verifier_code_promo ci-dessus) ; gestion_codes_promo protege
+# uniquement la gestion du catalogue.
+@admin.route('/codes-promo')
+@login_required
+@permission_required('gestion_codes_promo')
+def list_codes_promo():
+    codes = CodePromo.query.order_by(CodePromo.created_at.desc()).all()
+    return render_template('admin/codes_promo/list.html', codes=codes, today=date.today())
+
+def _valider_code_promo_form(nom_code, pourcentage_raw, montant_total_raw, date_debut_raw, date_fin_raw, exclude_id=None):
+    """Valide les champs communs a la creation/edition d'un code promo. Renvoie
+    (valeurs_normalisees, message_erreur) ; valeurs_normalisees est None si erreur."""
+    nom_code = (nom_code or '').strip().upper()
+    if not nom_code:
+        return None, 'Le code est obligatoire.'
+    query = CodePromo.query.filter(CodePromo.code.ilike(nom_code))
+    if exclude_id:
+        query = query.filter(CodePromo.id != exclude_id)
+    if query.first():
+        return None, f'Le code "{nom_code}" existe déjà.'
+    try:
+        pourcentage = float(pourcentage_raw)
+    except (TypeError, ValueError):
+        pourcentage = -1
+    if pourcentage < 0 or pourcentage > 100:
+        return None, 'Le pourcentage de réduction doit être compris entre 0 et 100.'
+    try:
+        montant_total = float(montant_total_raw)
+    except (TypeError, ValueError):
+        montant_total = -1
+    if montant_total <= 0:
+        return None, 'Le montant du budget doit être supérieur à 0.'
+    date_debut = None
+    date_fin = None
+    try:
+        date_debut = datetime.strptime(date_debut_raw, '%Y-%m-%d').date() if date_debut_raw else None
+        date_fin = datetime.strptime(date_fin_raw, '%Y-%m-%d').date() if date_fin_raw else None
+    except ValueError:
+        return None, 'Date invalide.'
+    if date_debut and date_fin and date_fin < date_debut:
+        return None, 'La date de fin doit être postérieure à la date de début.'
+    return {
+        'code': nom_code,
+        'pourcentage_reduction': pourcentage,
+        'montant_total': montant_total,
+        'date_debut': date_debut,
+        'date_fin': date_fin
+    }, None
+
+@admin.route('/codes-promo/create', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_codes_promo')
+def create_code_promo():
+    if request.method == 'POST':
+        valeurs, erreur = _valider_code_promo_form(
+            request.form.get('code'),
+            request.form.get('pourcentage_reduction'),
+            request.form.get('montant_total'),
+            request.form.get('date_debut'),
+            request.form.get('date_fin')
+        )
+        if erreur:
+            flash(erreur, 'danger')
+            return redirect(url_for('admin.create_code_promo'))
+        code_promo = CodePromo(actif=bool(request.form.get('actif')), **valeurs)
+        db.session.add(code_promo)
+        db.session.commit()
+        flash(f'Code promo "{code_promo.code}" créé.', 'success')
+        return redirect(url_for('admin.list_codes_promo'))
+    return render_template('admin/codes_promo/form.html', title='Créer un code promo')
+
+@admin.route('/codes-promo/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_codes_promo')
+def edit_code_promo(id):
+    code_promo = CodePromo.query.get_or_404(id)
+    if request.method == 'POST':
+        valeurs, erreur = _valider_code_promo_form(
+            request.form.get('code'),
+            request.form.get('pourcentage_reduction'),
+            request.form.get('montant_total'),
+            request.form.get('date_debut'),
+            request.form.get('date_fin'),
+            exclude_id=code_promo.id
+        )
+        if erreur:
+            flash(erreur, 'danger')
+            return redirect(url_for('admin.edit_code_promo', id=id))
+        for key, value in valeurs.items():
+            setattr(code_promo, key, value)
+        code_promo.actif = bool(request.form.get('actif'))
+        db.session.commit()
+        flash(f'Code promo "{code_promo.code}" mis à jour.', 'success')
+        return redirect(url_for('admin.list_codes_promo'))
+    return render_template('admin/codes_promo/form.html', code_promo=code_promo, title='Modifier le code promo')
+
+@admin.route('/codes-promo/<int:id>/toggle', methods=['POST'])
+@login_required
+@permission_required('gestion_codes_promo')
+def toggle_code_promo(id):
+    code_promo = CodePromo.query.get_or_404(id)
+    code_promo.actif = not code_promo.actif
+    db.session.commit()
+    flash(f'Code promo "{code_promo.code}" {"activé" if code_promo.actif else "désactivé"}.', 'success')
+    return redirect(url_for('admin.list_codes_promo'))
+
+@admin.route('/codes-promo/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_codes_promo')
+def delete_code_promo(id):
+    code_promo = CodePromo.query.get_or_404(id)
+    db.session.delete(code_promo)
+    db.session.commit()
+    flash(f'Code promo "{code_promo.code}" supprimé.', 'success')
+    return redirect(url_for('admin.list_codes_promo'))
 
 @admin.route('/clients/<int:id>/achats')
 @login_required
@@ -3495,7 +3664,7 @@ def _codes_suivi_par_produit(produit_ids=None):
 
 def _unites_perimant_bientot(nb_jours=30):
     """Retourne {produit_id: unités dans des lots périmés ou périmant sous nb_jours}."""
-    limite = datetime.utcnow().date() + timedelta(days=nb_jours)
+    limite = datetime.now().date() + timedelta(days=nb_jours)
     rows = db.session.query(
         Stock.produit_id,
         db.func.coalesce(db.func.sum(Stock.quantite_unites), 0)
@@ -3521,7 +3690,7 @@ def commandes_stats_ventes():
     except (TypeError, ValueError):
         jours = 0
 
-    now = datetime.utcnow()
+    now = datetime.now()
     fin = None
     date_str = (request.args.get('date') or '').strip()
     if date_str:
@@ -3584,7 +3753,7 @@ def commandes_stats_ventes():
     })
 
 def generate_numero_commande():
-    base = f"CMD-{datetime.utcnow().strftime('%Y%m%d')}-"
+    base = f"CMD-{datetime.now().strftime('%Y%m%d')}-"
     count = Commande.query.filter(Commande.numero.like(f'{base}%')).count()
     while True:
         numero = f'{base}{count + 1:03d}'
@@ -3938,7 +4107,7 @@ def livraison_commande(id):
 
     if commande.statut == 'en_cours':
         commande.statut = 'livree'
-        commande.livree_at = datetime.utcnow()
+        commande.livree_at = datetime.now()
         commande.livree_by_id = current_user.id
         commande.livree_by_nom = f'{current_user.prenom} {current_user.nom}'
         db.session.commit()
@@ -6184,7 +6353,7 @@ def save_inventaire_line(id, line_id):
         line.quantite_sous_sous_unites_apres = int(ssu) if ssu is not None and ssu != '' else 0
         
         line.is_scanned = True
-        line.constate_at = datetime.utcnow()
+        line.constate_at = datetime.now()
         line.constate_by_id = current_user.id
         db.session.commit()
 
@@ -6237,7 +6406,7 @@ def inventaire_updates(id):
 
     return {
         'success': True,
-        'server_time': datetime.utcnow().isoformat(),
+        'server_time': datetime.now().isoformat(),
         'total_count': total_count,
         'scanned_count': scanned_count,
         'lines': [_inventaire_line_payload(line) for line in lines]
@@ -6351,7 +6520,7 @@ def validate_inventaire(id):
                 line.quantite_sous_sous_unites_apres = 0
                 
             line.is_scanned = True
-            line.constate_at = datetime.utcnow()
+            line.constate_at = datetime.now()
             line.constate_by_id = current_user.id
             
         if line.stock:
@@ -6376,7 +6545,7 @@ def validate_inventaire(id):
                 )
                 
     inventaire.statut = 'valide'
-    inventaire.validated_at = datetime.utcnow()
+    inventaire.validated_at = datetime.now()
     inventaire.validated_by_id = current_user.id
     
     db.session.commit()
@@ -6784,7 +6953,7 @@ def declarer_impot(id):
     declaration.total_tva = summary['tva']
     declaration.total_benefice = summary['benefice']
     declaration.total_ttc = summary['ttc']
-    declaration.declared_at = datetime.utcnow()
+    declaration.declared_at = datetime.now()
     declaration.declared_by_id = current_user.id
     db.session.commit()
     flash(f"La période {declaration.periode_label} est marquée comme déclarée. Les totaux sont gelés.", "success")

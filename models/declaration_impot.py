@@ -19,7 +19,7 @@ class DeclarationImpot(db.Model):
     total_benefice = db.Column(db.Float, nullable=False, default=0.0)
     total_ttc = db.Column(db.Float, nullable=False, default=0.0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref=db.backref('declarations_impots_creees', lazy=True))
 

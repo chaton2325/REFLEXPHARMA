@@ -18,6 +18,7 @@ Les accès sont déterminés selon une logique de priorité stricte :
 - `gestion_familles` : Accès aux familles de produits.
 - `gestion_sections` : Accès aux sections de stockage/vente.
 - `gestion_produits` : Accès au catalogue produit.
+- `gestion_codes_promo` : Accès à la création et la gestion des codes promotionnels (budget, pourcentage, dates de validité). N'importe quel utilisateur avec `gestion_ventes` peut appliquer un code existant lors d'une vente.
 - `consultation_salaires` : Accès à la visualisation des informations financières.
 - `module_impots` : Accès au module Impôts (déclaration des taxes par période, export PDF des ventes avec HT/TVA/TTC, marquage des périodes déclarées).
 

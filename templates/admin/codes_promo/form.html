@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+
+  .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); overflow: hidden; }
+  .card-form .card-header { background: #f8f9fa; border-bottom: 1px solid #e9ecef; padding: 1rem 1.5rem; }
+  .card-form .card-header h5 { font-size: 1rem; font-weight: 600; color: #2c3e50; margin: 0; }
+  .card-form .card-body { padding: 1.5rem; }
+
+  .form-custom .form-label { font-size: 0.85rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.4rem; }
+  .form-custom .form-control { border-radius: 10px; border: 1px solid #e9ecef; padding: 0.55rem 0.85rem; font-size: 0.88rem; }
+  .form-custom .form-control:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .btn-rounded { border-radius: 10px; font-weight: 600; padding: 0.5rem 1.5rem; font-size: 0.88rem; }
+
+  .budget-info { background: #f8faff; border: 1px solid #e9ecef; border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.85rem; color: #495057; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .card-form .card-body { padding: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('admin.list_codes_promo') }}" class="btn btn-light btn-sm" style="border-radius:8px;padding:0.3rem 0.7rem;color:#2c3e50;" title="Retour">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h1><i class="fas fa-tags me-2"></i>{{ title }}</h1>
+      <p>{{ "Modifiez ce code promotionnel" if code_promo else "Créez un nouveau code de réduction à budget cumulable" }}.</p>
+    </div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-6">
+    <div class="card-form">
+      <div class="card-header">
+        <h5><i class="fas fa-info-circle me-2 text-primary"></i>{{ "Informations du code" if code_promo else "Nouveau code promo" }}</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="form-custom">
+          <div class="mb-3">
+            <label class="form-label">Code <span class="text-danger">*</span></label>
+            <input type="text" name="code" class="form-control text-uppercase" value="{{ code_promo.code if code_promo else '' }}" placeholder="ex: PROMO10" required>
+          </div>
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Réduction (%) <span class="text-danger">*</span></label>
+              <input type="number" step="0.01" min="0" max="100" name="pourcentage_reduction" class="form-control" value="{{ code_promo.pourcentage_reduction if code_promo else '' }}" placeholder="ex: 10" required>
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Budget total ({{ devise }}) <span class="text-danger">*</span></label>
+              <input type="number" step="0.01" min="0.01" name="montant_total" class="form-control" value="{{ code_promo.montant_total if code_promo else '' }}" placeholder="ex: 50000" required>
+            </div>
+          </div>
+
+          {% if code_promo %}
+          <div class="budget-info mb-3">
+            <i class="fas fa-wallet me-1 text-primary"></i>
+            Budget utilisé : <strong>{{ "%.2f"|format(code_promo.montant_utilise) }} {{ devise }}</strong>
+            · Restant : <strong>{{ "%.2f"|format(code_promo.montant_restant) }} {{ devise }}</strong>
+            <div class="text-muted mt-1" style="font-size:0.78rem;">Le montant utilisé n'est modifiable que par les ventes qui appliquent ce code.</div>
+          </div>
+          {% endif %}
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Date de début</label>
+              <input type="date" name="date_debut" class="form-control" value="{{ code_promo.date_debut.strftime('%Y-%m-%d') if code_promo and code_promo.date_debut else '' }}">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Date de fin</label>
+              <input type="date" name="date_fin" class="form-control" value="{{ code_promo.date_fin.strftime('%Y-%m-%d') if code_promo and code_promo.date_fin else '' }}">
+            </div>
+          </div>
+          <div class="form-text mb-3">Laissez les dates vides pour un code sans limite de validité dans le temps.</div>
+
+          <div class="form-check form-switch mb-4">
+            <input class="form-check-input" type="checkbox" id="actif" name="actif" {% if not code_promo or code_promo.actif %}checked{% endif %}>
+            <label class="form-check-label" for="actif">Actif (utilisable en caisse)</label>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{{ url_for('admin.list_codes_promo') }}" class="btn btn-light border btn-rounded">Annuler</a>
+            <button type="submit" class="btn btn-primary btn-rounded">
+              <i class="fas fa-save me-1"></i> Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

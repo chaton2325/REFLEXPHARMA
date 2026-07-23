@@ -200,6 +200,12 @@
                         </tbody>
                     </table>
                     <div class="receipt-totals small">
+                        {% if vente.code_promo_utilise %}
+                        <div class="d-flex justify-content-between">
+                            <span>Code promo {{ vente.code_promo_utilise }} (-{{ "%g"|format(vente.code_promo_pourcentage) }}%)</span>
+                            <span>-{{ "{:,.2f}".format(vente.code_promo_montant_deduit).replace(',', ' ').replace('.', ',') }}</span>
+                        </div>
+                        {% endif %}
                         <div class="d-flex justify-content-between fw-bold h5 mt-2">
                             <span>NET À PAYER (TTC)</span>
                             <span>{{ "{:,.2f}".format(vente.total_ttc).replace(',', ' ').replace('.', ',') }}</span>
@@ -262,6 +268,9 @@
                 <div class="cell-sub">Après vente client/groupe : {{ "%.2f"|format(vente.solde_client_apres) }} / {{ "%.2f"|format(vente.solde_groupe_apres) }}</div>
                 {% if vente.client_matricule %}
                 <div class="cell-sub">Points fidélité gagnés : {{ vente.points_gagnes }}</div>
+                {% endif %}
+                {% if vente.code_promo_utilise %}
+                <div class="cell-sub">Code promo : {{ vente.code_promo_utilise }} (-{{ "%g"|format(vente.code_promo_pourcentage) }}%, -{{ "%.2f"|format(vente.code_promo_montant_deduit) }})</div>
                 {% endif %}
             </div>
         </div>
@@ -402,6 +411,9 @@ document.addEventListener('DOMContentLoaded', function () {
         client: {{ (vente.client_label if vente.client_matricule else '')|tojson }},
         points: {{ (vente.points_gagnes if (fidelite_active and vente.points_gagnes) else '')|tojson }},
         pointsTotaux: {{ (vente.points_totaux_apres if (fidelite_active and vente.client_matricule) else '')|tojson }},
+        codePromo: {{ (vente.code_promo_utilise or '')|tojson }},
+        codePromoPourcentage: {{ (vente.code_promo_pourcentage if vente.code_promo_utilise else '')|tojson }},
+        codePromoMontant: {{ ("{:,.2f}".format(vente.code_promo_montant_deduit).replace(',', ' ').replace('.', ',') if vente.code_promo_utilise else '')|tojson }},
         lignes: [
             {% for ligne in vente.lignes %}
             {

@@ -26,7 +26,7 @@ class StockModification(db.Model):
     new_quantite_sous_unites = db.Column(db.Integer, nullable=False, default=0)
     new_quantite_sous_sous_unites = db.Column(db.Integer, nullable=False, default=0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     stock = db.relationship('Stock', backref=db.backref('modifications', lazy=True))
     produit = db.relationship('Produit', backref=db.backref('stock_modifications', lazy=True))

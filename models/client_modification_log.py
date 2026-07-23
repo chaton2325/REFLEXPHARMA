@@ -21,7 +21,7 @@ class ClientModificationLog(db.Model):
     user_prenom = db.Column(db.String(100), nullable=False)
     user_email = db.Column(db.String(150), nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
 
     def __repr__(self):
         return f'<ClientModificationLog {self.entity_type} {self.action} {self.reference}>'

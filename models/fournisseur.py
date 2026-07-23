@@ -18,8 +18,8 @@ class Fournisseur(db.Model):
     # Relation vers les produits
     produits = db.relationship('Produit', backref='fournisseur', lazy=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     @property
     def effectif_coefficient(self):

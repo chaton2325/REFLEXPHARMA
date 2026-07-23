@@ -9,8 +9,8 @@ class Inventaire(db.Model):
     statut = db.Column(db.String(30), nullable=False, default='en_cours') # 'planifie', 'en_cours', 'valide', 'annule'
     date_planifiee = db.Column(db.DateTime, nullable=True) # date/heure prevue si statut == 'planifie'
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref=db.backref('inventaires_crees', lazy=True))

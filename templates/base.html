@@ -768,6 +768,13 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             </a>
             {% endif %}
 
+            {% if current_user.has_permission('gestion_codes_promo') %}
+            <a href="{{ url_for('admin.list_codes_promo') }}" class="nav-link" title="Codes promo">
+                <i class="fas fa-tags"></i>
+                <span class="nav-label">Codes promo</span>
+            </a>
+            {% endif %}
+
             {% if current_user.has_permission('gestion_finance') %}
             <a href="{{ url_for('admin.finance_dashboard') }}" class="nav-link" title="Finance">
                 <i class="fas fa-sack-dollar"></i>
@@ -953,6 +960,10 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
 
             {% if current_user.has_permission('gestion_ventes') %}
             <a href="{{ url_for('admin.list_ventes') }}"><i class="fas fa-cash-register"></i>Ventes</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_codes_promo') %}
+            <a href="{{ url_for('admin.list_codes_promo') }}"><i class="fas fa-tags"></i>Codes promo</a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_finance') %}
