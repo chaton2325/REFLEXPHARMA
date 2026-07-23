@@ -201,7 +201,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
             <div>
                 <div class="stat-number amount-benefice">{{ "{:,.2f}".format(summary.benefice).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">Bénéfice ({{ devise }})</div>
+                <div class="stat-label">Marge brute ({{ devise }})</div>
             </div>
         </div>
     </div>
@@ -287,7 +287,7 @@
             <div class="d-flex flex-wrap gap-2" style="font-size:0.72rem;">
                 <span>HT <strong>{{ "{:,.2f}".format(vente.total_ht or 0).replace(',', ' ').replace('.', ',') }}</strong></span>
                 <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(vente.total_tva_reelle).replace(',', ' ').replace('.', ',') }}</strong></span>
-                <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(vente.total_benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-benefice">Marge <strong>{{ "{:,.2f}".format(vente.total_benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
                 <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(vente.total_ttc or 0).replace(',', ' ').replace('.', ',') }}</strong></span>
             </div>
         </a>
@@ -307,7 +307,7 @@
                     <th>Mode paiement</th>
                     <th class="text-end">HT ({{ devise }})</th>
                     <th class="text-end">TVA ({{ devise }})</th>
-                    <th class="text-end">Bénéfice ({{ devise }})</th>
+                    <th class="text-end">Marge brute ({{ devise }})</th>
                     <th class="text-end">TTC ({{ devise }})</th>
                 </tr>
             </thead>

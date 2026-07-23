@@ -594,7 +594,7 @@
               </div>
               <div class="small text-muted mt-1">BL: {{ stock.numero_bl }} | Péremp: {{ stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A' }}</div>
               <div class="small mt-1">
-                <span class="amount-benefice">Bénéf: {{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
+                <span class="amount-benefice">Marge: {{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
                 &nbsp;·&nbsp;
                 <span class="amount-tva">TVA: {{ "%.2f"|format(stock.tva_total) }} {{ devise }}</span>
               </div>
@@ -629,7 +629,7 @@
               <th data-sort-type="text" style="cursor:pointer" class="col-entree">Entrée <i class="fas fa-sort sort-icon"></i></th>
               <th data-sort-type="number" style="cursor:pointer">Qté <i class="fas fa-sort sort-icon"></i></th>
               <th data-sort-type="number" style="cursor:pointer">TTC <i class="fas fa-sort sort-icon"></i></th>
-              <th data-sort-type="number" style="cursor:pointer" title="Marge liée au coefficient produit">Bénéfice <i class="fas fa-sort sort-icon"></i></th>
+              <th data-sort-type="number" style="cursor:pointer" title="Marge liée au coefficient produit">Marge brute <i class="fas fa-sort sort-icon"></i></th>
               <th data-sort-type="number" style="cursor:pointer" title="TVA effective appliquée au produit">TVA <i class="fas fa-sort sort-icon"></i></th>
               <th class="text-end">Actions</th>
             </tr>
@@ -830,7 +830,7 @@
           <span class="fw-semibold">{{ "%.2f"|format(stock.prix_ht_total) }} {{ devise }}</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
-          <span class="text-muted">Bénéfice (marge coefficient)</span>
+          <span class="text-muted">Marge brute (coefficient)</span>
           <span class="fw-semibold amount-benefice">{{ "%.2f"|format(stock.benefice_total) }} {{ devise }}</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
@@ -950,7 +950,7 @@
               <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
               <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
             </div>
-            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Bénéf. 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
+            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
             <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
             <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
           </div>
@@ -969,7 +969,7 @@
           <div class="border rounded p-3 bg-success bg-opacity-10 mb-3">
             <div class="small text-muted mb-2">Estimation de la saisie</div>
             <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
-            <div class="small mb-1"><strong>Bénéfice:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
+            <div class="small mb-1"><strong>Marge brute:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
             <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
             <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
           </div>
@@ -1386,6 +1386,19 @@ document.addEventListener('DOMContentLoaded', function() {
         function mNormalizeBl(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[\\/]/g, '-'); }
         function mFormat(v) { return Number(v || 0).toFixed(2) + ' {{ devise }}'; }
 
+        // Arrondi du prix de vente (voir Paramètres) : reproduit ici la même logique
+        // que Produit._prix_details cote serveur, pour que cet apercu corresponde au
+        // prix reellement utilise a la vente (voir aussi templates/admin/produits/form.html).
+        const ARRONDI_ACTIVE = {{ 'true' if arrondi_active else 'false' }};
+        const ARRONDI_SENS = {{ (arrondi_sens or 'superieur')|tojson }};
+        const ARRONDI_PALIER = {{ arrondi_palier or 25 }};
+
+        function mArrondirPrix(valeur) {
+            if (!ARRONDI_ACTIVE || !ARRONDI_PALIER) return valeur;
+            const fn = ARRONDI_SENS === 'inferieur' ? Math.floor : Math.ceil;
+            return fn(valeur / ARRONDI_PALIER) * ARRONDI_PALIER;
+        }
+
         function mUpdateCond() {
             const cond = Number(mOption()?.dataset.conditionnement || 1);
             mGroupSous.style.display = cond >= 2 ? 'block' : 'none';
@@ -1396,12 +1409,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function mUnitBreakdown(prixAchat, coefficient, tvaTaux) {
             // prixAchat = prix d'achat (PA). Prix de vente HT = PA x coefficient ;
-            // TVA calculee sur le prix de vente HT, pas sur le PA.
+            // TVA calculee sur le prix de vente HT, pas sur le PA. Le TTC est ensuite
+            // arrondi si le reglage est actif, et HT/TVA/marge derives de ce TTC
+            // (potentiellement arrondi) pour rester coherents avec le prix reel de vente.
             const achat = Number(prixAchat || 0);
-            const ht = achat * (Number(coefficient || 1) || 1);
+            const tauxTva = Number(tvaTaux || 0) / 100;
+            const htBrut = achat * (Number(coefficient || 1) || 1);
+            const ttcBrut = htBrut * (1 + tauxTva);
+            const ttc = mArrondirPrix(ttcBrut);
+            const ht = ttc !== ttcBrut ? ttc / (1 + tauxTva) : htBrut;
+            const tva = ttc - ht;
             const benefice = ht - achat;
-            const tva = ht * (Number(tvaTaux || 0) / 100);
-            const ttc = ht + tva;
             return { ht, benefice, tva, ttc };
         }
 
@@ -1413,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const coefBadge = document.getElementById('prodCoefBadgeMobile');
             const tvaBadge = document.getElementById('prodTvaBadgeMobile');
             if (!opt || !opt.value) {
-                ue.textContent = '0.00 {{ devise }} HT / Bénéf. 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC';
+                ue.textContent = '0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC';
                 se.textContent = 'N/A'; sse.textContent = 'N/A';
                 coefBadge.textContent = 'Coef. x1.00'; tvaBadge.textContent = 'TVA 0%';
                 return;
@@ -1425,18 +1443,18 @@ document.addEventListener('DOMContentLoaded', function() {
             tvaBadge.textContent = 'TVA ' + Number(tvaTaux || 0) + '%';
 
             const u = mUnitBreakdown(opt.dataset.prixUniteHt, coefficient, tvaTaux);
-            ue.textContent = mFormat(u.ht) + ' HT / Bénéf. ' + mFormat(u.benefice) + ' / TVA ' + mFormat(u.tva) + ' / ' + mFormat(u.ttc) + ' TTC';
+            ue.textContent = mFormat(u.ht) + ' HT / Marge ' + mFormat(u.benefice) + ' / TVA ' + mFormat(u.tva) + ' / ' + mFormat(u.ttc) + ' TTC';
 
             if (cond >= 2) {
                 const s = mUnitBreakdown(opt.dataset.prixSousUniteHt, coefficient, tvaTaux);
-                se.textContent = mFormat(s.ht) + ' HT / Bénéf. ' + mFormat(s.benefice) + ' / TVA ' + mFormat(s.tva) + ' / ' + mFormat(s.ttc) + ' TTC';
+                se.textContent = mFormat(s.ht) + ' HT / Marge ' + mFormat(s.benefice) + ' / TVA ' + mFormat(s.tva) + ' / ' + mFormat(s.ttc) + ' TTC';
             } else {
                 se.textContent = 'N/A';
             }
 
             if (cond >= 3) {
                 const ss = mUnitBreakdown(opt.dataset.prixSousSousUniteHt, coefficient, tvaTaux);
-                sse.textContent = mFormat(ss.ht) + ' HT / Bénéf. ' + mFormat(ss.benefice) + ' / TVA ' + mFormat(ss.tva) + ' / ' + mFormat(ss.ttc) + ' TTC';
+                sse.textContent = mFormat(ss.ht) + ' HT / Marge ' + mFormat(ss.benefice) + ' / TVA ' + mFormat(ss.tva) + ' / ' + mFormat(ss.ttc) + ' TTC';
             } else {
                 sse.textContent = 'N/A';
             }

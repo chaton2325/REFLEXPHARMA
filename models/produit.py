@@ -1,5 +1,6 @@
 from extensions import db
 from datetime import datetime
+from utils import arrondi
 
 class Produit(db.Model):
     __tablename__ = 'produits'
@@ -68,34 +69,45 @@ class Produit(db.Model):
     # stockent le PRIX D'ACHAT (PA). Tout le reste (prix de vente HT, TVA,
     # bénéfice, prix de vente TTC) est dérivé du coefficient et du taux de
     # TVA effectifs, jamais stocké :
-    #   PVHT = PA x coefficient
-    #   Bénéfice = PVHT - PA (= PA x (coefficient - 1))
-    #   TVA = PVHT x (taux / 100)  — calculée sur le PVHT, pas sur le PA
-    #   PVTTC = PVHT + TVA
+    #   PVHT brut = PA x coefficient
+    #   PVTTC brut = PVHT brut + (PVHT brut x taux / 100)
+    #   PVTTC = PVTTC brut, arrondi au palier configuré si le réglage "Arrondir
+    #   les prix" est actif (voir utils/arrondi.py — cas FCFA : 185 n'existe pas
+    #   en pièces/billets, on arrondit à 175 ou 200)
+    #   PVHT = PVTTC / (1 + taux/100)  — dérivé du PVTTC (déjà arrondi), pas
+    #   l'inverse, pour que PVHT + TVA == PVTTC affiché reste toujours vrai
+    #   Bénéfice = PVHT - PA
+    #   TVA = PVTTC - PVHT
     # ------------------------------------------------------------------
 
-    def _prix_vente_ht(self, prix_achat):
+    def _prix_details(self, prix_achat):
+        """Renvoie (ht, tva, ttc, benefice) pour un prix d'achat donné. Le TTC est
+        arrondi (voir utils/arrondi.py) et HT/TVA/bénéfice recalculés à partir de
+        ce TTC (potentiellement arrondi), afin que HT + TVA == TTC reste toujours
+        vrai et que l'arrondi se répercute partout où ces valeurs sont utilisées
+        (vente, ticket, rapports) sans avoir à toucher chaque module séparément."""
         if prix_achat is None:
-            return None
-        return prix_achat * (self.effectif_coefficient or 1.0)
+            return (None, None, None, None)
+        taux = (self.effectif_tva or 0.0) / 100
+        ht_brut = prix_achat * (self.effectif_coefficient or 1.0)
+        ttc_brut = ht_brut * (1 + taux)
+        ttc = arrondi.round_price(ttc_brut)
+        ht = ttc / (1 + taux) if (ttc != ttc_brut and (1 + taux)) else ht_brut
+        tva = ttc - ht
+        benefice = ht - prix_achat
+        return (ht, tva, ttc, benefice)
 
-    def _benefice(self, prix_achat):
-        prix_vente_ht = self._prix_vente_ht(prix_achat)
-        if prix_vente_ht is None:
-            return None
-        return prix_vente_ht - prix_achat
+    def _prix_vente_ht(self, prix_achat):
+        return self._prix_details(prix_achat)[0]
 
     def _montant_tva(self, prix_achat):
-        prix_vente_ht = self._prix_vente_ht(prix_achat)
-        if prix_vente_ht is None:
-            return None
-        return prix_vente_ht * ((self.effectif_tva or 0.0) / 100)
+        return self._prix_details(prix_achat)[1]
 
     def _calculate_ttc(self, prix_achat):
-        prix_vente_ht = self._prix_vente_ht(prix_achat)
-        if prix_vente_ht is None:
-            return None
-        return prix_vente_ht + self._montant_tva(prix_achat)
+        return self._prix_details(prix_achat)[2]
+
+    def _benefice(self, prix_achat):
+        return self._prix_details(prix_achat)[3]
 
     @property
     def prix_vente_unite_ht(self):

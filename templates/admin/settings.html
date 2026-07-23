@@ -362,6 +362,59 @@
   </div>
 </div>
 
+<div class="row g-3 mt-0">
+  <div class="col-12">
+    <div class="card-custom">
+      <div class="card-custom-header"><i class="fas fa-magnet"></i> Arrondir les prix</div>
+      <div class="p-3 p-sm-4">
+        <p class="text-muted mb-3" style="font-size: 0.82rem;">
+          Le prix de vente d'un produit est calculé automatiquement (prix d'achat × coefficient + TVA) et peut
+          tomber sur un montant qui n'existe pas en pièces/billets (ex : 185 FCFA). Activez l'arrondi pour que
+          ce prix de vente soit toujours un montant réellement payable — utilisé partout ensuite (fiche produit,
+          ventes, tickets, rapports).
+        </p>
+
+        <form method="POST">
+          <input type="hidden" name="form_name" value="arrondi_prix">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="arrondi_prix_active" name="arrondi_prix_active" {% if settings.arrondi_prix_active %}checked{% endif %}>
+            <label class="form-check-label" for="arrondi_prix_active" style="font-size: 0.85rem;">
+              Activer l'arrondi des prix de vente
+            </label>
+          </div>
+
+          <label class="form-label">Sens de l'arrondi</label>
+          <div class="d-flex gap-3 mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="arrondi_prix_sens" id="arrondi_sens_sup" value="superieur" {% if settings.arrondi_prix_sens != 'inferieur' %}checked{% endif %}>
+              <label class="form-check-label" for="arrondi_sens_sup" style="font-size: 0.85rem;">Valeur supérieure</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="arrondi_prix_sens" id="arrondi_sens_inf" value="inferieur" {% if settings.arrondi_prix_sens == 'inferieur' %}checked{% endif %}>
+              <label class="form-check-label" for="arrondi_sens_inf" style="font-size: 0.85rem;">Valeur inférieure</label>
+            </div>
+          </div>
+
+          <label class="form-label">Palier d'arrondi</label>
+          <div class="row g-2 align-items-center">
+            <div class="col-auto">
+              <input type="number" step="1" min="1" name="arrondi_prix_palier" class="form-control" style="width:110px;" value="{{ settings.arrondi_prix_palier }}" required>
+            </div>
+            <div class="col-auto text-muted">{{ devise }} (ex : 25 FCFA = pièces courantes en zone CEMAC)</div>
+          </div>
+          <div class="form-text mb-3">Exemple avec un palier de 25 : un prix calculé à 185 devient 175 (valeur inférieure) ou 200 (valeur supérieure).</div>
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-2"></i>Enregistrer les paramètres d'arrondi
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='js/thermal-printer.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

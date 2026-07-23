@@ -96,7 +96,7 @@
             </ol>
         </nav>
         <h1 class="mb-1"><i class="fas fa-sack-dollar me-2"></i>Finance</h1>
-        <p class="mb-0">Chiffre d'affaires et bénéfice sur la période choisie, et solde de caisse actuel (cumul du bénéfice ajusté par vos encaissements et décaissements).</p>
+        <p class="mb-0">Chiffre d'affaires et marge brute sur la période choisie, et solde de caisse actuel (cumul de la marge brute ajusté par vos encaissements et décaissements).</p>
     </div>
   </div>
 </div>
@@ -118,7 +118,7 @@
       <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
       <div>
         <div class="stat-number">{{ montant(totals.benefice) }} {{ devise }}</div>
-        <div class="stat-label">Bénéfice</div>
+        <div class="stat-label">Marge brute</div>
         <div class="stat-sub">Sur la période affichée</div>
       </div>
     </div>
@@ -178,7 +178,7 @@
                 <a href="{{ url_for('admin.finance_dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-rotate-left me-1"></i> Réinitialiser</a>
             </div>
         </div>
-        <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>La période (dates) ne s'applique qu'au chiffre d'affaires et au bénéfice ci-dessus ; le solde actuel reste indépendant de la période. Le filtre par raison s'applique à la liste des opérations financières ci-dessous.</div>
+        <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>La période (dates) ne s'applique qu'au chiffre d'affaires et à la marge brute ci-dessus ; le solde actuel reste indépendant de la période. Le filtre par raison s'applique à la liste des opérations financières ci-dessous.</div>
     </div>
 </form>
 

@@ -300,7 +300,7 @@
       </div>
       <div>
         <div class="stat-number">{{ "%.2f"|format(stats.totals.total_benefice) }}</div>
-        <div class="stat-label">Bénéfice perdu</div>
+        <div class="stat-label">Marge brute perdue</div>
         <div class="stat-sub">PVHT - Prix d'achat</div>
       </div>
     </div>
@@ -313,7 +313,7 @@
       <div>
         <div class="stat-number">{{ stats.totals.today_count }}</div>
         <div class="stat-label">Aujourd'hui</div>
-        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.today_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.today_taxes) }} · Bénéfice {{ "%.2f"|format(stats.totals.today_benefice) }}</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.today_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.today_taxes) }} · Marge brute {{ "%.2f"|format(stats.totals.today_benefice) }}</div>
       </div>
     </div>
   </div>
@@ -325,7 +325,7 @@
       <div>
         <div class="stat-number">{{ stats.totals.last_30_count }}</div>
         <div class="stat-label">30 derniers jours</div>
-        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_30_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_30_taxes) }} · Bénéfice {{ "%.2f"|format(stats.totals.last_30_benefice) }}</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_30_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_30_taxes) }} · Marge brute {{ "%.2f"|format(stats.totals.last_30_benefice) }}</div>
       </div>
     </div>
   </div>
@@ -337,7 +337,7 @@
       <div>
         <div class="stat-number">{{ stats.totals.last_7_count }}</div>
         <div class="stat-label">7 derniers jours</div>
-        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_7_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_7_taxes) }} · Bénéfice {{ "%.2f"|format(stats.totals.last_7_benefice) }}</div>
+        <div class="stat-sub">TTC {{ "%.2f"|format(stats.totals.last_7_ttc) }} · Taxes {{ "%.2f"|format(stats.totals.last_7_taxes) }} · Marge brute {{ "%.2f"|format(stats.totals.last_7_benefice) }}</div>
       </div>
     </div>
   </div>
@@ -349,7 +349,7 @@
       <div>
         <div class="stat-number">{{ "%.2f"|format(stats.totals.avg_ttc) }}</div>
         <div class="stat-label">Sortie moyenne</div>
-        <div class="stat-sub">Taxes moy. {{ "%.2f"|format(stats.totals.avg_taxes) }} · Bénéfice moy. {{ "%.2f"|format(stats.totals.avg_benefice) }}</div>
+        <div class="stat-sub">Taxes moy. {{ "%.2f"|format(stats.totals.avg_taxes) }} · Marge brute moy. {{ "%.2f"|format(stats.totals.avg_benefice) }}</div>
       </div>
     </div>
   </div>
@@ -370,7 +370,7 @@
 <div class="row g-3 mb-3">
   <div class="col-xl-8">
     <div class="card-custom h-100">
-      <div class="card-custom-header">Évolution quotidienne — valeur (HT / Taxes / Bénéfice / TTC)</div>
+      <div class="card-custom-header">Évolution quotidienne — valeur (HT / Taxes / Marge brute / TTC)</div>
       <div class="p-3"><canvas id="dailyValueChart" height="230"></canvas></div>
     </div>
   </div>
@@ -385,7 +385,7 @@
 <div class="row g-3 mb-3">
   <div class="col-xl-6">
     <div class="card-custom h-100">
-      <div class="card-custom-header">Valeur mensuelle (HT / Taxes / Bénéfice / TTC)</div>
+      <div class="card-custom-header">Valeur mensuelle (HT / Taxes / Marge brute / TTC)</div>
       <div class="p-3"><canvas id="monthlyExitChart" height="210"></canvas></div>
     </div>
   </div>
@@ -434,7 +434,7 @@
               <th class="text-end">Sorties</th>
               {% if show_quantity %}<th class="text-end">Qté</th>{% endif %}
               <th class="text-end">Taxes</th>
-              <th class="text-end">Bénéfice</th>
+              <th class="text-end">Marge brute</th>
               <th class="text-end">TTC</th>
             </tr>
           </thead>
@@ -504,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [
                 { label: 'HT', data: stats.daily.ht, borderColor: colorHT, backgroundColor: 'rgba(26,115,232,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
                 { label: 'Taxes', data: stats.daily.taxes, borderColor: colorTaxes, backgroundColor: 'rgba(227,116,0,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
-                { label: 'Bénéfice', data: stats.daily.benefice, borderColor: colorBenefice, backgroundColor: 'rgba(142,68,173,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
+                { label: 'Marge brute', data: stats.daily.benefice, borderColor: colorBenefice, backgroundColor: 'rgba(142,68,173,.08)', borderWidth: 2, tension: .25, fill: false, pointRadius: 2 },
                 { label: 'TTC', data: stats.daily.ttc, borderColor: colorTTC, backgroundColor: 'rgba(217,48,37,.10)', borderWidth: 2, tension: .25, fill: true, pointRadius: 2 }
             ]
         },
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [
                 { label: 'HT', data: stats.monthly.ht, backgroundColor: colorHT, borderRadius: 4 },
                 { label: 'Taxes', data: stats.monthly.taxes, backgroundColor: colorTaxes, borderRadius: 4 },
-                { label: 'Bénéfice', data: stats.monthly.benefice, backgroundColor: colorBenefice, borderRadius: 4 },
+                { label: 'Marge brute', data: stats.monthly.benefice, backgroundColor: colorBenefice, borderRadius: 4 },
                 { label: 'TTC', data: stats.monthly.ttc, backgroundColor: colorTTC, borderRadius: 4 }
             ]
         },

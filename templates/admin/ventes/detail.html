@@ -306,7 +306,7 @@
             </div>
             <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
                 <span>PU HT <strong>{{ "%.2f"|format(ligne.prix_unitaire_ht) }}</strong></span>
-                <span class="amount-benefice">Bénéf <strong>{{ "%.2f"|format(ligne.benefice) }}</strong></span>
+                <span class="amount-benefice">Marge <strong>{{ "%.2f"|format(ligne.benefice) }}</strong></span>
                 <span class="amount-tva">TVA <strong>{{ "%.2f"|format(ligne.tva_reelle) }}</strong></span>
                 <span class="fw-bold">TTC <strong>{{ "%.2f"|format(ligne.total_ttc) }}</strong></span>
             </div>
@@ -315,7 +315,7 @@
         <div class="mobile-card" style="background:#eef3fc;">
             <div class="d-flex flex-wrap gap-2" style="font-size:0.78rem;">
                 <span>Total HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
-                <span class="amount-benefice">Bénéfice <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
+                <span class="amount-benefice">Marge brute <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
                 <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
                 <span class="text-success fw-bold">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
             </div>
@@ -332,7 +332,7 @@
                     <th>Unité</th>
                     <th class="text-end">Qté</th>
                     <th class="text-end">PU HT</th>
-                    <th class="text-end">Bénéfice</th>
+                    <th class="text-end">Marge brute</th>
                     <th class="text-end">TVA</th>
                     <th class="text-end">Total TTC</th>
                 </tr>
@@ -373,7 +373,7 @@
                 <tr>
                     <th colspan="4"></th>
                     <th class="text-end">Total HT</th>
-                    <th class="text-end amount-benefice">Bénéfice</th>
+                    <th class="text-end amount-benefice">Marge brute</th>
                     <th class="text-end amount-tva">TVA</th>
                     <th class="text-end">TTC</th>
                 </tr>

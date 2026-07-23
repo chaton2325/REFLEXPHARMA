@@ -46,6 +46,7 @@ from utils.mailer import (
     SmtpConfigError, SmtpSendError, SMTP_ENCRYPTIONS
 )
 from utils import fidelite
+from utils import arrondi
 from sqlalchemy.exc import SQLAlchemyError
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
@@ -3581,9 +3582,10 @@ def create_produit():
         
         flash(f'Produit créé avec le code : {new_produit.code_produit}', 'success')
         return redirect(url_for('admin.list_produits'))
-        
-    return render_template('admin/produits/form.html', title='Ajouter un Produit', 
-                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections)
+
+    return render_template('admin/produits/form.html', title='Ajouter un Produit',
+                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
+                           arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier())
 
 @admin.route('/produits/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -3611,9 +3613,10 @@ def edit_produit(id):
         db.session.commit()
         flash('Produit mis à jour.', 'success')
         return redirect(url_for('admin.list_produits'))
-        
+
     return render_template('admin/produits/form.html', produit=produit, title='Modifier le Produit',
-                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections)
+                           fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
+                           arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier())
 
 @admin.route('/produits/bulk-delete', methods=['POST'])
 @login_required
@@ -4308,7 +4311,8 @@ def manage_stock():
         total_stock_entries=total_stock_entries,
         total_produits_en_stock=total_produits_en_stock,
         total_quantite=total_quantite,
-        qr_non_tires=qr_non_tires
+        qr_non_tires=qr_non_tires,
+        arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier()
     )
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
@@ -5921,6 +5925,30 @@ def app_settings():
             flash('Paramètres du programme de fidélité enregistrés.', 'success')
             return redirect(url_for('admin.app_settings'))
 
+        if request.form.get('form_name') == 'arrondi_prix':
+            active = 'true' if request.form.get('arrondi_prix_active') else 'false'
+            sens = request.form.get('arrondi_prix_sens') or 'superieur'
+            palier = (request.form.get('arrondi_prix_palier') or '').strip()
+
+            if sens not in ('superieur', 'inferieur'):
+                flash('Sens d\'arrondi invalide.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+            try:
+                palier_float = float(palier)
+            except ValueError:
+                flash('Le palier d\'arrondi doit être un nombre.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+            if palier_float <= 0:
+                flash('Le palier d\'arrondi doit être supérieur à 0.', 'danger')
+                return redirect(url_for('admin.app_settings'))
+
+            Setting.set_value('arrondi_prix_active', active, 'Arrondit le prix de vente calculé (utile en zone FCFA)')
+            Setting.set_value('arrondi_prix_sens', sens)
+            Setting.set_value('arrondi_prix_palier', palier)
+
+            flash('Paramètres d\'arrondi des prix enregistrés.', 'success')
+            return redirect(url_for('admin.app_settings'))
+
         pharmacy_name = request.form.get('pharmacy_name')
         if pharmacy_name:
             Setting.set_value('pharmacy_name', pharmacy_name)
@@ -5948,6 +5976,9 @@ def app_settings():
         'fidelite_active': fidelite.is_active(),
         'fidelite_points_montant': fidelite.get_conversion_rate()['points'] or '',
         'fidelite_points_valeur': fidelite.get_conversion_rate()['valeur'] or '',
+        'arrondi_prix_active': arrondi.is_active(),
+        'arrondi_prix_sens': arrondi.get_sens(),
+        'arrondi_prix_palier': arrondi.get_palier(),
     }
     return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
 

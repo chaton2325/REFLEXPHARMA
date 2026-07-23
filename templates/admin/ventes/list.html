@@ -260,7 +260,7 @@
   <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
       <h1><i class="fas fa-cash-register me-2"></i>Ventes</h1>
-      <p>Enregistrement, totaux et suivi des ventes — HT, bénéfice et TVA séparés.</p>
+      <p>Enregistrement, totaux et suivi des ventes — HT, marge brute et TVA séparés.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-light btn-sm">
@@ -311,7 +311,7 @@
       </div>
       <div>
         <div class="stat-number">{{ "%.2f"|format(page_total_benefice) }}</div>
-        <div class="stat-label">Bénéfice (période filtrée)</div>
+        <div class="stat-label">Marge brute (période filtrée)</div>
       </div>
     </div>
   </div>
@@ -464,7 +464,7 @@
       </div>
       <div class="mt-1 d-flex flex-wrap gap-2" style="font-size:0.72rem;">
         <span>HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
-        <span class="amount-benefice">Bénéf <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
+        <span class="amount-benefice">Marge <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
         <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
         <span class="text-success">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
         {% if vente.points_gagnes %}
@@ -489,7 +489,7 @@
           <th>Client</th>
           <th>Paiement</th>
           <th class="text-end">HT</th>
-          <th class="text-end" title="Marge liée au coefficient produit">Bénéfice</th>
+          <th class="text-end" title="Marge liée au coefficient produit">Marge brute</th>
           <th class="text-end" title="TVA effective appliquée">TVA</th>
           <th class="text-end">TTC</th>
           <th class="text-end col-points" title="Points fidélité gagnés sur cette vente">Points</th>

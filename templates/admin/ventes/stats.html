@@ -89,7 +89,7 @@
             </ol>
         </nav>
         <h1 class="mb-1"><i class="fas fa-chart-line me-2"></i>Analyse des Ventes</h1>
-        <p class="mb-0">Rapports détaillés, tendances et prévisions — HT, bénéfice et TVA séparés.</p>
+        <p class="mb-0">Rapports détaillés, tendances et prévisions — HT, marge brute et TVA séparés.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
         <div class="dropdown">
@@ -190,7 +190,7 @@
             <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
             <div>
                 <div class="stat-number">{{ "{:,.2f}".format(stats.totals.benefice).replace(',', ' ').replace('.', ',') }}</div>
-                <div class="stat-label">Bénéfice</div>
+                <div class="stat-label">Marge brute</div>
             </div>
         </div>
     </div>
@@ -308,7 +308,7 @@
             </div>
             <div class="small text-muted mt-1" style="font-size: 0.7rem;">
                 {{ row.count }} vente(s) {% if quantity %}| Qté: {{ "{:,.2g}".format(row.quantity) }}{% endif %}
-                | <span class="amount-benefice">Bénéf: {{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</span>
+                | <span class="amount-benefice">Marge: {{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</span>
                 | <span class="amount-tva">TVA: {{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</span>
             </div>
         </div>
@@ -342,7 +342,7 @@
                         </div>
                         <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
                             <span>HT <strong>{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
-                            <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                            <span class="amount-benefice">Marge <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
                             <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
                             <span class="text-success fw-bold">TTC <strong>{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
                         </div>
@@ -360,7 +360,7 @@
                                 <th>Mode</th>
                                 <th class="text-end">Ventes</th>
                                 <th class="text-end">HT</th>
-                                <th class="text-end">Bénéfice</th>
+                                <th class="text-end">Marge brute</th>
                                 <th class="text-end">TVA</th>
                                 <th class="text-end">TTC</th>
                             </tr>
@@ -402,7 +402,7 @@
             </div>
             <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
                 <span>HT <strong>{{ "{:,.2f}".format(row.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
-                <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+                <span class="amount-benefice">Marge <strong>{{ "{:,.2f}".format(row.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
                 <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
                 <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
             </div>
@@ -420,7 +420,7 @@
                     <th>Date</th>
                     <th class="text-center">Ventes</th>
                     <th class="text-end">HT</th>
-                    <th class="text-end">Bénéfice</th>
+                    <th class="text-end">Marge brute</th>
                     <th class="text-end">TVA</th>
                     <th class="text-end">TTC</th>
                 </tr>

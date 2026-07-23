@@ -234,7 +234,7 @@
         <div class="d-flex flex-wrap gap-2" style="font-size:0.72rem;">
             <span>HT <strong>{{ "{:,.2f}".format(row.totaux.ht).replace(',', ' ').replace('.', ',') }}</strong></span>
             <span class="amount-tva">TVA <strong>{{ "{:,.2f}".format(row.totaux.tva).replace(',', ' ').replace('.', ',') }}</strong></span>
-            <span class="amount-benefice">Bénéf <strong>{{ "{:,.2f}".format(row.totaux.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
+            <span class="amount-benefice">Marge <strong>{{ "{:,.2f}".format(row.totaux.benefice).replace(',', ' ').replace('.', ',') }}</strong></span>
             <span class="fw-bold">TTC <strong>{{ "{:,.2f}".format(row.totaux.ttc).replace(',', ' ').replace('.', ',') }}</strong></span>
         </div>
         {% if d.est_declaree and d.declared_at %}
@@ -260,7 +260,7 @@
                     <th class="text-center">Ventes</th>
                     <th class="text-end">HT ({{ devise }})</th>
                     <th class="text-end">TVA ({{ devise }})</th>
-                    <th class="text-end">Bénéfice ({{ devise }})</th>
+                    <th class="text-end">Marge brute ({{ devise }})</th>
                     <th class="text-end">TTC ({{ devise }})</th>
                     <th class="text-center">Statut</th>
                     <th>Déclarée</th>

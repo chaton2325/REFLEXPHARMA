@@ -275,7 +275,7 @@
             </div>
           </div>
           <div class="form-text small text-muted mb-3">
-            <i class="fas fa-circle-info me-1"></i>Prix payé au fournisseur. Le prix de vente HT, la TVA, le bénéfice et le prix TTC sont calculés automatiquement ci-dessous à partir de ce prix d'achat, du coefficient et du taux de TVA du fournisseur.
+            <i class="fas fa-circle-info me-1"></i>Prix payé au fournisseur. Le prix de vente HT, la TVA, la marge brute et le prix TTC sont calculés automatiquement ci-dessous à partir de ce prix d'achat, du coefficient et du taux de TVA du fournisseur.
           </div>
 
           <div id="apercuPrix" class="row g-3 mb-4"></div>
@@ -296,6 +296,19 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Arrondi du prix de vente (voir Paramètres) : reproduit ici la même logique
+    // que Produit._prix_details côté serveur, pour que l'aperçu affiché pendant
+    // la saisie corresponde exactement au prix qui sera utilisé une fois enregistré.
+    const ARRONDI_ACTIVE = {{ 'true' if arrondi_active else 'false' }};
+    const ARRONDI_SENS = {{ (arrondi_sens or 'superieur')|tojson }};
+    const ARRONDI_PALIER = {{ arrondi_palier or 25 }};
+
+    function arrondirPrix(valeur) {
+        if (!ARRONDI_ACTIVE || !ARRONDI_PALIER) return valeur;
+        const fn = ARRONDI_SENS === 'inferieur' ? Math.floor : Math.ceil;
+        return fn(valeur / ARRONDI_PALIER) * ARRONDI_PALIER;
+    }
+
     const condSelect = document.getElementById('condSelect');
     const divPrixSous = document.getElementById('divPrixSous');
     const divPrixSousSous = document.getElementById('divPrixSousSous');
@@ -335,18 +348,24 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!niveau.visible || !niveau.input) return;
             const prixAchat = parseFloat(niveau.input.value);
             if (!prixAchat || prixAchat <= 0) return;
-            const prixVenteHt = prixAchat * coefficient;
-            const montantTva = prixVenteHt * (tauxTva / 100);
+            const prixVenteHtBrut = prixAchat * coefficient;
+            const prixVenteTtcBrut = prixVenteHtBrut * (1 + tauxTva / 100);
+            const prixVenteTtc = arrondirPrix(prixVenteTtcBrut);
+            const prixVenteHt = prixVenteTtc !== prixVenteTtcBrut ? prixVenteTtc / (1 + tauxTva / 100) : prixVenteHtBrut;
+            const montantTva = prixVenteTtc - prixVenteHt;
             const benefice = prixVenteHt - prixAchat;
-            const prixVenteTtc = prixVenteHt + montantTva;
+            const arrondiNote = prixVenteTtc !== prixVenteTtcBrut
+                ? `<div class="small text-muted mt-1"><i class="fas fa-magnet me-1"></i>Arrondi (brut : ${formatMoney(prixVenteTtcBrut)} {{ devise }})</div>`
+                : '';
             html += `
                 <div class="col-sm-6 col-md-3">
                     <div class="p-3 supplier-info">
                         <div class="small fw-bold text-muted mb-2">${niveau.label}</div>
                         <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${formatMoney(prixVenteHt)} {{ devise }}</span></div>
-                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Bénéfice</span><span class="fw-semibold text-success">${formatMoney(benefice)} {{ devise }}</span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Marge brute</span><span class="fw-semibold text-success">${formatMoney(benefice)} {{ devise }}</span></div>
                         <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${formatMoney(tauxTva)}%)</span><span class="fw-semibold">${formatMoney(montantTva)} {{ devise }}</span></div>
                         <div class="d-flex justify-content-between small pt-1 mt-1" style="border-top:1px solid #e9ecef;"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${formatMoney(prixVenteTtc)} {{ devise }}</span></div>
+                        ${arrondiNote}
                     </div>
                 </div>
             `;
