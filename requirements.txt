@@ -1,0 +1,24 @@
+Flask==3.0.0
+Werkzeug==3.0.1
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-Migrate==4.1.0
+SQLAlchemy==2.0.23
+psycopg2==2.9.10
+python-dotenv==1.0.0
+requests==2.31.0
+
+# Module de licence (voir blueprints/license, services/license_*.py)
+APScheduler==3.11.2
+
+# Modules métier existants (PDF, Excel, QR codes, images, IA)
+Pillow==12.1.1
+reportlab==4.4.5
+openpyxl==3.1.5
+pandas==2.3.3
+numpy==2.2.6
+qrcode==8.2
+cryptography==46.0.7
+
+# Agent d'impression local (Windows uniquement)
+pywin32==311; sys_platform == 'win32'

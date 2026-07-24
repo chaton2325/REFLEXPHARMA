@@ -55,6 +55,8 @@ from .finance_reports import (
     compute_solde_actuel, query_operations_financieres, label_periode_dates,
     build_operations_financieres_pdf, build_operations_financieres_excel
 )
+from services import license_service
+from blueprints.license.views import REASON_LABELS as LICENSE_REASON_LABELS
 
 def superadmin_required(f):
     @wraps(f)
@@ -5980,7 +5982,18 @@ def app_settings():
         'arrondi_prix_sens': arrondi.get_sens(),
         'arrondi_prix_palier': arrondi.get_palier(),
     }
-    return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES)
+    license_state = license_service.get_state()
+    license_info = {
+        'cache': license_state.cache,
+        'is_valid': license_state.is_valid(),
+        'never_activated': license_state.never_activated,
+        'status_label': 'Actif' if license_state.is_valid() else LICENSE_REASON_LABELS.get(
+            license_state.reason, "Abonnement invalide."),
+        'masked_code': license_service.mask_activation_code(license_state.cache.activation_code) if license_state.cache else None,
+        'reactivate_url': f"{current_app.config.get('LICENSE_ADMIN_API_BASE_URL', '').rstrip('/')}/reactiver",
+    }
+
+    return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES, license_info=license_info)
 
 
 @admin.route('/settings/smtp/test', methods=['POST'])

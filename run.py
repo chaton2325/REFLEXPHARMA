@@ -202,6 +202,10 @@ if __name__ == '__main__':
 
     setup_database()
 
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        from services.license_scheduler import start_license_scheduler
+        start_license_scheduler(app)
+
     # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
     # Genere le certificat avec : python certs/generate_cert.py
     cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'reflexpharma-dev.crt')

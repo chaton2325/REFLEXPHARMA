@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Activation - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .main-content { margin-left: 0 !important; }
+
+  .license-wrapper {
+    min-height: calc(100vh - 6rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 0;
+  }
+
+  .license-card {
+    width: 100%;
+    max-width: 880px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    overflow: hidden;
+    display: flex;
+    min-height: 480px;
+  }
+
+  .license-visual {
+    flex: 0 0 42%;
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+  .license-visual::before {
+    content: '';
+    position: absolute;
+    top: -30%;
+    right: -20%;
+    width: 260px;
+    height: 260px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .license-visual-icon {
+    position: relative;
+    z-index: 1;
+    font-size: 4rem;
+    color: rgba(255,255,255,0.92);
+    margin-bottom: 1rem;
+    animation: license-key-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes license-key-pulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+    50% { transform: scale(1.06); filter: drop-shadow(0 0 14px rgba(255,255,255,0.35)); }
+  }
+  .license-visual-text {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    color: #fff;
+  }
+  .license-visual-text h2 { font-weight: 700; font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .license-visual-text p { font-size: 0.85rem; color: rgba(255,255,255,0.75); margin: 0; }
+
+  .license-form-panel {
+    flex: 1 1 auto;
+    background: #fff;
+    padding: 3rem 4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .license-form-inner { width: 100%; max-width: 380px; }
+  .license-form-panel .form-label { font-size: 0.85rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.4rem; }
+  .license-form-panel .form-control {
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .license-form-panel .form-control:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+  .license-form-panel .btn-primary {
+    border-radius: 10px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border: none;
+  }
+  .license-form-panel .btn-primary:hover { opacity: 0.92; }
+
+  @media (min-width: 768px) {
+    .main-content { min-height: 100vh; }
+    .main-content .container { max-width: none; width: 100%; padding: 0; margin: 0; }
+    .main-content > footer { display: none; }
+    .license-wrapper { min-height: 100vh; padding: 0; }
+    .license-card { max-width: none; border-radius: 0; box-shadow: none; min-height: 100vh; }
+    .license-visual { flex: 0 0 50%; }
+    .license-form-panel { flex: 0 0 50%; }
+  }
+  @media (max-width: 767.98px) {
+    .license-wrapper { min-height: auto; padding: 0.5rem 0; }
+    .license-card { flex-direction: column; min-height: 0; border-radius: 16px; }
+    .license-visual { flex: none; padding: 1.5rem 1rem; }
+    .license-form-panel { padding: 1.75rem 1.5rem 2rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="license-wrapper">
+  <div class="license-card">
+    <div class="license-visual">
+      <i class="fas fa-key license-visual-icon"></i>
+      <div class="license-visual-text">
+        <h2>ReflexPharma</h2>
+        <p>{% if never_activated %}Activation de votre installation{% else %}Nouveau code d'activation{% endif %}</p>
+      </div>
+    </div>
+
+    <div class="license-form-panel">
+      <div class="license-form-inner">
+        <div class="mb-4">
+          <h2 class="fw-bold mb-1">Activation</h2>
+          <p class="text-muted mb-0">
+            {% if never_activated %}
+              Saisissez le code d'activation reçu par email pour démarrer ReflexPharma.
+            {% else %}
+              Saisissez votre nouveau code d'activation pour poursuivre l'utilisation de ReflexPharma.
+            {% endif %}
+          </p>
+        </div>
+        <form method="POST">
+          <div class="mb-3">
+            <label for="activation_code" class="form-label">Code d'activation</label>
+            <input type="text" name="activation_code" id="activation_code" class="form-control"
+                   required autofocus placeholder="RXPH-XXXX-XXXX-XXXX">
+          </div>
+          {% if never_activated %}
+          <div class="mb-3">
+            <label for="pharmacy_name" class="form-label">Nom de la pharmacie (optionnel)</label>
+            <input type="text" name="pharmacy_name" id="pharmacy_name" class="form-control" placeholder="Pharmacie du Centre">
+          </div>
+          {% endif %}
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-primary py-2"><i class="fas fa-unlock-alt me-1"></i> Activer</button>
+          </div>
+        </form>
+        <p class="text-muted small mt-3 mb-0">
+          Pas encore de code ? <a href="{{ reactivate_url }}" target="_blank" rel="noopener">Souscrivez un abonnement ReflexPharma</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

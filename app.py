@@ -30,6 +30,7 @@ from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
 from models.carte_fidelite_commande import CarteFideliteCommande
 from models.code_promo import CodePromo
+from models.license_cache import LicenseCache
 
 from config import config
 
@@ -183,6 +184,9 @@ def create_app(config_name='default'):
     from blueprints.admin import admin as admin_blueprint
     app.register_blueprint(admin_blueprint, url_prefix='/admin')
 
+    from blueprints.license import license_bp
+    app.register_blueprint(license_bp, url_prefix='/license')
+
     @app.route('/')
     def index():
         return redirect(url_for('auth.login'))
@@ -212,6 +216,14 @@ if __name__ == '__main__':
     start_print_agent()
 
     app = create_app(os.getenv('FLASK_CONFIG') or 'default')
+
+    # Ne demarre le scheduler qu'une seule fois : sous le reloader Flask (debug=True),
+    # ce bloc __main__ s'execute a la fois dans le process "surveillant" et dans le
+    # process enfant reel (WERKZEUG_RUN_MAIN=true) ; on ne veut le job periodique que
+    # dans ce dernier (ou toujours si le reloader est desactive).
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        from services.license_scheduler import start_license_scheduler
+        start_license_scheduler(app)
 
     # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
     # Genere le certificat avec : python certs/generate_cert.py
