@@ -29,7 +29,13 @@ def activate():
         try:
             license_service.activate_with_code(code, pharmacy_name=pharmacy_name)
         except LicenseApiUnavailable:
-            flash("Impossible de contacter le serveur de licences. Vérifiez votre connexion internet et réessayez.", 'danger')
+            flash(
+                "Connexion Internet requise : l'activation d'une licence nécessite un accès Internet pour "
+                "vérifier votre code auprès du serveur ReflexPharma. Cet accès n'est nécessaire que pour "
+                "l'activation — une fois activée, l'application fonctionne hors ligne jusqu'à la date "
+                "d'expiration. Vérifiez votre connexion et réessayez.",
+                'danger'
+            )
             return redirect(url_for('license.activate'))
         except LicenseApiRejected as exc:
             flash(str(exc), 'danger')
