@@ -2585,7 +2585,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Scanner un produit via la camera (QR du lot / code produit) -->
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="{{ url_for('static', filename='vendor/html5-qrcode/html5-qrcode.min.js') }}" type="text/javascript"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const scanBtn = document.getElementById('qrScanFloatBtn');
