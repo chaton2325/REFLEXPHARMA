@@ -200,11 +200,22 @@ if __name__ == '__main__':
     from print_agent.launcher import start_print_agent
     start_print_agent()
 
-    setup_database()
+    # Même garde que app.py::create_app : ne touche la base principale
+    # (Postgres, locale ou en ligne) que si un package est déjà connu (licence
+    # déjà activée au moins une fois) — jamais avant, pour qu'une installation
+    # qui deviendra 100% en ligne ne sollicite aucun Postgres local.
+    with app.app_context():
+        from models.license_cache import LicenseCache
+        never_activated = LicenseCache.query.first() is None
+    if not never_activated:
+        setup_database()
 
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         from services.license_scheduler import start_license_scheduler
         start_license_scheduler(app)
+
+        from services.bootstrap import ensure_bootstrap_admin_user
+        ensure_bootstrap_admin_user(app)
 
     # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
     # Genere le certificat avec : python certs/generate_cert.py

@@ -8,13 +8,27 @@ class LicenseCache(db.Model):
 
     Une seule ligne logique par installation. expires_at_hmac permet de détecter une
     modification frauduleuse directe de expires_at en base locale (voir
-    services/license_service.py::compute_local_hmac)."""
+    services/license_service.py::compute_local_hmac).
+
+    Vit dans son propre fichier SQLite (voir config.py::SQLALCHEMY_BINDS),
+    complètement indépendant de la base Postgres principale (locale ou en
+    ligne) : c'est justement CE modèle qui permet de savoir quel package est
+    actif, donc il doit rester interrogeable même quand aucun Postgres n'a
+    encore été configuré/n'est joignable — avant la toute première activation
+    notamment (voir app.py::create_app, appelé inconditionnellement, alors que
+    la base principale ne l'est que conditionnellement)."""
+    __bind_key__ = 'license'
     __tablename__ = 'license_cache'
 
     id = db.Column(db.Integer, primary_key=True)
     activation_code = db.Column(db.String(30), nullable=False)
     installation_token = db.Column(db.String(255), nullable=False)
     pharmacy_id_remote = db.Column(db.Integer)
+
+    # offline (hors ligne total), hybrid (local + synchronisation manuelle vers une
+    # base en ligne), online (100% en ligne, voir config.py::_resolve_database_uri
+    # pour la bascule de connexion). Détermine ce qui s'affiche dans Paramètres.
+    package = db.Column(db.String(20), nullable=False, default='offline')
 
     expires_at = db.Column(db.DateTime)
     expires_at_hmac = db.Column(db.String(64))

@@ -160,6 +160,30 @@
             <input type="text" name="pharmacy_name" id="pharmacy_name" class="form-control" placeholder="Pharmacie du Centre">
           </div>
           {% endif %}
+          {% if previous_package in ('hybrid', 'online') and known_database_url %}
+          <div class="alert alert-info d-flex align-items-start gap-2 py-2 px-3 mb-3" style="font-size: 0.8rem;">
+            <i class="fas fa-database mt-1"></i>
+            <span>
+              Cette installation est déjà configurée en mode
+              {{ 'Hybride' if previous_package == 'hybrid' else 'En ligne' }}. Votre base de données sera
+              automatiquement reprise, inutile de ressaisir son lien.
+            </span>
+          </div>
+          <input type="hidden" name="online_database_url" value="{{ known_database_url }}">
+          {% else %}
+          <div class="mb-3">
+            <label for="online_database_url" class="form-label">
+              Lien de la base de données en ligne
+              <span class="text-muted fw-normal">(obligatoire pour un abonnement Hybride ou En ligne, sans objet sinon)</span>
+            </label>
+            <input type="text" name="online_database_url" id="online_database_url" class="form-control"
+                   placeholder="Collez ici le lien reçu par email">
+            <div class="form-text">
+              Laissez vide pour un abonnement Hors ligne. Pour Hybride/En ligne, ce lien est requis :
+              l'activation sera refusée s'il manque ou ne correspond pas à celui reçu par email.
+            </div>
+          </div>
+          {% endif %}
           <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary py-2"><i class="fas fa-unlock-alt me-1"></i> Activer</button>
           </div>

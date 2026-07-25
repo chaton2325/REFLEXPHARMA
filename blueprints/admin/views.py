@@ -56,6 +56,7 @@ from .finance_reports import (
     build_operations_financieres_pdf, build_operations_financieres_excel
 )
 from services import license_service
+from services import db_sync
 from blueprints.license.views import REASON_LABELS as LICENSE_REASON_LABELS
 
 def superadmin_required(f):
@@ -5991,9 +5992,15 @@ def app_settings():
             license_state.reason, "Abonnement invalide."),
         'masked_code': license_service.mask_activation_code(license_state.cache.activation_code) if license_state.cache else None,
         'reactivate_url': f"{current_app.config.get('LICENSE_ADMIN_API_BASE_URL', '').rstrip('/')}/reactiver",
+        'package': license_state.cache.package if license_state.cache else 'offline',
     }
 
-    return render_template('admin/settings.html', settings=settings, currencies=CURRENCIES, license_info=license_info)
+    return render_template(
+        'admin/settings.html', settings=settings, currencies=CURRENCIES, license_info=license_info,
+        online_database_url=Setting.get_value('online_database_url', ''),
+        sync_status=db_sync.get_status(),
+        sync_tools_available=db_sync.is_available(),
+    )
 
 
 @admin.route('/settings/smtp/test', methods=['POST'])
@@ -6021,6 +6028,30 @@ def test_smtp():
         return jsonify({'success': False, 'message': f"Échec de l'envoi : {exc}"}), 502
 
     return jsonify({'success': True, 'message': f"E-mail de test envoyé avec succès à {recipient}."})
+
+
+@admin.route('/settings/sync/start', methods=['POST'])
+@login_required
+@permission_required('gestion_parametres')
+def sync_start():
+    """Déclenche la synchronisation miroir local -> en ligne (package Hybride)
+    en arrière-plan (voir services/db_sync.py). Ne renvoie que l'état de
+    démarrage : le résultat se consulte via /settings/sync/status (polling)."""
+    state = license_service.get_state()
+    if not state.cache or state.cache.package != 'hybrid':
+        return jsonify({'success': False, 'message': "La synchronisation n'est disponible que pour le package Hybride."}), 403
+
+    started = db_sync.start_sync(current_app._get_current_object())
+    if not started:
+        return jsonify({'success': False, 'message': 'Une synchronisation est déjà en cours.'}), 409
+    return jsonify({'success': True})
+
+
+@admin.route('/settings/sync/status')
+@login_required
+@permission_required('gestion_parametres')
+def sync_status():
+    return jsonify(db_sync.get_status())
 
 
 # ==============================================================================

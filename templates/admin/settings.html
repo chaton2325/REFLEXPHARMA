@@ -161,6 +161,68 @@
         </div>
       </div>
     </div>
+
+    <div class="card-custom mt-3">
+      <div class="card-custom-header"><i class="fas fa-server"></i> Package & synchronisation</div>
+      <div class="p-3 p-sm-4">
+        {% set package_labels = {'offline': 'Hors ligne total', 'hybrid': 'Hybride (local + synchronisation)', 'online': '100% en ligne'} %}
+        <div class="mb-3">
+          <span class="badge {{ 'bg-secondary' if license_info.package == 'offline' else ('bg-info text-dark' if license_info.package == 'hybrid' else 'bg-primary') }} px-3 py-2">
+            {{ package_labels.get(license_info.package, license_info.package) }}
+          </span>
+        </div>
+
+        {% if license_info.package == 'offline' %}
+        <p class="text-muted mb-0" style="font-size: 0.85rem;">
+          Cette installation fonctionne entièrement sur sa base de données locale. Aucune configuration
+          supplémentaire nécessaire.
+        </p>
+
+        {% elif license_info.package == 'hybrid' %}
+        <p class="text-muted mb-3" style="font-size: 0.82rem;">
+          La base locale reste la source de vérité au quotidien. La synchronisation remplace entièrement
+          le contenu de la base en ligne ci-dessous par une copie de la base locale — dans ce sens
+          uniquement, à chaque clic.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small">Base de données en ligne attribuée</label>
+          <input type="text" class="form-control form-control-sm" value="{{ online_database_url or 'Non attribuée pour le moment' }}" disabled>
+        </div>
+
+        {% if not sync_tools_available %}
+        <div class="alert alert-warning py-2 small">
+          <i class="fas fa-triangle-exclamation me-1"></i>
+          Outils pg_dump/pg_restore introuvables sur ce poste. Installez les outils client PostgreSQL
+          (fournis avec le serveur PostgreSQL local) pour activer la synchronisation.
+        </div>
+        {% endif %}
+
+        <div id="syncStatusBox" class="printer-status {{ 'is-ready' if sync_status.status == 'success' else 'is-off' }} mb-3">
+          <span class="dot"></span>
+          <span id="syncStatusText">
+            {% if sync_status.status == 'running' %}Synchronisation en cours...
+            {% elif sync_status.status == 'success' %}Dernière synchronisation réussie{% if sync_status.finished_at %} — {{ sync_status.finished_at[:16].replace('T', ' à ') }}{% endif %}
+            {% elif sync_status.status == 'error' %}Échec de la dernière synchronisation
+            {% else %}Aucune synchronisation effectuée pour le moment{% endif %}
+          </span>
+        </div>
+        {% if sync_status.status == 'error' and sync_status.error %}
+        <div class="alert alert-danger py-2 small">{{ sync_status.error }}</div>
+        {% endif %}
+
+        <button type="button" id="btnStartSync" class="btn btn-sm btn-primary" {{ 'disabled' if not online_database_url or not sync_tools_available }}>
+          <i class="fas fa-rotate me-1"></i> Synchroniser maintenant
+        </button>
+
+        {% elif license_info.package == 'online' %}
+        <div class="alert alert-info py-2 small mb-0">
+          <i class="fas fa-cloud me-1"></i>
+          Cette installation utilise une base de données 100% en ligne dédiée. Aucune synchronisation
+          manuelle n'est nécessaire : toutes les données sont déjà en ligne en temps réel.
+        </div>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -594,6 +656,61 @@ document.addEventListener('DOMContentLoaded', function () {
             } finally {
                 btnTestSmtp.disabled = false;
                 btnTestSmtp.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    // --- Synchronisation package Hybride ---
+    const btnStartSync = document.getElementById('btnStartSync');
+    if (btnStartSync) {
+        const syncBox = document.getElementById('syncStatusBox');
+        const syncText = document.getElementById('syncStatusText');
+        let pollTimer = null;
+
+        async function pollSyncStatus() {
+            try {
+                const res = await fetch('{{ url_for("admin.sync_status") }}', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data.status === 'running') {
+                    syncBox.className = 'printer-status is-off mb-3';
+                    syncText.textContent = 'Synchronisation en cours...';
+                    btnStartSync.disabled = true;
+                    return;
+                }
+                clearInterval(pollTimer);
+                pollTimer = null;
+                btnStartSync.disabled = false;
+                if (data.status === 'success') {
+                    syncBox.className = 'printer-status is-ready mb-3';
+                    syncText.textContent = 'Dernière synchronisation réussie' + (data.finished_at ? ' — ' + data.finished_at.slice(0, 16).replace('T', ' à ') : '');
+                } else if (data.status === 'error') {
+                    syncBox.className = 'printer-status is-unsupported mb-3';
+                    syncText.textContent = 'Échec de la dernière synchronisation : ' + (data.error || '');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        btnStartSync.addEventListener('click', async function () {
+            btnStartSync.disabled = true;
+            try {
+                const res = await fetch('{{ url_for("admin.sync_start") }}', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.message || "Impossible de démarrer la synchronisation.");
+                    btnStartSync.disabled = false;
+                    return;
+                }
+                pollTimer = setInterval(pollSyncStatus, 2000);
+                pollSyncStatus();
+            } catch (err) {
+                console.error(err);
+                alert("Erreur réseau : impossible de démarrer la synchronisation.");
+                btnStartSync.disabled = false;
             }
         });
     }

@@ -109,14 +109,25 @@ def get_state():
     return LicenseState(cache)
 
 
-def activate_with_code(activation_code, pharmacy_name=None):
+def activate_with_code(activation_code, pharmacy_name=None, online_database_url=None):
     """Active un code auprès de l'API distante et (ré)écrit le cache local.
     Lève license_client.LicenseApiUnavailable ou LicenseApiRejected en cas d'échec :
-    à l'appelant (vue d'activation) d'afficher le message adapté."""
-    data = license_client.activate(activation_code, pharmacy_name=pharmacy_name)
+    à l'appelant (vue d'activation) d'afficher le message adapté.
+
+    Retourne (state, restart_required) : restart_required est True uniquement
+    pour un package 'online' fraîchement activé — la bascule de base de données
+    (config.py::write_db_override) ne prend effet qu'au prochain démarrage,
+    le moteur SQLAlchemy étant créé une seule fois au lancement de l'app."""
+    import config as app_config
+    from models.setting import Setting
+
+    data = license_client.activate(activation_code, pharmacy_name=pharmacy_name,
+                                    online_database_url=online_database_url)
 
     expires_at = datetime.fromisoformat(data['expires_at'])
     now = datetime.now()
+    package = data.get('package', 'offline')
+    database_url = data.get('database_url')
 
     cache = LicenseCache.get_singleton()
     if cache is None:
@@ -126,6 +137,7 @@ def activate_with_code(activation_code, pharmacy_name=None):
     cache.activation_code = activation_code
     cache.installation_token = data['installation_token']
     cache.pharmacy_id_remote = data.get('pharmacy_id')
+    cache.package = package
     cache.expires_at = expires_at
     cache.expires_at_hmac = compute_local_hmac(activation_code, expires_at)
     cache.status = 'active'
@@ -135,7 +147,37 @@ def activate_with_code(activation_code, pharmacy_name=None):
     cache.clock_high_water_mark = now
 
     db.session.commit()
-    return get_state()
+
+    restart_required = False
+    if package == 'hybrid' and database_url:
+        Setting.set_value('online_database_url', database_url,
+                           "Base en ligne du package Hybride (synchronisation manuelle, voir Paramètres)")
+    elif package == 'online' and database_url:
+        # Pas de Setting.set_value ici (contrairement au package hybride) : ce
+        # serait une écriture sur la base PRINCIPALE (locale, potentiellement
+        # injoignable/inexistante pour une installation 100% en ligne, voir
+        # config.py) avant même que la bascule ait eu lieu. Le pré-remplissage
+        # du lien à la réactivation (blueprints/license/views.py) lit
+        # directement current_app.config['SQLALCHEMY_DATABASE_URI'], pas ce
+        # Setting — inutile de le dupliquer ici.
+        current_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI')
+        if database_url != current_uri:
+            # license_cache vit dans son propre fichier SQLite (voir
+            # models/license_cache.py::__bind_key__), totalement indépendant de
+            # la base principale : nul besoin de le "copier" vers la base en
+            # ligne avant de basculer, il reste lisible tel quel après le
+            # redémarrage, quelle que soit la base Postgres alors active. Il
+            # suffit d'enregistrer la bascule ; la base principale (schéma,
+            # tables métier) ne sera elle-même créée qu'au prochain démarrage,
+            # une fois réellement connectée à cette base en ligne (voir
+            # app.py::create_app) — jamais avant, jamais sur la base locale.
+            app_config.write_db_override(database_url)
+            restart_required = True
+        # (sinon : réactivation sur une installation déjà connectée à cette
+        # base en ligne — le cache ci-dessus vient d'être mis à jour
+        # directement dans la bonne base, rien à basculer.)
+
+    return get_state(), restart_required
 
 
 def refresh_from_server():

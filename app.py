@@ -157,6 +157,63 @@ def ensure_database_schema(app):
 
         db.session.commit()
 
+def _migrate_legacy_license_cache(app):
+    """Compatibilité ascendante : avant l'introduction du bind SQLite dédié
+    (voir models/license_cache.py::__bind_key__), LicenseCache vivait dans la
+    base PRINCIPALE (locale ou en ligne selon le package déjà actif). Les
+    installations déjà activées avant ce changement (notamment la toute
+    première pharmacie réelle, en package 'online' sur le VPS) ont donc leur
+    véritable état de licence dans une table `license_cache` désormais
+    orpheline de cette base — sans cette copie ponctuelle, elles seraient vues
+    comme "jamais activées" au premier démarrage suivant la mise à jour, ce
+    qui redemanderait un code déjà consommé (usage unique, voir ReflexPharma
+    Admin services/licenses.py) au lieu de simplement continuer à fonctionner.
+
+    Best-effort et silencieux, avec un délai de connexion volontairement court :
+    si la base principale n'existe pas encore ou est injoignable (installation
+    réellement neuve, notamment 100% en ligne avant sa toute première
+    activation, voir config.py), on abandonne immédiatement sans lever
+    d'exception ni rien écrire — l'app démarre alors normalement en mode
+    "jamais activée", comme avant cette fonction."""
+    main_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+    if not main_uri:
+        return
+
+    from sqlalchemy import create_engine, text
+
+    try:
+        engine = create_engine(main_uri, connect_args={'connect_timeout': 5})
+        with engine.connect() as conn:
+            row = conn.execute(text(
+                "SELECT * FROM license_cache ORDER BY id ASC LIMIT 1"
+            )).mappings().first()
+        engine.dispose()
+    except Exception:
+        return
+
+    if row is None:
+        return
+
+    row = dict(row)
+    cache = LicenseCache(
+        activation_code=row.get('activation_code'),
+        installation_token=row.get('installation_token'),
+        pharmacy_id_remote=row.get('pharmacy_id_remote'),
+        package=row.get('package') or 'offline',
+        expires_at=row.get('expires_at'),
+        expires_at_hmac=row.get('expires_at_hmac'),
+        status=row.get('status') or 'active',
+        last_verified_at=row.get('last_verified_at'),
+        last_verify_attempt_at=row.get('last_verify_attempt_at'),
+        last_verify_error=row.get('last_verify_error'),
+        clock_high_water_mark=row.get('clock_high_water_mark'),
+        created_at=row.get('created_at'),
+        updated_at=row.get('updated_at'),
+    )
+    db.session.add(cache)
+    db.session.commit()
+
+
 def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
@@ -207,7 +264,25 @@ def create_app(config_name='default'):
             download_name='reflexpharma-ca.crt'
         )
 
-    ensure_database_schema(app)
+    with app.app_context():
+        # Toujours créé : fichier SQLite local, aucun réseau, aucune dépendance
+        # à Postgres (voir models/license_cache.py::__bind_key__).
+        db.create_all(bind_key='license')
+        if LicenseCache.query.first() is None:
+            _migrate_legacy_license_cache(app)
+        never_activated = LicenseCache.query.first() is None
+
+    # La base PRINCIPALE (Postgres, locale ou en ligne selon la bascule) n'est
+    # sollicitée que si un package est déjà connu (licence déjà activée au
+    # moins une fois par le passé, même si expirée/révoquée depuis). Tant
+    # qu'aucune activation n'a jamais eu lieu, on ne sait pas encore s'il
+    # s'agit d'une installation hors ligne/hybride (Postgres local) ou 100% en
+    # ligne — dans ce dernier cas, aucun Postgres local ne doit JAMAIS être
+    # sollicité, pas même pour un simple self-heal de schéma. Le premier appel
+    # a lieu juste après une activation réussie sans redémarrage requis (voir
+    # blueprints/license/views.py), ou ici au démarrage suivant.
+    if not never_activated:
+        ensure_database_schema(app)
 
     return app
 
@@ -224,6 +299,9 @@ if __name__ == '__main__':
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         from services.license_scheduler import start_license_scheduler
         start_license_scheduler(app)
+
+        from services.bootstrap import ensure_bootstrap_admin_user
+        ensure_bootstrap_admin_user(app)
 
     # HTTPS local (necessaire pour l'acces camera sur le reseau local depuis un mobile).
     # Genere le certificat avec : python certs/generate_cert.py

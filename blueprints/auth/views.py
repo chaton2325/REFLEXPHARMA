@@ -3,12 +3,13 @@ from flask_login import login_user, logout_user, login_required, current_user
 from . import auth
 from models.user import User
 from extensions import db
+import config as app_config
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('admin.dashboard'))
-        
+
     if request.method == 'POST':
         identifiant = (request.form.get('identifiant') or '').strip()
         password = request.form.get('password')
@@ -17,19 +18,24 @@ def login():
         user = User.query.filter(
             (User.email == identifiant) | (User.username == identifiant)
         ).first()
-        
+
         if not user or not user.check_password(password):
             flash('Veuillez vérifier vos identifiants de connexion.', 'danger')
             return redirect(url_for('auth.login'))
-            
+
         if not user.is_active:
             flash('Votre compte est désactivé. Veuillez contacter un administrateur.', 'warning')
             return redirect(url_for('auth.login'))
-            
+
         login_user(user, remember=remember)
+        # Une fois la toute première connexion réussie, le mot de passe affiché
+        # sur l'écran de connexion (voir services/bootstrap.py) n'a plus besoin
+        # d'être montré : on efface le filet de sécurité local.
+        app_config.clear_first_login_credentials()
         return redirect(url_for('admin.dashboard'))
-        
-    return render_template('auth/login.html')
+
+    first_login_credentials = app_config.read_first_login_credentials()
+    return render_template('auth/login.html', first_login_credentials=first_login_credentials)
 
 @auth.route('/logout')
 @login_required

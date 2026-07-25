@@ -169,9 +169,20 @@ DEFAULT_CURRENCY_CODE = 'EUR'
 
 def get_active_currency():
     """Devise active de la pharmacie (dict code/nom/symbole), EUR par défaut.
-    À appeler dans un contexte applicatif (requête, outil IA, export...)."""
+    À appeler dans un contexte applicatif (requête, outil IA, export...).
+
+    Appelé par app.py::inject_currency à CHAQUE rendu de template, y compris
+    /license/activate sur une installation jamais activée (donc avant que la
+    base principale soit connue/joignable, voir app.py::create_app) : la
+    requête sur `Setting` (base principale) doit échouer silencieusement plutôt
+    que faire planter la page d'activation elle-même."""
+    from extensions import db
     from models.setting import Setting
-    code = (Setting.get_value('currency_code', DEFAULT_CURRENCY_CODE) or DEFAULT_CURRENCY_CODE).upper()
+    try:
+        code = (Setting.get_value('currency_code', DEFAULT_CURRENCY_CODE) or DEFAULT_CURRENCY_CODE).upper()
+    except Exception:
+        db.session.rollback()
+        code = DEFAULT_CURRENCY_CODE
     return CURRENCIES_BY_CODE.get(code, CURRENCIES_BY_CODE[DEFAULT_CURRENCY_CODE])
 
 
