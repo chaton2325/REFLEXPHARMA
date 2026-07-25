@@ -43,10 +43,31 @@ def _resolve_database_uri():
 
 def write_db_override(database_url):
     """Enregistre l'URL de la base en ligne à utiliser dès le prochain démarrage
-    (package 'online'). Appelé par services/license_service.py::activate_with_code."""
+    (package 'online'). Appelé uniquement par services/db_bascule.py, après
+    confirmation que la copie des données a réussi (voir son docstring) — jamais
+    avant, pour ne jamais basculer la connexion sur une base incomplète.
+
+    Écriture atomique (fichier temporaire + os.replace, garanti atomique par
+    l'OS même sur le même volume Windows) : une coupure de courant en plein
+    milieu de l'écriture laisse alors soit l'ancien contenu intact, soit le
+    nouveau intégralement écrit, jamais un JSON tronqué illisible au prochain
+    démarrage."""
     os.makedirs(os.path.dirname(DB_OVERRIDE_PATH), exist_ok=True)
-    with open(DB_OVERRIDE_PATH, 'w', encoding='utf-8') as f:
+    tmp_path = DB_OVERRIDE_PATH + '.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump({'database_url': database_url}, f)
+    os.replace(tmp_path, DB_OVERRIDE_PATH)
+
+
+def clear_db_override():
+    """Supprime le pointeur vers une base en ligne : au prochain démarrage,
+    _resolve_database_uri() retombe alors sur DATABASE_LOCAL_URL. Appelé par
+    services/db_bascule.py lors d'une bascule vers un package offline/hybrid,
+    après confirmation que la copie des données vers la base locale a réussi."""
+    try:
+        os.remove(DB_OVERRIDE_PATH)
+    except FileNotFoundError:
+        pass
 
 
 def has_db_override():

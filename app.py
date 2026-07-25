@@ -31,6 +31,7 @@ from models.cadeau_fidelite import CadeauFidelite
 from models.carte_fidelite_commande import CarteFideliteCommande
 from models.code_promo import CodePromo
 from models.license_cache import LicenseCache
+from models.db_bascule import DbBascule
 
 from config import config
 
@@ -271,6 +272,17 @@ def create_app(config_name='default'):
         if LicenseCache.query.first() is None:
             _migrate_legacy_license_cache(app)
         never_activated = LicenseCache.query.first() is None
+
+    # Reprise d'une éventuelle bascule de base de données interrompue (coupure
+    # de courant, fermeture brutale...) — voir services/db_bascule.py. Appelé
+    # inconditionnellement (no-op rapide s'il n'y a rien en attente) et AVANT
+    # même de savoir si la licence est valide : c'est cette table SQLite,
+    # indépendante de la base Postgres principale, qui doit piloter la reprise
+    # sans dépendre d'une connexion admin (voir aussi
+    # blueprints/license/__init__.py::check_license, qui bloque l'accès tant
+    # que la bascule n'est pas terminée).
+    from services import db_bascule
+    db_bascule.start_background_watcher(app)
 
     # La base PRINCIPALE (Postgres, locale ou en ligne selon la bascule) n'est
     # sollicitée que si un package est déjà connu (licence déjà activée au

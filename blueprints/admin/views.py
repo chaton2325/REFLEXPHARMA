@@ -57,6 +57,7 @@ from .finance_reports import (
 )
 from services import license_service
 from services import db_sync
+from services.license_client import LicenseApiUnavailable, LicenseApiRejected
 from blueprints.license.views import REASON_LABELS as LICENSE_REASON_LABELS
 
 def superadmin_required(f):
@@ -6052,6 +6053,59 @@ def sync_start():
 @permission_required('gestion_parametres')
 def sync_status():
     return jsonify(db_sync.get_status())
+
+
+@admin.route('/settings/change-package', methods=['POST'])
+@login_required
+@permission_required('gestion_parametres')
+def change_package():
+    """Saisie d'un nouveau code d'activation pour changer de formule
+    (offline/hybrid/online) alors que l'abonnement en cours est encore valide —
+    /license/activate redirige sinon directement vers la connexion tant que la
+    licence est valide (voir blueprints/license/views.py::activate), donc
+    inatteignable pour ce cas d'usage précis. Délègue à
+    services/license_service.py::activate_with_code exactement comme
+    l'activation initiale : une bascule atomique de base de données démarre
+    automatiquement si le nouveau package change la base de connexion
+    effective (voir services/db_bascule.py)."""
+    code = (request.form.get('activation_code') or '').strip().upper()
+    online_database_url = (request.form.get('online_database_url') or '').strip() or None
+
+    if not code:
+        flash("Veuillez saisir un code d'activation.", 'danger')
+        return redirect(url_for('admin.app_settings'))
+
+    try:
+        _, outcome = license_service.activate_with_code(code, online_database_url=online_database_url)
+    except LicenseApiUnavailable:
+        flash(
+            "Connexion Internet requise pour vérifier ce code auprès du serveur ReflexPharma. "
+            "Vérifiez votre connexion et réessayez.",
+            'danger'
+        )
+        return redirect(url_for('admin.app_settings'))
+    except LicenseApiRejected as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.app_settings'))
+
+    if outcome == 'bascule_started':
+        flash(
+            "Nouveau code accepté. Le transfert complet de vos données vers la nouvelle base "
+            "va commencer — suivez sa progression sur la page qui s'ouvre.",
+            'success'
+        )
+        return redirect(url_for('license.bascule_status'))
+
+    if outcome == 'restart_required':
+        flash(
+            "Nouveau code accepté. Votre abonnement utilise une base de données 100% en ligne : "
+            "fermez complètement ReflexPharma puis relancez-le pour basculer dessus.",
+            'success'
+        )
+    else:
+        flash("Formule mise à jour avec succès.", 'success')
+
+    return redirect(url_for('admin.app_settings'))
 
 
 # ==============================================================================

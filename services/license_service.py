@@ -10,6 +10,7 @@ lors de la re-vérification périodique (refresh_from_server, appelée par
 services/license_scheduler.py)."""
 import hmac
 import hashlib
+import os
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -114,12 +115,26 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
     Lève license_client.LicenseApiUnavailable ou LicenseApiRejected en cas d'échec :
     à l'appelant (vue d'activation) d'afficher le message adapté.
 
-    Retourne (state, restart_required) : restart_required est True uniquement
-    pour un package 'online' fraîchement activé — la bascule de base de données
-    (config.py::write_db_override) ne prend effet qu'au prochain démarrage,
-    le moteur SQLAlchemy étant créé une seule fois au lancement de l'app."""
+    Retourne (state, outcome). outcome vaut :
+      - 'same' : la base de connexion effective ne change pas (ou Hybride avec
+        base locale déjà en place), rien de plus à faire.
+      - 'restart_required' : package 'online' déterminé pour la toute première
+        activation de cette installation (aucune donnée locale à préserver,
+        comportement historique inchangé) — un simple redémarrage suffit,
+        config.py::write_db_override ne prend effet qu'au prochain lancement.
+      - 'bascule_started' : une bascule ATOMIQUE de base de données (copie
+        complète, voir services/db_bascule.py) vient d'être lancée en tâche de
+        fond car le package résolu change la base de connexion effective d'une
+        installation qui avait déjà des données. LicenseCache.package et la
+        base de connexion ne changent qu'une fois cette bascule terminée avec
+        succès (voir license.bascule_status) — jamais avant, pour qu'une
+        coupure de courant en plein transfert laisse l'installation exactement
+        comme avant."""
     import config as app_config
     from models.setting import Setting
+    from services import db_bascule
+
+    cache_existed_before = LicenseCache.get_singleton() is not None
 
     data = license_client.activate(activation_code, pharmacy_name=pharmacy_name,
                                     online_database_url=online_database_url)
@@ -129,6 +144,25 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
     package = data.get('package', 'offline')
     database_url = data.get('database_url')
 
+    # Base sur laquelle l'app tournera effectivement pour le package résolu :
+    # toujours DATABASE_LOCAL_URL pour offline/hybrid (l'Hybride tourne
+    # toujours sur la base locale, la base en ligne n'étant qu'un miroir
+    # périodique manuel, voir services/db_sync.py), sinon l'URL en ligne
+    # attribuée par le serveur.
+    current_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI')
+    local_uri = os.getenv('DATABASE_LOCAL_URL')
+    new_uri = database_url if package == 'online' else local_uri
+
+    # Une bascule (copie complète) n'est nécessaire que si la base de connexion
+    # change réellement ET qu'il existait déjà une installation active — sur
+    # la toute première activation (cache_existed_before == False), il n'y a
+    # encore aucune donnée locale à préserver, voir outcome 'restart_required'
+    # ci-dessous. Couvre aussi bien offline/hybrid -> online, online ->
+    # offline/hybrid, que online -> un autre online (migration d'hébergement).
+    needs_bascule = bool(
+        cache_existed_before and new_uri and current_uri and new_uri != current_uri
+    )
+
     cache = LicenseCache.get_singleton()
     if cache is None:
         cache = LicenseCache()
@@ -137,7 +171,6 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
     cache.activation_code = activation_code
     cache.installation_token = data['installation_token']
     cache.pharmacy_id_remote = data.get('pharmacy_id')
-    cache.package = package
     cache.expires_at = expires_at
     cache.expires_at_hmac = compute_local_hmac(activation_code, expires_at)
     cache.status = 'active'
@@ -145,39 +178,30 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
     cache.last_verify_attempt_at = now
     cache.last_verify_error = None
     cache.clock_high_water_mark = now
+    if not needs_bascule:
+        cache.package = package
 
     db.session.commit()
 
-    restart_required = False
-    if package == 'hybrid' and database_url:
+    outcome = 'same'
+    if needs_bascule:
+        direction = 'to_local' if new_uri == local_uri else 'to_online'
+        db_bascule.start(
+            current_app._get_current_object(), direction=direction,
+            target_package=package, source_url=current_uri, target_url=new_uri,
+        )
+        outcome = 'bascule_started'
+    elif package == 'hybrid' and database_url:
         Setting.set_value('online_database_url', database_url,
                            "Base en ligne du package Hybride (synchronisation manuelle, voir Paramètres)")
-    elif package == 'online' and database_url:
-        # Pas de Setting.set_value ici (contrairement au package hybride) : ce
-        # serait une écriture sur la base PRINCIPALE (locale, potentiellement
-        # injoignable/inexistante pour une installation 100% en ligne, voir
-        # config.py) avant même que la bascule ait eu lieu. Le pré-remplissage
-        # du lien à la réactivation (blueprints/license/views.py) lit
-        # directement current_app.config['SQLALCHEMY_DATABASE_URI'], pas ce
-        # Setting — inutile de le dupliquer ici.
-        current_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI')
-        if database_url != current_uri:
-            # license_cache vit dans son propre fichier SQLite (voir
-            # models/license_cache.py::__bind_key__), totalement indépendant de
-            # la base principale : nul besoin de le "copier" vers la base en
-            # ligne avant de basculer, il reste lisible tel quel après le
-            # redémarrage, quelle que soit la base Postgres alors active. Il
-            # suffit d'enregistrer la bascule ; la base principale (schéma,
-            # tables métier) ne sera elle-même créée qu'au prochain démarrage,
-            # une fois réellement connectée à cette base en ligne (voir
-            # app.py::create_app) — jamais avant, jamais sur la base locale.
-            app_config.write_db_override(database_url)
-            restart_required = True
-        # (sinon : réactivation sur une installation déjà connectée à cette
-        # base en ligne — le cache ci-dessus vient d'être mis à jour
-        # directement dans la bonne base, rien à basculer.)
+    elif package == 'online' and database_url and database_url != current_uri:
+        # needs_bascule est False ici uniquement parce que cache_existed_before
+        # est False (toute première activation) : aucune donnée locale à
+        # préserver, un redémarrage simple suffit comme avant ce changement.
+        app_config.write_db_override(database_url)
+        outcome = 'restart_required'
 
-    return get_state(), restart_required
+    return get_state(), outcome
 
 
 def redeem_renewal_code(renewal_code):

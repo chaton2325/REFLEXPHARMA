@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Transfert de base de données - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+{% if status.status not in ('error', 'done') %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+<style>
+  .main-content { margin-left: 0 !important; }
+
+  .bascule-wrapper {
+    min-height: calc(100vh - 6rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem;
+  }
+  @media (min-width: 768px) {
+    .main-content { min-height: 100vh; }
+    .main-content .container { max-width: none; width: 100%; padding: 0; margin: 0; }
+    .main-content > footer { display: none; }
+    .bascule-wrapper { min-height: 100vh; }
+  }
+
+  .bascule-card {
+    width: 100%;
+    max-width: 560px;
+    background: linear-gradient(160deg, #2c3e50 0%, #1f2f3d 100%);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(44,62,80,0.35);
+    padding: 3rem 2.5rem;
+    text-align: center;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .bascule-icon {
+    font-size: 3.4rem;
+    color: #64b5f6;
+    margin-bottom: 1rem;
+  }
+  .bascule-icon.spin { animation: bascule-spin 1.6s linear infinite; }
+  @keyframes bascule-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .bascule-icon.err { color: #ff8a80; }
+
+  .bascule-card h1 { font-weight: 700; font-size: 1.4rem; margin-bottom: 0.4rem; }
+  .bascule-direction { color: rgba(255,255,255,0.65); font-size: 0.85rem; margin-bottom: 1.25rem; }
+  .bascule-step {
+    display: inline-block;
+    background: rgba(255,255,255,0.1);
+    border-radius: 999px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  .bascule-hint { color: rgba(255,255,255,0.6); font-size: 0.82rem; margin-top: 0.5rem; }
+  .bascule-error {
+    background: rgba(255,138,128,0.12);
+    border: 1px solid rgba(255,138,128,0.35);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    text-align: left;
+    font-size: 0.82rem;
+    color: #ffcdd2;
+    margin: 1rem 0;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .bascule-actions { display: flex; gap: 0.6rem; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
+  .bascule-actions button {
+    border-radius: 10px;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    font-weight: 700;
+  }
+  .btn-bascule-retry { background: linear-gradient(135deg, #64b5f6 0%, #1e88e5 100%); color: #fff; }
+  .btn-bascule-cancel { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85); }
+  .bascule-attempts { color: rgba(255,255,255,0.5); font-size: 0.78rem; margin-top: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bascule-wrapper">
+  <div class="bascule-card">
+    {% if status.status == 'error' %}
+    <i class="fas fa-triangle-exclamation bascule-icon err"></i>
+    <h1>Transfert interrompu</h1>
+    {% elif status.status == 'done' %}
+    <i class="fas fa-circle-check bascule-icon"></i>
+    <h1>Transfert terminé avec succès</h1>
+    {% else %}
+    <i class="fas fa-arrows-rotate bascule-icon spin"></i>
+    <h1>Transfert de base de données en cours</h1>
+    {% endif %}
+
+    <p class="bascule-direction">{{ direction_label }}</p>
+    <span class="bascule-step">{{ step_label }}</span>
+
+    {% if status.status == 'error' %}
+    <div class="bascule-error">{{ status.last_error or "Erreur inconnue." }}</div>
+    <p class="bascule-hint">
+      Une nouvelle tentative automatique aura lieu sous peu. Vous pouvez aussi réessayer
+      immédiatement, ou annuler pour revenir à l'ancienne base de données (aucune donnée
+      n'a été perdue ni modifiée tant que le transfert n'est pas terminé).
+    </p>
+    <div class="bascule-actions">
+      <form method="POST" action="{{ url_for('license.bascule_retry') }}">
+        <button type="submit" class="btn-bascule-retry"><i class="fas fa-rotate-right me-1"></i> Réessayer maintenant</button>
+      </form>
+      <form method="POST" action="{{ url_for('license.bascule_cancel') }}">
+        <button type="submit" class="btn-bascule-cancel"><i class="fas fa-xmark me-1"></i> Annuler</button>
+      </form>
+    </div>
+    {% elif status.status == 'done' %}
+    <p class="bascule-hint">
+      Toutes vos données ont été transférées avec succès vers la nouvelle base.
+      <strong>Fermez complètement ReflexPharma puis relancez-le</strong> pour basculer
+      dessus — tant que l'application n'est pas relancée, ce poste continue de
+      fonctionner sur l'ancienne base.
+    </p>
+    {% else %}
+    <p class="bascule-hint">
+      Merci de ne pas éteindre ce poste ni couper la connexion pendant le transfert.
+      L'application reste inaccessible le temps de l'opération, mais reprendra
+      automatiquement là où elle s'est arrêtée en cas d'interruption — cette page se
+      rafraîchit seule.
+    </p>
+    {% endif %}
+
+    {% if status.attempts %}
+    <p class="bascule-attempts">Tentative n°{{ status.attempts }}{% if status.started_at %} — démarré à {{ status.started_at[:16].replace('T', ' ') }}{% endif %}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

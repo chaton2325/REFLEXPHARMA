@@ -4,6 +4,7 @@ from flask_login import current_user
 from . import license_bp
 from services import license_service
 from services import license_client
+from services import db_bascule
 from services.license_client import LicenseApiUnavailable, LicenseApiRejected
 
 REASON_LABELS = {
@@ -30,7 +31,7 @@ def activate():
             return redirect(url_for('license.activate'))
 
         try:
-            _, restart_required = license_service.activate_with_code(
+            _, outcome = license_service.activate_with_code(
                 code, pharmacy_name=pharmacy_name, online_database_url=online_database_url
             )
         except LicenseApiUnavailable:
@@ -46,7 +47,15 @@ def activate():
             flash(str(exc), 'danger')
             return redirect(url_for('license.activate'))
 
-        if restart_required:
+        if outcome == 'bascule_started':
+            flash(
+                "Licence activée avec succès. Le transfert complet de vos données vers la nouvelle base "
+                "va commencer — suivez sa progression ci-dessous.",
+                'success'
+            )
+            return redirect(url_for('license.bascule_status'))
+
+        if outcome == 'restart_required':
             flash(
                 "Licence activée avec succès. Votre abonnement utilise une base de données 100% en ligne : "
                 "fermez complètement ReflexPharma puis relancez-le pour basculer dessus.",
@@ -171,3 +180,65 @@ def locked():
         cache=state.cache,
         reactivate_url=reactivate_url,
     )
+
+
+DIRECTION_LABELS = {
+    'to_local': "base en ligne → base locale",
+    'to_online': "base locale → base en ligne",
+}
+STEP_LABELS = {
+    'pending': "En attente de démarrage",
+    'dumping': "Export des données en cours",
+    'restoring': "Import vers la nouvelle base en cours",
+    'restored': "Import terminé, finalisation en cours",
+    'error': "Échec — nouvelle tentative automatique en cours",
+    'done': "Terminé",
+}
+
+
+@license_bp.route('/bascule')
+def bascule_status():
+    """Page de statut de la bascule de base de données en cours (voir
+    services/db_bascule.py), affichée par le hook before_app_request de ce
+    blueprint tant qu'elle n'est pas terminée — accessible sans connexion,
+    puisque la base principale (et donc la table des utilisateurs) peut être
+    en plein transfert. Se rafraîchit seule (voir le template) : aucune action
+    n'est requise pour que la reprise en tâche de fond progresse.
+
+    Une fois 'done', affiche un message de redémarrage plutôt que de rediriger
+    silencieusement vers la connexion : ce process reste connecté à l'ANCIENNE
+    base tant qu'il n'est pas relancé (le moteur SQLAlchemy est créé une seule
+    fois au démarrage, voir config.py) — se connecter maintenant utiliserait
+    encore l'ancienne base sans que rien ne le signale."""
+    status = db_bascule.get_status()
+    if status is None:
+        return redirect(url_for('auth.login'))
+
+    return render_template(
+        'license/bascule.html', status=status,
+        direction_label=DIRECTION_LABELS.get(status['direction'], status['direction']),
+        step_label=STEP_LABELS.get(status['status'], status['status']),
+    )
+
+
+@license_bp.route('/bascule/retry', methods=['POST'])
+def bascule_retry():
+    started = db_bascule.retry(current_app._get_current_object())
+    if not started:
+        flash("Aucune bascule à relancer.", 'warning')
+    return redirect(url_for('license.bascule_status'))
+
+
+@license_bp.route('/bascule/cancel', methods=['POST'])
+def bascule_cancel():
+    """Annulation toujours sûre tant que la bascule n'est pas terminée (voir
+    services/db_bascule.py::cancel) : l'installation reste sur son ancienne
+    base, comme si le nouveau code n'avait jamais été saisi. Redirige ensuite
+    vers /license/activate pour permettre une nouvelle tentative (autre code,
+    autre lien de base...)."""
+    cancelled = db_bascule.cancel()
+    if cancelled:
+        flash("Bascule annulée : l'installation reste sur son ancienne base de données.", 'info')
+    else:
+        flash("Impossible d'annuler pour le moment (transfert activement en cours).", 'warning')
+    return redirect(url_for('license.activate') if cancelled else url_for('license.bascule_status'))
