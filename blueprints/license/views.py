@@ -1,7 +1,9 @@
 from flask import render_template, request, redirect, url_for, flash, current_app
+from flask_login import current_user
 
 from . import license_bp
 from services import license_service
+from services import license_client
 from services.license_client import LicenseApiUnavailable, LicenseApiRejected
 
 REASON_LABELS = {
@@ -90,6 +92,66 @@ def activate():
         reactivate_url=reactivate_url, previous_package=previous_package,
         known_database_url=known_database_url,
     )
+
+
+@license_bp.route('/reactivate-redirect')
+def reactivate_redirect():
+    """Bouton "Réactiver mon abonnement" (settings.html et locked.html) : cette
+    installation est déjà connue (installation_token existant), donc pas besoin
+    de repasser par l'email/OTP ni de ressaisir un code — on échange le token
+    contre une clé de réactivation courte durée côté serveur (jamais exposée au
+    navigateur, voir services/license_client.py::prepare_reactivation) puis on
+    redirige vers la page publique déjà pré-remplie.
+
+    En cas d'échec (pas de licence connue, réseau injoignable, licence
+    révoquée) : repli sur la page générique /reactiver, identique au bouton
+    "Réactiver un autre abonnement"."""
+    generic_url = f"{current_app.config.get('LICENSE_ADMIN_API_BASE_URL', '').rstrip('/')}/reactiver"
+
+    state = license_service.get_state()
+    if state.cache is None or not state.cache.installation_token:
+        return redirect(generic_url)
+
+    try:
+        data = license_client.prepare_reactivation(state.cache.installation_token)
+    except (LicenseApiUnavailable, LicenseApiRejected) as exc:
+        flash(f"Réactivation rapide indisponible ({exc}). Utilisez \"Réactiver un autre abonnement\" ci-dessous "
+              f"ou réessayez dans un instant.", 'warning')
+        return redirect(generic_url)
+
+    return redirect(f"{generic_url}?rk={data['reactivation_key']}")
+
+
+@license_bp.route('/redeem-renewal', methods=['POST'])
+def redeem_renewal():
+    """Saisie du code de réactivation reçu par email après un paiement de
+    réactivation rapide (voir ReflexPharma Admin models/renewal_code.py) —
+    depuis Paramètres (licence encore valide, renouvellement anticipé) ou
+    depuis l'écran de blocage (licence déjà expirée). 100% "pull" : aucun
+    webhook, aucune détection automatique, le renouvellement n'a lieu qu'à
+    cette saisie explicite."""
+    code = (request.form.get('renewal_code') or '').strip().upper()
+    redirect_target = url_for('admin.app_settings') if current_user.is_authenticated else url_for('license.locked')
+
+    if not code:
+        flash("Veuillez saisir un code de réactivation.", 'danger')
+        return redirect(redirect_target)
+
+    try:
+        license_service.redeem_renewal_code(code)
+    except LicenseApiUnavailable:
+        flash(
+            "Connexion Internet requise pour vérifier ce code auprès du serveur ReflexPharma. "
+            "Vérifiez votre connexion et réessayez.",
+            'danger'
+        )
+        return redirect(redirect_target)
+    except LicenseApiRejected as exc:
+        flash(str(exc), 'danger')
+        return redirect(redirect_target)
+
+    flash("Abonnement réactivé avec succès.", 'success')
+    return redirect(url_for('auth.login') if not current_user.is_authenticated else url_for('admin.app_settings'))
 
 
 @license_bp.route('/locked')

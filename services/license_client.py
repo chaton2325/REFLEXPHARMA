@@ -71,6 +71,53 @@ def verify(installation_token, app_version=None):
     return data
 
 
+def prepare_reactivation(installation_token, app_version=None):
+    """Échange l'installation_token (jamais exposé au navigateur) contre une clé
+    de réactivation courte durée/usage unique (voir ReflexPharma Admin
+    models/reactivation_token.py), pour rediriger l'utilisateur vers /reactiver
+    sans lui redemander ni email/OTP ni code d'activation — voir
+    blueprints/license/views.py::reactivate_redirect."""
+    payload = {}
+    if app_version:
+        payload['app_version'] = app_version
+    headers = {'Authorization': f'Bearer {installation_token}'}
+
+    try:
+        response = requests.post(f"{_base_url()}/api/v1/licenses/prepare-reactivation", json=payload, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        raise LicenseApiUnavailable(str(exc)) from exc
+
+    data = _safe_json(response)
+    if response.status_code >= 500:
+        raise LicenseApiUnavailable(f"Erreur serveur ({response.status_code})")
+    if response.status_code >= 400:
+        raise LicenseApiRejected(data.get('message', 'Réactivation refusée.'), data.get('error_code'))
+    return data
+
+
+def redeem_renewal(renewal_code, app_version=None):
+    """Le code EST le secret (même modèle que activate(), pas de Bearer requis) :
+    finalise un renouvellement payé (voir ReflexPharma Admin
+    models/renewal_code.py). 100% "pull" — aucun webhook, aucune détection
+    automatique : c'est cet appel, déclenché par la saisie du code dans
+    l'app, qui étend réellement expires_at côté serveur central."""
+    payload = {'renewal_code': renewal_code}
+    if app_version:
+        payload['app_version'] = app_version
+
+    try:
+        response = requests.post(f"{_base_url()}/api/v1/licenses/redeem-renewal", json=payload, timeout=10)
+    except requests.RequestException as exc:
+        raise LicenseApiUnavailable(str(exc)) from exc
+
+    data = _safe_json(response)
+    if response.status_code >= 500:
+        raise LicenseApiUnavailable(f"Erreur serveur ({response.status_code})")
+    if response.status_code >= 400:
+        raise LicenseApiRejected(data.get('message', 'Code de réactivation refusé.'), data.get('error_code'))
+    return data
+
+
 def notify_credentials(installation_token, username, password, app_version=None):
     """Demande à ReflexPharma Admin d'envoyer par email les identifiants du
     premier compte admin local (voir services/bootstrap.py) — cette

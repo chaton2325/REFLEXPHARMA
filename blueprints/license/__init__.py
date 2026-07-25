@@ -3,10 +3,15 @@ from flask import Blueprint, request, redirect, url_for
 license_bp = Blueprint('license', __name__)
 
 # Ces endpoints restent joignables même sans licence valide : la page d'activation
-# elle-même, la page de blocage, les fichiers statiques, et le téléchargement du
+# elle-même, la page de blocage, les fichiers statiques, le téléchargement du
 # certificat CA (nécessaire pour configurer l'accès réseau avant même d'avoir une
-# licence, ex: premier réglage du serveur).
-EXEMPT_ENDPOINTS = {'license.activate', 'license.locked', 'static', 'download_ca_cert'}
+# licence, ex: premier réglage du serveur), et les deux endpoints de réactivation
+# rapide (doivent fonctionner justement PARCE QUE la licence est invalide/expirée,
+# voir views.py::reactivate_redirect / redeem_renewal).
+EXEMPT_ENDPOINTS = {
+    'license.activate', 'license.locked', 'static', 'download_ca_cert',
+    'license.reactivate_redirect', 'license.redeem_renewal',
+}
 
 
 @license_bp.before_app_request

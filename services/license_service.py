@@ -180,6 +180,33 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
     return get_state(), restart_required
 
 
+def redeem_renewal_code(renewal_code):
+    """Finalise un renouvellement payé (voir ReflexPharma Admin
+    models/renewal_code.py) : contrairement à activate_with_code(), aucun
+    nouveau installation_token n'est émis, package/base restent ceux déjà en
+    place — on ne fait que ré-écrire expires_at/HMAC/status localement à
+    partir de la réponse du serveur, seule source faisant autorité.
+    Lève LicenseApiUnavailable/LicenseApiRejected comme activate_with_code."""
+    cache = LicenseCache.get_singleton()
+    if cache is None:
+        raise license_client.LicenseApiRejected(
+            "Aucune installation active : utilisez d'abord un code d'activation.", 'NOT_ACTIVATED'
+        )
+
+    data = license_client.redeem_renewal(renewal_code)
+
+    expires_at = datetime.fromisoformat(data['expires_at'])
+    cache.expires_at = expires_at
+    cache.expires_at_hmac = compute_local_hmac(cache.activation_code, expires_at)
+    cache.status = 'active'
+    cache.last_verified_at = datetime.now()
+    cache.last_verify_attempt_at = datetime.now()
+    cache.last_verify_error = None
+    db.session.commit()
+
+    return get_state()
+
+
 def refresh_from_server():
     """Best-effort : appelée au démarrage et périodiquement par le scheduler.
     Ne lève jamais d'exception et ne dégrade jamais le cache existant si le

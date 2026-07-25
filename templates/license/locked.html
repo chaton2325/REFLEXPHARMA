@@ -98,6 +98,52 @@
     font-size: 0.85rem;
   }
   .locked-card .locked-secondary a { color: #ffca28; }
+
+  .locked-card .btn-reactivate-other {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.9rem;
+    color: rgba(255,255,255,0.75);
+    font-size: 0.85rem;
+    text-decoration: underline;
+  }
+  .locked-card .renewal-form {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    align-items: stretch;
+  }
+  .locked-card .renewal-form input {
+    flex: 1 1 auto;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    padding: 0.6rem 0.8rem;
+    text-transform: uppercase;
+  }
+  .locked-card .renewal-form input::placeholder { color: rgba(255,255,255,0.5); }
+  .locked-card .renewal-form button {
+    border-radius: 10px;
+    border: none;
+    padding: 0.6rem 1.1rem;
+    font-weight: 700;
+    background: #ffca28;
+    color: #2c1418;
+  }
+  .locked-card .renewal-hint {
+    position: relative;
+    z-index: 1;
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.55);
+  }
 </style>
 {% endblock %}
 
@@ -107,10 +153,21 @@
     <i class="fas fa-lock locked-icon"></i>
     <h1>Accès bloqué</h1>
     <p class="locked-reason">{{ reason_label }}</p>
-    <a href="{{ reactivate_url }}" target="_blank" rel="noopener" class="btn-reactivate">
+    <a href="{{ url_for('license.reactivate_redirect') }}" target="_blank" rel="noopener" class="btn-reactivate">
       <i class="fas fa-rotate-right"></i> Réactiver mon abonnement
     </a>
+
+    <form method="POST" action="{{ url_for('license.redeem_renewal') }}" class="renewal-form">
+      <input type="text" name="renewal_code" placeholder="Code de réactivation (RNW-XXXX-XXXX)">
+      <button type="submit"><i class="fas fa-check"></i></button>
+    </form>
+    <span class="renewal-hint">Un code de réactivation vous est envoyé par email après paiement.</span>
+
     <span class="locked-secondary">
+      <a href="{{ reactivate_url }}" target="_blank" rel="noopener" class="btn-reactivate-other">
+        <i class="fas fa-plus"></i> Réactiver un autre abonnement
+      </a>
+      <br>
       J'ai déjà un nouveau code : <a href="{{ url_for('license.activate') }}">l'activer maintenant</a>
     </span>
   </div>
