@@ -30,6 +30,15 @@ lisible/écrivable même quand aucune base Postgres n'est joignable) :
 
     pending -> dumping -> restoring -> restored -> done
                               \\-> error (nouvelle tentative -> dumping)
+                              \\-> cancelled (bouton "Annuler", voir cancel())
+                                       -> dumping (bouton "Reprendre", voir retry())
+
+'cancelled' n'est PAS un état terminal comme 'done' : il ne fait que remettre
+l'installation en usage normal sur son ancienne base (voir cancel()) sans
+perdre les paramètres de la tentative (source/cible/package visé), pour
+pouvoir la reprendre plus tard sans ressaisir de code d'activation -- les
+codes étant à usage unique, ils sont déjà consommés dès la première tentative,
+qu'elle réussisse ou échoue.
 
 Une tentative interrompue brutalement (process tué, coupure de courant) laisse
 le statut figé sur 'dumping'/'restoring' sans jamais passer par 'error' : la
@@ -86,7 +95,7 @@ def start(app, direction, target_package, source_url, target_url):
     tentative en arrière-plan (non bloquant pour la requête HTTP qui l'a
     déclenchée). Ne fait rien si une bascule est déjà en cours/en attente."""
     existing = DbBascule.get_singleton()
-    if existing is not None and existing.status != 'done':
+    if existing is not None and existing.status not in ('done', 'cancelled'):
         return False
     if existing is not None:
         db.session.delete(existing)
@@ -117,13 +126,19 @@ def cancel():
     statut n'est pas 'done', puisque le pointeur de connexion (config.py) et
     LicenseCache.package ne sont modifiés qu'à la toute dernière étape
     (_finalize), jamais avant. Refuse si un worker écrit activement (dump/
-    restore en cours) pour ne pas laisser un pg_dump/pg_restore orphelin."""
+    restore en cours) pour ne pas laisser un pg_dump/pg_restore orphelin.
+
+    Marque 'cancelled' plutôt que de supprimer la ligne : conserve
+    source_url/target_url/target_package pour permettre une reprise ultérieure
+    via retry() (bouton "Reprendre", voir Paramètres) SANS ressaisir de code
+    d'activation -- un code déjà utilisé une première fois (même pour une
+    tentative annulée) est définitivement consommé côté serveur."""
     if _worker_lock.locked():
         return False
     bascule = DbBascule.get_singleton()
-    if bascule is None or bascule.status == 'done':
+    if bascule is None or bascule.status in ('done', 'cancelled'):
         return False
-    db.session.delete(bascule)
+    bascule.status = 'cancelled'
     db.session.commit()
     return True
 

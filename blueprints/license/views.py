@@ -209,9 +209,13 @@ def bascule_status():
     silencieusement vers la connexion : ce process reste connecté à l'ANCIENNE
     base tant qu'il n'est pas relancé (le moteur SQLAlchemy est créé une seule
     fois au démarrage, voir config.py) — se connecter maintenant utiliserait
-    encore l'ancienne base sans que rien ne le signale."""
+    encore l'ancienne base sans que rien ne le signale.
+
+    'cancelled' redirige aussi (au lieu d'afficher un statut figé) : ce n'est
+    plus une tentative active, le bouton "Reprendre" vit désormais dans
+    Paramètres (voir blueprints/admin/views.py::app_settings)."""
     status = db_bascule.get_status()
-    if status is None:
+    if status is None or status['status'] == 'cancelled':
         return redirect(url_for('auth.login'))
 
     return render_template(
@@ -233,12 +237,20 @@ def bascule_retry():
 def bascule_cancel():
     """Annulation toujours sûre tant que la bascule n'est pas terminée (voir
     services/db_bascule.py::cancel) : l'installation reste sur son ancienne
-    base, comme si le nouveau code n'avait jamais été saisi. Redirige ensuite
-    vers /license/activate pour permettre une nouvelle tentative (autre code,
-    autre lien de base...)."""
+    base, exactement comme avant la tentative. Ne supprime PAS la tentative :
+    elle reste reprenable plus tard sans ressaisir de code (bouton "Reprendre"
+    dans Paramètres, voir blueprints/admin/views.py::app_settings) -- un code
+    d'activation déjà saisi une fois est définitivement consommé côté serveur,
+    même pour une tentative annulée. Redirige vers la connexion (l'app est de
+    nouveau pleinement utilisable, le gate de licence ne bloque plus rien pour
+    une bascule 'cancelled')."""
     cancelled = db_bascule.cancel()
     if cancelled:
-        flash("Bascule annulée : l'installation reste sur son ancienne base de données.", 'info')
+        flash(
+            "Bascule annulée : l'installation reste sur son ancienne base de données. "
+            "Vous pourrez reprendre ce transfert plus tard depuis Paramètres, sans ressaisir de code.",
+            'info'
+        )
     else:
         flash("Impossible d'annuler pour le moment (transfert activement en cours).", 'warning')
-    return redirect(url_for('license.activate') if cancelled else url_for('license.bascule_status'))
+    return redirect(url_for('auth.login') if cancelled else url_for('license.bascule_status'))

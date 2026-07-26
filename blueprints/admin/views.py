@@ -57,7 +57,9 @@ from .finance_reports import (
 )
 from services import license_service
 from services import db_sync
+from services import db_bascule
 from services import support_client
+from services import remote_access_client
 from services.license_client import LicenseApiUnavailable, LicenseApiRejected
 from blueprints.license.views import REASON_LABELS as LICENSE_REASON_LABELS
 
@@ -6012,11 +6014,40 @@ def app_settings():
         'package': license_state.cache.package if license_state.cache else 'offline',
     }
 
+    # Lien direct vers l'espace REFLEXPHARMA hébergé par ReflexPharma Admin
+    # (voir services/remote_access_client.py) : uniquement pour hybride/en
+    # ligne (offline n'a pas de base en ligne à héberger) -- jamais d'appel
+    # réseau superflu pour une installation offline.
+    remote_access = None
+    remote_access_error = None
+    if license_info['package'] in ('hybrid', 'online'):
+        try:
+            data = remote_access_client.get_remote_access_link()
+            remote_access = {
+                'url': data['url'],
+                'readonly': data.get('readonly', False),
+                'qr': build_qr_svg_data_uri(data['url'], size=180),
+            }
+        except LicenseApiUnavailable:
+            remote_access_error = "Connexion Internet requise pour récupérer le lien d'accès distant."
+        except LicenseApiRejected as exc:
+            remote_access_error = str(exc)
+
+    # Bascule annulée (voir services/db_bascule.py::cancel) : ni active ni
+    # perdue, juste en attente d'une reprise volontaire -- affiche un bouton
+    # "Reprendre" qui ne consomme pas de nouveau code d'activation (voir
+    # license.bascule_retry).
+    cancelled_bascule = db_bascule.get_status()
+    if cancelled_bascule and cancelled_bascule['status'] != 'cancelled':
+        cancelled_bascule = None
+
     return render_template(
         'admin/settings.html', settings=settings, currencies=CURRENCIES, license_info=license_info,
         online_database_url=Setting.get_value('online_database_url', ''),
         sync_status=db_sync.get_status(),
         sync_tools_available=db_sync.is_available(),
+        remote_access=remote_access, remote_access_error=remote_access_error,
+        cancelled_bascule=cancelled_bascule,
     )
 
 

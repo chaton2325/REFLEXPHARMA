@@ -29,6 +29,27 @@ def is_available():
     return bool(find_binary('pg_dump') and find_binary('pg_restore') and find_binary('psql'))
 
 
+# Réglages de préambule que pg_restore peut émettre mais qu'un serveur CIBLE
+# plus ancien que les outils client locaux ne reconnaît pas -- ex :
+# "transaction_timeout", paramètre introduit en PostgreSQL 17 seulement.
+# Rencontré en pratique : outils client locaux en 17, base en ligne hébergée
+# sur un Postgres antérieur -> "ERROR: unrecognized configuration parameter
+# transaction_timeout", qui fait échouer toute la transaction (--single-
+# transaction), donc toute la bascule, alors qu'aucune donnée n'est en cause.
+# Ne concerne que le comportement de LA SESSION de restauration elle-même,
+# jamais les données : sans risque à retirer.
+_INCOMPATIBLE_PREAMBLE_PREFIXES = (
+    'SET transaction_timeout',
+)
+
+
+def _strip_incompatible_preamble(sql_text):
+    return ''.join(
+        line for line in sql_text.splitlines(keepends=True)
+        if not line.lstrip().startswith(_INCOMPATIBLE_PREAMBLE_PREFIXES)
+    )
+
+
 def restore_full_replace(target_url, dump_path, timeout=1800):
     """Restaure dump_path (format -Fc de pg_dump) dans target_url en
     REMPLACEMENT COMPLET et ATOMIQUE de son contenu actuel : remise à zéro du
@@ -71,7 +92,7 @@ def restore_full_replace(target_url, dump_path, timeout=1800):
             raise RuntimeError(f"Échec de génération du script de restauration : {gen.stderr[:1000]}")
 
         with open(script_path, 'r', encoding='utf-8') as f:
-            generated_sql = f.read()
+            generated_sql = _strip_incompatible_preamble(f.read())
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write("DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n")
             f.write(generated_sql)

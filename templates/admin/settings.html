@@ -188,6 +188,21 @@
           </span>
         </div>
 
+        {% if cancelled_bascule %}
+        <div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <span>
+            <i class="fas fa-triangle-exclamation me-1"></i>
+            Un transfert vers la formule "{{ package_labels.get(cancelled_bascule.target_package, cancelled_bascule.target_package) }}"
+            a été annulé. Aucune donnée n'a été modifiée — vous restez sur la base actuelle.
+          </span>
+          <form method="POST" action="{{ url_for('license.bascule_retry') }}" class="m-0">
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-rotate-right me-1"></i> Reprendre le transfert
+            </button>
+          </form>
+        </div>
+        {% endif %}
+
         {% if license_info.package == 'offline' %}
         <p class="text-muted mb-0" style="font-size: 0.85rem;">
           Cette installation fonctionne entièrement sur sa base de données locale. Aucune configuration
@@ -235,6 +250,57 @@
           <i class="fas fa-cloud me-1"></i>
           Cette installation utilise une base de données 100% en ligne dédiée. Aucune synchronisation
           manuelle n'est nécessaire : toutes les données sont déjà en ligne en temps réel.
+        </div>
+        {% endif %}
+
+        {% if remote_access %}
+        <hr class="my-3">
+        <label class="form-label small fw-semibold mb-1">
+          <i class="fas fa-globe me-1"></i>Accès distant à votre espace
+          {% if remote_access.readonly %}<span class="badge bg-secondary ms-1">Lecture seule</span>{% endif %}
+        </label>
+        <p class="text-muted mb-2" style="font-size: 0.8rem;">
+          Ouvrez ce lien (ou scannez le QR code) depuis n'importe quel appareil connecté à Internet —
+          téléphone, tablette, autre ordinateur — pour accéder à votre espace ReflexPharma sans rien installer.
+          {% if remote_access.readonly %}
+          En package Hybride, cet accès est en <strong>consultation uniquement</strong> (aucune vente ni
+          modification possible) : la base locale de ce poste reste la seule source de vérité.
+          {% endif %}
+        </p>
+        <div class="row g-3 align-items-start mb-1">
+          <div class="col-12 col-sm-8">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" id="remoteAccessLink" value="{{ remote_access.url }}" readonly>
+              <button type="button" class="btn btn-outline-secondary" id="btnCopyRemoteLink" title="Copier le lien">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+            <div class="form-text" id="remoteAccessCopyHint">&nbsp;</div>
+          </div>
+          <div class="col-12 col-sm-4 text-center text-sm-start">
+            <img src="{{ remote_access.qr }}" alt="QR code d'accès distant" style="width: 140px; height: 140px;">
+          </div>
+        </div>
+        <script>
+          (function() {
+            var btn = document.getElementById('btnCopyRemoteLink');
+            var input = document.getElementById('remoteAccessLink');
+            var hint = document.getElementById('remoteAccessCopyHint');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+              navigator.clipboard.writeText(input.value).then(function() {
+                hint.textContent = 'Lien copié !';
+                setTimeout(function() { hint.textContent = ' '; }, 2000);
+              }).catch(function() {
+                input.select();
+              });
+            });
+          })();
+        </script>
+        {% elif remote_access_error %}
+        <hr class="my-3">
+        <div class="alert alert-warning py-2 small mb-0">
+          <i class="fas fa-triangle-exclamation me-1"></i>{{ remote_access_error }}
         </div>
         {% endif %}
 

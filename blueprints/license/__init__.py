@@ -27,6 +27,13 @@ BASCULE_EXEMPT_ENDPOINTS = {
     'license.bascule_status', 'license.bascule_retry', 'license.bascule_cancel', 'static',
 }
 
+# 'done' (terminée) et 'cancelled' (voir services/db_bascule.py::cancel --
+# remet en usage normal sur l'ancienne base, ne bloque plus rien) ne bloquent
+# PAS l'accès. Tous les autres statuts correspondent à une tentative active :
+# accès bloqué tant qu'elle n'est pas résolue (voir services/db_bascule.py,
+# section "fenêtre de maintenance").
+BLOCKING_BASCULE_STATUSES = {'pending', 'dumping', 'restoring', 'restored', 'error'}
+
 
 @license_bp.before_app_request
 def check_license():
@@ -47,7 +54,7 @@ def check_license():
     if request.endpoint not in BASCULE_EXEMPT_ENDPOINTS:
         from services import db_bascule
         bascule_status = db_bascule.get_status()
-        if bascule_status is not None and bascule_status['status'] != 'done':
+        if bascule_status is not None and bascule_status['status'] in BLOCKING_BASCULE_STATUSES:
             return redirect(url_for('license.bascule_status'))
 
     if request.endpoint in EXEMPT_ENDPOINTS:
