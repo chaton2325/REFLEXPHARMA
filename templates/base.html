@@ -851,6 +851,9 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                     {% endif %}
                     {% if current_user.has_permission('gestion_parametres') %}
                     <a href="{{ url_for('admin.app_settings') }}"><span class="nav-label">Paramètres App</span></a>
+                    <a href="{{ url_for('admin.support_chat') }}">
+                        <span class="nav-label">Support ReflexPharma <span id="supportUnreadBadge" class="badge bg-danger rounded-pill d-none"></span></span>
+                    </a>
                     {% endif %}
                 </div>
             </div>
@@ -1418,6 +1421,35 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             }
         })();
     </script>
+
+    {% if current_user.is_authenticated and current_user.has_permission('gestion_parametres') %}
+    <script>
+        // Badge non-lus de la messagerie support (voir blueprints/admin/views.py
+        // ::support_unread_count, services/support_client.py) : sondage léger de
+        // fond sur toutes les pages Paramètres, jamais bloquant (échec réseau =
+        // badge simplement absent).
+        (function() {
+            var badge = document.getElementById('supportUnreadBadge');
+            if (!badge) return;
+            function refresh() {
+                fetch("{{ url_for('admin.support_unread_count') }}", { credentials: 'same-origin' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var count = data.count || 0;
+                        if (count > 0) {
+                            badge.textContent = count;
+                            badge.classList.remove('d-none');
+                        } else {
+                            badge.classList.add('d-none');
+                        }
+                    })
+                    .catch(function() {});
+            }
+            refresh();
+            setInterval(refresh, 30000);
+        })();
+    </script>
+    {% endif %}
 
     <script>
         // Mode sombre / clair : bascule commune a toutes les pages (barre laterale,

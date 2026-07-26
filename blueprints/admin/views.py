@@ -57,6 +57,7 @@ from .finance_reports import (
 )
 from services import license_service
 from services import db_sync
+from services import support_client
 from services.license_client import LicenseApiUnavailable, LicenseApiRejected
 from blueprints.license.views import REASON_LABELS as LICENSE_REASON_LABELS
 
@@ -406,6 +407,21 @@ def dashboard_alerts():
                 'produit': produit.nom,
                 'detail': f"{int(total or 0)} unité(s) en stock · seuil de sécurité : {produit.stock_securite}",
                 'url': url_for('admin.list_produits', q=produit.code_produit)
+            })
+
+    # Messagerie support (voir services/support_client.py) : best-effort, ne
+    # lève jamais (unread_count() renvoie 0 sur toute erreur réseau) -- une
+    # panne de la messagerie ne doit jamais casser les alertes stock/produits.
+    if current_user.has_permission('gestion_parametres'):
+        unread = support_client.unread_count()
+        if unread:
+            alerts.append({
+                'type': 'support_reply',
+                'label': 'Support',
+                'produit': 'Support ReflexPharma',
+                'detail': ("1 nouveau message de l'équipe ReflexPharma" if unread == 1
+                           else f"{unread} nouveaux messages de l'équipe ReflexPharma"),
+                'url': url_for('admin.support_chat')
             })
 
     return jsonify({'total': len(alerts), 'alerts': alerts})
@@ -6106,6 +6122,99 @@ def change_package():
         flash("Formule mise à jour avec succès.", 'success')
 
     return redirect(url_for('admin.app_settings'))
+
+
+# ==============================================================================
+# MESSAGERIE SUPPORT REFLEXPHARMA (voir services/support_client.py, côté
+# serveur ReflexPharma Admin : services/support.py, models/support_message.py)
+# Nécessite une connexion Internet (comme l'activation) : pas de cache local.
+# ==============================================================================
+
+@admin.route('/support')
+@login_required
+@permission_required('gestion_parametres')
+def support_chat():
+    messages = []
+    offline = False
+    try:
+        messages = support_client.list_messages()['messages']
+        support_client.mark_read()
+    except LicenseApiUnavailable:
+        offline = True
+        flash("Connexion Internet requise pour charger la messagerie support.", 'warning')
+    except LicenseApiRejected as exc:
+        flash(str(exc), 'danger')
+
+    return render_template('admin/support_chat.html', messages=messages, offline=offline)
+
+
+@admin.route('/support/send', methods=['POST'])
+@login_required
+@permission_required('gestion_parametres')
+def support_send():
+    data = request.get_json(silent=True) or {}
+    try:
+        msg = support_client.send_text(data.get('body'))
+    except LicenseApiUnavailable as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 502
+    except LicenseApiRejected as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 400
+    return jsonify({'success': True, 'message': msg})
+
+
+@admin.route('/support/send-image', methods=['POST'])
+@login_required
+@permission_required('gestion_parametres')
+def support_send_image():
+    file_storage = request.files.get('image')
+    if not file_storage:
+        return jsonify({'success': False, 'message': 'Fichier image requis.'}), 400
+    try:
+        msg = support_client.send_image(file_storage)
+    except LicenseApiUnavailable as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 502
+    except LicenseApiRejected as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 400
+    return jsonify({'success': True, 'message': msg})
+
+
+@admin.route('/support/poll')
+@login_required
+@permission_required('gestion_parametres')
+def support_poll():
+    after_id = request.args.get('after_id', type=int)
+    messages, read_up_to = [], 0
+    try:
+        data = support_client.list_messages(after_id=after_id)
+        messages, read_up_to = data['messages'], data['read_up_to']
+        if messages:
+            support_client.mark_read()
+    except (LicenseApiUnavailable, LicenseApiRejected):
+        pass
+    return jsonify({'messages': messages, 'read_up_to': read_up_to})
+
+
+@admin.route('/support/unread-count')
+@login_required
+@permission_required('gestion_parametres')
+def support_unread_count():
+    """Sondage léger de fond (voir templates/base.html) pour le badge non-lus
+    de la barre latérale, sur toutes les pages Paramètres/Admin -- jamais
+    d'exception, voir services/support_client.py::unread_count."""
+    return jsonify({'count': support_client.unread_count()})
+
+
+@admin.route('/support/messages/<int:message_id>/image')
+@login_required
+@permission_required('gestion_parametres')
+def support_message_image(message_id):
+    """Relaie l'image depuis ReflexPharma Admin : le navigateur n'a jamais
+    besoin de connaître l'URL de l'API ni le installation_token."""
+    try:
+        content, mimetype = support_client.get_image(message_id)
+    except (LicenseApiUnavailable, LicenseApiRejected):
+        abort(404)
+    return Response(content, mimetype=mimetype)
 
 
 # ==============================================================================

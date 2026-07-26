@@ -554,7 +554,7 @@
   </div>
 </div>
 
-{% set can_see_alerts = current_user.has_permission('gestion_stock') or current_user.has_permission('gestion_produits') %}
+{% set can_see_alerts = current_user.has_permission('gestion_stock') or current_user.has_permission('gestion_produits') or current_user.has_permission('gestion_parametres') %}
 <div class="row g-3 mb-4{% if not can_see_alerts %} d-none d-lg-flex{% endif %}">
   <div class="col-lg-6 col-xl-4 fade-in stagger-1 d-none d-lg-block">
     <div class="lan-qr-card">
@@ -892,7 +892,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const TYPE_ICONS = {
         'perime': 'fa-hourglass-end',
-        'stock_securite': 'fa-battery-quarter'
+        'stock_securite': 'fa-battery-quarter',
+        'support_reply': 'fa-headset'
     };
 
     function buildItem(alert) {
@@ -958,7 +959,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const ok = document.createElement('div');
             ok.className = 'alert-card-ok';
             ok.innerHTML = '<i class="fas fa-check-circle"></i>';
-            ok.appendChild(document.createTextNode(' Tout est en ordre : 0 produit périmé, 0 stock sous le seuil de sécurité.'));
+            ok.appendChild(document.createTextNode(' Tout est en ordre : aucun produit périmé, aucun stock sous le seuil de sécurité, aucun nouveau message support.'));
             list.appendChild(ok);
         }
     }

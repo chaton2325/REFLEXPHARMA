@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block title %}Support ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+  .support-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 150px);
+    min-height: 480px;
+  }
+  @media (max-width: 767.98px) {
+    .support-page {
+      height: calc(100dvh - 150px - var(--bottom-h) - env(safe-area-inset-bottom));
+      min-height: 380px;
+    }
+  }
+
+  .support-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+
+  .support-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    color: #fff;
+    flex: 0 0 auto;
+  }
+  .support-header-icon {
+    width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+  .support-header-title { margin: 0; font-size: 1.05rem; font-weight: 700; }
+  .support-header-sub {
+    margin: 0.15rem 0 0; font-size: 0.78rem; color: rgba(255,255,255,0.85);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .support-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #2ecc71; flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(46,204,113,0.3);
+  }
+
+  .support-messages {
+    flex: 1 1 auto; overflow-y: auto; padding: 1.25rem; background: #f4f6f9;
+    display: flex; flex-direction: column; gap: 0.85rem;
+  }
+
+  .support-row { display: flex; gap: 0.5rem; }
+  .support-row.mine { flex-direction: row-reverse; margin-left: auto; }
+  .support-row.theirs { margin-right: auto; }
+
+  .support-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center; font-size: 0.78rem;
+  }
+  .support-row.theirs .support-avatar { background: #e1e8ed; color: #3498db; }
+  .support-row.mine .support-avatar { background: #d6ecff; color: #2c3e50; }
+
+  .support-bubble {
+    max-width: min(72%, 480px);
+    padding: 0.6rem 0.9rem;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .support-row.theirs .support-bubble { background: #fff; border-bottom-left-radius: 4px; }
+  .support-row.mine .support-bubble {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    color: #fff; border-bottom-right-radius: 4px;
+  }
+  .support-bubble-text { margin: 0; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+  .support-bubble-image img {
+    max-width: 220px; max-height: 220px; border-radius: 10px; display: block;
+    cursor: zoom-in; object-fit: cover;
+  }
+  .support-meta { display: flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; opacity: 0.7; margin-top: 0.3rem; }
+  .support-ticks { display: inline-flex; }
+  .support-ticks.read { opacity: 1; color: #7cd4ff; }
+  .support-pending-icon { opacity: 0.85; }
+  .support-failed-icon { color: #ffb3b3; }
+  .support-bubble.failed { opacity: 0.75; }
+
+  .support-empty { margin: auto; text-align: center; color: #9aa7b3; padding: 1rem; }
+  .support-empty i { font-size: 2.2rem; margin-bottom: 0.6rem; display: block; opacity: 0.5; }
+  .support-empty p { margin: 0; font-size: 0.88rem; }
+
+  .support-compose { border-top: 1px solid #e9ecef; background: #fff; padding: 0.75rem 1rem; flex: 0 0 auto; }
+
+  .support-preview { display: none; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .support-preview.show { display: flex; }
+  .support-preview img { max-height: 64px; border-radius: 8px; border: 1px solid #e9ecef; }
+  .support-preview-remove {
+    width: 26px; height: 26px; border-radius: 50%; border: none; background: #f1f3f5; color: #6c757d;
+    display: flex; align-items: center; justify-content: center; font-size: 0.75rem;
+  }
+
+  .support-compose-form { display: flex; align-items: flex-end; gap: 0.5rem; }
+  .support-icon-btn, .support-send-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+    transition: transform 0.1s ease, opacity 0.1s ease;
+  }
+  .support-icon-btn { background: #f1f3f5; color: #6c757d; }
+  .support-icon-btn:hover { background: #e9ecef; }
+  .support-send-btn { background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); color: #fff; }
+  .support-send-btn:hover:not(:disabled) { transform: scale(1.06); }
+  .support-send-btn:disabled { opacity: 0.55; }
+
+  .support-input {
+    flex: 1 1 auto; resize: none; border: 1px solid #dfe4ea; border-radius: 20px;
+    padding: 0.55rem 1rem; font-size: 0.9rem; max-height: 120px; overflow-y: auto;
+    line-height: 1.35; background: #f8f9fa;
+  }
+  .support-input:focus {
+    outline: none; border-color: #3498db; background: #fff;
+    box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+  }
+
+  .support-hint { font-size: 0.72rem; color: #9aa7b3; margin-top: 0.5rem; }
+
+  @media (max-width: 575.98px) {
+    .support-bubble { max-width: 82%; }
+    .support-header { padding: 0.85rem 1rem; }
+    .support-messages { padding: 1rem 0.75rem; }
+    .support-compose { padding: 0.6rem 0.75rem; }
+  }
+
+  html[data-bs-theme="dark"] .support-card { background: #171f27; }
+  html[data-bs-theme="dark"] .support-messages { background: #10161c; }
+  html[data-bs-theme="dark"] .support-row.theirs .support-bubble { background: #1c2733; color: #dbe4ea; border: 1px solid #2a3541; }
+  html[data-bs-theme="dark"] .support-row.theirs .support-avatar { background: #1c2733; color: #6ea8fe; }
+  html[data-bs-theme="dark"] .support-row.mine .support-avatar { background: #1c2733; color: #dbe4ea; }
+  html[data-bs-theme="dark"] .support-compose { background: #171f27; border-top-color: #2a3541; }
+  html[data-bs-theme="dark"] .support-input { background: #10161c; border-color: #2a3541; color: #dbe4ea; }
+  html[data-bs-theme="dark"] .support-input:focus { background: #10161c; }
+  html[data-bs-theme="dark"] .support-input::placeholder { color: #6b7885; }
+  html[data-bs-theme="dark"] .support-icon-btn { background: #202b36; color: #9aa7b3; }
+  html[data-bs-theme="dark"] .support-icon-btn:hover { background: #26323f; }
+  html[data-bs-theme="dark"] .support-preview img { border-color: #2a3541; }
+  html[data-bs-theme="dark"] .support-preview-remove { background: #202b36; color: #9aa7b3; }
+  html[data-bs-theme="dark"] .support-hint { color: #6b7885; }
+  html[data-bs-theme="dark"] .support-empty { color: #6b7885; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="support-page">
+  <div class="support-card">
+    <div class="support-header">
+      <div class="support-header-icon"><i class="fas fa-headset"></i></div>
+      <div>
+        <h1 class="support-header-title">Support ReflexPharma</h1>
+        <p class="support-header-sub"><span class="support-status-dot"></span>Notre équipe vous répond généralement sous 24h</p>
+      </div>
+    </div>
+
+    <div class="support-messages" id="chatMessages">
+      {% for msg in messages %}
+      <div class="support-row {{ 'mine' if msg.sender_type == 'pharmacy' else 'theirs' }}" data-id="{{ msg.id }}">
+        <div class="support-avatar"><i class="fas {{ 'fa-user' if msg.sender_type == 'pharmacy' else 'fa-headset' }}"></i></div>
+        <div class="support-bubble">
+          {% if msg.has_image %}
+          <a href="{{ url_for('admin.support_message_image', message_id=msg.id) }}" target="_blank" rel="noopener" class="support-bubble-image">
+            <img src="{{ url_for('admin.support_message_image', message_id=msg.id) }}" alt="Image">
+          </a>
+          {% else %}
+          <p class="support-bubble-text">{{ msg.body }}</p>
+          {% endif %}
+          <span class="support-meta">
+            {{ msg.created_at[:16].replace('T', ' à ') if msg.created_at else '' }}
+            {% if msg.sender_type == 'pharmacy' %}
+            <span class="support-ticks {{ 'read' if msg.read else '' }}">
+              <i class="fas {{ 'fa-check-double' if msg.read else 'fa-check' }}"></i>
+            </span>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      {% else %}
+      <div class="support-empty">
+        {% if offline %}
+        <i class="fas fa-wifi"></i>
+        <p>Impossible de charger vos messages : connexion Internet requise.<br>Cette page reste utilisable hors ligne, mais la messagerie a besoin d'Internet.</p>
+        {% else %}
+        <i class="fas fa-comments"></i>
+        <p>Aucun message pour le moment.<br>Posez votre question, l'équipe ReflexPharma vous répondra ici.</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="support-compose">
+      <div id="imagePreviewWrap" class="support-preview">
+        <img id="imagePreview" src="" alt="Aperçu">
+        <button type="button" id="btnCancelImage" class="support-preview-remove"><i class="fas fa-xmark"></i></button>
+      </div>
+      <form id="chatForm" class="support-compose-form">
+        <button type="button" id="btnAttach" class="support-icon-btn" title="Joindre une image">
+          <i class="fas fa-paperclip"></i>
+        </button>
+        <input type="file" id="imageInput" accept="image/png,image/jpeg,image/gif,image/webp" class="d-none">
+        <textarea id="chatInput" class="support-input" rows="1" placeholder="Écrire un message à ReflexPharma..."></textarea>
+        <button type="submit" id="btnSend" class="support-send-btn" title="Envoyer"><i class="fas fa-paper-plane"></i></button>
+      </form>
+      <div class="support-hint">Images uniquement (PNG, JPG, GIF, WEBP), 5 Mo max · Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const messagesEl = document.getElementById('chatMessages');
+  const form = document.getElementById('chatForm');
+  const input = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('btnSend');
+  const attachBtn = document.getElementById('btnAttach');
+  const imageInput = document.getElementById('imageInput');
+  const previewWrap = document.getElementById('imagePreviewWrap');
+  const previewImg = document.getElementById('imagePreview');
+  const cancelImageBtn = document.getElementById('btnCancelImage');
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  let lastId = 0;
+  messagesEl.querySelectorAll('[data-id]').forEach((el) => {
+    lastId = Math.max(lastId, parseInt(el.dataset.id, 10));
+  });
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function ticksHtml(msg) {
+    if (msg.sender_type !== 'pharmacy') return '';
+    const readClass = msg.read ? 'read' : '';
+    const icon = msg.read ? 'fa-check-double' : 'fa-check';
+    return `<span class="support-ticks ${readClass}"><i class="fas ${icon}"></i></span>`;
+  }
+
+  function metaHtml(msg) {
+    if (msg._pending) {
+      return '<i class="fas fa-clock support-pending-icon"></i> Envoi...';
+    }
+    if (msg._failed) {
+      return `<i class="fas fa-triangle-exclamation support-failed-icon"></i> ${escapeHtml(msg._error || "Échec de l'envoi")}`;
+    }
+    const when = (msg.created_at || '').slice(0, 16).replace('T', ' à ');
+    return `${when}${ticksHtml(msg)}`;
+  }
+
+  function bubbleHtml(msg) {
+    const side = msg.sender_type === 'pharmacy' ? 'mine' : 'theirs';
+    const icon = msg.sender_type === 'pharmacy' ? 'fa-user' : 'fa-headset';
+    const body = msg.has_image
+      ? `<a href="${msg.image_url}" target="_blank" rel="noopener" class="support-bubble-image"><img src="${msg.image_url}" alt="Image"></a>`
+      : `<p class="support-bubble-text">${escapeHtml(msg.body || '')}</p>`;
+    return `<div class="support-row ${side}" data-id="${msg.id}">
+      <div class="support-avatar"><i class="fas ${icon}"></i></div>
+      <div class="support-bubble${msg._failed ? ' failed' : ''}">${body}<span class="support-meta">${metaHtml(msg)}</span></div>
+    </div>`;
+  }
+
+  function applyReadUpTo(readUpTo) {
+    if (!readUpTo) return;
+    messagesEl.querySelectorAll('.support-row.mine[data-id]').forEach((row) => {
+      const id = parseInt(row.dataset.id, 10);
+      if (id <= 0 || id > readUpTo) return; // ids negatifs = bulles optimistes pas encore confirmees (voir sendOptimistic)
+      const ticks = row.querySelector('.support-ticks');
+      if (ticks && !ticks.classList.contains('read')) {
+        ticks.classList.add('read');
+        const icon = ticks.querySelector('i');
+        if (icon) icon.className = 'fas fa-check-double';
+      }
+    });
+  }
+
+  function appendMessages(msgs) {
+    if (!msgs.length) return;
+    const emptyState = messagesEl.querySelector('.support-empty');
+    if (emptyState) emptyState.remove();
+    msgs.forEach((msg) => {
+      // Protege contre deux sondages qui se chevauchent (ex: poll() declenche
+      // juste apres un envoi + setInterval qui se declenche au meme moment) :
+      // sans ca, le meme message pouvait etre affiche deux fois.
+      if (messagesEl.querySelector(`[data-id="${msg.id}"]`)) return;
+      messagesEl.insertAdjacentHTML('beforeend', bubbleHtml(msg));
+      lastId = Math.max(lastId, msg.id);
+    });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  let polling = false;
+  let pendingSends = 0;
+  function poll() {
+    // pendingSends > 0 : un envoi optimiste est en cours (voir sendOptimistic)
+    // -- ne pas sonder pendant ce court instant, sinon le "vrai" message
+    // pourrait arriver par le sondage AVANT que sendOptimistic n'ait pu
+    // remplacer sa bulle temporaire par la vraie, causant un doublon.
+    if (polling || pendingSends > 0) return;
+    polling = true;
+    fetch(`{{ url_for('admin.support_poll') }}?after_id=${lastId}`, { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((data) => {
+        appendMessages(data.messages || []);
+        applyReadUpTo(data.read_up_to);
+      })
+      .catch(() => {})
+      .finally(() => { polling = false; });
+  }
+  setInterval(poll, 4000);
+
+  function autoResizeInput() {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  }
+  input.addEventListener('input', autoResizeInput);
+
+  // Entree envoie, Maj+Entree insere une nouvelle ligne (convention standard
+  // de messagerie instantanee).
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  attachBtn.addEventListener('click', () => imageInput.click());
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files[0];
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert('Image trop volumineuse (5 Mo max).');
+      imageInput.value = '';
+      return;
+    }
+    previewImg.src = URL.createObjectURL(file);
+    previewWrap.classList.add('show');
+  });
+  cancelImageBtn.addEventListener('click', () => {
+    imageInput.value = '';
+    previewWrap.classList.remove('show');
+  });
+
+  // Affichage optimiste : la bulle apparaît immédiatement (icône horloge),
+  // avant même la réponse du serveur -- la latence perçue à l'envoi vient du
+  // double aller-retour reseau (REFLEXPHARMA -> ReflexPharma Admin) qui avait
+  // lieu AVANT tout affichage. Une fois la reponse arrivee, la bulle
+  // temporaire est remplacee par la vraie (id reel, coche d'envoi) ; en cas
+  // d'echec elle est marquee en erreur plutot que de disparaitre.
+  let tempCounter = 0;
+  function sendOptimistic(msgStub, requestPromise, revokeUrl) {
+    tempCounter -= 1;
+    const tempIdValue = tempCounter;
+    const optimisticMsg = Object.assign({ id: tempIdValue, _pending: true }, msgStub);
+
+    const emptyState = messagesEl.querySelector('.support-empty');
+    if (emptyState) emptyState.remove();
+    messagesEl.insertAdjacentHTML('beforeend', bubbleHtml(optimisticMsg));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    pendingSends += 1;
+    requestPromise
+      .then((result) => {
+        const row = messagesEl.querySelector(`[data-id="${tempIdValue}"]`);
+        if (!row) return;
+        if (result.success) {
+          lastId = Math.max(lastId, result.message.id);
+          row.outerHTML = bubbleHtml(result.message);
+        } else {
+          row.outerHTML = bubbleHtml(Object.assign({}, optimisticMsg, {
+            _pending: false, _failed: true, _error: result.message || "Échec de l'envoi",
+          }));
+        }
+      })
+      .catch(() => {
+        const row = messagesEl.querySelector(`[data-id="${tempIdValue}"]`);
+        if (row) {
+          row.outerHTML = bubbleHtml(Object.assign({}, optimisticMsg, {
+            _pending: false, _failed: true, _error: 'Connexion impossible',
+          }));
+        }
+      })
+      .finally(() => {
+        pendingSends -= 1;
+        if (revokeUrl) URL.revokeObjectURL(revokeUrl);
+      });
+  }
+
+  function sendTextRequest(text) {
+    return fetch("{{ url_for('admin.support_send') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: text }),
+      credentials: 'same-origin',
+    }).then((r) => r.json());
+  }
+
+  function sendImageRequest(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    return fetch("{{ url_for('admin.support_send_image') }}", {
+      method: 'POST', body: fd, credentials: 'same-origin',
+    }).then((r) => r.json());
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const text = input.value.trim();
+    const file = imageInput.files[0];
+    if (!text && !file) return;
+
+    input.value = '';
+    autoResizeInput();
+    imageInput.value = '';
+    previewWrap.classList.remove('show');
+    input.focus();
+
+    if (text) {
+      sendOptimistic({ sender_type: 'pharmacy', body: text, has_image: false }, sendTextRequest(text));
+    }
+    if (file) {
+      const localUrl = URL.createObjectURL(file);
+      sendOptimistic(
+        { sender_type: 'pharmacy', body: null, has_image: true, image_url: localUrl },
+        sendImageRequest(file), localUrl
+      );
+    }
+  });
+});
+</script>
+{% endblock %}
