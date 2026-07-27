@@ -15,6 +15,7 @@ l'empaquetage en .exe avec PyInstaller.
 
 import json
 import os
+import socket
 import sys
 import threading
 import unicodedata
@@ -31,6 +32,15 @@ CONFIG_DIR = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'R
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'print_agent_config.json')
 ALLOWED_ORIGIN = os.environ.get('REFLEXPHARMA_ORIGIN', '*')
 LINE_WIDTH = 32
+
+# Hote d'ecoute du serveur : '0.0.0.0' (par defaut) sert a la fois 127.0.0.1 ET
+# l'IP reseau local de la machine, pour qu'un agent d'etiquettes centralise soit
+# joignable depuis les autres postes du reseau local -- fonctionne meme sans
+# carte reseau active (127.0.0.1 repond toujours). Reste configurable (via
+# print_agent_config.json, cle 'host', ou la variable d'environnement
+# REFLEXPHARMA_PRINT_AGENT_HOST) pour revenir a 127.0.0.1 uniquement si un
+# poste doit rester strictement local.
+DEFAULT_HOST = os.environ.get('REFLEXPHARMA_PRINT_AGENT_HOST', '0.0.0.0')
 
 ESC = b'\x1B'
 GS = b'\x1D'
@@ -62,6 +72,27 @@ def get_default_printer():
 def get_selected_printer():
     config = load_config()
     return config.get('printer') or get_default_printer()
+
+
+def get_selected_host():
+    config = load_config()
+    return config.get('host') or DEFAULT_HOST
+
+
+def get_lan_ip():
+    """IP reseau local de cette machine (celle a communiquer aux autres postes
+    pour joindre cet agent), determinee sans envoyer aucun paquet reel -- juste
+    la route que le systeme choisirait pour une adresse externe. Renvoie None
+    si la machine n'a aucune carte reseau active (alors seul 127.0.0.1 repond,
+    ce qui reste toujours le cas avec un bind sur 0.0.0.0)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
 
 
 def list_printers():
@@ -204,7 +235,12 @@ class AgentHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/health':
-            self._send_json(200, {'status': 'ok'})
+            self._send_json(200, {
+                'status': 'ok',
+                'host': get_selected_host(),
+                'port': PORT,
+                'lan_ip': get_lan_ip(),
+            })
         elif self.path == '/printers':
             try:
                 names, default = list_printers()
@@ -253,7 +289,7 @@ class AgentHandler(BaseHTTPRequestHandler):
 
 
 def run_server():
-    server = ThreadingHTTPServer(('127.0.0.1', PORT), AgentHandler)
+    server = ThreadingHTTPServer((get_selected_host(), PORT), AgentHandler)
     server.serve_forever()
 
 
@@ -263,11 +299,21 @@ def run_gui():
 
     root = tk.Tk()
     root.title("ReflexPharma - Agent d'impression")
-    root.geometry('380x180')
+    root.geometry('380x210')
     root.resizable(False, False)
 
     tk.Label(root, text="Agent d'impression ReflexPharma", font=('Segoe UI', 11, 'bold')).pack(pady=(16, 4))
-    tk.Label(root, text='En ecoute sur http://127.0.0.1:%d' % PORT, font=('Segoe UI', 9)).pack()
+
+    host = get_selected_host()
+    lan_ip = get_lan_ip()
+    if host == '0.0.0.0' and lan_ip:
+        adresses = 'http://127.0.0.1:%d (ce poste)\nhttp://%s:%d (reseau local)' % (PORT, lan_ip, PORT)
+    elif host == '0.0.0.0':
+        adresses = 'http://127.0.0.1:%d (aucun reseau local detecte)' % PORT
+    else:
+        adresses = 'http://%s:%d' % (host, PORT)
+    tk.Label(root, text='En ecoute sur :', font=('Segoe UI', 9)).pack()
+    tk.Label(root, text=adresses, font=('Segoe UI', 9), justify='center').pack()
 
     printer_var = tk.StringVar()
 
@@ -298,7 +344,12 @@ def run_gui():
 def main():
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
-    print("Agent d'impression ReflexPharma demarre sur http://127.0.0.1:%d" % PORT)
+    host = get_selected_host()
+    lan_ip = get_lan_ip()
+    if host == '0.0.0.0' and lan_ip:
+        print("Agent d'impression ReflexPharma demarre sur http://127.0.0.1:%d et http://%s:%d (reseau local)" % (PORT, lan_ip, PORT))
+    else:
+        print("Agent d'impression ReflexPharma demarre sur http://%s:%d" % (host if host != '0.0.0.0' else '127.0.0.1', PORT))
 
     try:
         run_gui()

@@ -44,9 +44,18 @@ place dans le dossier de démarrage de Windows (`shell:startup`).
 
 ## Détails techniques
 
-- L'agent écoute uniquement sur `127.0.0.1:38417` (pas accessible depuis le
-  réseau, seulement depuis ce même ordinateur).
-- La configuration (imprimante choisie) est stockée dans
+- Par défaut, l'agent écoute sur `0.0.0.0:38417` : il répond à la fois sur
+  `127.0.0.1` (ce poste) ET sur l'IP réseau local de la machine, pour qu'un
+  agent centralisé (ex: imprimante à étiquettes branchée sur un seul poste)
+  reste joignable depuis les autres postes du réseau local. Sur une machine
+  sans carte réseau active, `127.0.0.1` répond toujours de la même façon.
+  Pour revenir à un agent strictement local (comme avant), ajoutez
+  `"host": "127.0.0.1"` dans `print_agent_config.json`, ou définissez la
+  variable d'environnement `REFLEXPHARMA_PRINT_AGENT_HOST=127.0.0.1` avant de
+  lancer l'agent.
+- L'adresse à utiliser depuis un autre poste s'affiche dans la fenêtre de
+  l'agent, et est aussi renvoyée par `GET /health` (`host`, `port`, `lan_ip`).
+- La configuration (imprimante choisie, hôte d'écoute) est stockée dans
   `%APPDATA%\ReflexPharma\print_agent_config.json`.
 - Impression en mode `RAW` (commandes ESC/POS) — pensé pour une imprimante
   thermique de tickets, mais fonctionne avec toute imprimante Windows
