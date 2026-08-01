@@ -67,82 +67,19 @@
                     </div>
 
                     <hr class="my-4">
-                    <h6 class="mb-3 text-primary"><i class="fas fa-cog me-2"></i>Paramètres Financiers</h6>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label fw-bold">Groupe de Fournisseur</label>
-                            <select name="groupe_id" id="groupeSelect" class="form-select">
-                                <option value="">Aucun groupe (valeurs par défaut)</option>
-                                {% for g in groupes %}
-                                <option value="{{ g.id }}" 
-                                    {% if fournisseur and fournisseur.groupe_id == g.id %}selected{% endif %}
-                                    data-coeff="{{ g.coefficient_defaut }}"
-                                    data-tva="{{ g.tva_defaut }}">
-                                    {{ g.nom }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text">L'appartenance à un groupe définit les valeurs par défaut ci-dessous.</div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Coefficient Spécifique</label>
-                            <input type="number" step="0.01" name="coefficient" id="inputCoeff" class="form-control" 
-                                value="{{ fournisseur.coefficient if (fournisseur and fournisseur.coefficient is not none) else '' }}" 
-                                placeholder="Laisser vide pour utiliser celui du groupe">
-                            <div class="form-text" id="helpCoeff">Valeur actuelle: <strong>{{ fournisseur.effectif_coefficient if fournisseur else '1.0' }}</strong></div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">TVA Spécifique (%)</label>
-                            <input type="number" step="0.01" name="tva" id="inputTva" class="form-control" 
-                                value="{{ fournisseur.tva if (fournisseur and fournisseur.tva is not none) else '' }}" 
-                                placeholder="Laisser vide pour utiliser celui du groupe">
-                            <div class="form-text" id="helpTva">Valeur actuelle: <strong>{{ fournisseur.effectif_tva if fournisseur else '20.0' }}%</strong></div>
-                        </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Groupe de Fournisseur</label>
+                        <select name="groupe_id" id="groupeSelect" class="form-select">
+                            <option value="">Aucun groupe</option>
+                            {% for g in groupes %}
+                            <option value="{{ g.id }}" {% if fournisseur and fournisseur.groupe_id == g.id %}selected{% endif %}>
+                                {{ g.nom }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
 
-                    <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const groupeSelect = document.getElementById('groupeSelect');
-                        const inputCoeff = document.getElementById('inputCoeff');
-                        const inputTva = document.getElementById('inputTva');
-                        const helpCoeff = document.getElementById('helpCoeff');
-                        const helpTva = document.getElementById('helpTva');
-
-                        function updatePlaceholders() {
-                            const selectedOption = groupeSelect.options[groupeSelect.selectedIndex];
-                            let defaultCoeff = "1.0";
-                            let defaultTva = "20.0";
-
-                            if (selectedOption.value) {
-                                defaultCoeff = selectedOption.getAttribute('data-coeff');
-                                defaultTva = selectedOption.getAttribute('data-tva');
-                            }
-
-                            if (!inputCoeff.value) {
-                                helpCoeff.innerHTML = `Valeur du groupe: <strong>${defaultCoeff}</strong>`;
-                            } else {
-                                helpCoeff.innerHTML = `Valeur spécifique appliquée: <strong>${inputCoeff.value}</strong>`;
-                            }
-
-                            if (!inputTva.value) {
-                                helpTva.innerHTML = `Valeur du groupe: <strong>${defaultTva}%</strong>`;
-                            } else {
-                                helpTva.innerHTML = `Valeur spécifique appliquée: <strong>${inputTva.value}%</strong>`;
-                            }
-                        }
-
-                        groupeSelect.addEventListener('change', updatePlaceholders);
-                        inputCoeff.addEventListener('input', updatePlaceholders);
-                        inputTva.addEventListener('input', updatePlaceholders);
-                        
-                        // Initial call
-                        updatePlaceholders();
-                    });
-                    </script>
-                    
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('admin.list_fournisseurs') }}" class="btn btn-light border">Annuler</a>
                         <button type="submit" class="btn btn-primary">

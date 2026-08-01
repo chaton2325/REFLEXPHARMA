@@ -852,6 +852,19 @@
   </div>
   {% endif %}
 
+  {% if current_user.has_permission('gestion_finance') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#d3f2e8,#a8e6cf);color:#0d3b2e;">
+        <i class="fas fa-sack-dollar"></i>
+      </div>
+      <h5>Finance</h5>
+      <p>Suivez le chiffre d'affaires, le bénéfice et le solde de trésorerie ; enregistrez encaissements et décaissements.</p>
+      <a href="{{ url_for('admin.finance_dashboard') }}" class="btn btn-outline-success" style="border-color:#0d3b2e;color:#0d3b2e;">Ouvrir le module</a>
+    </div>
+  </div>
+  {% endif %}
+
   {% if current_user.has_permission('module_impots') %}
   <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
     <div class="feature-card">

@@ -460,9 +460,8 @@
           <div class="col-12"><hr class="my-0"></div>
           <div class="col-md-6">
             <h6 class="text-muted text-uppercase small fw-semibold mb-3" style="letter-spacing:0.5px;">Paramètres Financiers</h6>
-            <p class="mb-1" style="font-size:0.88rem;"><strong>Coefficient effectif:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
-            <p class="mb-1" style="font-size:0.88rem;"><strong>TVA effective:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
-            <p class="mb-1" style="font-size:0.88rem;"><strong>Surcharge produit:</strong> {{ 'Oui' if p.coefficient is not none or p.tva is not none else 'Non' }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>Coefficient:</strong> {{ "%.2f"|format(p.effectif_coefficient or 0) }}</p>
+            <p class="mb-1" style="font-size:0.88rem;"><strong>TVA:</strong> {{ "%.2f"|format(p.effectif_tva or 0) }}%</p>
             <p class="mb-1" style="font-size:0.88rem;">
               <strong>Points fidélité:</strong>
               {% if p.points_fidelite_effectif %}

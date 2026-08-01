@@ -329,8 +329,10 @@ def tool_nombre_produits(user):
 
 def tool_liste_produits(user, recherche=None, limite=50):
     """Liste le CATALOGUE de produits (fiche produit : nom, code, fournisseur, rayon,
-    famille). Ne contient aucune quantite en stock — pour ca, voir stock_produit /
-    produits_stock_faible, qui portent sur une notion differente (le stock physique)."""
+    famille, coefficient et taux de TVA -- ces deux derniers se configurent UNIQUEMENT
+    au niveau du produit, plus au niveau fournisseur/groupe fournisseur). Ne contient
+    aucune quantite en stock — pour ca, voir stock_produit / produits_stock_faible, qui
+    portent sur une notion differente (le stock physique)."""
     denied = _check_access(user, 'gestion_produits')
     if denied:
         return denied
@@ -359,6 +361,8 @@ def tool_liste_produits(user, recherche=None, limite=50):
                 'famille': p.famille.nom if p.famille else None,
                 'conditionnement': p.conditionnement,
                 'conditionnement_label': _conditionnement_label(p.conditionnement),
+                'coefficient': _round2(p.effectif_coefficient),
+                'tva_pourcentage': _round2(p.effectif_tva),
             }
             for p in produits
         ],
@@ -366,8 +370,9 @@ def tool_liste_produits(user, recherche=None, limite=50):
 
 
 def tool_liste_fournisseurs(user, recherche=None, limite=50):
-    """Liste les fournisseurs avec leur coefficient et taux de TVA effectifs (propres au
-    fournisseur, ou herites de son groupe fournisseur si non personnalises)."""
+    """Liste les fournisseurs (nom, prefixe, groupe, contact). Le coefficient et le taux
+    de TVA ne se configurent PAS ici (ni au niveau du groupe fournisseur) : ce sont des
+    parametres du PRODUIT, voir liste_produits pour ces valeurs."""
     denied = _check_access(user, 'gestion_fournisseurs')
     if denied:
         return denied
@@ -392,10 +397,6 @@ def tool_liste_fournisseurs(user, recherche=None, limite=50):
                 'fournisseur': f.nom,
                 'prefixe': f.prefixe,
                 'groupe_fournisseur': f.groupe.nom if f.groupe else None,
-                'coefficient': _round2(f.effectif_coefficient),
-                'coefficient_personnalise': f.coefficient is not None,
-                'tva_pourcentage': _round2(f.effectif_tva),
-                'tva_personnalisee': f.tva is not None,
                 'contact': f.contact,
             }
             for f in fournisseurs
@@ -404,8 +405,9 @@ def tool_liste_fournisseurs(user, recherche=None, limite=50):
 
 
 def tool_liste_groupes_fournisseurs(user, recherche=None):
-    """Liste les groupes fournisseurs avec leur coefficient et TVA par defaut (herites par
-    les fournisseurs du groupe qui n'ont pas de valeur personnalisee)."""
+    """Liste les groupes fournisseurs (nom, nombre de fournisseurs rattaches). Un groupe
+    fournisseur n'a pas de coefficient ni de TVA par defaut : ces parametres se
+    configurent au niveau du PRODUIT, voir liste_produits."""
     denied = _check_access(user, 'gestion_groupes_fournisseurs')
     if denied:
         return denied
@@ -420,8 +422,6 @@ def tool_liste_groupes_fournisseurs(user, recherche=None):
         'groupes': [
             {
                 'groupe_fournisseur': g.nom,
-                'coefficient_par_defaut': _round2(g.coefficient_defaut),
-                'tva_par_defaut_pourcentage': _round2(g.tva_defaut),
                 'nombre_fournisseurs': len(g.fournisseurs),
             }
             for g in groupes
@@ -2271,14 +2271,16 @@ AI_TOOLS = [
             'name': 'liste_produits',
             'description': (
                 "Liste les produits du CATALOGUE (fiche produit : nom, code, fournisseur, rayon, "
-                "famille, conditionnement), avec une recherche optionnelle. A utiliser pour 'quels sont "
-                "nos produits', 'liste des produits', pour retrouver le nom d'un ou plusieurs produits "
-                "mentionnes precedemment (par exemple juste apres avoir demande le nombre de produits), "
-                "ou pour une question sur le 'conditionnement' d'un produit — le conditionnement est la "
-                "STRUCTURE D'EMBALLAGE (combien de niveaux : unite seule / unite+sous-unite / "
-                "unite+sous-unite+sous-sous-unite), une notion totalement differente de la quantite "
-                "actuellement en stock. Ne contient PAS de quantite en stock physique — pour ca, utilise "
-                "stock_produit ou produits_stock_faible."
+                "famille, conditionnement, coefficient et taux de TVA), avec une recherche optionnelle. "
+                "A utiliser pour 'quels sont nos produits', 'liste des produits', pour retrouver le nom "
+                "d'un ou plusieurs produits mentionnes precedemment (par exemple juste apres avoir demande "
+                "le nombre de produits), pour une question sur le 'conditionnement' d'un produit — le "
+                "conditionnement est la STRUCTURE D'EMBALLAGE (combien de niveaux : unite seule / "
+                "unite+sous-unite / unite+sous-unite+sous-sous-unite), une notion totalement differente de "
+                "la quantite actuellement en stock — OU pour toute question sur le coefficient ou la TVA "
+                "'par produit' (ces deux parametres se configurent UNIQUEMENT au niveau du produit, plus "
+                "au niveau fournisseur/groupe fournisseur). Ne contient PAS de quantite en stock physique "
+                "— pour ca, utilise stock_produit ou produits_stock_faible."
             ),
             'parameters': {
                 'type': 'object',
@@ -2294,15 +2296,15 @@ AI_TOOLS = [
         'function': {
             'name': 'liste_fournisseurs',
             'description': (
-                "Liste les fournisseurs avec leur coefficient et leur taux de TVA effectifs (leur "
-                "propre valeur si personnalisee, sinon celle heritee de leur groupe fournisseur), "
-                "ainsi que le groupe fournisseur auquel ils appartiennent. A utiliser pour toute "
-                "question sur le coefficient ou la TVA 'par fournisseur'."
+                "Liste les fournisseurs (nom, prefixe, groupe fournisseur d'appartenance, contact). "
+                "Le coefficient et le taux de TVA ne se configurent PAS au niveau du fournisseur (ni du "
+                "groupe fournisseur) : ce sont des parametres du PRODUIT, voir liste_produits pour toute "
+                "question sur le coefficient ou la TVA."
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'recherche': {'type': 'string', 'description': "Filtre optionnel sur nom ou prefixe du fournisseur (recherche partielle, texte uniquement). Ne filtre PAS sur le coefficient ou la TVA (des valeurs numeriques) : pour trouver un fournisseur par son coefficient/TVA, laisse ce parametre vide pour tout recuperer, puis identifie toi-meme le bon fournisseur dans les resultats retournes."},
+                    'recherche': {'type': 'string', 'description': "Filtre optionnel sur nom ou prefixe du fournisseur (recherche partielle, texte uniquement)."},
                     'limite': {'type': 'integer', 'description': "Nombre maximum de fournisseurs a retourner (defaut 50, max 200)."},
                 },
             },
@@ -2313,15 +2315,14 @@ AI_TOOLS = [
         'function': {
             'name': 'liste_groupes_fournisseurs',
             'description': (
-                "Liste les groupes fournisseurs avec leur coefficient par defaut et leur taux de TVA "
-                "par defaut (valeurs heritees par les fournisseurs du groupe qui n'ont pas de valeur "
-                "personnalisee), et le nombre de fournisseurs dans chaque groupe. A utiliser pour toute "
-                "question sur le coefficient ou la TVA 'par groupe fournisseur'."
+                "Liste les groupes fournisseurs (nom, nombre de fournisseurs rattaches). Un groupe "
+                "fournisseur n'a pas de coefficient ni de TVA par defaut : ces parametres se configurent "
+                "au niveau du PRODUIT, voir liste_produits pour toute question sur le coefficient ou la TVA."
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'recherche': {'type': 'string', 'description': "Filtre optionnel sur le nom du groupe (recherche partielle, texte uniquement). Ne filtre PAS sur le coefficient ou la TVA : pour trouver un groupe par ces valeurs, laisse ce parametre vide et identifie toi-meme le bon groupe dans les resultats."},
+                    'recherche': {'type': 'string', 'description': "Filtre optionnel sur le nom du groupe (recherche partielle, texte uniquement)."},
                 },
             },
         },

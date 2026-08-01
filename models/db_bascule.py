@@ -28,6 +28,16 @@ class DbBascule(db.Model):
     # (offline, hybrid ou online) — voir services/db_bascule.py::run_pending.
     target_package = db.Column(db.String(20), nullable=False)
 
+    # URL de la base en ligne à retenir pour Setting['online_database_url'] une
+    # fois la bascule terminée, UNIQUEMENT quand target_package == 'hybrid' ET
+    # que la bascule part d'un package 'online' (direction 'to_local') : dans ce
+    # cas précis, ni source_url (l'ancienne base en ligne qu'on quitte) ni
+    # target_url (la base locale) ne portent la bonne information -- c'est la
+    # base NOUVELLEMENT attribuée par le serveur pour le package hybride visé,
+    # distincte des deux (voir services/license_service.py::activate_with_code).
+    # NULL dans tous les autres cas, où elle ne joue aucun rôle.
+    hybrid_online_url = db.Column(db.Text, nullable=True)
+
     # pending -> dumping -> restoring -> restored -> done, avec branche
     # possible vers error à chaque étape dump/creation/restore (voir
     # services/db_bascule.py pour le détail de la machine à états).

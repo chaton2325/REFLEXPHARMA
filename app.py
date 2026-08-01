@@ -157,6 +157,54 @@ def ensure_database_schema(app):
         except Exception:
             db.session.rollback()
 
+        # TVA et coefficient : desormais configures uniquement au niveau du PRODUIT
+        # (voir models/produit.py), plus au niveau fournisseur/groupe fournisseur.
+        # Backfill des produits existants (colonne encore nullable a ce stade) avec
+        # leur valeur EFFECTIVE d'avant ce changement -- fournisseur, puis groupe,
+        # puis defaut absolu -- avant de rendre la colonne obligatoire, pour ne pas
+        # modifier silencieusement le prix de vente de produits deja en catalogue.
+        try:
+            db.session.execute(text(
+                "UPDATE produits SET coefficient = fournisseurs.coefficient "
+                "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
+                "AND produits.coefficient IS NULL AND fournisseurs.coefficient IS NOT NULL;"
+            ))
+            db.session.execute(text(
+                "UPDATE produits SET coefficient = groupes_fournisseurs.coefficient_defaut "
+                "FROM fournisseurs, groupes_fournisseurs "
+                "WHERE produits.fournisseur_id = fournisseurs.id "
+                "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.coefficient IS NULL;"
+            ))
+            db.session.execute(text("UPDATE produits SET coefficient = 1.0 WHERE coefficient IS NULL;"))
+            db.session.execute(text(
+                "UPDATE produits SET tva = fournisseurs.tva "
+                "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
+                "AND produits.tva IS NULL AND fournisseurs.tva IS NOT NULL;"
+            ))
+            db.session.execute(text(
+                "UPDATE produits SET tva = groupes_fournisseurs.tva_defaut "
+                "FROM fournisseurs, groupes_fournisseurs "
+                "WHERE produits.fournisseur_id = fournisseurs.id "
+                "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.tva IS NULL;"
+            ))
+            db.session.execute(text("UPDATE produits SET tva = 20.0 WHERE tva IS NULL;"))
+            db.session.execute(text("ALTER TABLE produits ALTER COLUMN coefficient SET DEFAULT 1.0;"))
+            db.session.execute(text("ALTER TABLE produits ALTER COLUMN coefficient SET NOT NULL;"))
+            db.session.execute(text("ALTER TABLE produits ALTER COLUMN tva SET DEFAULT 20.0;"))
+            db.session.execute(text("ALTER TABLE produits ALTER COLUMN tva SET NOT NULL;"))
+        except Exception:
+            db.session.rollback()
+
+        # Une fois le backfill ci-dessus effectue, ces colonnes ne sont plus lues
+        # nulle part dans l'application : nettoyage du schema.
+        try:
+            db.session.execute(text("ALTER TABLE fournisseurs DROP COLUMN IF EXISTS coefficient;"))
+            db.session.execute(text("ALTER TABLE fournisseurs DROP COLUMN IF EXISTS tva;"))
+            db.session.execute(text("ALTER TABLE groupes_fournisseurs DROP COLUMN IF EXISTS coefficient_defaut;"))
+            db.session.execute(text("ALTER TABLE groupes_fournisseurs DROP COLUMN IF EXISTS tva_defaut;"))
+        except Exception:
+            db.session.rollback()
+
         db.session.commit()
 
 def _migrate_legacy_license_cache(app):
@@ -270,6 +318,18 @@ def create_app(config_name='default'):
         # Toujours créé : fichier SQLite local, aucun réseau, aucune dépendance
         # à Postgres (voir models/license_cache.py::__bind_key__).
         db.create_all(bind_key='license')
+        # Self-heal pour les fichiers license.db créés avant l'ajout de cette
+        # colonne (voir models/db_bascule.py::hybrid_online_url) : create_all()
+        # ne modifie jamais une table SQLite déjà existante. Connexion directe
+        # sur l'engine du bind 'license' (db.session ne route pas du SQL brut
+        # vers un bind non-défaut sans elle -- SQLAlchemy ne peut pas deviner
+        # à quelle base "ALTER TABLE db_bascule" fait référence).
+        try:
+            with db.engines['license'].connect() as license_conn:
+                license_conn.execute(text("ALTER TABLE db_bascule ADD COLUMN hybrid_online_url TEXT"))
+                license_conn.commit()
+        except Exception:
+            pass
         if LicenseCache.query.first() is None:
             _migrate_legacy_license_cache(app)
         never_activated = LicenseCache.query.first() is None

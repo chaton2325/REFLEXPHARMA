@@ -23,9 +23,10 @@ class Produit(db.Model):
     prix_sous_unite = db.Column(db.Float, nullable=True) # Utilise si conditionnement >= 2
     prix_sous_sous_unite = db.Column(db.Float, nullable=True) # Utilise si conditionnement == 3
     
-    # Parametres financiers (peuvent surcharger ceux du fournisseur)
-    coefficient = db.Column(db.Float, nullable=True)
-    tva = db.Column(db.Float, nullable=True)
+    # Parametres financiers : configures uniquement ici, au niveau du produit
+    # (plus de repli fournisseur/groupe fournisseur -- voir models/fournisseur.py).
+    coefficient = db.Column(db.Float, nullable=False, default=1.0)
+    tva = db.Column(db.Float, nullable=False, default=20.0)
 
     # Stock de securite (seuil d'alerte, exprime en unites)
     stock_securite = db.Column(db.Integer, default=0)
@@ -39,15 +40,11 @@ class Produit(db.Model):
 
     @property
     def effectif_coefficient(self):
-        if self.coefficient is not None:
-            return self.coefficient
-        return self.fournisseur.effectif_coefficient if self.fournisseur else 1.0
+        return self.coefficient if self.coefficient is not None else 1.0
 
     @property
     def effectif_tva(self):
-        if self.tva is not None:
-            return self.tva
-        return self.fournisseur.effectif_tva if self.fournisseur else 20.0
+        return self.tva if self.tva is not None else 20.0
 
     @property
     def points_fidelite_effectif(self):

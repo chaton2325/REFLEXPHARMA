@@ -6,9 +6,7 @@ class GroupeFournisseur(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(100), nullable=False, unique=True)
-    coefficient_defaut = db.Column(db.Float, default=1.0)
-    tva_defaut = db.Column(db.Float, default=20.0)
-    
+
     created_at = db.Column(db.DateTime, default=datetime.now)
     
     # Relation vers les fournisseurs

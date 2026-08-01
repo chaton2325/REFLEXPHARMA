@@ -54,8 +54,6 @@ CREATE TABLE IF NOT EXISTS permissions (
 CREATE TABLE IF NOT EXISTS groupes_fournisseurs (
     id SERIAL PRIMARY KEY,
     nom VARCHAR(100) UNIQUE NOT NULL,
-    coefficient_defaut FLOAT DEFAULT 1.0,
-    tva_defaut FLOAT DEFAULT 20.0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -66,8 +64,6 @@ CREATE TABLE IF NOT EXISTS fournisseurs (
     site_web VARCHAR(255),
     contact VARCHAR(100),
     prefixe VARCHAR(10) UNIQUE NOT NULL,
-    coefficient FLOAT,
-    tva FLOAT,
     groupe_id INTEGER REFERENCES groupes_fournisseurs(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

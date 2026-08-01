@@ -189,6 +189,11 @@ def activate_with_code(activation_code, pharmacy_name=None, online_database_url=
         db_bascule.start(
             current_app._get_current_object(), direction=direction,
             target_package=package, source_url=current_uri, target_url=new_uri,
+            # Pertinent uniquement si package == 'hybrid' (ex: online -> hybride) :
+            # la base fraîchement attribuée pour CE package, que ni source_url
+            # (l'ancienne base en ligne qu'on quitte) ni target_url (la base
+            # locale) ne portent -- voir models/db_bascule.py::hybrid_online_url.
+            hybrid_online_url=database_url if package == 'hybrid' else None,
         )
         outcome = 'bascule_started'
     elif package == 'hybrid' and database_url:

@@ -154,12 +154,9 @@
             <div class="col-sm-6 col-md-4">
               <label class="form-label">Fournisseur <span class="text-danger">*</span></label>
               <select name="fournisseur_id" id="fournisseurSelect" class="form-select" required {{ 'disabled' if produit }}>
-                <option value="" data-prefix="XXXX" data-coeff="1.0" data-tva="20.0" data-groupe="Aucun">Choisir un fournisseur...</option>
+                <option value="" data-prefix="XXXX">Choisir un fournisseur...</option>
                 {% for f in fournisseurs %}
-                <option value="{{ f.id }}" data-prefix="{{ f.prefixe }}" 
-                        data-coeff="{{ f.effectif_coefficient }}" 
-                        data-tva="{{ f.effectif_tva }}" 
-                        data-groupe="{{ f.groupe.nom if f.groupe else 'Aucun' }}"
+                <option value="{{ f.id }}" data-prefix="{{ f.prefixe }}"
                         {% if produit and produit.fournisseur_id == f.id %}selected{% endif %}>
                     {{ f.nom }} ({{ f.prefixe }})
                 </option>
@@ -176,16 +173,6 @@
                 {% else %}
                 Le code produit est généré automatiquement à l'enregistrement.
                 {% endif %}
-              </div>
-            </div>
-          </div>
-
-          <div class="row mb-4" id="fournisseurInfo" style="display:none;">
-            <div class="col-md-12">
-              <div class="supplier-info p-3 small">
-                <span class="me-3">Groupe: <span id="infoGroupe" class="fw-bold"></span></span>
-                <span class="me-3">Coefficient: <span id="infoCoeff" class="fw-bold"></span></span>
-                <span>TVA: <span id="infoTva" class="fw-bold"></span>%</span>
               </div>
             </div>
           </div>
@@ -275,7 +262,23 @@
             </div>
           </div>
           <div class="form-text small text-muted mb-3">
-            <i class="fas fa-circle-info me-1"></i>Prix payé au fournisseur. Le prix de vente HT, la TVA, la marge brute et le prix TTC sont calculés automatiquement ci-dessous à partir de ce prix d'achat, du coefficient et du taux de TVA du fournisseur.
+            <i class="fas fa-circle-info me-1"></i>Prix payé au fournisseur.
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label">Coefficient <span class="text-danger">*</span></label>
+              <input type="number" step="0.01" min="0" name="coefficient" id="inputCoefficient" class="form-control" value="{{ produit.coefficient if produit else '1.0' }}" required>
+              <div class="form-text small text-muted">Prix de vente HT = Prix d'achat &times; coefficient.</div>
+            </div>
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label">TVA (%) <span class="text-danger">*</span></label>
+              <input type="number" step="0.01" min="0" name="tva" id="inputTva" class="form-control" value="{{ produit.tva if produit else '20.0' }}" required>
+              <div class="form-text small text-muted">Appliquée sur le prix de vente HT pour obtenir le TTC.</div>
+            </div>
+          </div>
+          <div class="form-text small text-muted mb-3">
+            <i class="fas fa-circle-info me-1"></i>Le prix de vente HT, la TVA, la marge brute et le prix TTC sont calculés automatiquement ci-dessous à partir du prix d'achat, du coefficient et du taux de TVA de ce produit.
           </div>
 
           <div id="apercuPrix" class="row g-3 mb-4"></div>
@@ -318,6 +321,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const prixAchatUnite = document.getElementById('prixAchatUnite');
     const prixAchatSousUnite = document.getElementById('prixAchatSousUnite');
     const prixAchatSousSousUnite = document.getElementById('prixAchatSousSousUnite');
+    const inputCoefficient = document.getElementById('inputCoefficient');
+    const inputTva = document.getElementById('inputTva');
 
     function updateFields() {
         const val = parseInt(condSelect.value);
@@ -330,13 +335,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderApercuPrix() {
-        const selectedOption = fournSelect ? fournSelect.options[fournSelect.selectedIndex] : null;
-        if (!selectedOption || !selectedOption.value) {
-            apercuDiv.innerHTML = '';
-            return;
-        }
-        const coefficient = parseFloat(selectedOption.getAttribute('data-coeff')) || 1.0;
-        const tauxTva = parseFloat(selectedOption.getAttribute('data-tva')) || 0.0;
+        const coefficient = parseFloat(inputCoefficient.value) || 1.0;
+        const tauxTva = parseFloat(inputTva.value) || 0.0;
         const niveaux = [
             { label: 'Unité', input: prixAchatUnite, visible: true },
             { label: 'Sous-unité', input: prixAchatSousUnite, visible: divPrixSous.style.display !== 'none' },
@@ -373,22 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
         apercuDiv.innerHTML = html;
     }
 
-    function updateSupplierInfo() {
-        const selectedOption = fournSelect.options[fournSelect.selectedIndex];
-        const infoDiv = document.getElementById('fournisseurInfo');
-        if (selectedOption && selectedOption.value) {
-            document.getElementById('infoGroupe').textContent = selectedOption.getAttribute('data-groupe');
-            document.getElementById('infoCoeff').textContent = selectedOption.getAttribute('data-coeff');
-            document.getElementById('infoTva').textContent = selectedOption.getAttribute('data-tva');
-            infoDiv.style.display = 'block';
-        } else {
-            infoDiv.style.display = 'none';
-        }
-        renderApercuPrix();
-    }
-
     function generateCode() {
-        updateSupplierInfo();
         const selectedOption = fournSelect.options[fournSelect.selectedIndex];
         const prefix = selectedOption ? selectedOption.getAttribute('data-prefix') || "XXXX" : "XXXX";
         const random = Math.floor(100000000 + Math.random() * 900000000).toString().substring(0, 9);
@@ -397,19 +382,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     condSelect.addEventListener('change', function() { updateFields(); renderApercuPrix(); });
     if (fournSelect) {
-        // Sur creation : change de fournisseur -> nouveau code + apercu. Sur edition,
+        // Sur creation : change de fournisseur -> nouveau code. Sur edition,
         // le select est desactive donc cet evenement ne se declenche pas.
         fournSelect.addEventListener('change', generateCode);
     }
-    [prixAchatUnite, prixAchatSousUnite, prixAchatSousSousUnite].forEach(function(input) {
+    [prixAchatUnite, prixAchatSousUnite, prixAchatSousSousUnite, inputCoefficient, inputTva].forEach(function(input) {
         if (input) input.addEventListener('input', renderApercuPrix);
     });
 
     updateFields();
     if (!codeInput.value) generateCode();
-    // Necessaire meme en edition (fournisseur deja selectionne, select desactive) pour
-    // afficher le panneau fournisseur et l'apercu des prix.
-    updateSupplierInfo();
+    renderApercuPrix();
 });
 </script>
 {% endblock %}

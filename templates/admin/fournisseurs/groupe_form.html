@@ -18,22 +18,11 @@
             </div>
             <div class="card-body p-4">
                 <form method="POST">
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label class="form-label fw-bold">Nom du Groupe</label>
                         <input type="text" name="nom" class="form-control" value="{{ groupe.nom if groupe else '' }}" placeholder="ex: Génériques, Grossistes..." required>
                     </div>
-                    
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Coefficient par défaut</label>
-                            <input type="number" step="0.01" name="coefficient_defaut" class="form-control" value="{{ groupe.coefficient_defaut if groupe else '1.0' }}" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">TVA par défaut (%)</label>
-                            <input type="number" step="0.01" name="tva_defaut" class="form-control" value="{{ groupe.tva_defaut if groupe else '20.0' }}" required>
-                        </div>
-                    </div>
-                    
+
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('admin.list_groupes_fournisseurs') }}" class="btn btn-light border">Annuler</a>
                         <button type="submit" class="btn btn-primary">

@@ -3213,8 +3213,6 @@ def create_fournisseur():
             prefixe = f"{base_prefix}{counter}"
             counter += 1
         
-        coeff = request.form.get('coefficient')
-        tva = request.form.get('tva')
         groupe_id = request.form.get('groupe_id')
 
         new_fournisseur = Fournisseur(
@@ -3222,8 +3220,6 @@ def create_fournisseur():
             site_web=request.form.get('site_web'),
             contact=request.form.get('contact'),
             prefixe=prefixe,
-            coefficient=float(coeff) if coeff else None,
-            tva=float(tva) if tva else None,
             groupe_id=int(groupe_id) if groupe_id else None
         )
         db.session.add(new_fournisseur)
@@ -3249,11 +3245,7 @@ def edit_fournisseur(id):
         fournisseur.site_web = request.form.get('site_web')
         fournisseur.contact = request.form.get('contact')
         fournisseur.prefixe = prefixe
-        
-        coeff = request.form.get('coefficient')
-        fournisseur.coefficient = float(coeff) if coeff else None
-        tva = request.form.get('tva')
-        fournisseur.tva = float(tva) if tva else None
+
         groupe_id = request.form.get('groupe_id')
         fournisseur.groupe_id = int(groupe_id) if groupe_id else None
         
@@ -3290,14 +3282,7 @@ def create_groupe_fournisseur():
             flash('Ce groupe existe déjà.', 'danger')
             return redirect(url_for('admin.create_groupe_fournisseur'))
             
-        coeff = request.form.get('coefficient_defaut')
-        tva = request.form.get('tva_defaut')
-        
-        new_groupe = GroupeFournisseur(
-            nom=nom,
-            coefficient_defaut=float(coeff) if coeff else 1.0,
-            tva_defaut=float(tva) if tva else 20.0
-        )
+        new_groupe = GroupeFournisseur(nom=nom)
         db.session.add(new_groupe)
         db.session.commit()
         flash('Groupe de fournisseurs créé avec succès.', 'success')
@@ -3311,11 +3296,7 @@ def edit_groupe_fournisseur(id):
     groupe = GroupeFournisseur.query.get_or_404(id)
     if request.method == 'POST':
         groupe.nom = request.form.get('nom')
-        coeff = request.form.get('coefficient_defaut')
-        groupe.coefficient_defaut = float(coeff) if coeff else 1.0
-        tva = request.form.get('tva_defaut')
-        groupe.tva_defaut = float(tva) if tva else 20.0
-        
+
         db.session.commit()
         flash('Groupe mis à jour avec succès.', 'success')
         return redirect(url_for('admin.list_groupes_fournisseurs'))
@@ -3600,8 +3581,8 @@ def create_produit():
             prix_unite=float(request.form.get('prix_unite') or 0),
             prix_sous_unite=float(request.form.get('prix_sous_unite') or 0),
             prix_sous_sous_unite=float(request.form.get('prix_sous_sous_unite') or 0),
-            coefficient=float(request.form.get('coefficient')) if request.form.get('coefficient') else None,
-            tva=float(request.form.get('tva')) if request.form.get('tva') else None,
+            coefficient=float(request.form.get('coefficient') or 1.0),
+            tva=float(request.form.get('tva') or 20.0),
             stock_securite=int(request.form.get('stock_securite') or 0),
             points_fidelite=int(request.form.get('points_fidelite')) if request.form.get('points_fidelite') not in (None, '') else None
         )
@@ -3634,8 +3615,8 @@ def edit_produit(id):
         produit.prix_unite = float(request.form.get('prix_unite') or 0)
         produit.prix_sous_unite = float(request.form.get('prix_sous_unite') or 0)
         produit.prix_sous_sous_unite = float(request.form.get('prix_sous_sous_unite') or 0)
-        produit.coefficient = float(request.form.get('coefficient')) if request.form.get('coefficient') else None
-        produit.tva = float(request.form.get('tva')) if request.form.get('tva') else None
+        produit.coefficient = float(request.form.get('coefficient') or 1.0)
+        produit.tva = float(request.form.get('tva') or 20.0)
         produit.stock_securite = int(request.form.get('stock_securite') or 0)
 
         db.session.commit()
@@ -7769,12 +7750,6 @@ def create_operation_financiere():
     if montant <= 0:
         flash('Le montant doit être supérieur à 0.', 'warning')
         return redirect(url_for('admin.finance_dashboard'))
-
-    if type_operation == 'decaissement':
-        solde_actuel = compute_solde_actuel()
-        if montant > solde_actuel:
-            flash(f"Décaissement refusé : le solde actuel ({solde_actuel:.2f} {devise_active()}) est insuffisant.", 'danger')
-            return redirect(url_for('admin.finance_dashboard'))
 
     db.session.add(OperationFinanciere(
         type=type_operation,

@@ -127,7 +127,7 @@
     <div class="stat-card stat-card-solde d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#d3f2e8,#a8e6cf);color:#0d3b2e;"><i class="fas fa-vault"></i></div>
       <div>
-        <div class="stat-number">{{ montant(solde_actuel) }} {{ devise }}</div>
+        <div class="stat-number{% if solde_actuel < 0 %} text-danger{% endif %}">{{ montant(solde_actuel) }} {{ devise }}</div>
         <div class="stat-label">Solde actuel</div>
         <div class="stat-sub">Indépendant de la période — toujours à jour</div>
       </div>
@@ -334,10 +334,10 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Solde actuel : <strong>{{ montant(solde_actuel) }} {{ devise }}</strong>. Un décaissement supérieur au solde sera refusé.</div>
+          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Solde actuel : <strong>{{ montant(solde_actuel) }} {{ devise }}</strong>. Un décaissement supérieur au solde est autorisé et rendra le solde négatif.</div>
           <div class="mb-3">
             <label class="form-label">Montant ({{ devise }}) <span class="text-danger">*</span></label>
-            <input type="number" name="montant" class="form-control" step="0.01" min="0.01" max="{{ '%.2f'|format(solde_actuel) }}" required>
+            <input type="number" name="montant" class="form-control" step="0.01" min="0.01" required>
           </div>
           <div class="mb-3">
             <label class="form-label">Raison <span class="text-danger">*</span></label>

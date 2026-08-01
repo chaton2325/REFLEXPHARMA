@@ -90,10 +90,13 @@ def get_status():
     }
 
 
-def start(app, direction, target_package, source_url, target_url):
+def start(app, direction, target_package, source_url, target_url, hybrid_online_url=None):
     """Enregistre une nouvelle bascule et lance immédiatement une première
     tentative en arrière-plan (non bloquant pour la requête HTTP qui l'a
-    déclenchée). Ne fait rien si une bascule est déjà en cours/en attente."""
+    déclenchée). Ne fait rien si une bascule est déjà en cours/en attente.
+
+    hybrid_online_url : uniquement pertinent quand target_package == 'hybrid'
+    (voir models/db_bascule.py::DbBascule.hybrid_online_url pour le pourquoi)."""
     existing = DbBascule.get_singleton()
     if existing is not None and existing.status not in ('done', 'cancelled'):
         return False
@@ -102,7 +105,7 @@ def start(app, direction, target_package, source_url, target_url):
 
     bascule = DbBascule(
         direction=direction, source_url=source_url, target_url=target_url,
-        target_package=target_package, status='pending',
+        target_package=target_package, hybrid_online_url=hybrid_online_url, status='pending',
     )
     db.session.add(bascule)
     db.session.commit()
@@ -298,11 +301,16 @@ def _finalize(bascule):
         # target_package == 'hybrid' implique toujours direction == 'to_local'
         # (l'Hybride tourne toujours sur la base locale, voir
         # services/license_service.py::activate_with_code) : l'URL "en ligne" à
-        # retenir pour les futures synchronisations manuelles
-        # (services/db_sync.py) est donc toujours source_url, celle qu'on quitte
-        # -- à écrire DANS la nouvelle base locale (target_url), pas dans la
-        # base en ligne elle-même.
-        _write_online_database_url_setting(bascule.target_url, bascule.source_url)
+        # retenir pour les futures synchronisations manuelles (services/db_sync.py)
+        # est la base NOUVELLEMENT attribuée pour ce package hybride
+        # (hybrid_online_url), PAS source_url -- qui n'est que l'ancienne base
+        # qu'on quitte (celle du package précédent, ex: 'online'), plus liée à
+        # aucune licence active une fois la bascule terminée. hybrid_online_url
+        # n'est renseigné que depuis la correction de ce bug ; en repli pour une
+        # bascule déjà en cours avant la mise à jour, on retombe sur l'ancien
+        # comportement (potentiellement incorrect) plutôt que de planter.
+        online_url = bascule.hybrid_online_url or bascule.source_url
+        _write_online_database_url_setting(bascule.target_url, online_url)
 
     cache = LicenseCache.get_singleton()
     if cache is not None:
