@@ -25,6 +25,7 @@ from models.vente import Vente, VenteLigne
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
+from models.declaration_caisse import DeclarationCaisse
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite

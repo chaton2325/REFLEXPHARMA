@@ -21,6 +21,8 @@ Les accès sont déterminés selon une logique de priorité stricte :
 - `gestion_codes_promo` : Accès à la création et la gestion des codes promotionnels (budget, pourcentage, dates de validité). N'importe quel utilisateur avec `gestion_ventes` peut appliquer un code existant lors d'une vente.
 - `consultation_salaires` : Accès à la visualisation des informations financières.
 - `module_impots` : Accès au module Impôts (déclaration des taxes par période, export PDF des ventes avec HT/TVA/TTC, marquage des périodes déclarées).
+- `gestion_caisse` : Déclarer le comptage physique de caisse en fin de journée (un montant par jour, export PDF/Excel de la liste des déclarations). Cette vue n'affiche jamais le total des ventes du jour, pour que le comptage reste indépendant (« à l'aveugle »).
+- `controle_caisse` : Contrôler la caisse : comparer, jour par jour, le montant déclaré au total réel des ventes en espèces enregistrées, avec l'écart et l'export PDF/Excel du rapport de contrôle.
 
 ## Règles d'Affichage (UI/UX)
 - Si un utilisateur n'a pas accès à une fonctionnalité, le bouton ou le menu correspondant **ne doit pas s'afficher** sur son tableau de bord ou dans la barre de navigation.

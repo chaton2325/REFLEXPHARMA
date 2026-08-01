@@ -789,6 +789,20 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             </a>
             {% endif %}
 
+            {% if current_user.has_permission('gestion_caisse') %}
+            <a href="{{ url_for('admin.list_declarations_caisse') }}" class="nav-link" title="Caisse">
+                <i class="fas fa-vault"></i>
+                <span class="nav-label">Caisse</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.has_permission('controle_caisse') %}
+            <a href="{{ url_for('admin.controle_caisse_view') }}" class="nav-link" title="Contrôle de caisse">
+                <i class="fas fa-magnifying-glass-dollar"></i>
+                <span class="nav-label">Contrôle caisse</span>
+            </a>
+            {% endif %}
+
             {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') or current_user.has_permission('gestion_fidelite') %}
             <div class="nav-group">
                 <a class="nav-link" data-bs-toggle="collapse" href="#clientCollapse" role="button" title="Clients">
@@ -975,6 +989,14 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
 
             {% if current_user.has_permission('module_impots') %}
             <a href="{{ url_for('admin.list_declarations_impots') }}"><i class="fas fa-landmark"></i>Impôts & Taxes</a>
+            {% endif %}
+
+            {% if current_user.has_permission('gestion_caisse') %}
+            <a href="{{ url_for('admin.list_declarations_caisse') }}"><i class="fas fa-vault"></i>Caisse</a>
+            {% endif %}
+
+            {% if current_user.has_permission('controle_caisse') %}
+            <a href="{{ url_for('admin.controle_caisse_view') }}"><i class="fas fa-magnifying-glass-dollar"></i>Contrôle caisse</a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_clients') or current_user.has_permission('gestion_groupes_clients') or current_user.has_permission('historique_clients') or current_user.has_permission('gestion_fidelite') %}

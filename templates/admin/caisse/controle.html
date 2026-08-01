@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Contrôle de caisse - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #fffbf2 !important; }
+
+    .page-header {
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #7a4d00 0%, #e3a008 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+    .page-header .btn-light { color: #7a4d00; font-weight: 600; border-radius: 10px; font-size: 0.85rem; position: relative; z-index: 1; }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; }
+    .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.68rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e);
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 0.5rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.5rem 0.65rem; vertical-align: middle; font-size: 0.78rem; }
+    .row-ok td { background-color: #f0faf6 !important; }
+    .row-ecart td { background-color: #fdecea !important; }
+    .row-non-declare td { background-color: #fef7e0 !important; }
+    .cell-sub { font-size: 0.68rem; color: #7a8896; }
+
+    .badge-statut { font-size: 0.66rem; padding: 0.32rem 0.6rem; border-radius: 999px; font-weight: 700; color: #fff; white-space: nowrap; }
+    .badge-ok { background: linear-gradient(135deg,#1e8e3e,#28a745); }
+    .badge-ecart { background: linear-gradient(135deg,#a81e11,#dc3545); }
+    .badge-non-declare { background: linear-gradient(135deg,#e37400,#f5a623); }
+    .badge-aucune-vente { background: linear-gradient(135deg,#6c757d,#868e96); }
+
+    .ecart-positif { color: #1e8e3e; font-weight: 700; }
+    .ecart-negatif { color: #dc3545; font-weight: 700; }
+
+    .fade-in { opacity: 0; transform: translateY(12px); animation: fadeInUp 0.4s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Contrôle de caisse</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-magnifying-glass-dollar me-2"></i>Contrôle de caisse</h1>
+        <p class="mb-0">Comparaison, jour par jour, entre le montant déclaré et le total réel des ventes en espèces.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.export_controle_caisse_pdf', date_from=date_from.isoformat(), date_to=date_to.isoformat()) }}" class="btn btn-light btn-sm"><i class="fas fa-file-pdf me-1"></i>PDF</a>
+        <a href="{{ url_for('admin.export_controle_caisse_excel', date_from=date_from.isoformat(), date_to=date_to.isoformat()) }}" class="btn btn-light btn-sm"><i class="fas fa-file-excel me-1"></i>Excel</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-xl-3">
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-circle-check"></i></div>
+            <div>
+                <div class="stat-number">{{ nb_ok }}</div>
+                <div class="stat-label">Jours conformes</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fdecea,#f8c9c4);color:#dc3545;"><i class="fas fa-triangle-exclamation"></i></div>
+            <div>
+                <div class="stat-number">{{ nb_ecarts }}</div>
+                <div class="stat-label">Écarts détectés</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-2">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef3e8,#fde0c5);color:#e37400;"><i class="fas fa-hourglass-half"></i></div>
+            <div>
+                <div class="stat-number">{{ nb_non_declares }}</div>
+                <div class="stat-label">Jours non déclarés</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtres -->
+<form method="GET" class="card-form mb-4 fade-in stagger-1">
+    <div class="p-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label">Du</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from.isoformat() }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Au</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to.isoformat() }}">
+            </div>
+            <div class="col-12 col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill"><i class="fas fa-filter me-1"></i> Filtrer</button>
+                <a href="{{ url_for('admin.controle_caisse_view') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-rotate-left me-1"></i> Mois en cours</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Liste : cartes mobiles -->
+<div class="d-md-none fade-in stagger-2" style="display:flex;flex-direction:column;gap:0.6rem;">
+    {% for r in rows %}
+    <div class="mobile-card card-form p-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold" style="font-size:0.85rem;color:#7a4d00;">{{ r.date_jour.strftime('%d/%m/%Y') }}</span>
+            <span class="badge-statut badge-{{ r.statut.replace('_', '-') }}">{{ statut_labels[r.statut] }}</span>
+        </div>
+        <div class="d-flex flex-wrap gap-3" style="font-size:0.75rem;">
+            <span>Déclaré <strong>{{ '%.2f'|format(r.montant_declare) if r.montant_declare is not none else '-' }}</strong></span>
+            <span>Ventes espèces <strong>{{ '%.2f'|format(r.total_especes) }}</strong> ({{ r.nb_ventes }})</span>
+            {% if r.ecart is not none %}
+            <span class="{{ 'ecart-positif' if r.ecart >= 0 else 'ecart-negatif' }}">Écart {{ '%+.2f'|format(r.ecart) }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4 card-form">Aucune donnée sur cette période.</div>
+    {% endfor %}
+</div>
+
+<!-- Liste : tableau desktop -->
+<div class="card-form d-none d-md-block fade-in stagger-2">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-end">Déclaré ({{ devise }})</th>
+                    <th class="text-end">Ventes espèces ({{ devise }})</th>
+                    <th class="text-center">Nb ventes</th>
+                    <th class="text-end">Écart ({{ devise }})</th>
+                    <th class="text-center">Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr class="row-{{ r.statut.replace('_', '-') }}">
+                    <td class="fw-bold" style="color:#7a4d00;">{{ r.date_jour.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.montant_declare) if r.montant_declare is not none else '-' }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.total_especes) }}</td>
+                    <td class="text-center">{{ r.nb_ventes }}</td>
+                    <td class="text-end {{ 'ecart-positif' if r.ecart is not none and r.ecart >= 0 else 'ecart-negatif' if r.ecart is not none else '' }}">
+                        {{ '%+.2f'|format(r.ecart) if r.ecart is not none else '-' }}
+                    </td>
+                    <td class="text-center"><span class="badge-statut badge-{{ r.statut.replace('_', '-') }}">{{ statut_labels[r.statut] }}</span></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="fas fa-magnifying-glass-dollar fa-2x mb-2 d-block" style="color:#e3a008;"></i>
+                        Aucune donnée sur cette période.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

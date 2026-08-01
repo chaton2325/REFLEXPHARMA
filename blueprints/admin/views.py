@@ -26,6 +26,7 @@ from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
+from models.declaration_caisse import DeclarationCaisse
 from models.commande import Commande, CommandeLigne
 from models.finance import OperationFinanciere, RaisonFinanciere
 from models.cadeau_fidelite import CadeauFidelite
@@ -54,6 +55,11 @@ from .carte_fidelite_render import build_cartes_fidelite_pdf, build_carte_fideli
 from .finance_reports import (
     compute_solde_actuel, query_operations_financieres, label_periode_dates,
     build_operations_financieres_pdf, build_operations_financieres_excel
+)
+from .caisse_reports import (
+    build_controle_rows, STATUT_LABELS,
+    build_declarations_caisse_pdf, build_declarations_caisse_excel,
+    build_controle_caisse_pdf, build_controle_caisse_excel
 )
 from services import license_service
 from services import db_sync
@@ -2421,7 +2427,7 @@ def create_vente():
         vente = Vente(
             numero_vente=numero_vente,
             statut=request.form.get('statut') or 'validee',
-            mode_paiement=request.form.get('mode_paiement') or 'especes',
+            mode_paiement=request.form.get('mode_paiement') if request.form.get('mode_paiement') in ('especes', 'solde_client', 'mixte') else 'especes',
             note=request.form.get('note'),
             client_id=None,
             client_matricule=client.matricule if client else None,
@@ -7474,6 +7480,179 @@ def export_declaration_impot_excel(id):
 
     output.seek(0)
     filename = f'declaration_impots_{declaration.reference}_{declaration.periode_debut.strftime("%Y%m%d")}_{declaration.periode_fin.strftime("%Y%m%d")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+
+# ==============================================================================
+# MODULE CAISSE (COMPTAGE PHYSIQUE DE FIN DE JOURNEE + CONTROLE)
+# ==============================================================================
+
+@admin.route('/caisse')
+@login_required
+@permission_required('gestion_caisse')
+def list_declarations_caisse():
+    """Liste des comptages déclarés. Volontairement muette sur le total des
+    ventes du jour : le comptage doit rester indépendant de ce qui est
+    attendu (voir controle_caisse_view pour la vérification)."""
+    declarations = DeclarationCaisse.query.order_by(DeclarationCaisse.date_jour.desc()).all()
+    total_declare = sum(money_value(d.montant_declare) for d in declarations)
+    today = date.today()
+    today_declaree = DeclarationCaisse.query.filter_by(date_jour=today).first()
+    return render_template(
+        'admin/caisse/list.html',
+        declarations=declarations,
+        total_declare=total_declare,
+        today=today,
+        today_declaree=today_declaree
+    )
+
+@admin.route('/caisse/create', methods=['POST'])
+@login_required
+@permission_required('gestion_caisse')
+def create_declaration_caisse():
+    date_jour = parse_date_filter((request.form.get('date_jour') or '').strip())
+    note = (request.form.get('note') or '').strip() or None
+
+    if not date_jour:
+        flash("Veuillez renseigner la date du comptage.", "danger")
+        return redirect(url_for('admin.list_declarations_caisse'))
+    if date_jour > date.today():
+        flash("Impossible de déclarer un comptage pour une date future.", "danger")
+        return redirect(url_for('admin.list_declarations_caisse'))
+    try:
+        montant_declare = round(float(request.form.get('montant_declare')), 2)
+        if montant_declare < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        flash("Montant invalide.", "danger")
+        return redirect(url_for('admin.list_declarations_caisse'))
+
+    if DeclarationCaisse.query.filter_by(date_jour=date_jour).first():
+        flash(f"Le {date_jour.strftime('%d/%m/%Y')} a déjà été déclaré. Modifiez la déclaration existante plutôt que d'en créer une nouvelle.", "warning")
+        return redirect(url_for('admin.list_declarations_caisse'))
+
+    declaration = DeclarationCaisse(
+        date_jour=date_jour,
+        montant_declare=montant_declare,
+        note=note,
+        created_by_id=current_user.id
+    )
+    db.session.add(declaration)
+    db.session.commit()
+    flash(f"Comptage du {date_jour.strftime('%d/%m/%Y')} déclaré.", "success")
+    return redirect(url_for('admin.list_declarations_caisse'))
+
+@admin.route('/caisse/<int:id>/update', methods=['POST'])
+@login_required
+@permission_required('gestion_caisse')
+def update_declaration_caisse(id):
+    declaration = DeclarationCaisse.query.get_or_404(id)
+    try:
+        montant_declare = round(float(request.form.get('montant_declare')), 2)
+        if montant_declare < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        flash("Montant invalide.", "danger")
+        return redirect(url_for('admin.list_declarations_caisse'))
+
+    declaration.montant_declare = montant_declare
+    declaration.note = (request.form.get('note') or '').strip() or None
+    declaration.updated_at = datetime.now()
+    declaration.updated_by_id = current_user.id
+    db.session.commit()
+    flash(f"Déclaration du {declaration.date_jour.strftime('%d/%m/%Y')} mise à jour.", "success")
+    return redirect(url_for('admin.list_declarations_caisse'))
+
+@admin.route('/caisse/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_caisse')
+def delete_declaration_caisse(id):
+    declaration = DeclarationCaisse.query.get_or_404(id)
+    date_label = declaration.date_jour.strftime('%d/%m/%Y')
+    db.session.delete(declaration)
+    db.session.commit()
+    flash(f"Déclaration du {date_label} supprimée.", "success")
+    return redirect(url_for('admin.list_declarations_caisse'))
+
+@admin.route('/caisse/export/pdf')
+@login_required
+@permission_required('gestion_caisse')
+def export_declarations_caisse_pdf():
+    import io
+    declarations = DeclarationCaisse.query.order_by(DeclarationCaisse.date_jour.desc()).all()
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    tire_par = f'{current_user.nom} {current_user.prenom}'
+    output = io.BytesIO()
+    build_declarations_caisse_pdf(output, declarations, tire_par, pharmacy_name)
+    output.seek(0)
+    filename = f'declarations_caisse_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/caisse/export/excel')
+@login_required
+@permission_required('gestion_caisse')
+def export_declarations_caisse_excel():
+    import io
+    declarations = DeclarationCaisse.query.order_by(DeclarationCaisse.date_jour.desc()).all()
+    output = io.BytesIO()
+    build_declarations_caisse_excel(output, declarations)
+    output.seek(0)
+    filename = f'declarations_caisse_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/caisse/controle')
+@login_required
+@permission_required('controle_caisse')
+def controle_caisse_view():
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    if not date_from and not date_to:
+        today = date.today()
+        date_from = today.replace(day=1)
+        date_to = today
+
+    rows = build_controle_rows(date_from, date_to)
+    return render_template(
+        'admin/caisse/controle.html',
+        rows=rows,
+        date_from=date_from,
+        date_to=date_to,
+        nb_ecarts=sum(1 for r in rows if r['statut'] == 'ecart'),
+        nb_non_declares=sum(1 for r in rows if r['statut'] == 'non_declare'),
+        nb_ok=sum(1 for r in rows if r['statut'] == 'ok'),
+        statut_labels=STATUT_LABELS
+    )
+
+@admin.route('/caisse/controle/export/pdf')
+@login_required
+@permission_required('controle_caisse')
+def export_controle_caisse_pdf():
+    import io
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip()) or date.today().replace(day=1)
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip()) or date.today()
+    rows = build_controle_rows(date_from, date_to)
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    tire_par = f'{current_user.nom} {current_user.prenom}'
+    periode_label = f"du {date_from.strftime('%d/%m/%Y')} au {date_to.strftime('%d/%m/%Y')}"
+    output = io.BytesIO()
+    build_controle_caisse_pdf(output, rows, periode_label, tire_par, pharmacy_name)
+    output.seek(0)
+    filename = f'controle_caisse_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/caisse/controle/export/excel')
+@login_required
+@permission_required('controle_caisse')
+def export_controle_caisse_excel():
+    import io
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip()) or date.today().replace(day=1)
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip()) or date.today()
+    rows = build_controle_rows(date_from, date_to)
+    periode_label = f"du {date_from.strftime('%d/%m/%Y')} au {date_to.strftime('%d/%m/%Y')}"
+    output = io.BytesIO()
+    build_controle_caisse_excel(output, rows, periode_label)
+    output.seek(0)
+    filename = f'controle_caisse_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.xlsx'
     return send_file(output, download_name=filename, as_attachment=True)
 
 

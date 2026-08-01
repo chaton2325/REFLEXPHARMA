@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Caisse - ReflexPharma{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #fffbf2 !important; }
+
+    .page-header {
+        background:
+            radial-gradient(circle 130px at calc(100% - 30px) -30px, rgba(255,255,255,0.07) 0 99%, transparent 100%),
+            linear-gradient(135deg, #7a4d00 0%, #e3a008 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; }
+    .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+    .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+    .page-header .btn-light { color: #7a4d00; font-weight: 600; border-radius: 10px; font-size: 0.85rem; position: relative; z-index: 1; }
+
+    .stat-card { background: #fff; border-radius: 14px; padding: 1.1rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%; }
+    .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .stat-card .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+    .stat-card .stat-label { font-size: 0.68rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .card-form { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); }
+    .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+    .card-form .card-header-custom {
+        background: linear-gradient(135deg, #fef7e0, #fdeecb);
+        border-bottom: 1px solid #f3e3b3;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px 14px 0 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #7a4d00;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .table-custom thead th {
+        background: linear-gradient(135deg,#2c3e50,#34495e);
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 0.5rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+    .table-custom tbody td { padding: 0.5rem 0.65rem; vertical-align: middle; font-size: 0.78rem; }
+    .table-custom tbody tr:nth-child(odd) td { background-color: #fffdf5; }
+    .table-custom tbody tr:nth-child(even) td { background-color: #fef7e0; }
+    .cell-sub { font-size: 0.68rem; color: #7a8896; }
+
+    .badge-jour-ok { background: linear-gradient(135deg,#1e8e3e,#28a745); color: #fff; font-size: 0.66rem; padding: 0.32rem 0.6rem; border-radius: 999px; font-weight: 700; }
+    .badge-jour-manquant { background: linear-gradient(135deg,#e37400,#f5a623); color: #fff; font-size: 0.66rem; padding: 0.32rem 0.6rem; border-radius: 999px; font-weight: 700; }
+
+    .mobile-card { border-radius: 12px; padding: 0.75rem 0.85rem; border: 1px solid #f3e3b3; background: #fffdf5; }
+    .mobile-card:nth-child(even) { background: #fef7e0; }
+
+    .fade-in { opacity: 0; transform: translateY(12px); animation: fadeInUp 0.4s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Caisse</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1"><i class="fas fa-vault me-2"></i>Comptage de caisse</h1>
+        <p class="mb-0">Déclarez le montant physiquement compté dans la caisse en fin de journée. Le total des ventes n'est volontairement pas affiché ici.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.export_declarations_caisse_pdf') }}" class="btn btn-light btn-sm"><i class="fas fa-file-pdf me-1"></i>PDF</a>
+        <a href="{{ url_for('admin.export_declarations_caisse_excel') }}" class="btn btn-light btn-sm"><i class="fas fa-file-excel me-1"></i>Excel</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4 row-cols-2 row-cols-xl-3">
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-list-check"></i></div>
+            <div>
+                <div class="stat-number">{{ declarations|length }}</div>
+                <div class="stat-label">Déclarations</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-1">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;"><i class="fas fa-sack-dollar"></i></div>
+            <div>
+                <div class="stat-number">{{ "{:,.2f}".format(total_declare).replace(',', ' ').replace('.', ',') }}</div>
+                <div class="stat-label">Total déclaré ({{ devise }})</div>
+            </div>
+        </div>
+    </div>
+    <div class="col fade-in stagger-2">
+        <div class="stat-card d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:linear-gradient(135deg,{{ 'e6f7ee,#c8f0d9' if today_declaree else 'fef3e8,#fde0c5' }});color:{{ '#1e8e3e' if today_declaree else '#e37400' }};"><i class="fas fa-calendar-day"></i></div>
+            <div>
+                <div class="stat-number" style="font-size:1rem;">
+                    {% if today_declaree %}Déclaré{% else %}Non déclaré{% endif %}
+                </div>
+                <div class="stat-label">Aujourd'hui ({{ today.strftime('%d/%m/%Y') }})</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Nouvelle déclaration -->
+<div class="mb-4">
+    <div class="card-form fade-in">
+        <div class="card-header-custom"><i class="fas fa-cash-register"></i> Déclarer un comptage</div>
+        <form method="POST" action="{{ url_for('admin.create_declaration_caisse') }}" class="p-3 p-sm-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Date <span class="text-danger">*</span></label>
+                    <input type="date" name="date_jour" class="form-control form-control-sm" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Montant compté ({{ devise }}) <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" min="0" name="montant_declare" class="form-control form-control-sm" placeholder="0.00" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Note (optionnelle)</label>
+                    <input type="text" name="note" class="form-control form-control-sm" maxlength="300" placeholder="Ex : billet déchiré mis de côté">
+                </div>
+                <div class="col-12 col-md-2 d-grid">
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-white" style="background:linear-gradient(135deg,#a5670a,#e3a008);border:none;">
+                        <i class="fas fa-plus me-1"></i> Déclarer
+                    </button>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="fas fa-circle-info me-1"></i>Une seule déclaration par jour ; modifiez-la depuis la liste si besoin de la corriger.</div>
+        </form>
+    </div>
+</div>
+
+<!-- Liste : cartes mobiles -->
+<div class="d-md-none fade-in stagger-2" style="display:flex;flex-direction:column;gap:0.6rem;">
+    {% for d in declarations %}
+    <div class="mobile-card">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold" style="font-size:0.85rem;color:#7a4d00;"><i class="fas fa-calendar-day me-1"></i>{{ d.date_jour.strftime('%d/%m/%Y') }}</span>
+            <span class="fw-bold">{{ "{:,.2f}".format(d.montant_declare).replace(',', ' ').replace('.', ',') }} {{ devise }}</span>
+        </div>
+        {% if d.note %}<div class="cell-sub mb-1">{{ d.note }}</div>{% endif %}
+        {% if d.created_by %}<div class="cell-sub mb-2">Déclaré par {{ d.created_by.prenom }} {{ d.created_by.nom }}</div>{% endif %}
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary flex-fill" data-bs-toggle="modal" data-bs-target="#editModal{{ d.id }}"><i class="fas fa-pen"></i> Modifier</button>
+            <button type="button" class="btn btn-sm btn-outline-danger flex-fill" data-bs-toggle="modal" data-bs-target="#deleteModal{{ d.id }}"><i class="fas fa-trash"></i></button>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4 card-form">
+        <i class="fas fa-vault fa-2x mb-2 d-block" style="color:#e3a008;"></i>
+        Aucune déclaration pour le moment.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Liste : tableau desktop -->
+<div class="card-form d-none d-md-block fade-in stagger-2">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-end">Montant déclaré ({{ devise }})</th>
+                    <th>Note</th>
+                    <th>Déclaré par</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in declarations %}
+                <tr>
+                    <td class="fw-bold" style="color:#7a4d00;">{{ d.date_jour.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-end fw-bold">{{ "{:,.2f}".format(d.montant_declare).replace(',', ' ').replace('.', ',') }}</td>
+                    <td>{{ d.note or '-' }}</td>
+                    <td>
+                        {% if d.created_by %}
+                        <div>{{ d.created_by.prenom }} {{ d.created_by.nom }}</div>
+                        <div class="cell-sub">{{ d.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        {% else %}
+                        <span class="cell-sub">-</span>
+                        {% endif %}
+                        {% if d.updated_at %}
+                        <div class="cell-sub"><i class="fas fa-pen me-1"></i>Modifié le {{ d.updated_at.strftime('%d/%m/%Y %H:%M') }}{% if d.updated_by %} par {{ d.updated_by.prenom }} {{ d.updated_by.nom }}{% endif %}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ d.id }}" title="Modifier"><i class="fas fa-pen"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ d.id }}" title="Supprimer"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="fas fa-vault fa-2x mb-2 d-block" style="color:#e3a008;"></i>
+                        Aucune déclaration pour le moment.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% for d in declarations %}
+<!-- Modale modification -->
+<div class="modal fade" id="editModal{{ d.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <form method="POST" action="{{ url_for('admin.update_declaration_caisse', id=d.id) }}">
+                <div class="modal-header" style="background:linear-gradient(135deg,#7a4d00,#e3a008);border-radius:16px 16px 0 0;">
+                    <h5 class="modal-title text-white"><i class="fas fa-pen me-2"></i>Modifier le comptage du {{ d.date_jour.strftime('%d/%m/%Y') }}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Montant compté ({{ devise }})</label>
+                    <input type="number" step="0.01" min="0" name="montant_declare" class="form-control mb-3" value="{{ '%.2f'|format(d.montant_declare) }}" required>
+                    <label class="form-label">Note</label>
+                    <input type="text" name="note" class="form-control" maxlength="300" value="{{ d.note or '' }}">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-warning fw-bold text-white" style="background:linear-gradient(135deg,#a5670a,#e3a008);border:none;">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modale suppression -->
+<div class="modal fade" id="deleteModal{{ d.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#a81e11,#dc3545);border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Supprimer la déclaration</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p class="mb-0">Supprimer la déclaration du <strong>{{ d.date_jour.strftime('%d/%m/%Y') }}</strong> ({{ "{:,.2f}".format(d.montant_declare).replace(',', ' ').replace('.', ',') }} {{ devise }}) ?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form method="POST" action="{{ url_for('admin.delete_declaration_caisse', id=d.id) }}">
+                    <button type="submit" class="btn btn-danger">Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

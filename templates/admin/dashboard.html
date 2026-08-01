@@ -864,6 +864,32 @@
     </div>
   </div>
   {% endif %}
+
+  {% if current_user.has_permission('gestion_caisse') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#a5670a;">
+        <i class="fas fa-vault"></i>
+      </div>
+      <h5>Caisse</h5>
+      <p>Déclarez le montant physiquement compté dans la caisse en fin de journée.</p>
+      <a href="{{ url_for('admin.list_declarations_caisse') }}" class="btn btn-outline-warning" style="border-color:#a5670a;color:#a5670a;">Ouvrir le module</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.has_permission('controle_caisse') %}
+  <div class="col-6 col-sm-6 col-lg-4 fade-in stagger-6">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:linear-gradient(135deg,#fdecea,#f8c9c4);color:#dc3545;">
+        <i class="fas fa-magnifying-glass-dollar"></i>
+      </div>
+      <h5>Contrôle de caisse</h5>
+      <p>Comparez le montant déclaré au total réel des ventes en espèces, jour par jour.</p>
+      <a href="{{ url_for('admin.controle_caisse_view') }}" class="btn btn-outline-warning" style="border-color:#a5670a;color:#a5670a;">Ouvrir le module</a>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>

@@ -23,6 +23,8 @@ FEATURES = {
     'gestion_commandes': 'Gérer les commandes fournisseurs',
     'module_impots': 'Gérer les impôts (déclaration des taxes)',
     'gestion_finance': 'Gérer les finances (CA, bénéfice, solde)',
+    'gestion_caisse': 'Déclarer le comptage de caisse (montant physique compté en fin de journée)',
+    'controle_caisse': 'Contrôler la caisse (comparer le montant déclaré au total des ventes en espèces de la journée)',
     'gestion_parametres': 'Gérer les paramètres de l\'application'
 }
 
