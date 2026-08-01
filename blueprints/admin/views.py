@@ -6598,16 +6598,40 @@ def save_inventaire_line(id, line_id):
         return redirect(url_for('admin.show_inventaire', id=id))
         
     line = InventaireLigne.query.filter_by(inventaire_id=id, id=line_id).first_or_404()
-    
+
     try:
         u = request.form.get('quantite_unites')
         su = request.form.get('quantite_sous_unites')
         ssu = request.form.get('quantite_sous_sous_unites')
-        
-        line.quantite_unites_apres = int(u) if u is not None and u != '' else 0
-        line.quantite_sous_unites_apres = int(su) if su is not None and su != '' else 0
-        line.quantite_sous_sous_unites_apres = int(ssu) if ssu is not None and ssu != '' else 0
-        
+
+        u_apres = int(u) if u is not None and u != '' else 0
+        su_apres = int(su) if su is not None and su != '' else 0
+        ssu_apres = int(ssu) if ssu is not None and ssu != '' else 0
+
+        # Un lot déjà suivi ne peut physiquement pas compter plus d'unités que ce
+        # que le système sait actuellement en stock pour CE lot précis (le stock
+        # d'un lot ne peut que baisser -- ventes/sorties -- entre la création de
+        # l'inventaire et le comptage, jamais augmenter spontanément) : un
+        # comptage supérieur signale presque toujours un double-scan ou une
+        # erreur de saisie, jamais un vrai surplus.
+        depassements = []
+        if u_apres > line.quantite_unites_avant:
+            depassements.append(f"Unités : {u_apres} saisi > {line.quantite_unites_avant} en stock")
+        if su_apres > line.quantite_sous_unites_avant:
+            depassements.append(f"Sous-unités : {su_apres} saisi > {line.quantite_sous_unites_avant} en stock")
+        if ssu_apres > line.quantite_sous_sous_unites_avant:
+            depassements.append(f"Sous-sous-unités : {ssu_apres} saisi > {line.quantite_sous_sous_unites_avant} en stock")
+        if depassements:
+            message = "Quantité saisie supérieure au stock théorique du lot (" + " ; ".join(depassements) + ")."
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return {'success': False, 'message': message}, 400
+            flash(message, "danger")
+            return redirect(url_for('admin.show_inventaire', id=id))
+
+        line.quantite_unites_apres = u_apres
+        line.quantite_sous_unites_apres = su_apres
+        line.quantite_sous_sous_unites_apres = ssu_apres
+
         line.is_scanned = True
         line.constate_at = datetime.now()
         line.constate_by_id = current_user.id

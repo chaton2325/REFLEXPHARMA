@@ -269,8 +269,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Configuration des inputs
         document.getElementById('form-line-id').value = data.line_id;
 
-        // Reset inputs values
-        document.getElementById('qty-u').value = data.quantite_unites_apres;
+        // Reset inputs values -- max = stock théorique du lot : un comptage ne
+        // peut jamais dépasser ce que le système sait déjà en stock pour ce lot.
+        const qtyU = document.getElementById('qty-u');
+        qtyU.value = data.quantite_unites_apres;
+        qtyU.max = data.quantite_unites_avant;
 
         const groupSU = document.getElementById('input-group-su');
         const qtySU = document.getElementById('qty-su');
@@ -278,6 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
             groupSU.classList.remove('d-none');
             document.getElementById('input-group-u').className = 'col-6';
             qtySU.value = data.quantite_sous_unites_apres;
+            qtySU.max = data.quantite_sous_unites_avant;
             qtySU.required = true;
         } else {
             groupSU.classList.add('d-none');
@@ -290,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.conditionnement === 3) {
             groupSSU.classList.remove('d-none');
             qtySSU.value = data.quantite_sous_sous_unites_apres;
+            qtySSU.max = data.quantite_sous_sous_unites_avant;
             qtySSU.required = true;
         } else {
             groupSSU.classList.add('d-none');

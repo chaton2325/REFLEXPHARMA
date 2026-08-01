@@ -389,14 +389,14 @@
                                     <div class="input-group input-group-sm" style="width: 70px;">
                                         <span class="input-group-text p-1">U</span>
                                         <input type="number" name="quantite_unites" class="form-control px-1 text-center"
-                                               value="{{ line.quantite_unites_apres if line.quantite_unites_apres is not none else '' }}" min="0" required>
+                                               value="{{ line.quantite_unites_apres if line.quantite_unites_apres is not none else '' }}" min="0" max="{{ line.quantite_unites_avant }}" required>
                                     </div>
 
                                     {% if cond >= 2 %}
                                     <div class="input-group input-group-sm" style="width: 75px;">
                                         <span class="input-group-text p-1">SU</span>
                                         <input type="number" name="quantite_sous_unites" class="form-control px-1 text-center"
-                                               value="{{ line.quantite_sous_unites_apres if line.quantite_sous_unites_apres is not none else '' }}" min="0">
+                                               value="{{ line.quantite_sous_unites_apres if line.quantite_sous_unites_apres is not none else '' }}" min="0" max="{{ line.quantite_sous_unites_avant }}">
                                     </div>
                                     {% endif %}
 
@@ -404,7 +404,7 @@
                                     <div class="input-group input-group-sm" style="width: 80px;">
                                         <span class="input-group-text p-1">SSU</span>
                                         <input type="number" name="quantite_sous_sous_unites" class="form-control px-1 text-center"
-                                               value="{{ line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not none else '' }}" min="0">
+                                               value="{{ line.quantite_sous_sous_unites_apres if line.quantite_sous_sous_unites_apres is not none else '' }}" min="0" max="{{ line.quantite_sous_sous_unites_avant }}">
                                     </div>
                                     {% endif %}
 
