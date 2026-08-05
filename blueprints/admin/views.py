@@ -120,21 +120,15 @@ def make_numbered_pdf_canvas(page_width):
 
     return NumberedCanvas
 
-def generate_product_code(fournisseur):
-    prefix = (fournisseur.prefixe or 'XXXX').upper()
-    while True:
-        suffix = ''.join(secrets.choice('0123456789') for _ in range(9))
-        code = f'{prefix}-{suffix}'[:13]
-        if not Produit.query.filter_by(code_produit=code).first():
-            return code
-
 def produit_from_form(form, fournisseur):
     """Construit un Produit (non ajoute a la session) a partir des donnees de
     formulaire. Utilise a la fois par le formulaire complet de creation et par la
-    creation rapide depuis le module Stock, pour que les deux restent en phase."""
+    creation rapide depuis le module Stock, pour que les deux restent en phase.
+    Le CIP (code_produit) est saisi manuellement par l'utilisateur : voir
+    l'appelant pour la validation (present, unique) avant construction."""
     return Produit(
         nom=form.get('nom'),
-        code_produit=generate_product_code(fournisseur),
+        code_produit=(form.get('code_produit') or '').strip(),
         fournisseur_id=fournisseur.id,
         rayon_id=int(form.get('rayon_id')) if form.get('rayon_id') else None,
         famille_id=int(form.get('famille_id')) if form.get('famille_id') else None,
@@ -3631,12 +3625,20 @@ def create_produit():
     if request.method == 'POST':
         f_id = int(request.form.get('fournisseur_id'))
         fournisseur = Fournisseur.query.get_or_404(f_id)
+        code_produit = (request.form.get('code_produit') or '').strip()
+
+        if not code_produit:
+            flash('Veuillez préciser le CIP du produit.', 'warning')
+            return redirect(url_for('admin.create_produit'))
+        if Produit.query.filter_by(code_produit=code_produit).first():
+            flash(f'Le CIP "{code_produit}" est déjà utilisé par un autre produit.', 'danger')
+            return redirect(url_for('admin.create_produit'))
 
         new_produit = produit_from_form(request.form, fournisseur)
         db.session.add(new_produit)
         db.session.commit()
 
-        flash(f'Produit créé avec le code : {new_produit.code_produit}', 'success')
+        flash(f'Produit créé avec le CIP : {new_produit.code_produit}', 'success')
         return redirect(url_for('admin.list_produits'))
 
     return render_template('admin/produits/form.html', title='Ajouter un Produit',
@@ -3653,6 +3655,12 @@ def quick_create_produit():
     nom = (request.form.get('nom') or '').strip()
     if not nom:
         return jsonify({'success': False, 'message': 'Le nom du produit est requis.'}), 400
+
+    code_produit = (request.form.get('code_produit') or '').strip()
+    if not code_produit:
+        return jsonify({'success': False, 'message': 'Le CIP est requis.'}), 400
+    if Produit.query.filter_by(code_produit=code_produit).first():
+        return jsonify({'success': False, 'message': f'Le CIP "{code_produit}" est déjà utilisé par un autre produit.'}), 400
 
     fournisseur_id = request.form.get('fournisseur_id')
     fournisseur = Fournisseur.query.get(int(fournisseur_id)) if fournisseur_id else None

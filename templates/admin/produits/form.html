@@ -154,9 +154,9 @@
             <div class="col-sm-6 col-md-4">
               <label class="form-label">Fournisseur <span class="text-danger">*</span></label>
               <select name="fournisseur_id" id="fournisseurSelect" class="form-select" required {{ 'disabled' if produit }}>
-                <option value="" data-prefix="XXXX">Choisir un fournisseur...</option>
+                <option value="">Choisir un fournisseur...</option>
                 {% for f in fournisseurs %}
-                <option value="{{ f.id }}" data-prefix="{{ f.prefixe }}"
+                <option value="{{ f.id }}"
                         {% if produit and produit.fournisseur_id == f.id %}selected{% endif %}>
                     {{ f.nom }} ({{ f.prefixe }})
                 </option>
@@ -164,14 +164,15 @@
               </select>
             </div>
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Code Produit (Généré)</label>
-              <input type="text" id="codeProduit" class="form-control" 
-                  value="{{ produit.code_produit if produit else '' }}" readonly placeholder="Automatique (13 chiffres)">
+              <label class="form-label">CIP <span class="text-danger">*</span></label>
+              <input type="text" name="code_produit" id="codeProduit" class="form-control"
+                  value="{{ produit.code_produit if produit else '' }}"
+                  {% if produit %}readonly{% else %}required placeholder="Ex: 3400930000001"{% endif %}>
               <div class="form-text small text-muted">
                 {% if produit %}
-                Le code produit est figé après création.
+                Le CIP est figé après création.
                 {% else %}
-                Le code produit est généré automatiquement à l'enregistrement.
+                Code Identifiant de Présentation du produit, saisi manuellement (unique).
                 {% endif %}
               </div>
             </div>
@@ -315,8 +316,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const condSelect = document.getElementById('condSelect');
     const divPrixSous = document.getElementById('divPrixSous');
     const divPrixSousSous = document.getElementById('divPrixSousSous');
-    const fournSelect = document.getElementById('fournisseurSelect');
-    const codeInput = document.getElementById('codeProduit');
     const apercuDiv = document.getElementById('apercuPrix');
     const prixAchatUnite = document.getElementById('prixAchatUnite');
     const prixAchatSousUnite = document.getElementById('prixAchatSousUnite');
@@ -373,25 +372,12 @@ document.addEventListener('DOMContentLoaded', function() {
         apercuDiv.innerHTML = html;
     }
 
-    function generateCode() {
-        const selectedOption = fournSelect.options[fournSelect.selectedIndex];
-        const prefix = selectedOption ? selectedOption.getAttribute('data-prefix') || "XXXX" : "XXXX";
-        const random = Math.floor(100000000 + Math.random() * 900000000).toString().substring(0, 9);
-        codeInput.value = `${prefix}-${random}`.substring(0, 13);
-    }
-
     condSelect.addEventListener('change', function() { updateFields(); renderApercuPrix(); });
-    if (fournSelect) {
-        // Sur creation : change de fournisseur -> nouveau code. Sur edition,
-        // le select est desactive donc cet evenement ne se declenche pas.
-        fournSelect.addEventListener('change', generateCode);
-    }
     [prixAchatUnite, prixAchatSousUnite, prixAchatSousSousUnite, inputCoefficient, inputTva].forEach(function(input) {
         if (input) input.addEventListener('input', renderApercuPrix);
     });
 
     updateFields();
-    if (!codeInput.value) generateCode();
     renderApercuPrix();
 });
 </script>

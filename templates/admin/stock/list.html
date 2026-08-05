@@ -1358,6 +1358,10 @@ document.addEventListener('DOMContentLoaded', function() {
           <input type="text" id="qcpNom" class="form-control">
         </div>
         <div class="mb-3">
+          <label for="qcpCip" class="form-label">CIP <span class="text-danger">*</span></label>
+          <input type="text" id="qcpCip" class="form-control" placeholder="Ex: 3400930000001">
+        </div>
+        <div class="mb-3">
           <label for="qcpFournisseur" class="form-label">Fournisseur <span class="text-danger">*</span></label>
           <select id="qcpFournisseur" class="form-select">
             <option value="">Choisir un fournisseur...</option>
@@ -2357,6 +2361,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const quickCreateModalEl = document.getElementById('quickCreateProduitModal');
         if (quickCreateModalEl) {
             const qcpNom = document.getElementById('qcpNom');
+            const qcpCip = document.getElementById('qcpCip');
             const qcpFournisseur = document.getElementById('qcpFournisseur');
             const qcpRayon = document.getElementById('qcpRayon');
             const qcpFamille = document.getElementById('qcpFamille');
@@ -2390,6 +2395,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             function qcpReset() {
                 qcpNom.value = '';
+                qcpCip.value = '';
                 qcpFournisseur.value = '';
                 qcpRayon.value = '';
                 qcpFamille.value = '';
@@ -2427,12 +2433,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 qcpError.classList.add('d-none');
                 const nom = qcpNom.value.trim();
                 if (!nom) { qcpShowError('Le nom du produit est requis.'); qcpNom.focus(); return; }
+                const cip = qcpCip.value.trim();
+                if (!cip) { qcpShowError('Le CIP est requis.'); qcpCip.focus(); return; }
                 if (!qcpFournisseur.value) { qcpShowError('Veuillez choisir un fournisseur.'); qcpFournisseur.focus(); return; }
                 const prixUnite = Number(qcpPrixUnite.value || 0);
                 if (prixUnite <= 0) { qcpShowError("Le prix d'achat (unité) est requis."); qcpPrixUnite.focus(); return; }
 
                 const payload = new URLSearchParams({
                     nom,
+                    code_produit: cip,
                     fournisseur_id: qcpFournisseur.value,
                     rayon_id: qcpRayon.value,
                     famille_id: qcpFamille.value,
