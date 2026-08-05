@@ -2128,10 +2128,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function mUpdateCode() {
+            const prefix = (selectedProduit?.fournisseur_prefixe || '').toUpperCase();
             const pCode = selectedProduit?.code_produit || '';
             const bl = mNormalizeBl(mBl?.value);
-            const per = mPeremption?.value || '';
-            mCodePreview.value = pCode && bl && per ? pCode + '-' + bl + '-' + per : '';
+            mCodePreview.value = pCode && bl ? prefix + pCode + bl : '';
         }
 
         function mRefreshLine() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }
@@ -2140,7 +2140,6 @@ document.addEventListener('DOMContentLoaded', function() {
         mQtySous.addEventListener('input', mUpdateTotals);
         mQtySousSous.addEventListener('input', mUpdateTotals);
         mBl.addEventListener('input', mUpdateCode);
-        mPeremption.addEventListener('input', mUpdateCode);
 
         // ---- Panier ----
         function showLineError(msg) {

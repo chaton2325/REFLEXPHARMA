@@ -43,10 +43,10 @@ class Stock(db.Model):
         return normalized
 
     @classmethod
-    def build_tracking_code(cls, produit_code, numero_bl, date_peremption):
+    def build_tracking_code(cls, fournisseur_prefixe, produit_code, numero_bl):
         normalized_bl = cls.normalize_bl(numero_bl)
-        full_date = date_peremption.strftime('%Y-%m-%d')
-        return f'{produit_code}-{normalized_bl}-{full_date}'
+        prefix = (fournisseur_prefixe or '').strip().upper()
+        return f'{prefix}{produit_code}{normalized_bl}'
 
     @property
     def prix_achat_total(self):
