@@ -332,6 +332,24 @@
     color: #7a8896;
     font-size: 0.78rem;
   }
+  .alert-card-toggle {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: none;
+    background: rgba(0,0,0,0.06);
+    color: #495057;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .alert-card-toggle:hover { background: rgba(0,0,0,0.12); }
+  .alert-card.has-alerts .alert-card-toggle { background: rgba(255,255,255,0.18); color: #fff; }
+  .alert-card.has-alerts .alert-card-toggle:hover { background: rgba(255,255,255,0.3); }
+  .alert-card.content-hidden .alert-card-body { display: none; }
   .alert-card-body { padding: 0 0.75rem 0.75rem; flex: 1; }
   .alert-list {
     display: flex;
@@ -584,6 +602,9 @@
           <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
           <span class="d-none d-sm-inline">Analyse en cours...</span>
         </div>
+        <button type="button" class="alert-card-toggle" id="alertCardToggle" title="Afficher le détail des alertes" aria-expanded="false" aria-controls="alertList">
+          <i class="fas fa-eye"></i>
+        </button>
       </div>
       <div class="alert-card-body">
         <div class="alert-list" id="alertList"></div>
@@ -916,6 +937,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const sub = document.getElementById('alertCardSub');
     const icon = document.getElementById('alertCardIcon');
     const mascotte = document.getElementById('alertCardMascotte');
+    const toggle = document.getElementById('alertCardToggle');
+
+    // Contenu masque par defaut : seuls le badge et l'etat "carte rouge" restent
+    // visibles pour signaler qu'il y a des alertes, sans en exposer le detail.
+    function setContentHidden(hidden) {
+        card.classList.toggle('content-hidden', hidden);
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', String(!hidden));
+            toggle.title = hidden ? 'Afficher le détail des alertes' : 'Masquer le détail des alertes';
+            toggle.innerHTML = '<i class="fas ' + (hidden ? 'fa-eye' : 'fa-eye-slash') + '"></i>';
+        }
+    }
+    setContentHidden(true);
+    if (toggle) {
+        toggle.addEventListener('click', function() {
+            setContentHidden(!card.classList.contains('content-hidden'));
+        });
+    }
 
     function setMascotte(src) {
         if (!mascotte) return;
