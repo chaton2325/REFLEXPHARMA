@@ -118,6 +118,147 @@
     position: relative;
   }
 
+  /* Stock entry modal: searchable product picker + cart */
+  .stock-entry-col-search {
+    border-right: 1px solid #edf2f7;
+  }
+  .stock-entry-col-cart {
+    background: #f8f9fa;
+  }
+  @media (max-width: 991.98px) {
+    .stock-entry-col-search { border-right: none; border-bottom: 1px solid #edf2f7; }
+  }
+  .produit-search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.14);
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .produit-search-results .result-item {
+    padding: 0.55rem 0.85rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f3f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .produit-search-results .result-item:last-child { border-bottom: none; }
+  .produit-search-results .result-item:hover,
+  .produit-search-results .result-item.active {
+    background: #eef3fc;
+  }
+  .produit-search-results .result-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1a1a2e;
+  }
+  .produit-search-results .result-meta {
+    font-size: 0.72rem;
+    color: #7a8896;
+  }
+  .produit-search-results .result-hint,
+  .produit-search-results .result-empty,
+  .produit-search-results .result-loading {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.8rem;
+    color: #7a8896;
+  }
+  .selected-produit-card {
+    background: #eef3fc;
+    border: 1px solid #d7e6fb;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+  }
+  .cart-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: min(55vh, 480px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.25rem;
+  }
+  .cart-item {
+    background: #fff;
+    border: 1px solid #3498db;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+  }
+  .cart-item .cart-item-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1a1a2e;
+  }
+  .cart-item .cart-item-meta {
+    font-size: 0.72rem;
+    color: #7a8896;
+  }
+  .cart-item .cart-item-remove,
+  .cart-item .cart-item-view {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+    font-size: 0.72rem;
+  }
+  .cart-total-box {
+    background: #fff;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    margin-top: 0.75rem;
+  }
+  html[data-bs-theme="dark"] .stock-entry-col-cart { background: #1c2733 !important; }
+  html[data-bs-theme="dark"] .stock-entry-col-search { border-right-color: rgba(255,255,255,0.08); }
+  html[data-bs-theme="dark"] .produit-search-results,
+  html[data-bs-theme="dark"] .cart-total-box { background: #16202b !important; border-color: rgba(255,255,255,0.08); }
+  html[data-bs-theme="dark"] .cart-item { background: #16202b !important; border-color: rgba(52,152,219,0.5); }
+  html[data-bs-theme="dark"] .selected-produit-card { background: rgba(52,152,219,0.12); border-color: rgba(52,152,219,0.3); }
+
+  /* Volet "Nouveau produit" : second modal docké a droite, visible en meme temps
+     que le modal d'entree en stock (pas de backdrop propre, cf. data-bs-backdrop="false"). */
+  #quickCreateProduitModal .modal-dialog {
+    position: fixed;
+    top: 0;
+    right: 0;
+    margin: 0;
+    height: 100%;
+    max-width: 460px;
+    width: 100%;
+    transform: translateX(100%);
+  }
+  #quickCreateProduitModal.show .modal-dialog {
+    transform: translateX(0);
+  }
+  #quickCreateProduitModal .modal-content {
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.25);
+  }
+  #quickCreateProduitModal .modal-body {
+    overflow-y: auto;
+  }
+  #openQuickCreateProduit {
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #3498db;
+  }
+  #openQuickCreateProduit:hover { color: #2c3e50; }
+
   .table-custom {
     margin-bottom: 0;
     border-collapse: separate;
@@ -227,6 +368,55 @@
   tr.row-flash td, .mobile-card.row-flash {
     animation: rowFlash 1.2s ease 3;
   }
+
+  /* --- Modal succes entree en stock (animation, meme recette que les ventes) --- */
+  #stockEntrySuccessModal .modal-content {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #stockEntrySuccessModal.show .modal-dialog {
+    animation: stockSuccessPop 0.45s cubic-bezier(0.18, 1.25, 0.4, 1) both;
+  }
+  @keyframes stockSuccessPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .success-checkmark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: #e6f7ee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPulse 1.4s ease-out 0.3s;
+  }
+  @keyframes successPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(30,142,62,0.35); }
+    100% { box-shadow: 0 0 0 26px rgba(30,142,62,0); }
+  }
+  .success-svg { width: 58px; height: 58px; }
+  .success-circle {
+    stroke: #1e8e3e;
+    stroke-width: 2.5;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: stockDrawCircle 0.6s ease-out 0.15s forwards;
+  }
+  @keyframes stockDrawCircle { to { stroke-dashoffset: 0; } }
+  .success-check {
+    stroke: #1e8e3e;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: stockDrawCheck 0.35s ease-out 0.7s forwards;
+  }
+  @keyframes stockDrawCheck { to { stroke-dashoffset: 0; } }
 
   /* Sticky header inset shadow effect */
   .table-custom thead th {
@@ -715,6 +905,35 @@
   </div>
 </div>
 
+{% set stock_success_messages = get_flashed_messages(category_filter=['stock_success']) %}
+{% if stock_success_messages %}
+<!-- Modal succes animee, affichee automatiquement apres la validation du panier d'entree en stock -->
+<div class="modal fade" id="stockEntrySuccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <div class="success-checkmark mb-3">
+          <svg class="success-svg" viewBox="0 0 52 52" aria-hidden="true">
+            <circle class="success-circle" cx="26" cy="26" r="24" fill="none"/>
+            <path class="success-check" fill="none" d="M14 27l8 8 16-16"/>
+          </svg>
+        </div>
+        <h5 class="fw-bold mb-1">Entrée en stock validée !</h5>
+        <p class="text-muted small mb-3">{{ stock_success_messages[0] }}</p>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
+          <i class="fas fa-check me-1"></i> Continuer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('stockEntrySuccessModal')).show();
+});
+</script>
+{% endif %}
+
 <!-- Modals -->
 {% for stock in stocks %}
 <div class="modal fade" id="editStockModal{{ stock.id }}" tabindex="-1">
@@ -901,99 +1120,348 @@
 </div>
 {% endfor %}
 
-<!-- Mobile Stock Entry Modal -->
-<div class="modal fade" id="stockEntryModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-scrollable">
+<!-- Stock Entry Modal: recherche produit (paginee cote serveur) + panier multi-lignes -->
+<div class="modal fade" id="stockEntryModal" tabindex="-1" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content" style="border-radius:14px;border:none;">
       <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
-        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Entrée en Stock</h5>
+        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Nouvelle entrée en stock</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body p-4 form-custom">
+      <div class="modal-body p-0">
         <form method="POST" id="stockFormMobile" class="form-custom">
-          <div class="mb-3">
-            <label for="produit_id_mobile" class="form-label">Produit du catalogue <span class="text-danger">*</span></label>
-            <select name="produit_id" id="produit_id_mobile" class="form-select" required>
-              <option value="">Choisir un produit...</option>
-              {% for produit in produits %}
-              <option value="{{ produit.id }}"
-                      data-product-code="{{ produit.code_produit }}"
-                      data-conditionnement="{{ produit.conditionnement }}"
-                      data-coefficient="{{ produit.effectif_coefficient }}"
-                      data-tva-taux="{{ produit.effectif_tva }}"
-                      data-prix-unite-ht="{{ produit.prix_unite or 0 }}"
-                      data-prix-unite-ttc="{{ produit.prix_unite_ttc or 0 }}"
-                      data-prix-sous-unite-ht="{{ produit.prix_sous_unite or 0 }}"
-                      data-prix-sous-unite-ttc="{{ produit.prix_sous_unite_ttc or 0 }}"
-                      data-prix-sous-sous-unite-ht="{{ produit.prix_sous_sous_unite or 0 }}"
-                      data-prix-sous-sous-unite-ttc="{{ produit.prix_sous_sous_unite_ttc or 0 }}">
-                {{ produit.nom }} - {{ produit.code_produit }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="numero_bl_mobile" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
-            <input type="text" name="numero_bl" id="numero_bl_mobile" class="form-control" required placeholder="Ex: BL-2026-000154">
-          </div>
-          <div class="mb-3">
-            <label for="date_peremption_mobile" class="form-label">Date de péremption <span class="text-danger">*</span></label>
-            <input type="date" name="date_peremption" id="date_peremption_mobile" class="form-control" required>
-          </div>
-          <div class="mb-3">
-            <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
-            <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
-          </div>
-          <div class="border rounded p-3 pricing-preview mb-3">
-            <div class="small text-muted mb-2 d-flex align-items-center gap-2">
-              Tarification du produit sélectionné
-              <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
-              <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
+          <div class="row g-0">
+            <!-- Colonne gauche : recherche produit + configuration de la ligne -->
+            <div class="col-lg-7 stock-entry-col-search">
+              <div class="p-3 p-lg-4">
+                <label for="produitSearchInput" class="form-label">Rechercher un produit <span class="text-danger">*</span></label>
+                <div class="search-wrapper">
+                  <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="produitSearchInput" class="form-control" placeholder="Nom ou code produit... (min. 2 caractères)" autocomplete="off">
+                    <button type="button" id="produitSearchClear" class="btn btn-outline-secondary d-none"><i class="fas fa-times"></i></button>
+                  </div>
+                  <div id="produitSearchResults" class="produit-search-results d-none"></div>
+                </div>
+                {% if current_user.has_permission('gestion_produits') %}
+                <div class="text-end mt-2">
+                  <button type="button" id="openQuickCreateProduit" class="btn btn-link p-0">
+                    <i class="fas fa-plus-circle me-1"></i>Produit introuvable ? Créer un nouveau produit
+                  </button>
+                </div>
+                {% endif %}
+
+                <div id="produitLineEmpty" class="text-center text-muted py-5">
+                  <i class="fas fa-box-open" style="font-size:2rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+                  Recherchez un produit ci-dessus pour préparer une ligne d'entrée en stock.
+                </div>
+
+                <div id="produitLineForm" class="d-none">
+                  <div class="selected-produit-card mt-3">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                      <div>
+                        <div class="fw-bold" id="selProduitNom" style="color:#1a1a2e;"></div>
+                        <div class="cell-sub" id="selProduitMeta"></div>
+                      </div>
+                      <button type="button" id="produitLineChange" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+                        <i class="fas fa-exchange-alt me-1"></i>Changer
+                      </button>
+                    </div>
+                    <div class="mt-2 d-flex gap-1">
+                      <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
+                      <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
+                    </div>
+                  </div>
+
+                  <div class="row g-3 mt-1">
+                    <div class="col-sm-6">
+                      <label for="numero_bl_mobile" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
+                      <input type="text" id="numero_bl_mobile" class="form-control" placeholder="Ex: BL-2026-000154">
+                    </div>
+                    <div class="col-sm-6">
+                      <label for="date_peremption_mobile" class="form-label">Date de péremption <span class="text-danger">*</span></label>
+                      <input type="date" id="date_peremption_mobile" class="form-control">
+                    </div>
+                  </div>
+                  <div class="mt-2">
+                    <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
+                    <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
+                  </div>
+
+                  <div class="border rounded p-3 pricing-preview mt-3">
+                    <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
+                    <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
+                    <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
+                    <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
+                  </div>
+
+                  <div class="row g-3 mt-1">
+                    <div class="col-sm-4">
+                      <label class="form-label">Quantité unités</label>
+                      <input type="number" min="0" id="quantite_unites_mobile" class="form-control" value="0">
+                    </div>
+                    <div class="col-sm-4" id="groupSousUnitesMobile">
+                      <label class="form-label">Quantité sous-unités</label>
+                      <input type="number" min="0" id="quantite_sous_unites_mobile" class="form-control" value="0">
+                    </div>
+                    <div class="col-sm-4" id="groupSousSousUnitesMobile">
+                      <label class="form-label">Quantité sous-sous-unités</label>
+                      <input type="number" min="0" id="quantite_sous_sous_unites_mobile" class="form-control" value="0">
+                    </div>
+                  </div>
+
+                  <div class="border rounded p-3 bg-success bg-opacity-10 mt-3">
+                    <div class="small text-muted mb-2">Estimation de la ligne</div>
+                    <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
+                    <div class="small mb-1"><strong>Marge brute:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
+                    <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
+                    <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
+                  </div>
+
+                  <div id="produitLineError" class="alert alert-warning small py-2 px-3 mt-3 d-none"></div>
+
+                  <button type="button" id="addToCartBtn" class="btn btn-primary w-100 mt-3" style="border-radius:10px;font-weight:600;">
+                    <i class="fas fa-cart-plus me-1"></i> Ajouter au panier
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
-            <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
-            <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
+
+            <!-- Colonne droite : panier des lignes a valider -->
+            <div class="col-lg-5 stock-entry-col-cart">
+              <div class="p-3 p-lg-4">
+                <h6 class="mb-3 d-flex align-items-center gap-2">
+                  <i class="fas fa-shopping-basket"></i> Panier
+                  <span class="badge bg-primary rounded-pill" id="cartCount">0</span>
+                </h6>
+
+                <div id="cartEmpty" class="text-center text-muted py-4">
+                  <i class="fas fa-inbox" style="font-size:1.75rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+                  <span class="small">Aucune ligne ajoutée pour le moment.</span>
+                </div>
+
+                <div id="cartItemsList" class="cart-items-list"></div>
+
+                <div id="cartTotalBox" class="cart-total-box d-none">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Total TTC du panier</span>
+                    <span class="fw-bold" id="cartTotalTtc">0.00 {{ devise }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Quantité unités</label>
-            <input type="number" min="0" name="quantite_unites" id="quantite_unites_mobile" class="form-control" value="0" required>
-          </div>
-          <div class="mb-3" id="groupSousUnitesMobile">
-            <label class="form-label">Quantité sous-unités</label>
-            <input type="number" min="0" name="quantite_sous_unites" id="quantite_sous_unites_mobile" class="form-control" value="0">
-          </div>
-          <div class="mb-3" id="groupSousSousUnitesMobile">
-            <label class="form-label">Quantité sous-sous-unités</label>
-            <input type="number" min="0" name="quantite_sous_sous_unites" id="quantite_sous_sous_unites_mobile" class="form-control" value="0">
-          </div>
-          <div class="border rounded p-3 bg-success bg-opacity-10 mb-3">
-            <div class="small text-muted mb-2">Estimation de la saisie</div>
-            <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
-            <div class="small mb-1"><strong>Marge brute:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
-            <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
-            <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
-          </div>
-          <div class="mb-3">
-            <label for="reason_id_mobile" class="form-label">Raison de l'entrée (pré-définie)</label>
-            <select name="reason_id" id="reason_id_mobile" class="form-select">
+          <div id="cartHiddenFields"></div>
+        </form>
+      </div>
+      <div class="modal-footer border-top flex-column align-items-stretch gap-2">
+        <div class="row g-2">
+          <div class="col-sm-5">
+            <label for="reason_id_mobile" class="form-label mb-1">Raison de l'entrée (pré-définie)</label>
+            <select form="stockFormMobile" name="reason_id" id="reason_id_mobile" class="form-select form-select-sm">
               <option value="">-- Choisir une raison --</option>
               {% for r in reasons %}
               <option value="{{ r.id }}">{{ r.nom }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="mb-3">
-            <label for="reason_mobile" class="form-label">Commentaire / Raison libre</label>
-            <textarea name="reason" id="reason_mobile" class="form-control" rows="2" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire..."></textarea>
+          <div class="col-sm-7">
+            <label for="reason_mobile" class="form-label mb-1">Commentaire / Raison libre</label>
+            <input type="text" form="stockFormMobile" name="reason" id="reason_mobile" class="form-control form-control-sm" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire...">
           </div>
-          <button type="submit" class="btn btn-primary w-100" style="border-radius:10px;font-weight:600;">
-            <i class="fas fa-plus-circle me-1"></i> Enregistrer l'entrée
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+          <button type="submit" form="stockFormMobile" id="validateCartBtn" class="btn btn-primary" style="border-radius:10px;font-weight:600;" disabled>
+            <i class="fas fa-check-circle me-1"></i> Valider le panier (<span id="cartCountFooter">0</span>)
           </button>
-        </form>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Detail d'une ligne du panier : voir/modifier/supprimer avant validation finale -->
+<div class="modal fade" id="cartItemDetailModal" tabindex="-1" data-bs-backdrop="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-eye me-2"></i>Ligne du panier</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body form-custom">
+        <div class="fw-bold mb-1" id="cidNom" style="font-size:1.05rem;color:#1a1a2e;"></div>
+        <div class="text-muted small mb-3" id="cidMeta"></div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">Numéro de BL</label>
+            <input type="text" id="cidBl" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Date de péremption</label>
+            <input type="date" id="cidPeremption" class="form-control">
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Quantité unités</label>
+            <input type="number" min="0" id="cidQtyUnites" class="form-control">
+          </div>
+          <div class="col-sm-4" id="cidGroupSous">
+            <label class="form-label">Quantité sous-unités</label>
+            <input type="number" min="0" id="cidQtySous" class="form-control">
+          </div>
+          <div class="col-sm-4" id="cidGroupSousSous">
+            <label class="form-label">Quantité sous-sous-unités</label>
+            <input type="number" min="0" id="cidQtySousSous" class="form-control">
+          </div>
+        </div>
+
+        <div class="border rounded p-3 bg-success bg-opacity-10">
+          <div class="small text-muted mb-2">Estimation de la ligne</div>
+          <div class="small" id="cidTotals">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
+        </div>
+
+        <div id="cidError" class="alert alert-warning small py-2 px-3 mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-danger me-auto" id="cidRemove" style="border-radius:10px;">
+          <i class="fas fa-trash me-1"></i> Supprimer du panier
+        </button>
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+        <button type="button" class="btn btn-primary" id="cidSave" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-save me-1"></i> Enregistrer les modifications
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.has_permission('gestion_produits') %}
+<!-- Volet "Nouveau produit" : second modal docke a droite, ouvert par-dessus le
+     modal d'entree en stock (pas de backdrop propre : data-bs-backdrop="false"),
+     pour creer un produit et l'ajouter au panier sans quitter le flux de saisie. -->
+<div class="modal fade" id="quickCreateProduitModal" tabindex="-1" data-bs-backdrop="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border:none;">
+        <h5 class="modal-title"><i class="fas fa-pills me-2"></i>Nouveau produit</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body form-custom">
+        <div id="qcpError" class="alert alert-warning small py-2 px-3 d-none"></div>
+
+        <div class="mb-3">
+          <label for="qcpNom" class="form-label">Nom du produit <span class="text-danger">*</span></label>
+          <input type="text" id="qcpNom" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label for="qcpFournisseur" class="form-label">Fournisseur <span class="text-danger">*</span></label>
+          <select id="qcpFournisseur" class="form-select">
+            <option value="">Choisir un fournisseur...</option>
+            {% for f in fournisseurs %}
+            <option value="{{ f.id }}">{{ f.nom }} ({{ f.prefixe }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label for="qcpRayon" class="form-label">Rayon</label>
+            <select id="qcpRayon" class="form-select">
+              <option value="">Aucun</option>
+              {% for r in rayons %}<option value="{{ r.id }}">{{ r.nom }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label for="qcpFamille" class="form-label">Famille</label>
+            <select id="qcpFamille" class="form-select">
+              <option value="">Aucune</option>
+              {% for f in familles %}<option value="{{ f.id }}">{{ f.nom }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label for="qcpSection" class="form-label">Section</label>
+            <select id="qcpSection" class="form-select">
+              <option value="">Aucune</option>
+              {% for s in sections %}<option value="{{ s.id }}">{{ s.nom }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="mb-3">
+          <label for="qcpConditionnement" class="form-label">Type de conditionnement</label>
+          <select id="qcpConditionnement" class="form-select">
+            <option value="1">Cond 1 (Unité seule)</option>
+            <option value="2">Cond 2 (Unité + Sous-unité)</option>
+            <option value="3">Cond 3 (Unité + 2 Niveaux)</option>
+          </select>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label for="qcpPrixUnite" class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input type="number" step="0.01" min="0" id="qcpPrixUnite" class="form-control" value="0">
+              <span class="input-group-text">{{ devise }}</span>
+            </div>
+          </div>
+          <div class="col-sm-6" id="qcpGroupSous" style="display:none;">
+            <label for="qcpPrixSousUnite" class="form-label">Prix d'achat (Sous-unité)</label>
+            <div class="input-group">
+              <input type="number" step="0.01" min="0" id="qcpPrixSousUnite" class="form-control" value="0">
+              <span class="input-group-text">{{ devise }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3" id="qcpGroupSousSous" style="display:none;">
+          <label for="qcpPrixSousSousUnite" class="form-label">Prix d'achat (Sous-sous-unité)</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="qcpPrixSousSousUnite" class="form-control" value="0">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label for="qcpCoefficient" class="form-label">Coefficient <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="qcpCoefficient" class="form-control" value="1.00">
+          </div>
+          <div class="col-sm-6">
+            <label for="qcpTva" class="form-label">TVA (%) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="qcpTva" class="form-control" value="20">
+          </div>
+        </div>
+
+        <div class="border rounded p-3 pricing-preview mb-3">
+          <div class="small text-muted mb-2">Aperçu du prix de vente (unité)</div>
+          <div class="small" id="qcpPreview">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="qcpStockSecurite" class="form-label">Stock de sécurité</label>
+            <input type="number" step="1" min="0" id="qcpStockSecurite" class="form-control" value="0">
+          </div>
+          <div class="col-sm-6">
+            <label for="qcpPointsFidelite" class="form-label">Points fidélité</label>
+            <input type="number" step="1" min="0" id="qcpPointsFidelite" class="form-control" placeholder="Hérite famille/rayon">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="qcpSubmit" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-save me-1"></i> Créer et ajouter au panier
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1370,8 +1838,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Mobile modal form initialization (once)
-    const mProduit = document.getElementById('produit_id_mobile');
+    // Stock entry modal: recherche produit (serveur, paginee) + panier multi-lignes.
+    // Le catalogue n'est plus injecte dans la page (voir /admin/stock/produits-search)
+    // pour rester utilisable meme avec un tres grand nombre de produits.
+    const stockEntryForm = document.getElementById('stockFormMobile');
+    const stockEntryModalEl = document.getElementById('stockEntryModal');
+    const produitSearchInput = document.getElementById('produitSearchInput');
+    const produitSearchClear = document.getElementById('produitSearchClear');
+    const produitSearchResults = document.getElementById('produitSearchResults');
+    const produitLineEmpty = document.getElementById('produitLineEmpty');
+    const produitLineForm = document.getElementById('produitLineForm');
+    const selProduitNom = document.getElementById('selProduitNom');
+    const selProduitMeta = document.getElementById('selProduitMeta');
+    const produitLineChange = document.getElementById('produitLineChange');
+    const prodCoefBadgeMobile = document.getElementById('prodCoefBadgeMobile');
+    const prodTvaBadgeMobile = document.getElementById('prodTvaBadgeMobile');
     const mBl = document.getElementById('numero_bl_mobile');
     const mPeremption = document.getElementById('date_peremption_mobile');
     const mCodePreview = document.getElementById('code_suivi_preview_mobile');
@@ -1380,11 +1861,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const mQtySousSous = document.getElementById('quantite_sous_sous_unites_mobile');
     const mGroupSous = document.getElementById('groupSousUnitesMobile');
     const mGroupSousSous = document.getElementById('groupSousSousUnitesMobile');
+    const produitLineError = document.getElementById('produitLineError');
+    const addToCartBtn = document.getElementById('addToCartBtn');
+    const cartCount = document.getElementById('cartCount');
+    const cartCountFooter = document.getElementById('cartCountFooter');
+    const cartEmpty = document.getElementById('cartEmpty');
+    const cartItemsList = document.getElementById('cartItemsList');
+    const cartTotalBox = document.getElementById('cartTotalBox');
+    const cartTotalTtc = document.getElementById('cartTotalTtc');
+    const cartHiddenFields = document.getElementById('cartHiddenFields');
+    const validateCartBtn = document.getElementById('validateCartBtn');
 
-    if (mProduit) {
-        function mOption() { return mProduit.options[mProduit.selectedIndex]; }
+    if (stockEntryForm && produitSearchInput) {
         function mNormalizeBl(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[\\/]/g, '-'); }
         function mFormat(v) { return Number(v || 0).toFixed(2) + ' {{ devise }}'; }
+        function escapeHtml(s) {
+            return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function formatDateFr(isoDate) {
+            if (!isoDate) return 'N/A';
+            const parts = isoDate.split('-');
+            return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : isoDate;
+        }
 
         // Arrondi du prix de vente (voir Paramètres) : reproduit ici la même logique
         // que Produit._prix_details cote serveur, pour que cet apercu corresponde au
@@ -1397,14 +1895,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!ARRONDI_ACTIVE || !ARRONDI_PALIER) return valeur;
             const fn = ARRONDI_SENS === 'inferieur' ? Math.floor : Math.ceil;
             return fn(valeur / ARRONDI_PALIER) * ARRONDI_PALIER;
-        }
-
-        function mUpdateCond() {
-            const cond = Number(mOption()?.dataset.conditionnement || 1);
-            mGroupSous.style.display = cond >= 2 ? 'block' : 'none';
-            mGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
-            if (cond < 2) mQtySous.value = 0;
-            if (cond < 3) mQtySousSous.value = 0;
         }
 
         function mUnitBreakdown(prixAchat, coefficient, tvaTaux) {
@@ -1423,83 +1913,577 @@ document.addEventListener('DOMContentLoaded', function() {
             return { ht, benefice, tva, ttc };
         }
 
+        let selectedProduit = null;
+        let cart = [];
+        let searchTimer = null;
+        let searchAbortController = null;
+        let activeResultIndex = -1;
+        let lastResults = [];
+
+        // ---- Recherche produit (typeahead serveur) ----
+        function hideResults() {
+            produitSearchResults.classList.add('d-none');
+            produitSearchResults.innerHTML = '';
+            activeResultIndex = -1;
+            lastResults = [];
+        }
+
+        function renderResultsList(items) {
+            lastResults = items;
+            activeResultIndex = -1;
+            if (items.length === 0) {
+                produitSearchResults.innerHTML = '<div class="result-empty">Aucun produit trouvé.</div>';
+                produitSearchResults.classList.remove('d-none');
+                return;
+            }
+            produitSearchResults.innerHTML = items.map((p, idx) => `
+                <div class="result-item" data-index="${idx}">
+                    <div>
+                        <div class="result-name">${escapeHtml(p.nom)}</div>
+                        <div class="result-meta">${escapeHtml(p.code_produit)}${p.fournisseur ? ' · ' + escapeHtml(p.fournisseur) : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+            produitSearchResults.classList.remove('d-none');
+            produitSearchResults.querySelectorAll('.result-item').forEach((el) => {
+                el.addEventListener('click', () => selectProduit(lastResults[Number(el.dataset.index)]));
+            });
+        }
+
+        function runSearch(q) {
+            if (searchAbortController) searchAbortController.abort();
+            searchAbortController = new AbortController();
+            produitSearchResults.innerHTML = '<div class="result-loading"><span class="spinner-border spinner-border-sm me-1"></span>Recherche...</div>';
+            produitSearchResults.classList.remove('d-none');
+            fetch(`{{ url_for('admin.stock_produits_search') }}?q=${encodeURIComponent(q)}`, { signal: searchAbortController.signal })
+                .then((res) => res.json())
+                .then((data) => renderResultsList(data.results || []))
+                .catch((err) => {
+                    if (err.name !== 'AbortError') {
+                        produitSearchResults.innerHTML = '<div class="result-empty">Erreur lors de la recherche.</div>';
+                        produitSearchResults.classList.remove('d-none');
+                    }
+                });
+        }
+
+        produitSearchInput.addEventListener('input', () => {
+            const q = produitSearchInput.value.trim();
+            produitSearchClear.classList.toggle('d-none', q.length === 0);
+            window.clearTimeout(searchTimer);
+            if (q.length < 2) {
+                if (q.length === 0) {
+                    hideResults();
+                } else {
+                    produitSearchResults.innerHTML = '<div class="result-hint">Tapez au moins 2 caractères pour rechercher.</div>';
+                    produitSearchResults.classList.remove('d-none');
+                }
+                return;
+            }
+            searchTimer = window.setTimeout(() => runSearch(q), 250);
+        });
+
+        produitSearchInput.addEventListener('focus', () => {
+            if (lastResults.length > 0 || produitSearchInput.value.trim().length >= 2) {
+                produitSearchResults.classList.remove('d-none');
+            }
+        });
+
+        produitSearchInput.addEventListener('keydown', (e) => {
+            const items = produitSearchResults.querySelectorAll('.result-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                activeResultIndex = Math.min(activeResultIndex + 1, items.length - 1);
+                items.forEach((el, idx) => el.classList.toggle('active', idx === activeResultIndex));
+                items[activeResultIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                activeResultIndex = Math.max(activeResultIndex - 1, 0);
+                items.forEach((el, idx) => el.classList.toggle('active', idx === activeResultIndex));
+                items[activeResultIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (activeResultIndex >= 0 && lastResults[activeResultIndex]) {
+                    selectProduit(lastResults[activeResultIndex]);
+                } else if (lastResults.length === 1) {
+                    selectProduit(lastResults[0]);
+                }
+            } else if (e.key === 'Escape') {
+                hideResults();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrapper')) {
+                hideResults();
+            }
+        });
+
+        produitSearchClear.addEventListener('click', () => {
+            produitSearchInput.value = '';
+            produitSearchClear.classList.add('d-none');
+            hideResults();
+            produitSearchInput.focus();
+        });
+
+        // ---- Selection produit + configuration de la ligne ----
+        function selectProduit(p) {
+            selectedProduit = p;
+            hideResults();
+            produitSearchInput.value = '';
+            produitSearchClear.classList.add('d-none');
+            selProduitNom.textContent = p.nom;
+            selProduitMeta.textContent = p.code_produit + (p.fournisseur ? ' · ' + p.fournisseur : '');
+            prodCoefBadgeMobile.textContent = 'Coef. x' + Number(p.coefficient || 1).toFixed(2);
+            prodTvaBadgeMobile.textContent = 'TVA ' + Number(p.tva || 0) + '%';
+            produitLineEmpty.classList.add('d-none');
+            produitLineForm.classList.remove('d-none');
+            produitLineError.classList.add('d-none');
+            mBl.value = '';
+            mPeremption.value = '';
+            mQtyUnites.value = 0;
+            mQtySous.value = 0;
+            mQtySousSous.value = 0;
+            mRefreshLine();
+            mBl.focus();
+        }
+
+        produitLineChange.addEventListener('click', () => {
+            selectedProduit = null;
+            produitLineForm.classList.add('d-none');
+            produitLineEmpty.classList.remove('d-none');
+            produitSearchInput.focus();
+        });
+
+        function mUpdateCond() {
+            const cond = Number(selectedProduit?.conditionnement || 1);
+            mGroupSous.style.display = cond >= 2 ? 'block' : 'none';
+            mGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+            if (cond < 2) mQtySous.value = 0;
+            if (cond < 3) mQtySousSous.value = 0;
+        }
+
         function mUpdatePrice() {
-            const opt = mOption();
             const ue = document.getElementById('prixUniteInfoMobile');
             const se = document.getElementById('prixSousUniteInfoMobile');
             const sse = document.getElementById('prixSousSousUniteInfoMobile');
-            const coefBadge = document.getElementById('prodCoefBadgeMobile');
-            const tvaBadge = document.getElementById('prodTvaBadgeMobile');
-            if (!opt || !opt.value) {
+            if (!selectedProduit) {
                 ue.textContent = '0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC';
                 se.textContent = 'N/A'; sse.textContent = 'N/A';
-                coefBadge.textContent = 'Coef. x1.00'; tvaBadge.textContent = 'TVA 0%';
                 return;
             }
-            const cond = Number(opt.dataset.conditionnement);
-            const coefficient = opt.dataset.coefficient;
-            const tvaTaux = opt.dataset.tvaTaux;
-            coefBadge.textContent = 'Coef. x' + Number(coefficient || 1).toFixed(2);
-            tvaBadge.textContent = 'TVA ' + Number(tvaTaux || 0) + '%';
+            const cond = Number(selectedProduit.conditionnement);
+            const coefficient = selectedProduit.coefficient;
+            const tvaTaux = selectedProduit.tva;
 
-            const u = mUnitBreakdown(opt.dataset.prixUniteHt, coefficient, tvaTaux);
+            const u = mUnitBreakdown(selectedProduit.prix_unite_ht, coefficient, tvaTaux);
             ue.textContent = mFormat(u.ht) + ' HT / Marge ' + mFormat(u.benefice) + ' / TVA ' + mFormat(u.tva) + ' / ' + mFormat(u.ttc) + ' TTC';
 
             if (cond >= 2) {
-                const s = mUnitBreakdown(opt.dataset.prixSousUniteHt, coefficient, tvaTaux);
+                const s = mUnitBreakdown(selectedProduit.prix_sous_unite_ht, coefficient, tvaTaux);
                 se.textContent = mFormat(s.ht) + ' HT / Marge ' + mFormat(s.benefice) + ' / TVA ' + mFormat(s.tva) + ' / ' + mFormat(s.ttc) + ' TTC';
             } else {
                 se.textContent = 'N/A';
             }
 
             if (cond >= 3) {
-                const ss = mUnitBreakdown(opt.dataset.prixSousSousUniteHt, coefficient, tvaTaux);
+                const ss = mUnitBreakdown(selectedProduit.prix_sous_sous_unite_ht, coefficient, tvaTaux);
                 sse.textContent = mFormat(ss.ht) + ' HT / Marge ' + mFormat(ss.benefice) + ' / TVA ' + mFormat(ss.tva) + ' / ' + mFormat(ss.ttc) + ' TTC';
             } else {
                 sse.textContent = 'N/A';
             }
         }
 
-        function mUpdateTotals() {
-            const opt = mOption();
-            const htE = document.getElementById('totalHtMobile');
-            const ttcE = document.getElementById('totalTtcMobile');
-            const beneficeE = document.getElementById('totalBeneficeMobile');
-            const tvaE = document.getElementById('totalTaxeMobile');
-            if (!opt || !opt.value) {
-                htE.textContent = mFormat(0); ttcE.textContent = mFormat(0);
-                beneficeE.textContent = mFormat(0); tvaE.textContent = mFormat(0);
-                return;
-            }
-            const coefficient = Number(opt.dataset.coefficient || 1) || 1;
-            const tvaTaux = opt.dataset.tvaTaux;
+        function currentLineTotalsFor(produit, qtyUnites, qtySous, qtySousSous) {
+            if (!produit) return { ht: 0, benefice: 0, tva: 0, ttc: 0 };
+            const coefficient = Number(produit.coefficient || 1) || 1;
+            const tvaTaux = produit.tva;
             // Le prix d'achat total (qte x PA par niveau) est converti en prix de vente HT
             // via le coefficient (identique pour tous les niveaux d'un meme produit).
-            const achat = Number(mQtyUnites.value || 0) * Number(opt.dataset.prixUniteHt || 0) + Number(mQtySous.value || 0) * Number(opt.dataset.prixSousUniteHt || 0) + Number(mQtySousSous.value || 0) * Number(opt.dataset.prixSousSousUniteHt || 0);
+            const achat = Number(qtyUnites || 0) * Number(produit.prix_unite_ht || 0)
+                + Number(qtySous || 0) * Number(produit.prix_sous_unite_ht || 0)
+                + Number(qtySousSous || 0) * Number(produit.prix_sous_sous_unite_ht || 0);
             const ht = achat * coefficient;
             const benefice = ht - achat;
             const tva = ht * (Number(tvaTaux || 0) / 100);
             const ttc = ht + tva;
-            htE.textContent = mFormat(ht); ttcE.textContent = mFormat(ttc); beneficeE.textContent = mFormat(benefice); tvaE.textContent = mFormat(tva);
+            return { ht, benefice, tva, ttc };
+        }
+
+        function currentLineTotals() {
+            return currentLineTotalsFor(selectedProduit, mQtyUnites.value, mQtySous.value, mQtySousSous.value);
+        }
+
+        function mUpdateTotals() {
+            const t = currentLineTotals();
+            document.getElementById('totalHtMobile').textContent = mFormat(t.ht);
+            document.getElementById('totalTtcMobile').textContent = mFormat(t.ttc);
+            document.getElementById('totalBeneficeMobile').textContent = mFormat(t.benefice);
+            document.getElementById('totalTaxeMobile').textContent = mFormat(t.tva);
         }
 
         function mUpdateCode() {
-            const opt = mOption();
-            const pCode = opt?.dataset.productCode || '';
+            const pCode = selectedProduit?.code_produit || '';
             const bl = mNormalizeBl(mBl?.value);
             const per = mPeremption?.value || '';
             mCodePreview.value = pCode && bl && per ? pCode + '-' + bl + '-' + per : '';
         }
 
-        function mRefresh() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }
+        function mRefreshLine() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }
 
-        mProduit.addEventListener('change', mRefresh);
         mQtyUnites.addEventListener('input', mUpdateTotals);
         mQtySous.addEventListener('input', mUpdateTotals);
         mQtySousSous.addEventListener('input', mUpdateTotals);
         mBl.addEventListener('input', mUpdateCode);
         mPeremption.addEventListener('input', mUpdateCode);
-        document.getElementById('stockEntryModal').addEventListener('shown.bs.modal', mRefresh);
+
+        // ---- Panier ----
+        function showLineError(msg) {
+            produitLineError.textContent = msg;
+            produitLineError.classList.remove('d-none');
+        }
+
+        addToCartBtn.addEventListener('click', () => {
+            produitLineError.classList.add('d-none');
+            if (!selectedProduit) return;
+            const blRaw = mBl.value.trim();
+            if (!blRaw) { showLineError('Veuillez indiquer le numéro de BL.'); mBl.focus(); return; }
+            if (!mPeremption.value) { showLineError('Veuillez indiquer la date de péremption.'); mPeremption.focus(); return; }
+            const qu = Number(mQtyUnites.value || 0);
+            const qsu = Number(mQtySous.value || 0);
+            const qssu = Number(mQtySousSous.value || 0);
+            if (qu <= 0 && qsu <= 0 && qssu <= 0) { showLineError('Veuillez indiquer au moins une quantité.'); mQtyUnites.focus(); return; }
+
+            const totals = currentLineTotals();
+            cart.push({
+                produit: selectedProduit,
+                numero_bl: blRaw,
+                date_peremption: mPeremption.value,
+                quantite_unites: qu,
+                quantite_sous_unites: qsu,
+                quantite_sous_sous_unites: qssu,
+                ttc: totals.ttc
+            });
+            renderCart();
+
+            // Reinitialise la ligne pour permettre l'ajout rapide d'un autre lot
+            selectedProduit = null;
+            produitLineForm.classList.add('d-none');
+            produitLineEmpty.classList.remove('d-none');
+            produitSearchInput.focus();
+        });
+
+        function renderCart() {
+            cartCount.textContent = cart.length;
+            cartCountFooter.textContent = cart.length;
+            validateCartBtn.disabled = cart.length === 0;
+            cartEmpty.classList.toggle('d-none', cart.length > 0);
+
+            cartItemsList.innerHTML = cart.map((item, idx) => {
+                const qtyParts = [item.quantite_unites + 'U'];
+                if (item.produit.conditionnement >= 2 && item.quantite_sous_unites) qtyParts.push(item.quantite_sous_unites + 'S/U');
+                if (item.produit.conditionnement >= 3 && item.quantite_sous_sous_unites) qtyParts.push(item.quantite_sous_sous_unites + 'SS/U');
+                return `
+                    <div class="cart-item">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <div class="cart-item-name">${escapeHtml(item.produit.nom)}</div>
+                                <div class="cart-item-meta">${escapeHtml(item.produit.code_produit)} · BL ${escapeHtml(item.numero_bl)} · Perim. ${formatDateFr(item.date_peremption)}</div>
+                                <div class="cart-item-meta">${qtyParts.join(' + ')} · ${mFormat(item.ttc)} TTC</div>
+                            </div>
+                            <div class="d-flex flex-column gap-1 flex-shrink-0">
+                                <button type="button" class="btn btn-outline-secondary cart-item-view" data-idx="${idx}" title="Voir / modifier">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger cart-item-remove" data-idx="${idx}" title="Retirer du panier">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            cartItemsList.querySelectorAll('.cart-item-remove').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    cart.splice(Number(btn.dataset.idx), 1);
+                    renderCart();
+                });
+            });
+            cartItemsList.querySelectorAll('.cart-item-view').forEach((btn) => {
+                btn.addEventListener('click', () => openCartItemDetail(Number(btn.dataset.idx)));
+            });
+
+            const total = cart.reduce((sum, item) => sum + item.ttc, 0);
+            cartTotalTtc.textContent = mFormat(total);
+            cartTotalBox.classList.toggle('d-none', cart.length === 0);
+        }
+
+        // ---- Detail d'une ligne du panier : voir / modifier / supprimer ----
+        const cartItemDetailModalEl = document.getElementById('cartItemDetailModal');
+        const cidNom = document.getElementById('cidNom');
+        const cidMeta = document.getElementById('cidMeta');
+        const cidBl = document.getElementById('cidBl');
+        const cidPeremption = document.getElementById('cidPeremption');
+        const cidQtyUnites = document.getElementById('cidQtyUnites');
+        const cidQtySous = document.getElementById('cidQtySous');
+        const cidQtySousSous = document.getElementById('cidQtySousSous');
+        const cidGroupSous = document.getElementById('cidGroupSous');
+        const cidGroupSousSous = document.getElementById('cidGroupSousSous');
+        const cidTotals = document.getElementById('cidTotals');
+        const cidError = document.getElementById('cidError');
+        const cidRemove = document.getElementById('cidRemove');
+        const cidSave = document.getElementById('cidSave');
+        const cartItemDetailModal = bootstrap.Modal.getOrCreateInstance(cartItemDetailModalEl, { backdrop: false });
+        let editingCartIndex = null;
+
+        function cidCurrentTotals() {
+            const item = cart[editingCartIndex];
+            return currentLineTotalsFor(item.produit, cidQtyUnites.value, cidQtySous.value, cidQtySousSous.value);
+        }
+
+        function cidRefreshTotals() {
+            const t = cidCurrentTotals();
+            cidTotals.textContent = mFormat(t.ht) + ' HT / Marge ' + mFormat(t.benefice) + ' / TVA ' + mFormat(t.tva) + ' / ' + mFormat(t.ttc) + ' TTC';
+        }
+
+        function openCartItemDetail(idx) {
+            editingCartIndex = idx;
+            const item = cart[idx];
+            cidError.classList.add('d-none');
+            cidNom.textContent = item.produit.nom;
+            cidMeta.textContent = item.produit.code_produit + (item.produit.fournisseur ? ' · ' + item.produit.fournisseur : '');
+            cidBl.value = item.numero_bl;
+            cidPeremption.value = item.date_peremption;
+            cidQtyUnites.value = item.quantite_unites;
+            cidQtySous.value = item.quantite_sous_unites;
+            cidQtySousSous.value = item.quantite_sous_sous_unites;
+            cidGroupSous.style.display = item.produit.conditionnement >= 2 ? 'block' : 'none';
+            cidGroupSousSous.style.display = item.produit.conditionnement >= 3 ? 'block' : 'none';
+            cidRefreshTotals();
+            cartItemDetailModal.show();
+        }
+
+        [cidQtyUnites, cidQtySous, cidQtySousSous].forEach((el) => el.addEventListener('input', cidRefreshTotals));
+
+        cidRemove.addEventListener('click', () => {
+            if (editingCartIndex === null) return;
+            cart.splice(editingCartIndex, 1);
+            editingCartIndex = null;
+            renderCart();
+            cartItemDetailModal.hide();
+        });
+
+        cidSave.addEventListener('click', () => {
+            if (editingCartIndex === null) return;
+            cidError.classList.add('d-none');
+            const blRaw = cidBl.value.trim();
+            if (!blRaw) { cidError.textContent = 'Veuillez indiquer le numéro de BL.'; cidError.classList.remove('d-none'); cidBl.focus(); return; }
+            if (!cidPeremption.value) { cidError.textContent = 'Veuillez indiquer la date de péremption.'; cidError.classList.remove('d-none'); cidPeremption.focus(); return; }
+            const qu = Number(cidQtyUnites.value || 0);
+            const qsu = Number(cidQtySous.value || 0);
+            const qssu = Number(cidQtySousSous.value || 0);
+            if (qu <= 0 && qsu <= 0 && qssu <= 0) { cidError.textContent = 'Veuillez indiquer au moins une quantité.'; cidError.classList.remove('d-none'); cidQtyUnites.focus(); return; }
+
+            const item = cart[editingCartIndex];
+            item.numero_bl = blRaw;
+            item.date_peremption = cidPeremption.value;
+            item.quantite_unites = qu;
+            item.quantite_sous_unites = qsu;
+            item.quantite_sous_sous_unites = qssu;
+            item.ttc = cidCurrentTotals().ttc;
+
+            editingCartIndex = null;
+            renderCart();
+            cartItemDetailModal.hide();
+        });
+
+        cartItemDetailModalEl.addEventListener('hidden.bs.modal', () => {
+            editingCartIndex = null;
+            if (stockEntryModalEl.classList.contains('show')) {
+                document.body.classList.add('modal-open');
+            }
+        });
+        stockEntryModalEl.addEventListener('hide.bs.modal', () => cartItemDetailModal.hide());
+
+        // ---- Soumission : serialise le panier en champs caches avant le submit natif ----
+        stockEntryForm.addEventListener('submit', (e) => {
+            if (cart.length === 0) {
+                e.preventDefault();
+                return;
+            }
+            cartHiddenFields.innerHTML = cart.map((item) => `
+                <input type="hidden" name="produit_id[]" value="${item.produit.id}">
+                <input type="hidden" name="numero_bl[]" value="${escapeHtml(item.numero_bl)}">
+                <input type="hidden" name="date_peremption[]" value="${item.date_peremption}">
+                <input type="hidden" name="quantite_unites[]" value="${item.quantite_unites}">
+                <input type="hidden" name="quantite_sous_unites[]" value="${item.quantite_sous_unites}">
+                <input type="hidden" name="quantite_sous_sous_unites[]" value="${item.quantite_sous_sous_unites}">
+            `).join('');
+        });
+
+        // Bloque la soumission implicite (touche Entree) partout sauf dans le textarea de raison
+        stockEntryForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+            }
+        });
+
+        // La raison libre vit dans le footer (hors du <form>, associee via l'attribut
+        // form="stockFormMobile") : la meme regle anti-soumission-implicite s'applique.
+        const reasonTextInput = document.getElementById('reason_mobile');
+        if (reasonTextInput) {
+            reasonTextInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') e.preventDefault();
+            });
+        }
+
+        // Reinitialise le panier et la recherche a chaque ouverture du modal
+        stockEntryModalEl.addEventListener('show.bs.modal', () => {
+            cart = [];
+            selectedProduit = null;
+            produitSearchInput.value = '';
+            produitSearchClear.classList.add('d-none');
+            hideResults();
+            produitLineForm.classList.add('d-none');
+            produitLineEmpty.classList.remove('d-none');
+            renderCart();
+        });
+
+        // ---- Volet "Nouveau produit" : second modal a droite, ouvert par-dessus
+        // celui-ci pour creer un produit et l'ajouter directement au panier, sans
+        // quitter le flux de saisie ni recharger la page. ----
+        const quickCreateModalEl = document.getElementById('quickCreateProduitModal');
+        if (quickCreateModalEl) {
+            const qcpNom = document.getElementById('qcpNom');
+            const qcpFournisseur = document.getElementById('qcpFournisseur');
+            const qcpRayon = document.getElementById('qcpRayon');
+            const qcpFamille = document.getElementById('qcpFamille');
+            const qcpSection = document.getElementById('qcpSection');
+            const qcpConditionnement = document.getElementById('qcpConditionnement');
+            const qcpPrixUnite = document.getElementById('qcpPrixUnite');
+            const qcpPrixSousUnite = document.getElementById('qcpPrixSousUnite');
+            const qcpPrixSousSousUnite = document.getElementById('qcpPrixSousSousUnite');
+            const qcpGroupSous = document.getElementById('qcpGroupSous');
+            const qcpGroupSousSous = document.getElementById('qcpGroupSousSous');
+            const qcpCoefficient = document.getElementById('qcpCoefficient');
+            const qcpTva = document.getElementById('qcpTva');
+            const qcpStockSecurite = document.getElementById('qcpStockSecurite');
+            const qcpPointsFidelite = document.getElementById('qcpPointsFidelite');
+            const qcpPreview = document.getElementById('qcpPreview');
+            const qcpError = document.getElementById('qcpError');
+            const qcpSubmit = document.getElementById('qcpSubmit');
+            const openQuickCreateBtn = document.getElementById('openQuickCreateProduit');
+            const quickCreateModal = bootstrap.Modal.getOrCreateInstance(quickCreateModalEl, { backdrop: false });
+
+            function qcpUpdateCond() {
+                const cond = Number(qcpConditionnement.value);
+                qcpGroupSous.style.display = cond >= 2 ? 'block' : 'none';
+                qcpGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+            }
+
+            function qcpUpdatePreview() {
+                const b = mUnitBreakdown(qcpPrixUnite.value, qcpCoefficient.value, qcpTva.value);
+                qcpPreview.textContent = mFormat(b.ht) + ' HT / Marge ' + mFormat(b.benefice) + ' / TVA ' + mFormat(b.tva) + ' / ' + mFormat(b.ttc) + ' TTC';
+            }
+
+            function qcpReset() {
+                qcpNom.value = '';
+                qcpFournisseur.value = '';
+                qcpRayon.value = '';
+                qcpFamille.value = '';
+                qcpSection.value = '';
+                qcpConditionnement.value = '1';
+                qcpPrixUnite.value = '0';
+                qcpPrixSousUnite.value = '0';
+                qcpPrixSousSousUnite.value = '0';
+                qcpCoefficient.value = '1.00';
+                qcpTva.value = '20';
+                qcpStockSecurite.value = '0';
+                qcpPointsFidelite.value = '';
+                qcpError.classList.add('d-none');
+                qcpUpdateCond();
+                qcpUpdatePreview();
+            }
+
+            qcpConditionnement.addEventListener('change', qcpUpdateCond);
+            [qcpPrixUnite, qcpCoefficient, qcpTva].forEach((el) => el.addEventListener('input', qcpUpdatePreview));
+
+            if (openQuickCreateBtn) {
+                openQuickCreateBtn.addEventListener('click', () => {
+                    qcpReset();
+                    quickCreateModal.show();
+                    window.setTimeout(() => qcpNom.focus(), 300);
+                });
+            }
+
+            function qcpShowError(msg) {
+                qcpError.textContent = msg;
+                qcpError.classList.remove('d-none');
+            }
+
+            qcpSubmit.addEventListener('click', () => {
+                qcpError.classList.add('d-none');
+                const nom = qcpNom.value.trim();
+                if (!nom) { qcpShowError('Le nom du produit est requis.'); qcpNom.focus(); return; }
+                if (!qcpFournisseur.value) { qcpShowError('Veuillez choisir un fournisseur.'); qcpFournisseur.focus(); return; }
+                const prixUnite = Number(qcpPrixUnite.value || 0);
+                if (prixUnite <= 0) { qcpShowError("Le prix d'achat (unité) est requis."); qcpPrixUnite.focus(); return; }
+
+                const payload = new URLSearchParams({
+                    nom,
+                    fournisseur_id: qcpFournisseur.value,
+                    rayon_id: qcpRayon.value,
+                    famille_id: qcpFamille.value,
+                    section_id: qcpSection.value,
+                    conditionnement: qcpConditionnement.value,
+                    prix_unite: qcpPrixUnite.value,
+                    prix_sous_unite: qcpPrixSousUnite.value,
+                    prix_sous_sous_unite: qcpPrixSousSousUnite.value,
+                    coefficient: qcpCoefficient.value,
+                    tva: qcpTva.value,
+                    stock_securite: qcpStockSecurite.value,
+                    points_fidelite: qcpPointsFidelite.value
+                });
+
+                qcpSubmit.disabled = true;
+                qcpSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Création...';
+
+                fetch(`{{ url_for('admin.quick_create_produit') }}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload.toString()
+                })
+                    .then((res) => res.json().then((data) => ({ status: res.status, data })))
+                    .then(({ status, data }) => {
+                        if (status !== 200 || !data.success) {
+                            qcpShowError(data.message || 'Impossible de créer le produit.');
+                            return;
+                        }
+                        quickCreateModal.hide();
+                        selectProduit(data.produit);
+                    })
+                    .catch(() => qcpShowError('Erreur réseau, veuillez réessayer.'))
+                    .finally(() => {
+                        qcpSubmit.disabled = false;
+                        qcpSubmit.innerHTML = '<i class="fas fa-save me-1"></i> Créer et ajouter au panier';
+                    });
+            });
+
+            // Modals imbriques : Bootstrap peut retirer 'modal-open' du body en
+            // fermant le volet meme si le modal principal est toujours ouvert.
+            quickCreateModalEl.addEventListener('hidden.bs.modal', () => {
+                if (stockEntryModalEl.classList.contains('show')) {
+                    document.body.classList.add('modal-open');
+                }
+            });
+
+            // Si le modal principal se ferme, le volet ne doit pas rester orphelin.
+            stockEntryModalEl.addEventListener('hide.bs.modal', () => quickCreateModal.hide());
+
+            qcpReset();
+        }
     }
 });
 </script>

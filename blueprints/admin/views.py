@@ -97,6 +97,27 @@ def generate_product_code(fournisseur):
         if not Produit.query.filter_by(code_produit=code).first():
             return code
 
+def produit_from_form(form, fournisseur):
+    """Construit un Produit (non ajoute a la session) a partir des donnees de
+    formulaire. Utilise a la fois par le formulaire complet de creation et par la
+    creation rapide depuis le module Stock, pour que les deux restent en phase."""
+    return Produit(
+        nom=form.get('nom'),
+        code_produit=generate_product_code(fournisseur),
+        fournisseur_id=fournisseur.id,
+        rayon_id=int(form.get('rayon_id')) if form.get('rayon_id') else None,
+        famille_id=int(form.get('famille_id')) if form.get('famille_id') else None,
+        section_id=int(form.get('section_id')) if form.get('section_id') else None,
+        conditionnement=int(form.get('conditionnement') or 1),
+        prix_unite=float(form.get('prix_unite') or 0),
+        prix_sous_unite=float(form.get('prix_sous_unite') or 0),
+        prix_sous_sous_unite=float(form.get('prix_sous_sous_unite') or 0),
+        coefficient=float(form.get('coefficient') or 1.0),
+        tva=float(form.get('tva') or 20.0),
+        stock_securite=int(form.get('stock_securite') or 0),
+        points_fidelite=int(form.get('points_fidelite')) if form.get('points_fidelite') not in (None, '') else None
+    )
+
 def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
     modification = StockModification(
         stock_id=None,
@@ -3569,32 +3590,68 @@ def create_produit():
     if request.method == 'POST':
         f_id = int(request.form.get('fournisseur_id'))
         fournisseur = Fournisseur.query.get_or_404(f_id)
-        
-        new_produit = Produit(
-            nom=request.form.get('nom'),
-            code_produit=generate_product_code(fournisseur),
-            fournisseur_id=f_id,
-            rayon_id=int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None,
-            famille_id=int(request.form.get('famille_id')) if request.form.get('famille_id') else None,
-            section_id=int(request.form.get('section_id')) if request.form.get('section_id') else None,
-            conditionnement=int(request.form.get('conditionnement')),
-            prix_unite=float(request.form.get('prix_unite') or 0),
-            prix_sous_unite=float(request.form.get('prix_sous_unite') or 0),
-            prix_sous_sous_unite=float(request.form.get('prix_sous_sous_unite') or 0),
-            coefficient=float(request.form.get('coefficient') or 1.0),
-            tva=float(request.form.get('tva') or 20.0),
-            stock_securite=int(request.form.get('stock_securite') or 0),
-            points_fidelite=int(request.form.get('points_fidelite')) if request.form.get('points_fidelite') not in (None, '') else None
-        )
+
+        new_produit = produit_from_form(request.form, fournisseur)
         db.session.add(new_produit)
         db.session.commit()
-        
+
         flash(f'Produit créé avec le code : {new_produit.code_produit}', 'success')
         return redirect(url_for('admin.list_produits'))
 
     return render_template('admin/produits/form.html', title='Ajouter un Produit',
                            fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
                            arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier())
+
+@admin.route('/produits/quick-create', methods=['POST'])
+@login_required
+@permission_required('gestion_produits')
+def quick_create_produit():
+    """Creation de produit en JSON, utilisee par le volet 'Creer un produit' du
+    module Stock : permet de creer un produit et de l'ajouter au panier d'entree
+    en stock sans quitter le modal ni recharger la page."""
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        return jsonify({'success': False, 'message': 'Le nom du produit est requis.'}), 400
+
+    fournisseur_id = request.form.get('fournisseur_id')
+    fournisseur = Fournisseur.query.get(int(fournisseur_id)) if fournisseur_id else None
+    if not fournisseur:
+        return jsonify({'success': False, 'message': 'Veuillez choisir un fournisseur.'}), 400
+
+    try:
+        prix_unite = float(request.form.get('prix_unite') or 0)
+        coefficient = float(request.form.get('coefficient') or 1.0)
+        tva = float(request.form.get('tva') or 20.0)
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Prix, coefficient et TVA doivent être numériques.'}), 400
+
+    if prix_unite <= 0:
+        return jsonify({'success': False, 'message': "Le prix d'achat (unité) est requis."}), 400
+    if coefficient <= 0:
+        return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
+
+    produit = produit_from_form(request.form, fournisseur)
+    db.session.add(produit)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'produit': {
+            'id': produit.id,
+            'nom': produit.nom,
+            'code_produit': produit.code_produit,
+            'fournisseur': fournisseur.nom,
+            'conditionnement': produit.conditionnement,
+            'coefficient': produit.effectif_coefficient,
+            'tva': produit.effectif_tva,
+            'prix_unite_ht': produit.prix_unite or 0,
+            'prix_unite_ttc': produit.prix_unite_ttc or 0,
+            'prix_sous_unite_ht': produit.prix_sous_unite or 0,
+            'prix_sous_unite_ttc': produit.prix_sous_unite_ttc or 0,
+            'prix_sous_sous_unite_ht': produit.prix_sous_sous_unite or 0,
+            'prix_sous_sous_unite_ttc': produit.prix_sous_sous_unite_ttc or 0,
+        }
+    })
 
 @admin.route('/produits/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -4265,49 +4322,113 @@ def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites
         message = f'Stock mis à jour pour {produit.nom} ({stock.code_suivi}).'
     return stock, message
 
+@admin.route('/stock/produits-search', methods=['GET'])
+@login_required
+@permission_required('gestion_stock')
+def stock_produits_search():
+    """Recherche de produits pagineé pour le selecteur d'entree en stock (evite de
+    charger tout le catalogue dans la page lorsque celui-ci compte des milliers,
+    voire des millions, de produits)."""
+    q = (request.args.get('q') or '').strip()
+    query = Produit.query
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(Produit.nom.ilike(like), Produit.code_produit.ilike(like)))
+    produits = query.order_by(Produit.nom.asc()).limit(20).all()
+    return jsonify({
+        'results': [
+            {
+                'id': p.id,
+                'nom': p.nom,
+                'code_produit': p.code_produit,
+                'fournisseur': p.fournisseur.nom if p.fournisseur else None,
+                'conditionnement': p.conditionnement,
+                'coefficient': p.effectif_coefficient,
+                'tva': p.effectif_tva,
+                'prix_unite_ht': p.prix_unite or 0,
+                'prix_unite_ttc': p.prix_unite_ttc or 0,
+                'prix_sous_unite_ht': p.prix_sous_unite or 0,
+                'prix_sous_unite_ttc': p.prix_sous_unite_ttc or 0,
+                'prix_sous_sous_unite_ht': p.prix_sous_sous_unite or 0,
+                'prix_sous_sous_unite_ttc': p.prix_sous_sous_unite_ttc or 0,
+            }
+            for p in produits
+        ]
+    })
+
 @admin.route('/stock', methods=['GET', 'POST'])
 @login_required
 @permission_required('gestion_stock')
 def manage_stock():
-    produits = Produit.query.order_by(Produit.nom.asc()).all()
     reasons = StockReason.query.filter_by(type='ajout').all()
+    fournisseurs = Fournisseur.query.order_by(Fournisseur.nom.asc()).all()
+    rayons = Rayon.query.order_by(Rayon.nom.asc()).all()
+    familles = Famille.query.order_by(Famille.nom.asc()).all()
+    sections = Section.query.order_by(Section.nom.asc()).all()
 
     if request.method == 'POST':
-        produit_id = int(request.form.get('produit_id'))
-        produit = Produit.query.get_or_404(produit_id)
         reason_id = request.form.get('reason_id')
         reason_text = (request.form.get('reason') or '').strip()
-        numero_bl_raw = (request.form.get('numero_bl') or '').strip()
-        date_peremption_str = (request.form.get('date_peremption') or '').strip()
-
         if not reason_id and not reason_text:
             flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
             return redirect(url_for('admin.manage_stock'))
-        if not numero_bl_raw:
-            flash('Veuillez préciser le numéro du BL.', 'warning')
-            return redirect(url_for('admin.manage_stock'))
-        if not date_peremption_str:
-            flash('Veuillez préciser la date de péremption.', 'warning')
+
+        produit_ids = request.form.getlist('produit_id[]')
+        numero_bls = request.form.getlist('numero_bl[]')
+        date_peremptions = request.form.getlist('date_peremption[]')
+        qtes_unites = request.form.getlist('quantite_unites[]')
+        qtes_sous_unites = request.form.getlist('quantite_sous_unites[]')
+        qtes_sous_sous_unites = request.form.getlist('quantite_sous_sous_unites[]')
+
+        if not produit_ids:
+            flash('Le panier est vide. Ajoutez au moins un produit avant de valider.', 'warning')
             return redirect(url_for('admin.manage_stock'))
 
-        try:
-            date_peremption = datetime.strptime(date_peremption_str, '%Y-%m-%d').date()
-        except ValueError:
-            flash('La date de péremption est invalide.', 'danger')
-            return redirect(url_for('admin.manage_stock'))
+        rows = []
+        for i, pid in enumerate(produit_ids):
+            produit = Produit.query.get(int(pid)) if pid else None
+            if not produit:
+                flash(f'Produit invalide à la ligne {i + 1} du panier.', 'danger')
+                return redirect(url_for('admin.manage_stock'))
 
-        quantite_unites = int(request.form.get('quantite_unites') or 0)
-        quantite_sous_unites = int(request.form.get('quantite_sous_unites') or 0)
-        quantite_sous_sous_unites = int(request.form.get('quantite_sous_sous_unites') or 0)
+            numero_bl_raw = (numero_bls[i] if i < len(numero_bls) else '').strip()
+            if not numero_bl_raw:
+                flash(f'Numéro de BL manquant pour {produit.nom} (ligne {i + 1}).', 'warning')
+                return redirect(url_for('admin.manage_stock'))
 
-        stock, message = perform_stock_entry(
-            produit, numero_bl_raw, date_peremption,
-            quantite_unites, quantite_sous_unites, quantite_sous_sous_unites,
-            reason_id, reason_text
-        )
+            date_str = (date_peremptions[i] if i < len(date_peremptions) else '').strip()
+            try:
+                date_peremption = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash(f'Date de péremption invalide pour {produit.nom} (ligne {i + 1}).', 'danger')
+                return redirect(url_for('admin.manage_stock'))
+
+            try:
+                qu = int(qtes_unites[i] or 0) if i < len(qtes_unites) else 0
+                qsu = int(qtes_sous_unites[i] or 0) if i < len(qtes_sous_unites) else 0
+                qssu = int(qtes_sous_sous_unites[i] or 0) if i < len(qtes_sous_sous_unites) else 0
+            except ValueError:
+                flash(f'Quantité invalide pour {produit.nom} (ligne {i + 1}).', 'danger')
+                return redirect(url_for('admin.manage_stock'))
+
+            if qu <= 0 and qsu <= 0 and qssu <= 0:
+                flash(f'Veuillez indiquer une quantité pour {produit.nom} (ligne {i + 1}).', 'warning')
+                return redirect(url_for('admin.manage_stock'))
+
+            rows.append((produit, numero_bl_raw, date_peremption, qu, qsu, qssu))
+
+        for produit, numero_bl_raw, date_peremption, qu, qsu, qssu in rows:
+            perform_stock_entry(
+                produit, numero_bl_raw, date_peremption,
+                qu, qsu, qssu,
+                reason_id, reason_text
+            )
 
         db.session.commit()
-        flash(message, 'success')
+        if len(rows) == 1:
+            flash(f'Entrée en stock enregistrée pour {rows[0][0].nom}.', 'stock_success')
+        else:
+            flash(f'{len(rows)} entrées en stock enregistrées avec succès.', 'stock_success')
         return redirect(url_for('admin.manage_stock'))
 
     stocks = Stock.query.join(Produit).order_by(Produit.nom.asc(), Stock.date_peremption.asc()).all()
@@ -4316,7 +4437,8 @@ def manage_stock():
     total_quantite = sum(s.quantite_totale for s in stocks)
     qr_non_tires = sum(1 for s in stocks if not s.qr_tire)
     return render_template('admin/stock/list.html',
-        produits=produits, stocks=stocks, reasons=reasons,
+        stocks=stocks, reasons=reasons,
+        fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
         total_stock_entries=total_stock_entries,
         total_produits_en_stock=total_produits_en_stock,
         total_quantite=total_quantite,

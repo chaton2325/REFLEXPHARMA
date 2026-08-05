@@ -1078,9 +1078,10 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        {# carte_fidelite_success est affichee dans une modale animee dediee
-                           (voir templates/admin/clients/list.html), pas dans la banniere generique #}
-                        {% if category != 'carte_fidelite_success' %}
+                        {# carte_fidelite_success et stock_success sont affiches dans une modale
+                           animee dediee (voir templates/admin/clients/list.html et
+                           templates/admin/stock/list.html), pas dans la banniere generique #}
+                        {% if category not in ('carte_fidelite_success', 'stock_success') %}
                         <div class="alert alert-{{ category }} alert-dismissible fade show">
                             {{ message }}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
