@@ -546,6 +546,26 @@
     padding: 0.3rem 0.5rem;
   }
 
+  /* Barre d'outils Stock : deux groupes distincts (Filtres / Tri) plutot qu'une
+     seule ligne surchargee de controles. */
+  .stock-toolbar .toolbar-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #7a8896;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .mobile-filter-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #7a8896;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin: 0.35rem 0 -0.15rem;
+  }
+  .mobile-filter-label:first-child { margin-top: 0; }
+
   @media (max-width: 575.98px) {
     .page-header { padding: 1.25rem; border-radius: 12px; }
     .page-header h1 { font-size: 1.25rem; }
@@ -655,30 +675,47 @@
       <div class="p-3 p-sm-4 border-bottom">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
           <h5 class="mb-0" style="font-size:1rem;font-weight:600;color:#2c3e50;">Stock Courant</h5>
-          <div class="d-none d-sm-flex flex-row align-items-center gap-2 flex-wrap">
-            <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:130px;width:auto;">
-              <option value="all">QR: Tous</option>
-              <option value="non">QR: Non</option>
-              <option value="oui">QR: Oui</option>
-            </select>
-            <select id="stockDateSortField" class="form-select form-select-sm" style="min-width:145px;width:auto;">
-              <option value="peremption">Date péremption</option>
-              <option value="created">Date mise en stock</option>
-              <option value="updated">Date derniére modif.</option>
-            </select>
-            <select id="stockDateSortDirection" class="form-select form-select-sm" style="min-width:110px;width:auto;">
-              <option value="asc">Plus ancien</option>
-              <option value="desc">Plus récent</option>
-            </select>
-            <button type="button" id="applyStockDateSort" class="btn btn-sm btn-outline-secondary">
-              <i class="fas fa-sort-amount-down-alt"></i>
-            </button>
-            <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width:130px;width:auto;">
-            <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary">Auj.</button>
-            <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">Toutes</button>
-            <div class="input-group input-group-sm" style="min-width:200px;width:auto;">
-              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-              <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher...">
+          <div class="d-none d-sm-flex flex-column gap-2 stock-toolbar">
+            <div class="d-flex flex-row align-items-center gap-2 flex-wrap">
+              <div class="input-group input-group-sm" style="min-width:200px;width:auto;">
+                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher...">
+              </div>
+              <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:120px;width:auto;">
+                <option value="all">QR : Tous</option>
+                <option value="non">QR : Non tiré</option>
+                <option value="oui">QR : Tiré</option>
+              </select>
+              <select id="stockFilterDateField" class="form-select form-select-sm" style="min-width:150px;width:auto;" title="Date utilisée par le filtre ci-dessous">
+                <option value="created" selected>Date mise en stock</option>
+                <option value="peremption">Date péremption</option>
+                <option value="updated">Dernière modif.</option>
+              </select>
+              <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width:130px;width:auto;">
+              <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary" title="Filtrer sur la date du jour">
+                <i class="fas fa-calendar-day me-1"></i>Aujourd'hui
+              </button>
+              <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">Toutes dates</button>
+            </div>
+            <div class="d-flex flex-row align-items-center gap-2 flex-wrap">
+              <span class="toolbar-label"><i class="fas fa-sort me-1"></i>Trier par</span>
+              <select id="stockSortField" class="form-select form-select-sm" style="min-width:170px;width:auto;">
+                <option value="produit">Produit</option>
+                <option value="bl">Numéro de BL</option>
+                <option value="code_suivi">Code suivi</option>
+                <option value="peremption">Date péremption</option>
+                <option value="created" selected>Date mise en stock</option>
+                <option value="updated">Dernière modification</option>
+                <option value="quantite">Quantité</option>
+                <option value="ttc">Montant TTC</option>
+              </select>
+              <select id="stockSortDirection" class="form-select form-select-sm" style="min-width:130px;width:auto;">
+                <option value="desc" selected>Décroissant</option>
+                <option value="asc">Croissant</option>
+              </select>
+              <button type="button" id="applyStockSort" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-sort-amount-down-alt me-1"></i>Appliquer
+              </button>
             </div>
           </div>
           <div class="d-flex d-sm-none align-items-center gap-2 w-100">
@@ -690,29 +727,42 @@
               <summary style="list-style:none;cursor:pointer;font-size:0.75rem;padding:0.3rem 0.6rem;border:1px solid #dee2e6;border-radius:8px;background:#fff;white-space:nowrap;">
                 <i class="fas fa-sliders-h"></i> Filtres
               </summary>
-              <div style="position:absolute;top:100%;right:0;z-index:1050;background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:0.75rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);width:260px;display:flex;flex-direction:column;gap:0.5rem;">
+              <div style="position:absolute;top:100%;right:0;z-index:1050;background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:0.75rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);width:280px;display:flex;flex-direction:column;gap:0.5rem;">
+                <div class="mobile-filter-label">Filtres</div>
                 <select id="qrTireFilterMobile" class="form-select form-select-sm">
-                  <option value="all">QR: Tous</option>
-                  <option value="non">QR: Non</option>
-                  <option value="oui">QR: Oui</option>
+                  <option value="all">QR : Tous</option>
+                  <option value="non">QR : Non tiré</option>
+                  <option value="oui">QR : Tiré</option>
                 </select>
-                <select id="stockDateSortFieldMobile" class="form-select form-select-sm">
+                <select id="stockFilterDateFieldMobile" class="form-select form-select-sm">
+                  <option value="created" selected>Date mise en stock</option>
                   <option value="peremption">Date péremption</option>
-                  <option value="created">Date mise en stock</option>
-                  <option value="updated">Date derniére modif.</option>
+                  <option value="updated">Dernière modif.</option>
                 </select>
-                <select id="stockDateSortDirectionMobile" class="form-select form-select-sm">
-                  <option value="asc">Plus ancien</option>
-                  <option value="desc">Plus récent</option>
-                </select>
-                <button type="button" id="applyStockDateSortMobile" class="btn btn-sm btn-outline-secondary w-100">
-                  <i class="fas fa-sort-amount-down-alt me-1"></i> Trier par date
-                </button>
                 <input type="date" id="stockDateFilterMobile" class="form-control form-control-sm">
                 <div class="d-flex gap-2">
-                  <button type="button" id="stockTodayFilterMobile" class="btn btn-sm btn-outline-primary flex-1">Auj.</button>
+                  <button type="button" id="stockTodayFilterMobile" class="btn btn-sm btn-outline-primary flex-1">Aujourd'hui</button>
                   <button type="button" id="clearStockDateFilterMobile" class="btn btn-sm btn-outline-secondary flex-1">Toutes</button>
                 </div>
+
+                <div class="mobile-filter-label">Trier par</div>
+                <select id="stockSortFieldMobile" class="form-select form-select-sm">
+                  <option value="produit">Produit</option>
+                  <option value="bl">Numéro de BL</option>
+                  <option value="code_suivi">Code suivi</option>
+                  <option value="peremption">Date péremption</option>
+                  <option value="created" selected>Date mise en stock</option>
+                  <option value="updated">Dernière modification</option>
+                  <option value="quantite">Quantité</option>
+                  <option value="ttc">Montant TTC</option>
+                </select>
+                <select id="stockSortDirectionMobile" class="form-select form-select-sm">
+                  <option value="desc" selected>Décroissant</option>
+                  <option value="asc">Croissant</option>
+                </select>
+                <button type="button" id="applyStockSortMobile" class="btn btn-sm btn-outline-secondary w-100">
+                  <i class="fas fa-sort-amount-down-alt me-1"></i> Appliquer le tri
+                </button>
               </div>
             </details>
           </div>
@@ -1476,9 +1526,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockTableBody = document.getElementById('stockTableBody');
     const noSearchResultsRow = document.getElementById('noSearchResultsRow');
     const qrTireFilter = document.getElementById('qrTireFilter');
-    const stockDateSortField = document.getElementById('stockDateSortField');
-    const stockDateSortDirection = document.getElementById('stockDateSortDirection');
-    const applyStockDateSort = document.getElementById('applyStockDateSort');
+    const stockFilterDateField = document.getElementById('stockFilterDateField');
+    const stockSortField = document.getElementById('stockSortField');
+    const stockSortDirection = document.getElementById('stockSortDirection');
+    const applyStockSort = document.getElementById('applyStockSort');
     const stockDateFilter = document.getElementById('stockDateFilter');
     const stockTodayFilter = document.getElementById('stockTodayFilter');
     const clearStockDateFilter = document.getElementById('clearStockDateFilter');
@@ -1499,19 +1550,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function selectedDateField() {
-        return stockDateSortField ? stockDateSortField.value : 'peremption';
+    // "Aujourd'hui" doit repondre a "qu'est-ce qui est entre en stock aujourd'hui ?" :
+    // la date par defaut du filtre est donc la date de mise en stock (created), pas
+    // la date de peremption (qui ne tombe presque jamais sur le jour meme).
+    function selectedFilterDateField() {
+        return stockFilterDateField ? stockFilterDateField.value : 'created';
     }
 
     function rowDateValue(row) {
-        const field = selectedDateField();
-        if (field === 'created') {
-            return row.dataset.dateCreated || '';
+        const field = selectedFilterDateField();
+        if (field === 'peremption') {
+            return row.dataset.datePeremption || '';
         }
         if (field === 'updated') {
             return row.dataset.dateUpdated || '';
         }
-        return row.dataset.datePeremption || '';
+        return row.dataset.dateCreated || '';
+    }
+
+    function cardDateValue(card) {
+        const field = selectedFilterDateField();
+        if (field === 'peremption') {
+            return card.dataset.datePeremption || '';
+        }
+        if (field === 'updated') {
+            return card.dataset.dateUpdated || '';
+        }
+        return card.dataset.dateCreated || '';
     }
 
     function todayDateValue() {
@@ -1555,11 +1620,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
             const matchesSearch = !query || text.includes(query);
             const matchesQr = qrFilter === 'all' || card.dataset.qrTire === qrFilter;
-            let matchesDate = true;
-            if (dateFilter) {
-                const cardDate = card.dataset.datePeremption || '';
-                matchesDate = cardDate === dateFilter;
-            }
+            const matchesDate = !dateFilter || cardDateValue(card) === dateFilter;
             card.style.display = matchesSearch && matchesQr && matchesDate ? '' : 'none';
         });
     }
@@ -1630,16 +1691,36 @@ document.addEventListener('DOMContentLoaded', function() {
         updateVisibleCount();
     }
 
-    function sortStockRowsByDate() {
+    // Criteres du selecteur "Trier par" : les colonnes texte/nombre lisent la
+    // cellule correspondante (comme le tri par clic sur l'entete), les 3 dates
+    // lisent les attributs data-date-* de la ligne (la colonne "Derniere modif."
+    // n'a pas de colonne visible dans le tableau).
+    const SORT_FIELDS = {
+        produit: { type: 'text', value: (row) => row.cells[1]?.dataset.sortValue ?? '' },
+        code_suivi: { type: 'text', value: (row) => row.cells[2]?.dataset.sortValue ?? '' },
+        bl: { type: 'text', value: (row) => row.cells[3]?.dataset.sortValue ?? '' },
+        peremption: { type: 'text', value: (row) => row.dataset.datePeremption || '' },
+        created: { type: 'text', value: (row) => row.dataset.dateCreated || '' },
+        updated: { type: 'text', value: (row) => row.dataset.dateUpdated || '' },
+        quantite: { type: 'number', value: (row) => row.dataset.quantite || 0 },
+        ttc: { type: 'number', value: (row) => row.dataset.totalTtc || 0 },
+    };
+
+    function sortStockRowsByField(field, direction) {
         if (!stockTableBody) {
             return;
         }
-        const direction = stockDateSortDirection ? stockDateSortDirection.value : 'asc';
+        const spec = SORT_FIELDS[field] || SORT_FIELDS.created;
         currentSort = { index: null, direction };
 
         stockRows.sort((a, b) => {
-            const aValue = rowDateValue(a);
-            const bValue = rowDateValue(b);
+            const aValue = spec.value(a);
+            const bValue = spec.value(b);
+
+            if (spec.type === 'number') {
+                return direction === 'asc' ? Number(aValue) - Number(bValue) : Number(bValue) - Number(aValue);
+            }
+
             return direction === 'asc'
                 ? String(aValue).localeCompare(String(bValue), undefined, { numeric: true })
                 : String(bValue).localeCompare(String(aValue), undefined, { numeric: true });
@@ -1674,9 +1755,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (applyStockDateSort) {
-        applyStockDateSort.addEventListener('click', () => {
-            runWithIndicator(sortStockRowsByDate);
+    if (applyStockSort) {
+        applyStockSort.addEventListener('click', () => {
+            const field = stockSortField ? stockSortField.value : 'created';
+            const direction = stockSortDirection ? stockSortDirection.value : 'desc';
+            runWithIndicator(() => sortStockRowsByField(field, direction));
         });
     }
 
@@ -1688,6 +1771,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (stockTodayFilter && stockDateFilter) {
         stockTodayFilter.addEventListener('click', () => {
+            // "Aujourd'hui" force le filtre sur la date de mise en stock, quel que
+            // soit le champ actuellement selectionne : c'est la seule lecture
+            // sensee de ce bouton (cf. bug ou il ne montrait rien en comparant a
+            // la date de peremption par defaut).
+            if (stockFilterDateField) stockFilterDateField.value = 'created';
             stockDateFilter.value = todayDateValue();
             runWithIndicator(filterStockRows);
         });
@@ -1700,8 +1788,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (stockDateSortField) {
-        stockDateSortField.addEventListener('change', () => {
+    if (stockFilterDateField) {
+        stockFilterDateField.addEventListener('change', () => {
             if (stockDateFilter && stockDateFilter.value) {
                 runWithIndicator(filterStockRows);
             }
@@ -1768,15 +1856,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     syncMobileFilter('qrTireFilterMobile', 'qrTireFilter');
-    syncMobileFilter('stockDateSortFieldMobile', 'stockDateSortField');
-    syncMobileFilter('stockDateSortDirectionMobile', 'stockDateSortDirection');
+    syncMobileFilter('stockFilterDateFieldMobile', 'stockFilterDateField');
     syncMobileFilter('stockDateFilterMobile', 'stockDateFilter');
-    syncMobileFilter('stockTodayFilterMobile', 'stockTodayFilter');
-    syncMobileFilter('clearStockDateFilterMobile', 'clearStockDateFilter');
+    syncMobileFilter('stockSortFieldMobile', 'stockSortField');
+    syncMobileFilter('stockSortDirectionMobile', 'stockSortDirection');
 
-    const applyStockDateSortMobile = document.getElementById('applyStockDateSortMobile');
-    if (applyStockDateSortMobile && applyStockDateSort) {
-        applyStockDateSortMobile.addEventListener('click', () => applyStockDateSort.click());
+    const applyStockSortMobile = document.getElementById('applyStockSortMobile');
+    if (applyStockSortMobile && applyStockSort) {
+        applyStockSortMobile.addEventListener('click', () => applyStockSort.click());
+    }
+
+    // "Aujourd'hui" / "Toutes" sont des boutons (evenement 'click', pas 'change') :
+    // syncMobileFilter ne s'applique qu'aux champs de saisie, on les cable donc a
+    // part en delegant vers le bouton desktop puis en re-synchronisant l'affichage
+    // mobile (auparavant ces deux boutons mobiles etaient silencieusement inertes).
+    const stockTodayFilterMobile = document.getElementById('stockTodayFilterMobile');
+    if (stockTodayFilterMobile && stockTodayFilter) {
+        stockTodayFilterMobile.addEventListener('click', () => {
+            stockTodayFilter.click();
+            const mobileField = document.getElementById('stockFilterDateFieldMobile');
+            const mobileDate = document.getElementById('stockDateFilterMobile');
+            if (mobileField && stockFilterDateField) mobileField.value = stockFilterDateField.value;
+            if (mobileDate && stockDateFilter) mobileDate.value = stockDateFilter.value;
+        });
+    }
+    const clearStockDateFilterMobile = document.getElementById('clearStockDateFilterMobile');
+    if (clearStockDateFilterMobile && clearStockDateFilter) {
+        clearStockDateFilterMobile.addEventListener('click', () => {
+            clearStockDateFilter.click();
+            const mobileDate = document.getElementById('stockDateFilterMobile');
+            if (mobileDate) mobileDate.value = '';
+        });
     }
 
     // Mobile visible count
