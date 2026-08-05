@@ -2241,7 +2241,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const prefix = (selectedProduit?.fournisseur_prefixe || '').toUpperCase();
             const pCode = selectedProduit?.code_produit || '';
             const bl = mNormalizeBl(mBl?.value);
-            mCodePreview.value = pCode && bl ? prefix + pCode + bl : '';
+            if (!pCode || !bl) {
+                mCodePreview.value = '';
+                return;
+            }
+            // Correspond au jour de mise en stock reel, calcule cote serveur a la
+            // validation (voir Stock.build_tracking_code) : identique tant que la
+            // validation a lieu le meme jour que l'ouverture du modal.
+            const cipSuffix = pCode.slice(-4);
+            const now = new Date();
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = String(now.getFullYear()).slice(-2);
+            const produitId = selectedProduit?.id ?? '';
+            mCodePreview.value = prefix + cipSuffix + bl + day + month + year + produitId;
         }
 
         function mRefreshLine() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }

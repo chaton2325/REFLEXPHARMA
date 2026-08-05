@@ -43,10 +43,18 @@ class Stock(db.Model):
         return normalized
 
     @classmethod
-    def build_tracking_code(cls, fournisseur_prefixe, produit_code, numero_bl):
+    def build_tracking_code(cls, fournisseur_prefixe, produit_code, produit_id, numero_bl, entry_date):
+        """Prefixe fournisseur + 4 derniers caracteres du CIP + BL + jour/mois/
+        annee (sur 2 chiffres) de mise en stock + id catalogue du produit, colles
+        sans separateur (ex: LB574033905082613). L'id catalogue, garanti unique
+        et propre a chaque produit, evite toute collision entre deux produits
+        d'un meme fournisseur dont le CIP se terminerait par les memes 4
+        chiffres, recus sous le meme BL le meme jour."""
         normalized_bl = cls.normalize_bl(numero_bl)
         prefix = (fournisseur_prefixe or '').strip().upper()
-        return f'{prefix}{produit_code}{normalized_bl}'
+        cip_suffix = (produit_code or '')[-4:]
+        date_part = entry_date.strftime('%d%m%y')
+        return f'{prefix}{cip_suffix}{normalized_bl}{date_part}{produit_id}'
 
     @property
     def prix_achat_total(self):

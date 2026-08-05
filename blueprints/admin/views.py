@@ -4319,7 +4319,7 @@ def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites
     rapide depuis une ligne de commande fournisseur. Ne fait pas le commit : a la
     charge de l'appelant, qui gere aussi la validation des champs en amont."""
     numero_bl = Stock.normalize_bl(numero_bl_raw)
-    code_suivi = Stock.build_tracking_code(produit.fournisseur.prefixe, produit.code_produit, numero_bl)
+    code_suivi = Stock.build_tracking_code(produit.fournisseur.prefixe, produit.code_produit, produit.id, numero_bl, datetime.now().date())
 
     stock = Stock.query.filter_by(
         produit_id=produit.id,
