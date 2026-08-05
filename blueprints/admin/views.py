@@ -89,6 +89,37 @@ def permission_required(feature):
         return decorated_function
     return decorator
 
+def make_numbered_pdf_canvas(page_width):
+    """Fabrique une classe de canvas ReportLab qui affiche 'Page X sur Y' en pied
+    de chaque page. Le total de pages n'est connu qu'une fois le document entier
+    genere : on bufferise donc chaque page (showPage) et on ne dessine le numero
+    qu'au moment du save() final, une fois le compte total etabli.
+    Usage : doc.build(elements, canvasmaker=make_numbered_pdf_canvas(page_width))
+    (page_width = A4[0] en portrait, landscape(A4)[0] en paysage, etc.)"""
+    from reportlab.lib import colors
+    from reportlab.pdfgen.canvas import Canvas
+
+    class NumberedCanvas(Canvas):
+        def __init__(self, *args, **kwargs):
+            Canvas.__init__(self, *args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total_pages = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self.setFont('Helvetica', 8)
+                self.setFillColor(colors.HexColor('#6b7280'))
+                self.drawRightString(page_width - 20, 12, f'Page {self._pageNumber} sur {total_pages}')
+                Canvas.showPage(self)
+            Canvas.save(self)
+
+    return NumberedCanvas
+
 def generate_product_code(fournisseur):
     prefix = (fournisseur.prefixe or 'XXXX').upper()
     while True:
@@ -117,6 +148,16 @@ def produit_from_form(form, fournisseur):
         stock_securite=int(form.get('stock_securite') or 0),
         points_fidelite=int(form.get('points_fidelite')) if form.get('points_fidelite') not in (None, '') else None
     )
+
+STOCK_MODIFICATION_ACTION_LABELS = {
+    'create': 'Création',
+    'adjust': 'Ajustement',
+    'edit': 'Modification',
+    'delete': 'Suppression',
+    'sortie': 'Sortie',
+    'qr_print': 'Tirage QR',
+    'update': 'Mise à jour',
+}
 
 def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
     modification = StockModification(
@@ -4834,12 +4875,173 @@ def export_selected_stock_qr_pdf():
     filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
     return send_file(output, download_name=filename, as_attachment=True)
 
+def get_filtered_stock_modifications():
+    modifications = StockModification.query.order_by(StockModification.created_at.desc()).all()
+    produit_id = (request.args.get('produit_id') or '').strip()
+    numero_bl = (request.args.get('numero_bl') or '').strip().lower()
+    code_suivi = (request.args.get('code_suivi') or '').strip().lower()
+    action = (request.args.get('action') or '').strip()
+    user_id = (request.args.get('user_id') or '').strip()
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    sort = (request.args.get('sort') or 'created_at').strip()
+    direction = (request.args.get('direction') or 'desc').strip()
+
+    if produit_id:
+        try:
+            selected_produit_id = int(produit_id)
+            modifications = [m for m in modifications if m.produit_id == selected_produit_id]
+        except ValueError:
+            modifications = []
+    if numero_bl:
+        modifications = [m for m in modifications if numero_bl in (m.numero_bl or '').lower()]
+    if code_suivi:
+        modifications = [m for m in modifications if code_suivi in (m.code_suivi or '').lower()]
+    if action:
+        modifications = [m for m in modifications if m.action == action]
+    if user_id:
+        try:
+            selected_user_id = int(user_id)
+            modifications = [m for m in modifications if m.user_id == selected_user_id]
+        except ValueError:
+            modifications = []
+    if date_from:
+        modifications = [m for m in modifications if m.created_at and m.created_at.date() >= date_from]
+    if date_to:
+        modifications = [m for m in modifications if m.created_at and m.created_at.date() <= date_to]
+
+    sorters = {
+        'created_at': lambda m: m.created_at or datetime.min,
+        'produit': lambda m: (m.produit.nom if m.produit else '').lower(),
+        'numero_bl': lambda m: (m.numero_bl or '').lower(),
+        'code_suivi': lambda m: (m.code_suivi or '').lower(),
+        'action': lambda m: STOCK_MODIFICATION_ACTION_LABELS.get(m.action, m.action or ''),
+        'auteur': lambda m: f'{m.user.nom} {m.user.prenom}'.lower() if m.user else '',
+    }
+    modifications.sort(key=sorters.get(sort, sorters['created_at']), reverse=direction != 'asc')
+    return modifications
+
+def _stock_modification_export_row(m):
+    return {
+        'Date': m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '',
+        'Produit': m.produit.nom if m.produit else '',
+        'Code produit': m.produit.code_produit if m.produit else '',
+        'Code suivi': m.code_suivi,
+        'BL': m.numero_bl,
+        'Péremption': m.date_peremption.strftime('%d/%m/%Y') if m.date_peremption else '',
+        'Action': STOCK_MODIFICATION_ACTION_LABELS.get(m.action, m.action),
+        'Auteur': f'{m.user.prenom} {m.user.nom}' if m.user else '',
+        'QR avant': 'Oui' if m.old_qr_tire else 'Non',
+        'QR après': 'Oui' if m.new_qr_tire else 'Non',
+        'Unités avant': m.old_quantite_unites,
+        'Sous-unités avant': m.old_quantite_sous_unites,
+        'Sous-sous-unités avant': m.old_quantite_sous_sous_unites,
+        'Unités après': m.new_quantite_unites,
+        'Sous-unités après': m.new_quantite_sous_unites,
+        'Sous-sous-unités après': m.new_quantite_sous_sous_unites,
+        'Raison': m.effective_reason or '',
+    }
+
 @admin.route('/stock/modifications')
 @login_required
 @permission_required('gestion_modifications_stock')
 def list_stock_modifications():
-    modifications = StockModification.query.order_by(StockModification.created_at.desc()).all()
-    return render_template('admin/stock/modifications.html', modifications=modifications)
+    modifications = get_filtered_stock_modifications()
+    produit_ids = [row[0] for row in db.session.query(StockModification.produit_id).distinct().all()]
+    produits = Produit.query.filter(Produit.id.in_(produit_ids)).order_by(Produit.nom.asc()).all()
+    user_ids = [row[0] for row in db.session.query(StockModification.user_id).distinct().all()]
+    users = User.query.filter(User.id.in_(user_ids)).order_by(User.nom.asc()).all()
+    actions = [row[0] for row in db.session.query(StockModification.action).distinct().all()]
+    return render_template('admin/stock/modifications.html',
+        modifications=modifications, produits=produits, users=users, actions=actions,
+        action_labels=STOCK_MODIFICATION_ACTION_LABELS,
+        export_query=request.args.to_dict())
+
+@admin.route('/stock/modifications/export/excel')
+@login_required
+@permission_required('gestion_modifications_stock')
+def export_stock_modifications_excel():
+    import io
+    import pandas as pd
+
+    modifications = get_filtered_stock_modifications()
+    generated_at = datetime.now()
+    rows = [_stock_modification_export_row(m) for m in modifications]
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Modifications')
+        _style_commandes_worksheets(writer.sheets.values())
+    output.seek(0)
+    return send_file(output, mimetype=_XLSX_MIMETYPE, as_attachment=True,
+                     download_name=f'modifications_stock_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx')
+
+@admin.route('/stock/modifications/export/pdf')
+@login_required
+@permission_required('gestion_modifications_stock')
+def export_stock_modifications_pdf():
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    page_width, _page_height = landscape(A4)
+    modifications = get_filtered_stock_modifications()
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    generated_at = datetime.now()
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=20, bottomMargin=20, leftMargin=20, rightMargin=20)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('Small', parent=styles['Normal'], fontSize=7.5, leading=10))
+    styles.add(ParagraphStyle('Cell', parent=styles['Normal'], fontSize=7, leading=9))
+    elements = [
+        Paragraph(f'Modifications de stock - {pharmacy_name}', styles['Title']),
+        Paragraph(
+            f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | '
+            f'Tiré par : {current_user.nom} {current_user.prenom} | '
+            f'Lignes : {len(modifications)}',
+            styles['Small']),
+        Spacer(1, 10)
+    ]
+
+    # Colonnes textuelles de longueur variable (produit, code suivi, BL, auteur,
+    # raison) enveloppees dans des Paragraph pour qu'elles passent a la ligne au
+    # lieu de deborder sur les colonnes voisines. Les colonnes au format court et
+    # previsible (date, action, quantites) restent en texte simple.
+    data = [['Date', 'Produit', 'Code suivi', 'BL', 'Action', 'Auteur', 'Avant', 'Après', 'Raison']]
+    for m in modifications:
+        data.append([
+            m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '',
+            Paragraph(m.produit.nom if m.produit else '', styles['Cell']),
+            Paragraph(m.code_suivi or '', styles['Cell']),
+            Paragraph(m.numero_bl or '', styles['Cell']),
+            STOCK_MODIFICATION_ACTION_LABELS.get(m.action, m.action),
+            Paragraph(f'{m.user.prenom} {m.user.nom}' if m.user else '', styles['Cell']),
+            f'{m.old_quantite_unites}U/{m.old_quantite_sous_unites}SU/{m.old_quantite_sous_sous_unites}SSU',
+            f'{m.new_quantite_unites}U/{m.new_quantite_sous_unites}SU/{m.new_quantite_sous_sous_unites}SSU',
+            Paragraph(m.effective_reason or '', styles['Cell']),
+        ])
+    # Largeurs proportionnees pour occuper (quasi) toute la largeur utile de la
+    # page (A4 paysage, marges de 20pt de chaque cote => ~802pt disponibles).
+    table = Table(data, repeatRows=1, colWidths=[65, 108, 128, 68, 55, 85, 58, 58, 170])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7FAFD')]),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(table)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(page_width))
+    output.seek(0)
+    return send_file(output, mimetype='application/pdf', as_attachment=True,
+                     download_name=f'modifications_stock_{generated_at.strftime("%Y%m%d_%H%M")}.pdf')
 
 @admin.route('/stock/exits')
 @login_required
@@ -6978,12 +7180,12 @@ def export_fiche_comptage_pdf(id):
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
     import io
-    
+
     lignes = InventaireLigne.query.filter_by(inventaire_id=id).all()
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=A4, topMargin=30, bottomMargin=30, leftMargin=30, rightMargin=30)
     elements = []
-    
+
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'TitleStyle',
@@ -7038,7 +7240,7 @@ def export_fiche_comptage_pdf(id):
     ]))
 
     elements.append(table)
-    doc.build(elements)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
     output.seek(0)
     return send_file(output, download_name=f"fiche_comptage_inv_{id}.pdf", as_attachment=True)
 
@@ -7183,7 +7385,7 @@ def export_rapport_inventaire_pdf(id):
     ]))
     
     elements.append(table)
-    doc.build(elements)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
     output.seek(0)
     return send_file(output, download_name=f"rapport_inv_{id}.pdf", as_attachment=True)
 

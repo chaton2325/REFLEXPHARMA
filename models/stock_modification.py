@@ -34,12 +34,39 @@ class StockModification(db.Model):
     stock_reason = db.relationship('StockReason', backref=db.backref('modifications', lazy=True))
 
     @property
+    def effective_reason(self):
+        """Raison affichee : texte libre si saisi, sinon le nom de la raison
+        pre-definie (reason_id) - les deux champs sont mutuellement exclusifs,
+        voir create_stock_modification()."""
+        if self.reason:
+            return self.reason
+        if self.stock_reason:
+            return self.stock_reason.nom
+        return None
+
+    @property
     def old_total(self):
         return self.old_quantite_unites + self.old_quantite_sous_unites + self.old_quantite_sous_sous_unites
 
     @property
     def new_total(self):
         return self.new_quantite_unites + self.new_quantite_sous_unites + self.new_quantite_sous_sous_unites
+
+    @property
+    def delta_quantite_unites(self):
+        return self.new_quantite_unites - self.old_quantite_unites
+
+    @property
+    def delta_quantite_sous_unites(self):
+        return self.new_quantite_sous_unites - self.old_quantite_sous_unites
+
+    @property
+    def delta_quantite_sous_sous_unites(self):
+        return self.new_quantite_sous_sous_unites - self.old_quantite_sous_sous_unites
+
+    @property
+    def delta_total(self):
+        return self.new_total - self.old_total
 
     def __repr__(self):
         return f'<StockModification {self.action} {self.code_suivi}>'

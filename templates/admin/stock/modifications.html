@@ -8,7 +8,7 @@
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
     border-radius: 16px;
     padding: 1.5rem 2rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
   }
@@ -83,39 +83,54 @@
     letter-spacing: 0.3px;
   }
 
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus, .card-form .form-select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .filters-toggle {
+    width: 100%; background: #f8f9fa; border: 0; border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem; font-weight: 600; color: #2c3e50; padding: 0.55rem 0.85rem;
+    text-align: left; display: flex; align-items: center; justify-content: space-between;
+    border-radius: 14px 14px 0 0;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; border-radius: 14px; }
+
   .card-custom {
     background: #fff;
     border-radius: 14px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     border: 1px solid rgba(0,0,0,0.03);
-    overflow: hidden;
   }
 
-  .table-custom {
-    margin-bottom: 0;
-  }
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
   .table-custom thead th {
-    background: #f8f9fa;
-    color: #495057;
-    font-size: 0.78rem;
-    font-weight: 600;
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    padding: 0.85rem 1rem;
-    border-bottom: 2px solid #e9ecef;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
   }
-  .table-custom tbody td {
-    padding: 0.85rem 1rem;
-    vertical-align: middle;
-    border-bottom: 1px solid #f0f2f5;
-    font-size: 0.88rem;
-  }
-  .table-custom tbody tr {
-    transition: background 0.15s;
-  }
-  .table-custom tbody tr:hover {
-    background: #f8faff;
-  }
+  .table-custom tbody td { padding: 0.6rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .reason-cell { min-width: 220px; max-width: 320px; }
+  .reason-missing { color: #adb5bd; font-style: italic; }
 
   .mobile-card {
     background: #fff;
@@ -146,13 +161,21 @@
       <h1><i class="fas fa-history me-2"></i>Modifications de Stock</h1>
       <p>Historique des changements de stock avec lot suivi, BL, péremption, motif, auteur et quantités avant/après.</p>
     </div>
-    <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
-      <i class="fas fa-arrow-left me-1"></i> Retour au stock
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.export_stock_modifications_excel', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_stock_modifications_pdf', **export_query) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Retour au stock
+      </a>
+    </div>
   </div>
 </div>
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-3">
   <div class="col-6 col-sm-4 col-md-3">
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
@@ -160,14 +183,98 @@
       </div>
       <div>
         <div class="stat-number">{{ modifications|length }}</div>
-        <div class="stat-label">Total modifications</div>
+        <div class="stat-label">Résultats</div>
       </div>
     </div>
   </div>
 </div>
 
+{% set filters_active = request.args.get('produit_id') or request.args.get('numero_bl') or request.args.get('code_suivi') or request.args.get('action') or request.args.get('user_id') or request.args.get('date_from') or request.args.get('date_to') %}
+<form method="GET" class="card-form mb-3">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#modificationsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="modificationsFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres &amp; tri{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="modificationsFilters">
+    <div class="p-3 p-sm-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-md-3">
+          <label class="form-label">Produit</label>
+          <select name="produit_id" class="form-select form-select-sm">
+            <option value="">Tous</option>
+            {% for p in produits %}
+            <option value="{{ p.id }}" {% if request.args.get('produit_id') == p.id|string %}selected{% endif %}>{{ p.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Code suivi</label>
+          <input type="text" name="code_suivi" class="form-control form-control-sm" value="{{ request.args.get('code_suivi', '') }}" placeholder="Ex: REF1-...">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Numéro BL</label>
+          <input type="text" name="numero_bl" class="form-control form-control-sm" value="{{ request.args.get('numero_bl', '') }}" placeholder="Ex: BL-2026-...">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Action</label>
+          <select name="action" class="form-select form-select-sm">
+            <option value="">Toutes</option>
+            {% for a in actions %}
+            <option value="{{ a }}" {% if request.args.get('action') == a %}selected{% endif %}>{{ action_labels.get(a, a) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label">Auteur</label>
+          <select name="user_id" class="form-select form-select-sm">
+            <option value="">Tous</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" {% if request.args.get('user_id') == u.id|string %}selected{% endif %}>{{ u.prenom }} {{ u.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Date début</label>
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from', '') }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Date fin</label>
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to', '') }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Trier par</label>
+          <select name="sort" class="form-select form-select-sm">
+            {% set selected_sort = request.args.get('sort', 'created_at') %}
+            <option value="created_at" {% if selected_sort == 'created_at' %}selected{% endif %}>Date</option>
+            <option value="produit" {% if selected_sort == 'produit' %}selected{% endif %}>Produit</option>
+            <option value="numero_bl" {% if selected_sort == 'numero_bl' %}selected{% endif %}>BL</option>
+            <option value="code_suivi" {% if selected_sort == 'code_suivi' %}selected{% endif %}>Code suivi</option>
+            <option value="action" {% if selected_sort == 'action' %}selected{% endif %}>Action</option>
+            <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Ordre</label>
+          <select name="direction" class="form-select form-select-sm">
+            <option value="desc" {% if request.args.get('direction', 'desc') == 'desc' %}selected{% endif %}>Descendant</option>
+            <option value="asc" {% if request.args.get('direction') == 'asc' %}selected{% endif %}>Ascendant</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <i class="fas fa-filter me-1"></i> Filtrer
+          </button>
+          <a href="{{ url_for('admin.list_stock_modifications') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-rotate-left"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
 <div class="card-custom">
-  <div class="table-responsive d-none d-sm-block">
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
     <table class="table table-custom">
       <thead>
         <tr>
@@ -176,11 +283,11 @@
           <th>Code suivi</th>
           <th>BL</th>
           <th>Péremption</th>
-          <th>QR tiré</th>
           <th>Action</th>
           <th>Auteur</th>
           <th>Avant</th>
           <th>Après</th>
+          <th>Quantités ajoutées</th>
           <th>Raison</th>
         </tr>
       </thead>
@@ -196,12 +303,8 @@
           <td>{{ item.numero_bl }}</td>
           <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
           <td>
-            <div class="small">Avant: {{ 'Oui' if item.old_qr_tire else 'Non' }}</div>
-            <div class="small">Après: {{ 'Oui' if item.new_qr_tire else 'Non' }}</div>
-          </td>
-          <td>
             <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% else %}bg-success{% endif %}">
-              {{ 'tirage qr' if item.action == 'qr_print' else item.action }}
+              {{ action_labels.get(item.action, item.action) }}
             </span>
           </td>
           <td>{{ item.user.prenom }} {{ item.user.nom }}</td>
@@ -215,11 +318,18 @@
             <div class="small">S/U: {{ item.new_quantite_sous_unites }}</div>
             <div class="small">SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
           </td>
-          <td style="min-width: 260px;">{{ item.reason }}</td>
+          <td>
+            {% for label, delta in [('U', item.delta_quantite_unites), ('S/U', item.delta_quantite_sous_unites), ('SS/U', item.delta_quantite_sous_sous_unites)] %}
+            <div class="small {% if delta > 0 %}text-success fw-semibold{% elif delta < 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}">{{ label }}: {{ '+' ~ delta if delta > 0 else delta }}</div>
+            {% endfor %}
+          </td>
+          <td class="reason-cell">
+            {% if item.effective_reason %}{{ item.effective_reason }}{% else %}<span class="reason-missing">Aucune raison précisée</span>{% endif %}
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center py-4 text-muted">Aucune modification de stock enregistrée.</td>
+          <td colspan="11" class="text-center py-4 text-muted">Aucune modification de stock ne correspond à ces critères.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -235,7 +345,7 @@
           <small class="text-muted">{{ item.produit.code_produit }}</small>
         </div>
         <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% else %}bg-success{% endif %}">
-          {{ 'tirage qr' if item.action == 'qr_print' else item.action }}
+          {{ action_labels.get(item.action, item.action) }}
         </span>
       </div>
       <div class="row g-1 small">
@@ -253,14 +363,22 @@
         <div class="col-6">U:{{ item.old_quantite_unites }} S/U:{{ item.old_quantite_sous_unites }} SS/U:{{ item.old_quantite_sous_sous_unites }}</div>
         <div class="col-6 text-muted">Après:</div>
         <div class="col-6">U:{{ item.new_quantite_unites }} S/U:{{ item.new_quantite_sous_unites }} SS/U:{{ item.new_quantite_sous_sous_unites }}</div>
+        <div class="col-6 text-muted">Qté ajoutée:</div>
+        <div class="col-6">
+          {% for label, delta in [('U', item.delta_quantite_unites), ('S/U', item.delta_quantite_sous_unites), ('SS/U', item.delta_quantite_sous_sous_unites)] %}
+          <span class="{% if delta > 0 %}text-success fw-semibold{% elif delta < 0 %}text-danger fw-semibold{% endif %}">{{ label }}:{{ '+' ~ delta if delta > 0 else delta }}</span>{% if not loop.last %} {% endif %}
+          {% endfor %}
+        </div>
         <div class="col-12 text-muted mt-1">Raison:</div>
-        <div class="col-12">{{ item.reason }}</div>
+        <div class="col-12">
+          {% if item.effective_reason %}{{ item.effective_reason }}{% else %}<span class="reason-missing">Aucune raison précisée</span>{% endif %}
+        </div>
       </div>
     </div>
     {% else %}
     <div class="text-center py-4">
       <i class="fas fa-history" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
-      <p class="text-muted mb-0">Aucune modification de stock enregistrée.</p>
+      <p class="text-muted mb-0">Aucune modification de stock ne correspond à ces critères.</p>
     </div>
     {% endfor %}
   </div>
