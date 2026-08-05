@@ -385,4 +385,4 @@ if __name__ == '__main__':
         print("Aucun certificat trouve (certs/reflexpharma-dev.crt) : serveur lance en HTTP simple.")
         print("Pour activer HTTPS (requis pour la camera sur mobile) : python certs/generate_cert.py")
 
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, ssl_context=ssl_context)
+    app.run(host='0.0.0.0', port=5003, debug=True, threaded=True, ssl_context=ssl_context)
