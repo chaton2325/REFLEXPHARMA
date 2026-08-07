@@ -13,7 +13,6 @@ def login():
     if request.method == 'POST':
         identifiant = (request.form.get('identifiant') or '').strip()
         password = request.form.get('password')
-        remember = True if request.form.get('remember') else False
 
         user = User.query.filter(
             (User.email == identifiant) | (User.username == identifiant)
@@ -27,7 +26,7 @@ def login():
             flash('Votre compte est désactivé. Veuillez contacter un administrateur.', 'warning')
             return redirect(url_for('auth.login'))
 
-        login_user(user, remember=remember)
+        login_user(user)
         # Une fois la toute première connexion réussie, le mot de passe affiché
         # sur l'écran de connexion (voir services/bootstrap.py) n'a plus besoin
         # d'être montré : on efface le filet de sécurité local.
