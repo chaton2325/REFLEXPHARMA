@@ -324,6 +324,57 @@
   .amount-tva { color: #a5670a; }
   .pricing-preview { background: #f8f9fa; }
   html[data-bs-theme="dark"] .pricing-preview { background: #1c2733 !important; }
+
+  /* Detail tarifaire (HT/Marge brute/TVA/TTC) par niveau d'unite : grille de
+     "puces" colorees plutot qu'une seule ligne de texte concatenee avec des
+     slashs. */
+  .pricing-levels { display: flex; flex-direction: column; gap: 0.6rem; }
+  .pricing-level-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #7a8896;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 0.35rem;
+  }
+  .pricing-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.4rem;
+  }
+  .pricing-chip {
+    background: #fff;
+    border: 1px solid #e8edf4;
+    border-radius: 8px;
+    padding: 0.35rem 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+  .pricing-chip-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #7a8896;
+  }
+  .pricing-chip-value {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pricing-chip-marge .pricing-chip-value { color: #1e8e3e; }
+  .pricing-chip-tva .pricing-chip-value { color: #a5670a; }
+  .pricing-chip-ttc { background: #eef3fc; border-color: #d7e6fb; }
+  .pricing-chip-ttc .pricing-chip-value { color: #1a5fb4; font-size: 0.84rem; }
+  html[data-bs-theme="dark"] .pricing-chip { background: #16202b; border-color: rgba(255,255,255,0.08); }
+  html[data-bs-theme="dark"] .pricing-chip-value { color: #e8edf2; }
+  html[data-bs-theme="dark"] .pricing-chip-ttc { background: rgba(52,152,219,0.15); border-color: rgba(52,152,219,0.3); }
+  html[data-bs-theme="dark"] .pricing-chip-ttc .pricing-chip-value { color: #7cb8f0; }
   /* Reduce clutter on medium screens: secondary tracking columns hide first */
   @media (max-width: 1199.98px) {
     .table-custom .col-entree { display: none !important; }
@@ -1270,10 +1321,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
 
                     <div class="border rounded p-3 pricing-preview mt-3">
-                      <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
-                      <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
-                      <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
-                      <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
+                      <div class="small text-muted mb-2 d-flex align-items-center justify-content-between gap-2">
+                        <span>Tarification du produit sélectionné</span>
+                        {% if current_user.has_permission('gestion_produits') %}
+                        <button type="button" id="openEditPricingBtn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.72rem;" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
+                          <i class="fas fa-pen me-1"></i>Ajuster
+                        </button>
+                        {% endif %}
+                      </div>
+                      <div id="pricingLevels" class="pricing-levels"></div>
                     </div>
 
                     <div class="row g-3 mt-1">
@@ -1378,7 +1434,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body form-custom">
-        <div class="fw-bold mb-1" id="cidNom" style="font-size:1.05rem;color:#1a1a2e;"></div>
+        <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+          <div class="fw-bold" id="cidNom" style="font-size:1.05rem;color:#1a1a2e;"></div>
+          {% if current_user.has_permission('gestion_produits') %}
+          <button type="button" id="cidEditPricingBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
+            <i class="fas fa-pen me-1"></i>Prix/TVA
+          </button>
+          {% endif %}
+        </div>
         <div class="text-muted small mb-3" id="cidMeta"></div>
 
         <div class="row g-3 mb-3">
@@ -1409,7 +1472,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <div class="border rounded p-3 bg-success bg-opacity-10">
           <div class="small text-muted mb-2">Estimation de la ligne</div>
-          <div class="small" id="cidTotals">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
+          <div class="small" id="cidTotals">0.00 {{ devise }} HT / Marge brute 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
         </div>
 
         <div id="cidError" class="alert alert-warning small py-2 px-3 mt-3 d-none"></div>
@@ -1530,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <div class="border rounded p-3 pricing-preview mb-3">
           <div class="small text-muted mb-2">Aperçu du prix de vente (unité)</div>
-          <div class="small" id="qcpPreview">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
+          <div class="small" id="qcpPreview">0.00 {{ devise }} HT / Marge brute 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
         </div>
 
         <div class="row g-3">
@@ -1548,6 +1611,65 @@ document.addEventListener('DOMContentLoaded', function() {
         <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
         <button type="button" class="btn btn-primary" id="qcpSubmit" style="border-radius:10px;font-weight:600;">
           <i class="fas fa-save me-1"></i> Créer et ajouter au panier
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ajustement rapide prix d'achat / coefficient / TVA d'un produit du catalogue,
+     accessible depuis la ligne en cours de saisie ET depuis le detail d'une ligne
+     deja dans le panier (memes prix fournisseur susceptibles de changer). Centre,
+     empile par-dessus le(s) modal(aux) deja ouvert(s) (data-bs-backdrop="false"). -->
+<div class="modal fade" id="editProduitPricingModal" tabindex="-1" data-bs-backdrop="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-tags me-2"></i>Ajuster le prix / coefficient / TVA</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body form-custom">
+        <div class="text-muted small mb-3">
+          Ces valeurs sont celles du catalogue pour <strong id="eppProduitNom"></strong>. Les modifier ici les met à jour immédiatement pour ce produit (prochaines ventes et entrées en stock comprises).
+        </div>
+        <div id="eppError" class="alert alert-warning small py-2 px-3 d-none"></div>
+
+        <div class="mb-3">
+          <label for="eppPrixUnite" class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixUnite" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+        </div>
+        <div class="mb-3" id="eppGroupSous">
+          <label for="eppPrixSousUnite" class="form-label">Prix d'achat (Sous-unité)</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixSousUnite" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+        </div>
+        <div class="mb-3" id="eppGroupSousSous">
+          <label for="eppPrixSousSousUnite" class="form-label">Prix d'achat (Sous-sous-unité)</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixSousSousUnite" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="eppCoefficient" class="form-label">Coefficient <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="eppCoefficient" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label for="eppTva" class="form-label">TVA (%) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="eppTva" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="eppSubmit" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-save me-1"></i> Enregistrer
         </button>
       </div>
     </div>
@@ -2014,6 +2136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const prodTvaBadgeMobile = document.getElementById('prodTvaBadgeMobile');
     const mPeremption = document.getElementById('date_peremption_mobile');
     const mCodePreview = document.getElementById('code_suivi_preview_mobile');
+    const pricingLevelsEl = document.getElementById('pricingLevels');
     const mQtyUnites = document.getElementById('quantite_unites_mobile');
     const mQtySous = document.getElementById('quantite_sous_unites_mobile');
     const mQtySousSous = document.getElementById('quantite_sous_sous_unites_mobile');
@@ -2316,35 +2439,54 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cond < 3) mQtySousSous.value = 0;
         }
 
+        // Une "puce" coloree par indicateur (HT neutre, Marge en vert, TVA en
+        // ambre, TTC mis en avant en bleu) plutot qu'une seule ligne de texte
+        // avec des slashs : plus lisible, et les niveaux non applicables
+        // (sous-unite/sous-sous-unite selon le conditionnement) sont simplement
+        // absents au lieu d'afficher "N/A".
+        function pricingLevelHtml(label, breakdown) {
+            return `
+                <div class="pricing-level">
+                    <div class="pricing-level-label">${escapeHtml(label)}</div>
+                    <div class="pricing-chips">
+                        <div class="pricing-chip">
+                            <span class="pricing-chip-label">HT</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.ht)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-marge">
+                            <span class="pricing-chip-label">Marge brute</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.benefice)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-tva">
+                            <span class="pricing-chip-label">TVA</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.tva)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-ttc">
+                            <span class="pricing-chip-label">TTC</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.ttc)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function mUpdatePrice() {
-            const ue = document.getElementById('prixUniteInfoMobile');
-            const se = document.getElementById('prixSousUniteInfoMobile');
-            const sse = document.getElementById('prixSousSousUniteInfoMobile');
             if (!selectedProduit) {
-                ue.textContent = '0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC';
-                se.textContent = 'N/A'; sse.textContent = 'N/A';
+                pricingLevelsEl.innerHTML = pricingLevelHtml('Unité', { ht: 0, benefice: 0, tva: 0, ttc: 0 });
                 return;
             }
             const cond = Number(selectedProduit.conditionnement);
             const coefficient = selectedProduit.coefficient;
             const tvaTaux = selectedProduit.tva;
 
-            const u = mUnitBreakdown(selectedProduit.prix_unite_ht, coefficient, tvaTaux);
-            ue.textContent = mFormat(u.ht) + ' HT / Marge ' + mFormat(u.benefice) + ' / TVA ' + mFormat(u.tva) + ' / ' + mFormat(u.ttc) + ' TTC';
-
+            let html = pricingLevelHtml('Unité', mUnitBreakdown(selectedProduit.prix_unite_ht, coefficient, tvaTaux));
             if (cond >= 2) {
-                const s = mUnitBreakdown(selectedProduit.prix_sous_unite_ht, coefficient, tvaTaux);
-                se.textContent = mFormat(s.ht) + ' HT / Marge ' + mFormat(s.benefice) + ' / TVA ' + mFormat(s.tva) + ' / ' + mFormat(s.ttc) + ' TTC';
-            } else {
-                se.textContent = 'N/A';
+                html += pricingLevelHtml('Sous-unité', mUnitBreakdown(selectedProduit.prix_sous_unite_ht, coefficient, tvaTaux));
             }
-
             if (cond >= 3) {
-                const ss = mUnitBreakdown(selectedProduit.prix_sous_sous_unite_ht, coefficient, tvaTaux);
-                sse.textContent = mFormat(ss.ht) + ' HT / Marge ' + mFormat(ss.benefice) + ' / TVA ' + mFormat(ss.tva) + ' / ' + mFormat(ss.ttc) + ' TTC';
-            } else {
-                sse.textContent = 'N/A';
+                html += pricingLevelHtml('Sous-sous-unité', mUnitBreakdown(selectedProduit.prix_sous_sous_unite_ht, coefficient, tvaTaux));
             }
+            pricingLevelsEl.innerHTML = html;
         }
 
         function currentLineTotalsFor(produit, qtyUnites, qtySous, qtySousSous) {
@@ -2514,7 +2656,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function cidRefreshTotals() {
             const t = cidCurrentTotals();
-            cidTotals.textContent = mFormat(t.ht) + ' HT / Marge ' + mFormat(t.benefice) + ' / TVA ' + mFormat(t.tva) + ' / ' + mFormat(t.ttc) + ' TTC';
+            cidTotals.textContent = mFormat(t.ht) + ' HT / Marge brute ' + mFormat(t.benefice) + ' / TVA ' + mFormat(t.tva) + ' / ' + mFormat(t.ttc) + ' TTC';
         }
 
         function openCartItemDetail(idx) {
@@ -2575,6 +2717,126 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         stockEntryModalEl.addEventListener('hide.bs.modal', () => cartItemDetailModal.hide());
+
+        // ---- Ajustement rapide prix d'achat / coefficient / TVA du catalogue,
+        // depuis la ligne en cours (selectedProduit) ou depuis une ligne deja au
+        // panier (cart[editingCartIndex]) : memes prix fournisseur, susceptibles
+        // de changer, sans avoir a quitter le flux de saisie. ----
+        const editProduitPricingModalEl = document.getElementById('editProduitPricingModal');
+        if (editProduitPricingModalEl) {
+            const openEditPricingBtn = document.getElementById('openEditPricingBtn');
+            const cidEditPricingBtn = document.getElementById('cidEditPricingBtn');
+            const eppProduitNom = document.getElementById('eppProduitNom');
+            const eppError = document.getElementById('eppError');
+            const eppPrixUnite = document.getElementById('eppPrixUnite');
+            const eppPrixSousUnite = document.getElementById('eppPrixSousUnite');
+            const eppPrixSousSousUnite = document.getElementById('eppPrixSousSousUnite');
+            const eppGroupSous = document.getElementById('eppGroupSous');
+            const eppGroupSousSous = document.getElementById('eppGroupSousSous');
+            const eppCoefficient = document.getElementById('eppCoefficient');
+            const eppTva = document.getElementById('eppTva');
+            const eppSubmit = document.getElementById('eppSubmit');
+            const editProduitPricingModal = bootstrap.Modal.getOrCreateInstance(editProduitPricingModalEl, { backdrop: false });
+            const PRICING_UPDATE_URL_TEMPLATE = `{{ url_for('admin.quick_update_produit_pricing', id=999999999) }}`;
+
+            // 'line' = produit en cours de configuration (pas encore au panier)
+            // 'cart-item' = ligne deja ajoutee, ouverte via "Voir / modifier"
+            let pricingEditContext = null;
+
+            function openPricingEditor(produit, context) {
+                pricingEditContext = context;
+                eppError.classList.add('d-none');
+                eppProduitNom.textContent = produit.nom;
+                eppPrixUnite.value = produit.prix_unite_ht || 0;
+                eppPrixSousUnite.value = produit.prix_sous_unite_ht || 0;
+                eppPrixSousSousUnite.value = produit.prix_sous_sous_unite_ht || 0;
+                eppCoefficient.value = produit.coefficient || 1;
+                eppTva.value = produit.tva || 0;
+                const cond = Number(produit.conditionnement || 1);
+                eppGroupSous.style.display = cond >= 2 ? 'block' : 'none';
+                eppGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+                editProduitPricingModal.show();
+            }
+
+            if (openEditPricingBtn) {
+                openEditPricingBtn.addEventListener('click', () => {
+                    if (!selectedProduit) return;
+                    openPricingEditor(selectedProduit, 'line');
+                });
+            }
+            if (cidEditPricingBtn) {
+                cidEditPricingBtn.addEventListener('click', () => {
+                    if (editingCartIndex === null) return;
+                    openPricingEditor(cart[editingCartIndex].produit, 'cart-item');
+                });
+            }
+
+            eppSubmit.addEventListener('click', () => {
+                eppError.classList.add('d-none');
+                const produitId = pricingEditContext === 'cart-item' && editingCartIndex !== null
+                    ? cart[editingCartIndex].produit.id
+                    : selectedProduit?.id;
+                if (!produitId) return;
+
+                const prixUnite = Number(eppPrixUnite.value || 0);
+                const coefficient = Number(eppCoefficient.value || 0);
+                const tva = Number(eppTva.value || 0);
+                if (prixUnite <= 0) { eppError.textContent = "Le prix d'achat (unité) doit être supérieur à 0."; eppError.classList.remove('d-none'); eppPrixUnite.focus(); return; }
+                if (coefficient <= 0) { eppError.textContent = 'Le coefficient doit être supérieur à 0.'; eppError.classList.remove('d-none'); eppCoefficient.focus(); return; }
+                if (tva < 0) { eppError.textContent = 'La TVA ne peut pas être négative.'; eppError.classList.remove('d-none'); eppTva.focus(); return; }
+
+                const payload = new URLSearchParams({
+                    prix_unite: eppPrixUnite.value,
+                    prix_sous_unite: eppPrixSousUnite.value,
+                    prix_sous_sous_unite: eppPrixSousSousUnite.value,
+                    coefficient: eppCoefficient.value,
+                    tva: eppTva.value
+                });
+
+                eppSubmit.disabled = true;
+                eppSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enregistrement...';
+
+                fetch(PRICING_UPDATE_URL_TEMPLATE.replace('999999999', produitId), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload.toString()
+                })
+                    .then((res) => res.json().then((data) => ({ status: res.status, data })))
+                    .then(({ status, data }) => {
+                        if (status !== 200 || !data.success) {
+                            eppError.textContent = data.message || 'Impossible de mettre à jour le produit.';
+                            eppError.classList.remove('d-none');
+                            return;
+                        }
+                        if (pricingEditContext === 'cart-item' && editingCartIndex !== null) {
+                            const item = cart[editingCartIndex];
+                            item.produit = data.produit;
+                            item.ttc = currentLineTotalsFor(data.produit, item.quantite_unites, item.quantite_sous_unites, item.quantite_sous_sous_unites).ttc;
+                            cidRefreshTotals();
+                            renderCart();
+                        } else {
+                            selectedProduit = data.produit;
+                            mRefreshLine();
+                        }
+                        editProduitPricingModal.hide();
+                    })
+                    .catch(() => { eppError.textContent = 'Erreur réseau, veuillez réessayer.'; eppError.classList.remove('d-none'); })
+                    .finally(() => {
+                        eppSubmit.disabled = false;
+                        eppSubmit.innerHTML = '<i class="fas fa-save me-1"></i> Enregistrer';
+                    });
+            });
+
+            editProduitPricingModalEl.addEventListener('hidden.bs.modal', () => {
+                if (stockEntryModalEl.classList.contains('show')) {
+                    document.body.classList.add('modal-open');
+                }
+                if (cartItemDetailModalEl.classList.contains('show')) {
+                    document.body.classList.add('modal-open');
+                }
+            });
+            stockEntryModalEl.addEventListener('hide.bs.modal', () => editProduitPricingModal.hide());
+        }
 
         // ---- Soumission : serialise le panier en champs caches avant le submit natif ----
         stockEntryForm.addEventListener('submit', (e) => {
@@ -2676,7 +2938,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             function qcpUpdatePreview() {
                 const b = mUnitBreakdown(qcpPrixUnite.value, qcpCoefficient.value, qcpTva.value);
-                qcpPreview.textContent = mFormat(b.ht) + ' HT / Marge ' + mFormat(b.benefice) + ' / TVA ' + mFormat(b.tva) + ' / ' + mFormat(b.ttc) + ' TTC';
+                qcpPreview.textContent = mFormat(b.ht) + ' HT / Marge brute ' + mFormat(b.benefice) + ' / TVA ' + mFormat(b.tva) + ' / ' + mFormat(b.ttc) + ' TTC';
             }
 
             function qcpReset() {

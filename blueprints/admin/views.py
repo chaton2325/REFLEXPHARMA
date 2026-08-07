@@ -143,6 +143,27 @@ def produit_from_form(form, fournisseur):
         points_fidelite=int(form.get('points_fidelite')) if form.get('points_fidelite') not in (None, '') else None
     )
 
+def produit_to_stock_json(p):
+    """Serialisation JSON d'un produit pour le selecteur du module Stock (voir
+    stock_produits_search, quick_create_produit, quick_update_produit_pricing) :
+    tarification complete + prefixe fournisseur (utilise dans le code de suivi)."""
+    return {
+        'id': p.id,
+        'nom': p.nom,
+        'code_produit': p.code_produit,
+        'fournisseur': p.fournisseur.nom if p.fournisseur else None,
+        'fournisseur_prefixe': p.fournisseur.prefixe if p.fournisseur else None,
+        'conditionnement': p.conditionnement,
+        'coefficient': p.effectif_coefficient,
+        'tva': p.effectif_tva,
+        'prix_unite_ht': p.prix_unite or 0,
+        'prix_unite_ttc': p.prix_unite_ttc or 0,
+        'prix_sous_unite_ht': p.prix_sous_unite or 0,
+        'prix_sous_unite_ttc': p.prix_sous_unite_ttc or 0,
+        'prix_sous_sous_unite_ht': p.prix_sous_sous_unite or 0,
+        'prix_sous_sous_unite_ttc': p.prix_sous_sous_unite_ttc or 0,
+    }
+
 STOCK_MODIFICATION_ACTION_LABELS = {
     'create': 'Création',
     'adjust': 'Ajustement',
@@ -3683,25 +3704,45 @@ def quick_create_produit():
     db.session.add(produit)
     db.session.commit()
 
-    return jsonify({
-        'success': True,
-        'produit': {
-            'id': produit.id,
-            'nom': produit.nom,
-            'code_produit': produit.code_produit,
-            'fournisseur': fournisseur.nom,
-            'fournisseur_prefixe': fournisseur.prefixe,
-            'conditionnement': produit.conditionnement,
-            'coefficient': produit.effectif_coefficient,
-            'tva': produit.effectif_tva,
-            'prix_unite_ht': produit.prix_unite or 0,
-            'prix_unite_ttc': produit.prix_unite_ttc or 0,
-            'prix_sous_unite_ht': produit.prix_sous_unite or 0,
-            'prix_sous_unite_ttc': produit.prix_sous_unite_ttc or 0,
-            'prix_sous_sous_unite_ht': produit.prix_sous_sous_unite or 0,
-            'prix_sous_sous_unite_ttc': produit.prix_sous_sous_unite_ttc or 0,
-        }
-    })
+    return jsonify({'success': True, 'produit': produit_to_stock_json(produit)})
+
+@admin.route('/produits/<int:id>/quick-update-pricing', methods=['POST'])
+@login_required
+@permission_required('gestion_produits')
+def quick_update_produit_pricing(id):
+    """Ajustement rapide du prix d'achat / coefficient / TVA d'un produit du
+    catalogue, utilise depuis le module Stock au moment de l'entree en stock :
+    ces valeurs changent regulierement cote fournisseur, inutile d'aller les
+    modifier dans le catalogue produits a chaque fois. Les lots de stock n'ont
+    pas de prix propre : ils lisent toujours le prix catalogue courant du
+    produit, donc ce changement s'applique immediatement partout (ventes,
+    futures entrees en stock, lots deja en stock)."""
+    produit = Produit.query.get_or_404(id)
+
+    try:
+        prix_unite = float(request.form.get('prix_unite') or 0)
+        prix_sous_unite = float(request.form.get('prix_sous_unite') or 0)
+        prix_sous_sous_unite = float(request.form.get('prix_sous_sous_unite') or 0)
+        coefficient = float(request.form.get('coefficient') or 0)
+        tva = float(request.form.get('tva') or 0)
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Valeurs numériques invalides.'}), 400
+
+    if prix_unite <= 0:
+        return jsonify({'success': False, 'message': "Le prix d'achat (unité) doit être supérieur à 0."}), 400
+    if coefficient <= 0:
+        return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
+    if tva < 0:
+        return jsonify({'success': False, 'message': 'La TVA ne peut pas être négative.'}), 400
+
+    produit.prix_unite = prix_unite
+    produit.prix_sous_unite = prix_sous_unite
+    produit.prix_sous_sous_unite = prix_sous_sous_unite
+    produit.coefficient = coefficient
+    produit.tva = tva
+    db.session.commit()
+
+    return jsonify({'success': True, 'produit': produit_to_stock_json(produit)})
 
 @admin.route('/produits/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -4385,27 +4426,7 @@ def stock_produits_search():
         like = f'%{q}%'
         query = query.filter(db.or_(Produit.nom.ilike(like), Produit.code_produit.ilike(like)))
     produits = query.order_by(Produit.nom.asc()).limit(20).all()
-    return jsonify({
-        'results': [
-            {
-                'id': p.id,
-                'nom': p.nom,
-                'code_produit': p.code_produit,
-                'fournisseur': p.fournisseur.nom if p.fournisseur else None,
-                'fournisseur_prefixe': p.fournisseur.prefixe if p.fournisseur else None,
-                'conditionnement': p.conditionnement,
-                'coefficient': p.effectif_coefficient,
-                'tva': p.effectif_tva,
-                'prix_unite_ht': p.prix_unite or 0,
-                'prix_unite_ttc': p.prix_unite_ttc or 0,
-                'prix_sous_unite_ht': p.prix_sous_unite or 0,
-                'prix_sous_unite_ttc': p.prix_sous_unite_ttc or 0,
-                'prix_sous_sous_unite_ht': p.prix_sous_sous_unite or 0,
-                'prix_sous_sous_unite_ttc': p.prix_sous_sous_unite_ttc or 0,
-            }
-            for p in produits
-        ]
-    })
+    return jsonify({'results': [produit_to_stock_json(p) for p in produits]})
 
 @admin.route('/stock', methods=['GET', 'POST'])
 @login_required
