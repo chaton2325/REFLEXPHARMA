@@ -668,6 +668,7 @@
     <div class="d-flex align-items-center gap-3 mb-3">
       <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#stockEntryModal" style="border-radius:10px;font-weight:600;padding:0.5rem 1.5rem;box-shadow:0 4px 12px rgba(52,152,219,0.25);">
         <i class="fas fa-plus-circle me-2"></i> Nouvelle entrée en stock
+        <span class="badge bg-white text-primary ms-2 d-none" id="stockEntryPendingBadge" title="Lignes en attente dans le panier">0</span>
       </button>
     </div>
     <form id="bulkQrForm" method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}"></form>
@@ -1283,7 +1284,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h6 class="mb-3 d-flex align-items-center gap-2">
                   <i class="fas fa-shopping-basket"></i> Panier
                   <span class="badge bg-primary rounded-pill" id="cartCount">0</span>
+                  <button type="button" id="clearCartBtn" class="btn btn-sm btn-outline-danger ms-auto" disabled title="Vider le panier">
+                    <i class="fas fa-trash me-1"></i>Vider le panier
+                  </button>
                 </h6>
+                <div class="small text-muted mb-2" id="cartPersistedHint" style="display:none;">
+                  <i class="fas fa-clock-rotate-left me-1"></i>Panier restauré depuis votre dernière visite.
+                </div>
 
                 <div id="cartEmpty" class="text-center text-muted py-4">
                   <i class="fas fa-inbox" style="font-size:1.75rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
@@ -1985,6 +1992,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const cartTotalTtc = document.getElementById('cartTotalTtc');
     const cartHiddenFields = document.getElementById('cartHiddenFields');
     const validateCartBtn = document.getElementById('validateCartBtn');
+    const clearCartBtn = document.getElementById('clearCartBtn');
+    const cartPersistedHint = document.getElementById('cartPersistedHint');
+    const stockEntryPendingBadge = document.getElementById('stockEntryPendingBadge');
 
     if (stockEntryForm && produitSearchInput) {
         function mNormalizeBl(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[\\/]/g, '-'); }
@@ -2027,8 +2037,46 @@ document.addEventListener('DOMContentLoaded', function() {
             return { ht, benefice, tva, ttc };
         }
 
+        // Le panier survit a la navigation (changement de page, fermeture du
+        // modal) via localStorage : on retrouve le travail en cours en rouvrant
+        // le modal, meme apres avoir quitte /admin/stock puis y etre revenu.
+        const CART_STORAGE_KEY = 'reflexpharma_stock_entry_cart_v1';
+
+        function saveCartToStorage() {
+            try {
+                if (cart.length > 0) {
+                    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+                } else {
+                    window.localStorage.removeItem(CART_STORAGE_KEY);
+                }
+            } catch (e) {
+                // Stockage indisponible (navigation privee, quota depasse...) :
+                // le panier reste utilisable pour la session en cours, simplement
+                // sans persistance entre deux visites.
+            }
+        }
+
+        function loadCartFromStorage() {
+            try {
+                const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        // Si la derniere soumission du panier a reussi (modale de succes animee
+        // presente sur cette page, cf. la categorie de flash 'stock_success'), on
+        // vide le panier stocke avant de le recharger : il vient d'etre enregistre
+        // en base, le conserver creerait des doublons a la prochaine ouverture.
+        if (document.getElementById('stockEntrySuccessModal')) {
+            try { window.localStorage.removeItem(CART_STORAGE_KEY); } catch (e) {}
+        }
+
         let selectedProduit = null;
-        let cart = [];
+        let cart = loadCartFromStorage();
+        let cartRestoredFromStorage = cart.length > 0;
         let searchTimer = null;
         let searchAbortController = null;
         let activeResultIndex = -1;
@@ -2304,7 +2352,14 @@ document.addEventListener('DOMContentLoaded', function() {
             cartCount.textContent = cart.length;
             cartCountFooter.textContent = cart.length;
             validateCartBtn.disabled = cart.length === 0;
+            if (clearCartBtn) clearCartBtn.disabled = cart.length === 0;
             cartEmpty.classList.toggle('d-none', cart.length > 0);
+            if (cartPersistedHint) cartPersistedHint.style.display = cart.length > 0 && cartRestoredFromStorage ? '' : 'none';
+            if (stockEntryPendingBadge) {
+                stockEntryPendingBadge.textContent = cart.length;
+                stockEntryPendingBadge.classList.toggle('d-none', cart.length === 0);
+            }
+            saveCartToStorage();
 
             cartItemsList.innerHTML = cart.map((item, idx) => {
                 const qtyParts = [item.quantite_unites + 'U'];
@@ -2465,9 +2520,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Reinitialise le panier et la recherche a chaque ouverture du modal
+        // Reinitialise uniquement la recherche/ligne en cours a chaque ouverture
+        // du modal : le panier, lui, est conserve (voir loadCartFromStorage) pour
+        // qu'on retrouve le travail laisse en suspens, meme apres avoir quitte la
+        // page entre-temps.
         stockEntryModalEl.addEventListener('show.bs.modal', () => {
-            cart = [];
             selectedProduit = null;
             produitSearchInput.value = '';
             produitSearchClear.classList.add('d-none');
@@ -2476,6 +2533,20 @@ document.addEventListener('DOMContentLoaded', function() {
             produitLineEmpty.classList.remove('d-none');
             renderCart();
         });
+
+        if (clearCartBtn) {
+            clearCartBtn.addEventListener('click', () => {
+                if (cart.length === 0) return;
+                if (!window.confirm('Vider le panier ? Toutes les lignes en attente seront perdues.')) return;
+                cart = [];
+                cartRestoredFromStorage = false;
+                renderCart();
+            });
+        }
+
+        // Affiche l'etat initial (badge sur le bouton "Nouvelle entree en stock")
+        // des l'ouverture de la page, sans attendre que le modal soit ouvert.
+        renderCart();
 
         // ---- Volet "Nouveau produit" : second modal a droite, ouvert par-dessus
         // celui-ci pour creer un produit et l'ajouter directement au panier, sans
