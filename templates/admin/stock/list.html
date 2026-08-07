@@ -1237,11 +1237,46 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="col-lg-7 stock-entry-col-search">
               <div class="p-3 p-lg-4">
 
-                <!-- Etape 1 : le BL est defini une seule fois, avant toute recherche
-                     de produit. Tous les produits ajoutes ensuite en heritent,
-                     jusqu'a ce qu'on clique "Changer" -- plus besoin de le
-                     ressaisir a chaque ligne. -->
-                <div id="blSetupBox">
+                <!-- Etape 1 : le fournisseur est defini une seule fois, avant le BL et
+                     toute recherche de produit. Tous les produits ajoutes ensuite en
+                     heritent (et la recherche s'y limite), jusqu'a ce qu'on clique
+                     "Changer". -->
+                <div id="fournisseurSetupBox">
+                  <label for="activeFournisseurSelect" class="form-label">Fournisseur <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="fas fa-truck text-muted"></i></span>
+                    <select id="activeFournisseurSelect" class="form-select">
+                      <option value="">Choisir un fournisseur...</option>
+                      {% for f in fournisseurs %}
+                      <option value="{{ f.id }}">{{ f.nom }} ({{ f.prefixe }})</option>
+                      {% endfor %}
+                    </select>
+                    <button type="button" id="setFournisseurBtn" class="btn btn-primary">
+                      <i class="fas fa-arrow-right me-1"></i>Continuer
+                    </button>
+                  </div>
+                  <div class="form-text small text-muted">La recherche de produits sera limitée à ce fournisseur, jusqu'à ce que vous le changiez.</div>
+                </div>
+
+                <div id="fournisseurActiveBox" class="selected-produit-card d-none">
+                  <div class="d-flex align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2" style="min-width:0;">
+                      <i class="fas fa-truck text-primary"></i>
+                      <div style="min-width:0;">
+                        <div class="cell-sub">Fournisseur actif</div>
+                        <div class="fw-bold text-truncate" id="activeFournisseurValue" style="color:#1a1a2e;"></div>
+                      </div>
+                    </div>
+                    <button type="button" id="changeFournisseurBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+                      <i class="fas fa-pen me-1"></i>Changer
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Etape 2 : le BL, masque tant que le fournisseur n'est pas defini.
+                     Tous les produits ajoutes ensuite en heritent, jusqu'a ce qu'on
+                     clique "Changer" -- plus besoin de le ressaisir a chaque ligne. -->
+                <div id="blSetupBox" class="d-none mt-3">
                   <label for="activeBlInput" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
                   <div class="input-group">
                     <span class="input-group-text bg-white"><i class="fas fa-file-invoice text-muted"></i></span>
@@ -1253,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   <div class="form-text small text-muted">Tous les produits ajoutés ensuite au panier utiliseront ce BL, jusqu'à ce que vous le changiez.</div>
                 </div>
 
-                <div id="blActiveBox" class="selected-produit-card d-none">
+                <div id="blActiveBox" class="selected-produit-card d-none mt-3">
                   <div class="d-flex align-items-center justify-content-between gap-2">
                     <div class="d-flex align-items-center gap-2" style="min-width:0;">
                       <i class="fas fa-file-invoice text-primary"></i>
@@ -1268,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   </div>
                 </div>
 
-                <!-- Etape 2 : recherche produit, masquee tant que le BL n'est pas defini -->
+                <!-- Etape 3 : recherche produit, masquee tant que le BL n'est pas defini -->
                 <div id="produitSearchSection" class="d-none mt-3">
                   <label for="produitSearchInput" class="form-label">Rechercher un produit <span class="text-danger">*</span></label>
                   <div class="search-wrapper">
@@ -2117,6 +2152,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // pour rester utilisable meme avec un tres grand nombre de produits.
     const stockEntryForm = document.getElementById('stockFormMobile');
     const stockEntryModalEl = document.getElementById('stockEntryModal');
+    const fournisseurSetupBox = document.getElementById('fournisseurSetupBox');
+    const activeFournisseurSelect = document.getElementById('activeFournisseurSelect');
+    const setFournisseurBtn = document.getElementById('setFournisseurBtn');
+    const fournisseurActiveBox = document.getElementById('fournisseurActiveBox');
+    const activeFournisseurValue = document.getElementById('activeFournisseurValue');
+    const changeFournisseurBtn = document.getElementById('changeFournisseurBtn');
     const blSetupBox = document.getElementById('blSetupBox');
     const activeBlInput = document.getElementById('activeBlInput');
     const setBlBtn = document.getElementById('setBlBtn');
@@ -2237,14 +2278,69 @@ document.addEventListener('DOMContentLoaded', function() {
         let selectedProduit = null;
         let cart = loadCartFromStorage();
         let cartRestoredFromStorage = cart.length > 0;
-        // Le BL est defini une seule fois (etape 1) puis s'applique a tous les
-        // produits ajoutes au panier tant qu'on ne clique pas "Changer" : la
-        // plupart du temps, plusieurs produits arrivent sous le meme bon de
-        // livraison, inutile de le ressaisir a chaque ligne.
+        // Le fournisseur, puis le BL, sont definis une seule fois (etapes 1 et 2)
+        // et s'appliquent ensuite a tous les produits ajoutes au panier tant qu'on
+        // ne clique pas "Changer" : une livraison ne concerne qu'un seul
+        // fournisseur et un seul BL, inutile de les ressaisir a chaque ligne. La
+        // recherche produit se limite au fournisseur actif (voir runSearch).
+        let activeFournisseurId = cart.length > 0 ? String(cart[cart.length - 1].produit.fournisseur_id || '') : '';
+        let activeFournisseurLabel = cart.length > 0 ? (cart[cart.length - 1].produit.fournisseur || '') : '';
         let activeBl = cart.length > 0 ? cart[cart.length - 1].numero_bl : '';
 
-        // ---- Etape 1 : BL actif ----
+        // ---- Etape 1 : fournisseur actif ----
+        function refreshFournisseurUi() {
+            if (activeFournisseurId) {
+                activeFournisseurValue.textContent = activeFournisseurLabel;
+                fournisseurSetupBox.classList.add('d-none');
+                fournisseurActiveBox.classList.remove('d-none');
+            } else {
+                fournisseurSetupBox.classList.remove('d-none');
+                fournisseurActiveBox.classList.add('d-none');
+                activeFournisseurSelect.value = '';
+            }
+            refreshBlUi();
+        }
+
+        function activateFournisseur(id, label) {
+            if (!id) {
+                activeFournisseurSelect.focus();
+                return false;
+            }
+            activeFournisseurId = id;
+            activeFournisseurLabel = label;
+            refreshFournisseurUi();
+            return true;
+        }
+
+        setFournisseurBtn.addEventListener('click', () => {
+            const opt = activeFournisseurSelect.options[activeFournisseurSelect.selectedIndex];
+            if (activateFournisseur(activeFournisseurSelect.value, opt ? opt.textContent.trim() : '')) {
+                activeBlInput.focus();
+            }
+        });
+        changeFournisseurBtn.addEventListener('click', () => {
+            // Change de fournisseur : le BL et la ligne en cours de saisie ne
+            // correspondent plus forcement a la nouvelle livraison.
+            selectedProduit = null;
+            produitLineForm.classList.add('d-none');
+            produitLineEmpty.classList.remove('d-none');
+            activeBl = '';
+            activeFournisseurSelect.value = activeFournisseurId;
+            activeFournisseurId = '';
+            activeFournisseurLabel = '';
+            refreshFournisseurUi();
+            activeFournisseurSelect.focus();
+        });
+
+        // ---- Etape 2 : BL actif ----
         function refreshBlUi() {
+            if (!activeFournisseurId) {
+                // Rien a montrer tant que le fournisseur n'est pas choisi.
+                blSetupBox.classList.add('d-none');
+                blActiveBox.classList.add('d-none');
+                produitSearchSection.classList.add('d-none');
+                return;
+            }
             if (activeBl) {
                 activeBlValue.textContent = activeBl;
                 blSetupBox.classList.add('d-none');
@@ -2331,7 +2427,8 @@ document.addEventListener('DOMContentLoaded', function() {
             searchAbortController = new AbortController();
             produitSearchResults.innerHTML = '<div class="result-loading"><span class="spinner-border spinner-border-sm me-1"></span>Recherche...</div>';
             produitSearchResults.classList.remove('d-none');
-            fetch(`{{ url_for('admin.stock_produits_search') }}?q=${encodeURIComponent(q)}`, { signal: searchAbortController.signal })
+            const fournisseurParam = activeFournisseurId ? `&fournisseur_id=${encodeURIComponent(activeFournisseurId)}` : '';
+            fetch(`{{ url_for('admin.stock_produits_search') }}?q=${encodeURIComponent(q)}${fournisseurParam}`, { signal: searchAbortController.signal })
                 .then((res) => res.json())
                 .then((data) => renderResultsList(data.results || []))
                 .catch((err) => {
@@ -2881,7 +2978,7 @@ document.addEventListener('DOMContentLoaded', function() {
             hideResults();
             produitLineForm.classList.add('d-none');
             produitLineEmpty.classList.remove('d-none');
-            refreshBlUi();
+            refreshFournisseurUi();
             renderCart();
         });
 
@@ -2891,16 +2988,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!window.confirm('Vider le panier ? Toutes les lignes en attente seront perdues.')) return;
                 cart = [];
                 cartRestoredFromStorage = false;
+                activeFournisseurId = '';
+                activeFournisseurLabel = '';
                 activeBl = '';
-                refreshBlUi();
+                refreshFournisseurUi();
                 renderCart();
             });
         }
 
-        // Affiche l'etat initial (BL actif, badge sur le bouton "Nouvelle entree
-        // en stock") des l'ouverture de la page, sans attendre que le modal soit
-        // ouvert.
-        refreshBlUi();
+        // Affiche l'etat initial (fournisseur/BL actifs, badge sur le bouton
+        // "Nouvelle entree en stock") des l'ouverture de la page, sans attendre
+        // que le modal soit ouvert.
+        refreshFournisseurUi();
         renderCart();
 
         // ---- Volet "Nouveau produit" : second modal a droite, ouvert par-dessus
@@ -2944,7 +3043,9 @@ document.addEventListener('DOMContentLoaded', function() {
             function qcpReset() {
                 qcpNom.value = '';
                 qcpCip.value = '';
-                qcpFournisseur.value = '';
+                // Pre-selectionne le fournisseur actif de l'etape 1 : un produit
+                // cree ici concerne quasi toujours ce meme fournisseur.
+                qcpFournisseur.value = activeFournisseurId || '';
                 qcpRayon.value = '';
                 qcpFamille.value = '';
                 qcpSection.value = '';

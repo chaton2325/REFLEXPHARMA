@@ -151,6 +151,7 @@ def produit_to_stock_json(p):
         'id': p.id,
         'nom': p.nom,
         'code_produit': p.code_produit,
+        'fournisseur_id': p.fournisseur_id,
         'fournisseur': p.fournisseur.nom if p.fournisseur else None,
         'fournisseur_prefixe': p.fournisseur.prefixe if p.fournisseur else None,
         'conditionnement': p.conditionnement,
@@ -4419,12 +4420,20 @@ def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites
 def stock_produits_search():
     """Recherche de produits pagineé pour le selecteur d'entree en stock (evite de
     charger tout le catalogue dans la page lorsque celui-ci compte des milliers,
-    voire des millions, de produits)."""
+    voire des millions, de produits). Filtrable par fournisseur : le module
+    Stock fixe un fournisseur actif avant la recherche, pour ne proposer que
+    ses produits (une livraison ne concerne qu'un seul fournisseur)."""
     q = (request.args.get('q') or '').strip()
+    fournisseur_id = (request.args.get('fournisseur_id') or '').strip()
     query = Produit.query
     if q:
         like = f'%{q}%'
         query = query.filter(db.or_(Produit.nom.ilike(like), Produit.code_produit.ilike(like)))
+    if fournisseur_id:
+        try:
+            query = query.filter(Produit.fournisseur_id == int(fournisseur_id))
+        except ValueError:
+            pass
     produits = query.order_by(Produit.nom.asc()).limit(20).all()
     return jsonify({'results': [produit_to_stock_json(p) for p in produits]})
 
