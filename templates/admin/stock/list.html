@@ -1185,95 +1185,126 @@ document.addEventListener('DOMContentLoaded', function() {
             <!-- Colonne gauche : recherche produit + configuration de la ligne -->
             <div class="col-lg-7 stock-entry-col-search">
               <div class="p-3 p-lg-4">
-                <label for="produitSearchInput" class="form-label">Rechercher un produit <span class="text-danger">*</span></label>
-                <div class="search-wrapper">
+
+                <!-- Etape 1 : le BL est defini une seule fois, avant toute recherche
+                     de produit. Tous les produits ajoutes ensuite en heritent,
+                     jusqu'a ce qu'on clique "Changer" -- plus besoin de le
+                     ressaisir a chaque ligne. -->
+                <div id="blSetupBox">
+                  <label for="activeBlInput" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
                   <div class="input-group">
-                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" id="produitSearchInput" class="form-control" placeholder="Nom ou code produit... (min. 2 caractères)" autocomplete="off">
-                    <button type="button" id="produitSearchClear" class="btn btn-outline-secondary d-none"><i class="fas fa-times"></i></button>
+                    <span class="input-group-text bg-white"><i class="fas fa-file-invoice text-muted"></i></span>
+                    <input type="text" id="activeBlInput" class="form-control" placeholder="Ex: BL-2026-000154" autocomplete="off">
+                    <button type="button" id="setBlBtn" class="btn btn-primary">
+                      <i class="fas fa-arrow-right me-1"></i>Continuer
+                    </button>
                   </div>
-                  <div id="produitSearchResults" class="produit-search-results d-none"></div>
-                </div>
-                {% if current_user.has_permission('gestion_produits') %}
-                <div class="text-end mt-2">
-                  <button type="button" id="openQuickCreateProduit" class="btn btn-link p-0">
-                    <i class="fas fa-plus-circle me-1"></i>Produit introuvable ? Créer un nouveau produit
-                  </button>
-                </div>
-                {% endif %}
-
-                <div id="produitLineEmpty" class="text-center text-muted py-5">
-                  <i class="fas fa-box-open" style="font-size:2rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
-                  Recherchez un produit ci-dessus pour préparer une ligne d'entrée en stock.
+                  <div class="form-text small text-muted">Tous les produits ajoutés ensuite au panier utiliseront ce BL, jusqu'à ce que vous le changiez.</div>
                 </div>
 
-                <div id="produitLineForm" class="d-none">
-                  <div class="selected-produit-card mt-3">
-                    <div class="d-flex justify-content-between align-items-start gap-2">
-                      <div>
-                        <div class="fw-bold" id="selProduitNom" style="color:#1a1a2e;"></div>
-                        <div class="cell-sub" id="selProduitMeta"></div>
+                <div id="blActiveBox" class="selected-produit-card d-none">
+                  <div class="d-flex align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2" style="min-width:0;">
+                      <i class="fas fa-file-invoice text-primary"></i>
+                      <div style="min-width:0;">
+                        <div class="cell-sub">Bon de livraison actif</div>
+                        <div class="fw-bold text-truncate" id="activeBlValue" style="color:#1a1a2e;"></div>
                       </div>
-                      <button type="button" id="produitLineChange" class="btn btn-sm btn-outline-secondary flex-shrink-0">
-                        <i class="fas fa-exchange-alt me-1"></i>Changer
-                      </button>
                     </div>
-                    <div class="mt-2 d-flex gap-1">
-                      <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
-                      <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
+                    <button type="button" id="changeBlBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+                      <i class="fas fa-pen me-1"></i>Changer
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Etape 2 : recherche produit, masquee tant que le BL n'est pas defini -->
+                <div id="produitSearchSection" class="d-none mt-3">
+                  <label for="produitSearchInput" class="form-label">Rechercher un produit <span class="text-danger">*</span></label>
+                  <div class="search-wrapper">
+                    <div class="input-group">
+                      <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                      <input type="text" id="produitSearchInput" class="form-control" placeholder="Nom ou code produit... (min. 2 caractères)" autocomplete="off">
+                      <button type="button" id="produitSearchClear" class="btn btn-outline-secondary d-none"><i class="fas fa-times"></i></button>
                     </div>
+                    <div id="produitSearchResults" class="produit-search-results d-none"></div>
+                  </div>
+                  {% if current_user.has_permission('gestion_produits') %}
+                  <div class="text-end mt-2">
+                    <button type="button" id="openQuickCreateProduit" class="btn btn-link p-0">
+                      <i class="fas fa-plus-circle me-1"></i>Produit introuvable ? Créer un nouveau produit
+                    </button>
+                  </div>
+                  {% endif %}
+
+                  <div id="produitLineEmpty" class="text-center text-muted py-5">
+                    <i class="fas fa-box-open" style="font-size:2rem;color:#dee2e6;display:block;margin-bottom:0.5rem;"></i>
+                    Recherchez un produit ci-dessus pour préparer une ligne d'entrée en stock.
                   </div>
 
-                  <div class="row g-3 mt-1">
-                    <div class="col-sm-6">
-                      <label for="numero_bl_mobile" class="form-label">Numéro de BL <span class="text-danger">*</span></label>
-                      <input type="text" id="numero_bl_mobile" class="form-control" placeholder="Ex: BL-2026-000154">
+                  <div id="produitLineForm" class="d-none">
+                    <div class="selected-produit-card mt-3">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="fw-bold" id="selProduitNom" style="color:#1a1a2e;"></div>
+                          <div class="cell-sub" id="selProduitMeta"></div>
+                        </div>
+                        <button type="button" id="produitLineChange" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+                          <i class="fas fa-exchange-alt me-1"></i>Changer
+                        </button>
+                      </div>
+                      <div class="mt-2 d-flex gap-1">
+                        <span class="rate-badge rate-badge-coef" id="prodCoefBadgeMobile">Coef. x1.00</span>
+                        <span class="rate-badge rate-badge-tva" id="prodTvaBadgeMobile">TVA 0%</span>
+                      </div>
                     </div>
-                    <div class="col-sm-6">
-                      <label for="date_peremption_mobile" class="form-label">Date de péremption <span class="text-danger">*</span></label>
-                      <input type="date" id="date_peremption_mobile" class="form-control">
+
+                    <div class="row g-3 mt-1">
+                      <div class="col-sm-6">
+                        <label for="date_peremption_mobile" class="form-label">Date de péremption <span class="text-danger">*</span></label>
+                        <input type="date" id="date_peremption_mobile" class="form-control">
+                      </div>
+                      <div class="col-sm-6">
+                        <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
+                        <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
+                      </div>
                     </div>
-                  </div>
-                  <div class="mt-2">
-                    <label for="code_suivi_preview_mobile" class="form-label">Code de suivi généré</label>
-                    <input type="text" id="code_suivi_preview_mobile" class="form-control" readonly placeholder="Calculé automatiquement">
-                  </div>
 
-                  <div class="border rounded p-3 pricing-preview mt-3">
-                    <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
-                    <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
-                    <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
-                    <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
-                  </div>
-
-                  <div class="row g-3 mt-1">
-                    <div class="col-sm-4">
-                      <label class="form-label">Quantité unités</label>
-                      <input type="number" min="0" id="quantite_unites_mobile" class="form-control" value="0">
+                    <div class="border rounded p-3 pricing-preview mt-3">
+                      <div class="small text-muted mb-2">Tarification du produit sélectionné</div>
+                      <div class="small mb-1"><strong>Unité:</strong> <span id="prixUniteInfoMobile">0.00 {{ devise }} HT / Marge 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</span></div>
+                      <div class="small mb-1"><strong>Sous-unité:</strong> <span id="prixSousUniteInfoMobile">N/A</span></div>
+                      <div class="small"><strong>Sous-sous-unité:</strong> <span id="prixSousSousUniteInfoMobile">N/A</span></div>
                     </div>
-                    <div class="col-sm-4" id="groupSousUnitesMobile">
-                      <label class="form-label">Quantité sous-unités</label>
-                      <input type="number" min="0" id="quantite_sous_unites_mobile" class="form-control" value="0">
+
+                    <div class="row g-3 mt-1">
+                      <div class="col-sm-4">
+                        <label class="form-label">Quantité unités</label>
+                        <input type="number" min="0" id="quantite_unites_mobile" class="form-control" value="0">
+                      </div>
+                      <div class="col-sm-4" id="groupSousUnitesMobile">
+                        <label class="form-label">Quantité sous-unités</label>
+                        <input type="number" min="0" id="quantite_sous_unites_mobile" class="form-control" value="0">
+                      </div>
+                      <div class="col-sm-4" id="groupSousSousUnitesMobile">
+                        <label class="form-label">Quantité sous-sous-unités</label>
+                        <input type="number" min="0" id="quantite_sous_sous_unites_mobile" class="form-control" value="0">
+                      </div>
                     </div>
-                    <div class="col-sm-4" id="groupSousSousUnitesMobile">
-                      <label class="form-label">Quantité sous-sous-unités</label>
-                      <input type="number" min="0" id="quantite_sous_sous_unites_mobile" class="form-control" value="0">
+
+                    <div class="border rounded p-3 bg-success bg-opacity-10 mt-3">
+                      <div class="small text-muted mb-2">Estimation de la ligne</div>
+                      <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
+                      <div class="small mb-1"><strong>Marge brute:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
+                      <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
+                      <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
                     </div>
+
+                    <div id="produitLineError" class="alert alert-warning small py-2 px-3 mt-3 d-none"></div>
+
+                    <button type="button" id="addToCartBtn" class="btn btn-primary w-100 mt-3" style="border-radius:10px;font-weight:600;">
+                      <i class="fas fa-cart-plus me-1"></i> Ajouter au panier
+                    </button>
                   </div>
-
-                  <div class="border rounded p-3 bg-success bg-opacity-10 mt-3">
-                    <div class="small text-muted mb-2">Estimation de la ligne</div>
-                    <div class="small mb-1"><strong>Total HT:</strong> <span id="totalHtMobile">0.00 {{ devise }}</span></div>
-                    <div class="small mb-1"><strong>Marge brute:</strong> <span id="totalBeneficeMobile" class="amount-benefice">0.00 {{ devise }}</span></div>
-                    <div class="small mb-1"><strong>TVA:</strong> <span id="totalTaxeMobile" class="amount-tva">0.00 {{ devise }}</span></div>
-                    <div class="small"><strong>Total TTC:</strong> <span id="totalTtcMobile">0.00 {{ devise }}</span></div>
-                  </div>
-
-                  <div id="produitLineError" class="alert alert-warning small py-2 px-3 mt-3 d-none"></div>
-
-                  <button type="button" id="addToCartBtn" class="btn btn-primary w-100 mt-3" style="border-radius:10px;font-weight:600;">
-                    <i class="fas fa-cart-plus me-1"></i> Ajouter au panier
-                  </button>
                 </div>
               </div>
             </div>
@@ -1964,6 +1995,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // pour rester utilisable meme avec un tres grand nombre de produits.
     const stockEntryForm = document.getElementById('stockFormMobile');
     const stockEntryModalEl = document.getElementById('stockEntryModal');
+    const blSetupBox = document.getElementById('blSetupBox');
+    const activeBlInput = document.getElementById('activeBlInput');
+    const setBlBtn = document.getElementById('setBlBtn');
+    const blActiveBox = document.getElementById('blActiveBox');
+    const activeBlValue = document.getElementById('activeBlValue');
+    const changeBlBtn = document.getElementById('changeBlBtn');
+    const produitSearchSection = document.getElementById('produitSearchSection');
     const produitSearchInput = document.getElementById('produitSearchInput');
     const produitSearchClear = document.getElementById('produitSearchClear');
     const produitSearchResults = document.getElementById('produitSearchResults');
@@ -1974,7 +2012,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const produitLineChange = document.getElementById('produitLineChange');
     const prodCoefBadgeMobile = document.getElementById('prodCoefBadgeMobile');
     const prodTvaBadgeMobile = document.getElementById('prodTvaBadgeMobile');
-    const mBl = document.getElementById('numero_bl_mobile');
     const mPeremption = document.getElementById('date_peremption_mobile');
     const mCodePreview = document.getElementById('code_suivi_preview_mobile');
     const mQtyUnites = document.getElementById('quantite_unites_mobile');
@@ -2077,6 +2114,60 @@ document.addEventListener('DOMContentLoaded', function() {
         let selectedProduit = null;
         let cart = loadCartFromStorage();
         let cartRestoredFromStorage = cart.length > 0;
+        // Le BL est defini une seule fois (etape 1) puis s'applique a tous les
+        // produits ajoutes au panier tant qu'on ne clique pas "Changer" : la
+        // plupart du temps, plusieurs produits arrivent sous le meme bon de
+        // livraison, inutile de le ressaisir a chaque ligne.
+        let activeBl = cart.length > 0 ? cart[cart.length - 1].numero_bl : '';
+
+        // ---- Etape 1 : BL actif ----
+        function refreshBlUi() {
+            if (activeBl) {
+                activeBlValue.textContent = activeBl;
+                blSetupBox.classList.add('d-none');
+                blActiveBox.classList.remove('d-none');
+                produitSearchSection.classList.remove('d-none');
+            } else {
+                blSetupBox.classList.remove('d-none');
+                blActiveBox.classList.add('d-none');
+                produitSearchSection.classList.add('d-none');
+                activeBlInput.value = '';
+            }
+        }
+
+        function activateBl(rawValue) {
+            const trimmed = (rawValue || '').trim();
+            if (!trimmed) {
+                activeBlInput.focus();
+                return false;
+            }
+            activeBl = trimmed;
+            refreshBlUi();
+            return true;
+        }
+
+        setBlBtn.addEventListener('click', () => {
+            if (activateBl(activeBlInput.value)) produitSearchInput.focus();
+        });
+        activeBlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (activateBl(activeBlInput.value)) produitSearchInput.focus();
+            }
+        });
+        changeBlBtn.addEventListener('click', () => {
+            // Change de BL : la ligne en cours de saisie (produit selectionne
+            // mais pas encore ajoute) n'a plus de sens sous le nouveau BL.
+            selectedProduit = null;
+            produitLineForm.classList.add('d-none');
+            produitLineEmpty.classList.remove('d-none');
+            activeBlInput.value = activeBl;
+            activeBl = '';
+            refreshBlUi();
+            activeBlInput.focus();
+            activeBlInput.select();
+        });
+
         let searchTimer = null;
         let searchAbortController = null;
         let activeResultIndex = -1;
@@ -2202,13 +2293,12 @@ document.addEventListener('DOMContentLoaded', function() {
             produitLineEmpty.classList.add('d-none');
             produitLineForm.classList.remove('d-none');
             produitLineError.classList.add('d-none');
-            mBl.value = '';
             mPeremption.value = '';
             mQtyUnites.value = 0;
             mQtySous.value = 0;
             mQtySousSous.value = 0;
             mRefreshLine();
-            mBl.focus();
+            mPeremption.focus();
         }
 
         produitLineChange.addEventListener('click', () => {
@@ -2288,7 +2378,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function mUpdateCode() {
             const prefix = (selectedProduit?.fournisseur_prefixe || '').toUpperCase();
             const pCode = selectedProduit?.code_produit || '';
-            const bl = mNormalizeBl(mBl?.value);
+            const bl = mNormalizeBl(activeBl);
             if (!pCode || !bl) {
                 mCodePreview.value = '';
                 return;
@@ -2310,7 +2400,6 @@ document.addEventListener('DOMContentLoaded', function() {
         mQtyUnites.addEventListener('input', mUpdateTotals);
         mQtySous.addEventListener('input', mUpdateTotals);
         mQtySousSous.addEventListener('input', mUpdateTotals);
-        mBl.addEventListener('input', mUpdateCode);
 
         // ---- Panier ----
         function showLineError(msg) {
@@ -2321,8 +2410,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addToCartBtn.addEventListener('click', () => {
             produitLineError.classList.add('d-none');
             if (!selectedProduit) return;
-            const blRaw = mBl.value.trim();
-            if (!blRaw) { showLineError('Veuillez indiquer le numéro de BL.'); mBl.focus(); return; }
+            if (!activeBl) { showLineError('Veuillez définir le numéro de BL.'); return; }
             if (!mPeremption.value) { showLineError('Veuillez indiquer la date de péremption.'); mPeremption.focus(); return; }
             const qu = Number(mQtyUnites.value || 0);
             const qsu = Number(mQtySous.value || 0);
@@ -2332,7 +2420,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const totals = currentLineTotals();
             cart.push({
                 produit: selectedProduit,
-                numero_bl: blRaw,
+                numero_bl: activeBl,
                 date_peremption: mPeremption.value,
                 quantite_unites: qu,
                 quantite_sous_unites: qsu,
@@ -2531,6 +2619,7 @@ document.addEventListener('DOMContentLoaded', function() {
             hideResults();
             produitLineForm.classList.add('d-none');
             produitLineEmpty.classList.remove('d-none');
+            refreshBlUi();
             renderCart();
         });
 
@@ -2540,12 +2629,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!window.confirm('Vider le panier ? Toutes les lignes en attente seront perdues.')) return;
                 cart = [];
                 cartRestoredFromStorage = false;
+                activeBl = '';
+                refreshBlUi();
                 renderCart();
             });
         }
 
-        // Affiche l'etat initial (badge sur le bouton "Nouvelle entree en stock")
-        // des l'ouverture de la page, sans attendre que le modal soit ouvert.
+        // Affiche l'etat initial (BL actif, badge sur le bouton "Nouvelle entree
+        // en stock") des l'ouverture de la page, sans attendre que le modal soit
+        // ouvert.
+        refreshBlUi();
         renderCart();
 
         // ---- Volet "Nouveau produit" : second modal a droite, ouvert par-dessus
