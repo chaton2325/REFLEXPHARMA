@@ -231,16 +231,19 @@
       <h1><i class="fas fa-pills me-2"></i>Catalogue Produits</h1>
       <p>Gérez l'ensemble des produits pharmaceutiques et paramédicaux.</p>
     </div>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('admin.export_produits_excel') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;">
-        <i class="fas fa-file-excel me-1"></i> Excel
-      </a>
-      <a href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;">
-        <i class="fas fa-file-pdf me-1"></i> PDF
-      </a>
-      <a href="{{ url_for('admin.create_produit') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
-        <i class="fas fa-plus me-1"></i> Nouveau Produit
-      </a>
+    <div class="d-flex flex-column align-items-end gap-1">
+      <div class="d-flex gap-2">
+        <a id="exportExcelBtn" href="{{ url_for('admin.export_produits_excel') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la vue filtrée/triée actuelle">
+          <i class="fas fa-file-excel me-1"></i> Excel
+        </a>
+        <a id="exportPdfBtn" href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la vue filtrée/triée actuelle">
+          <i class="fas fa-file-pdf me-1"></i> PDF
+        </a>
+        <a href="{{ url_for('admin.create_produit') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
+          <i class="fas fa-plus me-1"></i> Nouveau Produit
+        </a>
+      </div>
+      <span id="exportHint" class="small" style="color:rgba(255,255,255,0.75);"></span>
     </div>
   </div>
 </div>
@@ -322,7 +325,7 @@
     <!-- Mobile cards (xs only) -->
     <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileList">
       {% for p in produits %}
-      <div class="mobile-card" data-search="{{ p.nom }} {{ p.code_produit }} {{ p.fournisseur.nom }} {{ p.rayon.nom if p.rayon else '' }} {{ p.famille.nom if p.famille else '' }} Cond {{ p.conditionnement }}">
+      <div class="mobile-card" data-search="{{ p.nom }} {{ p.code_produit }} {{ p.fournisseur.nom }} {{ p.rayon.nom if p.rayon else '' }} {{ p.famille.nom if p.famille else '' }} Cond {{ p.conditionnement }}" data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.conditionnement or 1 }}" data-prix="{{ p.prix_unite or 0 }}">
         <div class="d-flex align-items-start gap-3">
           <input class="form-check-input mobile-check mt-1 row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}">
           <div style="flex:1;min-width:0;">
@@ -371,19 +374,19 @@
                 <input class="form-check-input" type="checkbox" id="selectAll" style="cursor:pointer;">
               </div>
             </th>
-            <th onclick="sortTable(1)" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable(2)" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
-            <th>Fournisseur</th>
-            <th>Rayon/Famille</th>
-            <th onclick="sortTable(5)" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable(6)" style="cursor:pointer">Achat / Vente TTC <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('code')" data-sort-field="code" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('nom')" data-sort-field="nom" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('fournisseur')" data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('rayon')" data-sort-field="rayon" style="cursor:pointer">Rayon/Famille <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('cond')" data-sort-field="cond" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('prix')" data-sort-field="prix" style="cursor:pointer">Achat / Vente TTC <i class="fas fa-sort"></i></th>
             <th>Points fidélité</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for p in produits %}
-          <tr>
+          <tr data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.conditionnement or 1 }}" data-prix="{{ p.prix_unite or 0 }}">
             <td>
               <div class="form-check" style="padding-left:1.5rem;">
                 <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}" style="cursor:pointer;">
@@ -596,6 +599,107 @@
 </div>
 
 <script>
+const EXPORT_EXCEL_BASE = "{{ url_for('admin.export_produits_excel') }}";
+const EXPORT_PDF_BASE = "{{ url_for('admin.export_produits_pdf') }}";
+const SORT_LABELS = { code: 'CIP', nom: 'Nom', fournisseur: 'Fournisseur', rayon: 'Rayon', cond: 'Conditionnement', prix: 'Prix Achat' };
+let currentSort = { field: null, dir: 'asc' };
+
+function updateExportLinks() {
+    const searchInput = document.getElementById('searchInput');
+    const params = new URLSearchParams();
+    const q = searchInput ? searchInput.value.trim() : '';
+    const fFournisseur = document.getElementById('filterFournisseur').value;
+    const fRayon = document.getElementById('filterRayon').value;
+    const fFamille = document.getElementById('filterFamille').value;
+    const fCondRaw = document.getElementById('filterCond').value;
+
+    if (q) params.set('q', q);
+    if (fFournisseur) params.set('fournisseur', fFournisseur);
+    if (fRayon) params.set('rayon', fRayon);
+    if (fFamille) params.set('famille', fFamille);
+    if (fCondRaw) params.set('cond', fCondRaw.replace('Cond ', ''));
+    if (currentSort.field) {
+        params.set('sort', currentSort.field);
+        params.set('dir', currentSort.dir);
+    }
+
+    const qs = params.toString();
+    const excelBtn = document.getElementById('exportExcelBtn');
+    const pdfBtn = document.getElementById('exportPdfBtn');
+    if (excelBtn) excelBtn.href = EXPORT_EXCEL_BASE + (qs ? '?' + qs : '');
+    if (pdfBtn) pdfBtn.href = EXPORT_PDF_BASE + (qs ? '?' + qs : '');
+
+    const hint = document.getElementById('exportHint');
+    if (hint) {
+        const table = document.getElementById('produitTable');
+        const visibleRows = table ? Array.from(table.querySelectorAll('tbody tr')).filter(r => r.style.display !== 'none') : [];
+        const sortLabel = SORT_LABELS[currentSort.field] || 'Nom';
+        const dirIcon = currentSort.dir === 'asc' ? '↑' : '↓';
+        hint.innerHTML = '<i class="fas fa-download me-1"></i>' + visibleRows.length + ' produit(s) seront exportés — trié par ' + sortLabel + ' ' + dirIcon;
+    }
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('#produitTable thead th[data-sort-field]').forEach(function(th) {
+        const icon = th.querySelector('i');
+        if (!icon) return;
+        const field = th.getAttribute('data-sort-field');
+        if (field === currentSort.field) {
+            icon.className = currentSort.dir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            th.classList.add('text-primary');
+        } else {
+            icon.className = 'fas fa-sort';
+            th.classList.remove('text-primary');
+        }
+    });
+}
+
+function sortTable(field) {
+    const table = document.getElementById('produitTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.rows);
+
+    currentSort.dir = (currentSort.field === field && currentSort.dir === 'asc') ? 'desc' : 'asc';
+    currentSort.field = field;
+
+    const numeric = (field === 'cond' || field === 'prix');
+    rows.sort((a, b) => {
+        let x = a.dataset[field] || '';
+        let y = b.dataset[field] || '';
+        if (numeric) {
+            x = parseFloat(x) || 0;
+            y = parseFloat(y) || 0;
+            return currentSort.dir === 'asc' ? x - y : y - x;
+        }
+        return currentSort.dir === 'asc'
+            ? x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' })
+            : y.localeCompare(x, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    rows.forEach(row => tbody.appendChild(row));
+
+    const mobileList = document.getElementById('mobileList');
+    if (mobileList) {
+        const cards = Array.from(mobileList.querySelectorAll('.mobile-card'));
+        cards.sort((a, b) => {
+            let x = a.dataset[field] || '';
+            let y = b.dataset[field] || '';
+            if (numeric) {
+                x = parseFloat(x) || 0;
+                y = parseFloat(y) || 0;
+                return currentSort.dir === 'asc' ? x - y : y - x;
+            }
+            return currentSort.dir === 'asc'
+                ? x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' })
+                : y.localeCompare(x, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        cards.forEach(card => mobileList.appendChild(card));
+    }
+
+    updateSortIndicators();
+    updateExportLinks();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const selectAll = document.getElementById('selectAll');
     const checkboxes = document.querySelectorAll('.row-checkbox');
@@ -631,34 +735,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function filterTable() {
         const query = document.getElementById('searchInput').value.toLowerCase();
-        const fFournisseur = document.getElementById('filterFournisseur').value.toLowerCase();
-        const fRayon = document.getElementById('filterRayon').value.toLowerCase();
-        const fFamille = document.getElementById('filterFamille').value.toLowerCase();
-        const fCond = document.getElementById('filterCond').value.toLowerCase();
-        
+        const fFournisseur = document.getElementById('filterFournisseur').value;
+        const fRayon = document.getElementById('filterRayon').value;
+        const fFamille = document.getElementById('filterFamille').value;
+        const fCondRaw = document.getElementById('filterCond').value;
+        const fCond = fCondRaw ? fCondRaw.replace('Cond ', '') : '';
+
         const table = document.getElementById('produitTable');
         const tbody = table ? table.querySelector('tbody') : null;
         const rows = tbody ? tbody.getElementsByTagName('tr') : [];
-        
+
         const mobileList = document.getElementById('mobileList');
         const mobileCards = mobileList ? mobileList.querySelectorAll('.mobile-card') : [];
-        
+
         let visibleCount = 0;
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             if (row.cells.length < 8) continue;
             const textContent = row.textContent.toLowerCase();
-            const four = row.cells[3].textContent.toLowerCase();
-            const rayonFam = row.cells[4].textContent.toLowerCase();
-            const cond = row.cells[5].textContent.toLowerCase();
-            
+
             const matchQuery = textContent.includes(query);
-            const matchFournisseur = !fFournisseur || four.includes(fFournisseur);
-            const matchRayon = !fRayon || rayonFam.includes(fRayon);
-            const matchFamille = !fFamille || rayonFam.includes(fFamille);
-            const matchCond = !fCond || cond.includes(fCond);
-            
+            const matchFournisseur = !fFournisseur || row.dataset.fournisseur === fFournisseur;
+            const matchRayon = !fRayon || row.dataset.rayon === fRayon;
+            const matchFamille = !fFamille || row.dataset.famille === fFamille;
+            const matchCond = !fCond || row.dataset.cond === fCond;
+
             const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond;
             row.style.display = show ? '' : 'none';
             if (show) visibleCount++;
@@ -667,7 +769,12 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let i = 0; i < mobileCards.length; i++) {
             const card = mobileCards[i];
             const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
-            const show = text.includes(query);
+            const matchQuery = text.includes(query);
+            const matchFournisseur = !fFournisseur || card.dataset.fournisseur === fFournisseur;
+            const matchRayon = !fRayon || card.dataset.rayon === fRayon;
+            const matchFamille = !fFamille || card.dataset.famille === fFamille;
+            const matchCond = !fCond || card.dataset.cond === fCond;
+            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond;
             card.style.display = show ? '' : 'none';
             if (show) visibleCount++;
         }
@@ -685,6 +792,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (noResultMsg) {
             noResultMsg.remove();
         }
+
+        updateExportLinks();
     }
 
     document.getElementById('searchInput').addEventListener('input', filterTable);
@@ -692,6 +801,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterRayon').addEventListener('change', filterTable);
     document.getElementById('filterFamille').addEventListener('change', filterTable);
     document.getElementById('filterCond').addEventListener('change', filterTable);
+
+    // Tri par defaut (Nom A->Z) : garantit que le tableau affiche et exporte
+    // toujours dans le meme ordre au premier chargement.
+    sortTable('nom');
 
     // Deep-link depuis les alertes du tableau de bord : /admin/produits?q=CODE
     const presetQuery = new URLSearchParams(window.location.search).get('q');
@@ -710,22 +823,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
-
-function sortTable(n) {
-    let table = document.getElementById("produitTable");
-    if (!table) return;
-    let rows = Array.from(table.rows).slice(1);
-    let dir = table.getAttribute("data-sort-dir") === "asc" ? "desc" : "asc";
-    table.setAttribute("data-sort-dir", dir);
-    
-    rows.sort((a, b) => {
-        let x = a.cells[n].textContent.trim();
-        let y = b.cells[n].textContent.trim();
-        return dir === "asc" ? x.localeCompare(y, undefined, {numeric: true}) : y.localeCompare(x, undefined, {numeric: true});
-    });
-    
-    let tbody = table.querySelector("tbody");
-    rows.forEach(row => tbody.appendChild(row));
-}
 </script>
 {% endblock %}

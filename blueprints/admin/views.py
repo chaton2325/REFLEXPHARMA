@@ -6144,13 +6144,97 @@ import io
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+PRODUITS_SORT_COLUMNS = {
+    'code': lambda: Produit.code_produit,
+    'nom': lambda: Produit.nom,
+    'fournisseur': lambda: Fournisseur.nom,
+    'rayon': lambda: Rayon.nom,
+    'cond': lambda: Produit.conditionnement,
+    'prix': lambda: Produit.prix_unite,
+}
+PRODUITS_SORT_LABELS = {
+    'code': 'CIP', 'nom': 'Nom', 'fournisseur': 'Fournisseur',
+    'rayon': 'Rayon', 'cond': 'Conditionnement', 'prix': 'Prix Achat',
+}
+
+def _produits_export_query():
+    """Reconstruit, cote serveur, exactement la meme recherche/filtres/tri que
+    ceux actifs dans le tableau du catalogue (voir le JS de
+    templates/admin/produits/list.html qui pousse ces memes parametres dans
+    l'URL et les reutilise pour batir les liens d'export), afin que le
+    PDF/Excel telecharge corresponde toujours a ce que l'utilisateur voit a
+    l'ecran au moment du clic."""
+    query = (
+        Produit.query
+        .outerjoin(Fournisseur, Produit.fournisseur_id == Fournisseur.id)
+        .outerjoin(Rayon, Produit.rayon_id == Rayon.id)
+        .outerjoin(Famille, Produit.famille_id == Famille.id)
+    )
+
+    q = (request.args.get('q') or '').strip()
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(
+            Produit.nom.ilike(like),
+            Produit.code_produit.ilike(like),
+            Fournisseur.nom.ilike(like),
+            Rayon.nom.ilike(like),
+            Famille.nom.ilike(like),
+        ))
+
+    fournisseur_nom = (request.args.get('fournisseur') or '').strip()
+    if fournisseur_nom:
+        query = query.filter(Fournisseur.nom == fournisseur_nom)
+
+    rayon_nom = (request.args.get('rayon') or '').strip()
+    if rayon_nom:
+        query = query.filter(Rayon.nom == rayon_nom)
+
+    famille_nom = (request.args.get('famille') or '').strip()
+    if famille_nom:
+        query = query.filter(Famille.nom == famille_nom)
+
+    cond = (request.args.get('cond') or '').strip()
+    if cond in ('1', '2', '3'):
+        query = query.filter(Produit.conditionnement == int(cond))
+
+    sort_key = request.args.get('sort', 'nom')
+    sort_col = PRODUITS_SORT_COLUMNS.get(sort_key, PRODUITS_SORT_COLUMNS['nom'])()
+    if request.args.get('dir') == 'desc':
+        sort_col = sort_col.desc()
+    query = query.order_by(sort_col)
+
+    return query
+
+def _produits_export_summary():
+    """Ligne lisible resumant la recherche/les filtres/le tri appliques a
+    l'export, affichee en sous-titre du PDF/Excel pour que le document reste
+    comprehensible une fois imprime ou partage hors de l'application."""
+    parts = []
+    q = (request.args.get('q') or '').strip()
+    if q:
+        parts.append(f'Recherche : "{q}"')
+    for key, label in (('fournisseur', 'Fournisseur'), ('rayon', 'Rayon'), ('famille', 'Famille')):
+        val = (request.args.get(key) or '').strip()
+        if val:
+            parts.append(f'{label} : {val}')
+    cond = (request.args.get('cond') or '').strip()
+    if cond in ('1', '2', '3'):
+        parts.append(f'Conditionnement : Cond {cond}')
+    sort_key = request.args.get('sort', 'nom')
+    sort_label = PRODUITS_SORT_LABELS.get(sort_key, 'Nom')
+    dir_label = 'décroissant' if request.args.get('dir') == 'desc' else 'croissant'
+    parts.append(f'Trié par {sort_label} ({dir_label})')
+    return ' | '.join(parts)
+
 @admin.route('/produits/export/excel')
 @login_required
 @permission_required('gestion_produits')
 def export_produits_excel():
-    produits = Produit.query.order_by(Produit.nom).all()
+    produits = _produits_export_query().all()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    filter_summary = _produits_export_summary()
     data = [{
         'CIP': p.code_produit,
         'Nom': p.nom,
@@ -6169,7 +6253,7 @@ def export_produits_excel():
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Produits', startrow=3)
+        df.to_excel(writer, index=False, sheet_name='Produits', startrow=4)
         workbook = writer.book
         worksheet = writer.sheets['Produits']
 
@@ -6177,14 +6261,16 @@ def export_produits_excel():
         worksheet['A1'] = pharmacy_name
         worksheet['A2'] = f"Rapport généré le : {timestamp}"
         worksheet['A3'] = f"Tiré par : {current_user.nom} {current_user.prenom}"
+        worksheet['A4'] = filter_summary
 
         # Style
         from openpyxl.styles import Font, PatternFill, Alignment
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
         worksheet['A1'].font = Font(bold=True, size=13)
+        worksheet['A4'].font = Font(italic=True, color="555555")
 
-        for cell in worksheet[4]: # Header row is now 4
+        for cell in worksheet[5]: # Header row is now 5
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
@@ -6201,13 +6287,14 @@ def export_produits_pdf():
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
 
-    produits = Produit.query.order_by(Produit.nom).all()
+    produits = _produits_export_query().all()
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=A4, topMargin=24, bottomMargin=30, leftMargin=18, rightMargin=18)
     elements = []
     styles = getSampleStyleSheet()
     devise = devise_active()
     pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4b5563'))
 
     elements.append(Paragraph(f'Catalogue Produits - {pharmacy_name}', styles['Title']))
     elements.append(Paragraph(
@@ -6215,6 +6302,7 @@ def export_produits_pdf():
         f'{len(produits)} produit(s) | Prix en {devise}',
         styles['Normal']
     ))
+    elements.append(Paragraph(_produits_export_summary(), subtitle_style))
     elements.append(Spacer(1, 10))
 
     cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6, leading=7)
