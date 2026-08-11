@@ -308,11 +308,10 @@
         <option value="{{ f.nom }}">{{ f.nom }}</option>
         {% endfor %}
       </select>
-      <select id="filterCond" class="filter-select" style="width:110px;">
-        <option value="">Tout Cond.</option>
-        <option value="Cond 1">Cond 1</option>
-        <option value="Cond 2">Cond 2</option>
-        <option value="Cond 3">Cond 3</option>
+      <select id="filterDetail" class="filter-select" style="width:110px;">
+        <option value="">Tout Détail</option>
+        <option value="Oui">Détail : Oui</option>
+        <option value="Non">Détail : Non</option>
       </select>
       <button type="button" id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;font-weight:600;" title="Réinitialiser la recherche, les filtres et le tri">
         <i class="fas fa-rotate-left me-1"></i> Réinitialiser
@@ -328,14 +327,16 @@
     <!-- Mobile cards (xs only) -->
     <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileList">
       {% for p in produits %}
-      <div class="mobile-card" data-search="{{ p.nom }} {{ p.code_produit }} {{ p.fournisseur.nom }} {{ p.rayon.nom if p.rayon else '' }} {{ p.famille.nom if p.famille else '' }} Cond {{ p.conditionnement }}" data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.conditionnement or 1 }}" data-prix="{{ p.prix_unite or 0 }}">
+      {% set p_detail = 'Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non' %}
+      <div class="mobile-card" data-search="{{ p.nom }} {{ p.code_produit }} {{ p.fournisseur.nom }} {{ p.rayon.nom if p.rayon else '' }} {{ p.famille.nom if p.famille else '' }} Cond {{ p.taille_conditionnement or 1 }} Detail {{ p_detail }}" data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.taille_conditionnement or 1 }}" data-detail="{{ p_detail }}" data-prix="{{ p.prix_unite or 0 }}">
         <div class="d-flex align-items-start gap-3">
           <input class="form-check-input mobile-check mt-1 row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}">
           <div style="flex:1;min-width:0;">
             <div class="fw-semibold" style="color:#1a1a2e;font-size:0.92rem;">{{ p.nom }}</div>
             <div class="text-muted" style="font-size:0.78rem;">
               <span class="badge bg-secondary" style="font-weight:500;">{{ p.code_produit }}</span>
-              <span class="badge bg-info text-dark" style="font-weight:500;">Cond {{ p.conditionnement }}</span>
+              <span class="badge {{ 'bg-success' if p_detail == 'Oui' else 'bg-secondary' }}" style="font-weight:500;">Détail {{ p_detail }}</span>
+              <span class="badge bg-info text-dark" style="font-weight:500;">Cond {{ p.taille_conditionnement or 1 }}</span>
             </div>
             <div style="font-size:0.82rem;color:#495057;margin-top:0.3rem;">
               <i class="fas fa-building text-muted me-1" style="width:14px;"></i>{{ p.fournisseur.nom }}
@@ -381,6 +382,7 @@
             <th onclick="sortTable('nom')" data-sort-field="nom" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
             <th onclick="sortTable('fournisseur')" data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort"></i></th>
             <th onclick="sortTable('rayon')" data-sort-field="rayon" style="cursor:pointer">Rayon/Famille <i class="fas fa-sort"></i></th>
+            <th onclick="sortTable('detail')" data-sort-field="detail" style="cursor:pointer">Détail <i class="fas fa-sort"></i></th>
             <th onclick="sortTable('cond')" data-sort-field="cond" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
             <th onclick="sortTable('prix')" data-sort-field="prix" style="cursor:pointer">Achat / Vente TTC <i class="fas fa-sort"></i></th>
             <th>Points fidélité</th>
@@ -389,7 +391,8 @@
         </thead>
         <tbody>
           {% for p in produits %}
-          <tr data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.conditionnement or 1 }}" data-prix="{{ p.prix_unite or 0 }}">
+          {% set p_detail = 'Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non' %}
+          <tr data-code="{{ p.code_produit }}" data-nom="{{ p.nom }}" data-fournisseur="{{ p.fournisseur.nom if p.fournisseur else '' }}" data-rayon="{{ p.rayon.nom if p.rayon else '' }}" data-famille="{{ p.famille.nom if p.famille else '' }}" data-cond="{{ p.taille_conditionnement or 1 }}" data-detail="{{ p_detail }}" data-prix="{{ p.prix_unite or 0 }}">
             <td>
               <div class="form-check" style="padding-left:1.5rem;">
                 <input class="form-check-input row-checkbox" type="checkbox" name="ids[]" value="{{ p.id }}" style="cursor:pointer;">
@@ -402,7 +405,8 @@
               <span class="small text-muted">{{ p.rayon.nom if p.rayon else 'Sans Rayon' }}</span><br>
               <span class="badge badge-produit bg-light text-dark border">{{ p.famille.nom if p.famille else 'N/A' }}</span>
             </td>
-            <td><span class="badge bg-info text-dark badge-produit">Cond {{ p.conditionnement }}</span></td>
+            <td><span class="badge {{ 'bg-success' if p_detail == 'Oui' else 'bg-secondary' }} badge-produit">{{ p_detail }}</span></td>
+            <td><span class="badge bg-info text-dark badge-produit">{{ p.taille_conditionnement or 1 }}</span></td>
             <td>
               <div class="fw-semibold" style="color:#1a1a2e;">Achat {{ "%.2f"|format(p.prix_unite or 0) }} {{ devise }}</div>
               <small class="text-success">Vente {{ "%.2f"|format(p.prix_unite_ttc or 0) }} {{ devise }} TTC</small>
@@ -454,7 +458,7 @@
               <span class="badge bg-secondary badge-produit mt-1">{{ p.code_produit }}</span>
             </div>
             <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-building me-2 text-muted" style="width:18px;"></i>{{ p.fournisseur.nom if p.fournisseur else 'N/A' }}</p>
-            <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-box me-2 text-muted" style="width:18px;"></i>Conditionnement: Cond {{ p.conditionnement }}</p>
+            <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-box me-2 text-muted" style="width:18px;"></i>Conditionnement: {{ p.taille_conditionnement or 1 }} unité(s)/boîte</p>
             <p class="mb-2" style="font-size:0.88rem;"><i class="fas fa-shield-alt me-2 text-muted" style="width:18px;"></i>Stock de sécurité: {{ p.stock_securite or 0 }} unité(s)</p>
           </div>
           <div class="col-md-6">
@@ -604,7 +608,7 @@
 <script>
 const EXPORT_EXCEL_BASE = "{{ url_for('admin.export_produits_excel') }}";
 const EXPORT_PDF_BASE = "{{ url_for('admin.export_produits_pdf') }}";
-const SORT_LABELS = { code: 'CIP', nom: 'Nom', fournisseur: 'Fournisseur', rayon: 'Rayon', cond: 'Conditionnement', prix: 'Prix Achat' };
+const SORT_LABELS = { code: 'CIP', nom: 'Nom', fournisseur: 'Fournisseur', rayon: 'Rayon', detail: 'Détail', cond: 'Conditionnement', prix: 'Prix Achat' };
 let currentSort = { field: null, dir: 'asc' };
 
 function updateExportLinks() {
@@ -614,13 +618,13 @@ function updateExportLinks() {
     const fFournisseur = document.getElementById('filterFournisseur').value;
     const fRayon = document.getElementById('filterRayon').value;
     const fFamille = document.getElementById('filterFamille').value;
-    const fCondRaw = document.getElementById('filterCond').value;
+    const fDetail = document.getElementById('filterDetail').value;
 
     if (q) params.set('q', q);
     if (fFournisseur) params.set('fournisseur', fFournisseur);
     if (fRayon) params.set('rayon', fRayon);
     if (fFamille) params.set('famille', fFamille);
-    if (fCondRaw) params.set('cond', fCondRaw.replace('Cond ', ''));
+    if (fDetail) params.set('detail', fDetail);
     if (currentSort.field) {
         params.set('sort', currentSort.field);
         params.set('dir', currentSort.dir);
@@ -746,8 +750,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const fFournisseur = document.getElementById('filterFournisseur').value;
         const fRayon = document.getElementById('filterRayon').value;
         const fFamille = document.getElementById('filterFamille').value;
-        const fCondRaw = document.getElementById('filterCond').value;
-        const fCond = fCondRaw ? fCondRaw.replace('Cond ', '') : '';
+        const fDetail = document.getElementById('filterDetail').value;
 
         const table = document.getElementById('produitTable');
         const tbody = table ? table.querySelector('tbody') : null;
@@ -767,9 +770,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const matchFournisseur = !fFournisseur || row.dataset.fournisseur === fFournisseur;
             const matchRayon = !fRayon || row.dataset.rayon === fRayon;
             const matchFamille = !fFamille || row.dataset.famille === fFamille;
-            const matchCond = !fCond || row.dataset.cond === fCond;
+            const matchDetail = !fDetail || row.dataset.detail === fDetail;
 
-            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond;
+            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchDetail;
             row.style.display = show ? '' : 'none';
             if (show) visibleCount++;
         }
@@ -781,8 +784,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const matchFournisseur = !fFournisseur || card.dataset.fournisseur === fFournisseur;
             const matchRayon = !fRayon || card.dataset.rayon === fRayon;
             const matchFamille = !fFamille || card.dataset.famille === fFamille;
-            const matchCond = !fCond || card.dataset.cond === fCond;
-            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchCond;
+            const matchDetail = !fDetail || card.dataset.detail === fDetail;
+            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchDetail;
             card.style.display = show ? '' : 'none';
             if (show) visibleCount++;
         }
@@ -808,7 +811,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterFournisseur').addEventListener('change', filterTable);
     document.getElementById('filterRayon').addEventListener('change', filterTable);
     document.getElementById('filterFamille').addEventListener('change', filterTable);
-    document.getElementById('filterCond').addEventListener('change', filterTable);
+    document.getElementById('filterDetail').addEventListener('change', filterTable);
 
     const resetFiltersBtn = document.getElementById('resetFiltersBtn');
     if (resetFiltersBtn) {
@@ -817,7 +820,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('filterFournisseur').value = '';
             document.getElementById('filterRayon').value = '';
             document.getElementById('filterFamille').value = '';
-            document.getElementById('filterCond').value = '';
+            document.getElementById('filterDetail').value = '';
             applySort('nom', 'asc');
             filterTable();
         });

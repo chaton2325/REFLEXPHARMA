@@ -134,6 +134,7 @@ def produit_from_form(form, fournisseur):
         famille_id=int(form.get('famille_id')) if form.get('famille_id') else None,
         section_id=int(form.get('section_id')) if form.get('section_id') else None,
         conditionnement=int(form.get('conditionnement') or 1),
+        taille_conditionnement=int(form.get('taille_conditionnement') or 1),
         prix_unite=float(form.get('prix_unite') or 0),
         prix_sous_unite=float(form.get('prix_sous_unite') or 0),
         prix_sous_sous_unite=float(form.get('prix_sous_sous_unite') or 0),
@@ -142,6 +143,20 @@ def produit_from_form(form, fournisseur):
         stock_securite=int(form.get('stock_securite') or 0),
         points_fidelite=int(form.get('points_fidelite')) if form.get('points_fidelite') not in (None, '') else None
     )
+
+def appliquer_prix_sous_unite_calcule(produit):
+    """Deduit prix_sous_unite de prix_unite / taille_conditionnement pour un
+    produit vendu au detail (conditionnement >= 2) : le formulaire produit
+    (creation/modification) ne fait plus saisir ce prix a la main, seulement la
+    taille du conditionnement (ex: boite de 10, de 100...). Hors detail, les
+    deux champs sont neutralises (non utilises ailleurs dans ce cas)."""
+    if produit.conditionnement and produit.conditionnement >= 2:
+        taille = produit.taille_conditionnement or 1
+        produit.taille_conditionnement = taille
+        produit.prix_sous_unite = (produit.prix_unite or 0) / taille if taille else 0
+    else:
+        produit.taille_conditionnement = 1
+        produit.prix_sous_unite = 0
 
 def produit_to_stock_json(p):
     """Serialisation JSON d'un produit pour le selecteur du module Stock (voir
@@ -3657,6 +3672,7 @@ def create_produit():
             return redirect(url_for('admin.create_produit'))
 
         new_produit = produit_from_form(request.form, fournisseur)
+        appliquer_prix_sous_unite_calcule(new_produit)
         db.session.add(new_produit)
         db.session.commit()
 
@@ -3760,13 +3776,14 @@ def edit_produit(id):
         produit.rayon_id = int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None
         produit.famille_id = int(request.form.get('famille_id')) if request.form.get('famille_id') else None
         produit.section_id = int(request.form.get('section_id')) if request.form.get('section_id') else None
-        produit.conditionnement = int(request.form.get('conditionnement'))
+        produit.conditionnement = int(request.form.get('conditionnement') or 1)
+        produit.taille_conditionnement = int(request.form.get('taille_conditionnement') or 1)
         produit.prix_unite = float(request.form.get('prix_unite') or 0)
-        produit.prix_sous_unite = float(request.form.get('prix_sous_unite') or 0)
         produit.prix_sous_sous_unite = float(request.form.get('prix_sous_sous_unite') or 0)
         produit.coefficient = float(request.form.get('coefficient') or 1.0)
         produit.tva = float(request.form.get('tva') or 20.0)
         produit.stock_securite = int(request.form.get('stock_securite') or 0)
+        appliquer_prix_sous_unite_calcule(produit)
 
         db.session.commit()
         flash('Produit mis à jour.', 'success')
@@ -6149,12 +6166,13 @@ PRODUITS_SORT_COLUMNS = {
     'nom': lambda: Produit.nom,
     'fournisseur': lambda: Fournisseur.nom,
     'rayon': lambda: Rayon.nom,
-    'cond': lambda: Produit.conditionnement,
+    'detail': lambda: Produit.conditionnement,
+    'cond': lambda: Produit.taille_conditionnement,
     'prix': lambda: Produit.prix_unite,
 }
 PRODUITS_SORT_LABELS = {
-    'code': 'CIP', 'nom': 'Nom', 'fournisseur': 'Fournisseur',
-    'rayon': 'Rayon', 'cond': 'Conditionnement', 'prix': 'Prix Achat',
+    'code': 'CIP', 'nom': 'Nom', 'fournisseur': 'Fournisseur', 'rayon': 'Rayon',
+    'detail': 'Détail', 'cond': 'Conditionnement', 'prix': 'Prix Achat',
 }
 
 def _produits_export_query():
@@ -6194,9 +6212,11 @@ def _produits_export_query():
     if famille_nom:
         query = query.filter(Famille.nom == famille_nom)
 
-    cond = (request.args.get('cond') or '').strip()
-    if cond in ('1', '2', '3'):
-        query = query.filter(Produit.conditionnement == int(cond))
+    detail = (request.args.get('detail') or '').strip().lower()
+    if detail == 'oui':
+        query = query.filter(Produit.conditionnement >= 2)
+    elif detail == 'non':
+        query = query.filter(db.or_(Produit.conditionnement.is_(None), Produit.conditionnement < 2))
 
     sort_key = request.args.get('sort', 'nom')
     sort_col = PRODUITS_SORT_COLUMNS.get(sort_key, PRODUITS_SORT_COLUMNS['nom'])()
@@ -6218,9 +6238,9 @@ def _produits_export_summary():
         val = (request.args.get(key) or '').strip()
         if val:
             parts.append(f'{label} : {val}')
-    cond = (request.args.get('cond') or '').strip()
-    if cond in ('1', '2', '3'):
-        parts.append(f'Conditionnement : Cond {cond}')
+    detail = (request.args.get('detail') or '').strip().lower()
+    if detail in ('oui', 'non'):
+        parts.append(f"Détail : {'Oui' if detail == 'oui' else 'Non'}")
     sort_key = request.args.get('sort', 'nom')
     sort_label = PRODUITS_SORT_LABELS.get(sort_key, 'Nom')
     dir_label = 'décroissant' if request.args.get('dir') == 'desc' else 'croissant'
@@ -6242,7 +6262,8 @@ def export_produits_excel():
         'Rayon': p.rayon.nom if p.rayon else '',
         'Famille': p.famille.nom if p.famille else '',
         'Section': p.section.nom if p.section else '',
-        'Conditionnement': p.conditionnement,
+        'Conditionnement': p.taille_conditionnement or 1,
+        'Détail': 'Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non',
         'Prix Achat': p.prix_unite,
         'Coefficient': p.effectif_coefficient,
         'TVA %': p.effectif_tva,
@@ -6308,7 +6329,7 @@ def export_produits_pdf():
     cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6, leading=7)
     right_style = ParagraphStyle('BodyCellRight', parent=cell_style, alignment=2)
 
-    data = [['CIP', 'Nom', 'Fournisseur', 'Rayon', 'Famille', 'Section', 'Cond.', 'Prix Achat', 'Coeff.', 'TVA %', 'Prix Vente TTC']]
+    data = [['CIP', 'Nom', 'Fournisseur', 'Rayon', 'Famille', 'Section', 'Cond.', 'Détail', 'Prix Achat', 'Coeff.', 'TVA %', 'Prix Vente TTC']]
     for p in produits:
         data.append([
             Paragraph(p.code_produit or '-', cell_style),
@@ -6317,14 +6338,15 @@ def export_produits_pdf():
             Paragraph(p.rayon.nom if p.rayon else '-', cell_style),
             Paragraph(p.famille.nom if p.famille else '-', cell_style),
             Paragraph(p.section.nom if p.section else '-', cell_style),
-            Paragraph(str(p.conditionnement or 1), right_style),
+            Paragraph(str(p.taille_conditionnement or 1), right_style),
+            Paragraph('Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non', right_style),
             Paragraph(f'{p.prix_unite or 0:.2f}', right_style),
             Paragraph(f'{p.effectif_coefficient or 0:.2f}', right_style),
             Paragraph(f'{p.effectif_tva or 0:.2f}', right_style),
             Paragraph(f'{p.prix_unite_ttc or 0:.2f}', right_style),
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[50, 130, 55, 48, 50, 46, 22, 42, 26, 24, 48])
+    table = Table(data, repeatRows=1, colWidths=[50, 121, 53, 48, 50, 46, 22, 26, 42, 26, 24, 48])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

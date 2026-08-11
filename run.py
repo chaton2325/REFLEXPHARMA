@@ -33,7 +33,11 @@ def setup_database():
                 ('commande_ligne_id', 'INTEGER')
             ],
             'produits': [
-                ('stock_securite', 'INTEGER DEFAULT 0')
+                ('stock_securite', 'INTEGER DEFAULT 0'),
+                ('points_fidelite', 'INTEGER'),
+                # Nombre d'unites par boite (ex: 10, 100...), utilise pour deriver
+                # prix_sous_unite = prix_unite / taille_conditionnement.
+                ('taille_conditionnement', 'INTEGER DEFAULT 1')
             ],
             'commandes': [
                 ('relance_de_numero', 'VARCHAR(40)')
@@ -226,4 +230,4 @@ if __name__ == '__main__':
         print("Aucun certificat trouve (certs/reflexpharma-dev.crt) : serveur lance en HTTP simple.")
         print("Pour activer HTTPS (requis pour la camera sur mobile) : python certs/generate_cert.py")
 
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, ssl_context=ssl_context)
+    app.run(host='0.0.0.0', port=5003, debug=True, threaded=True, ssl_context=ssl_context)

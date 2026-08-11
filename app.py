@@ -49,7 +49,10 @@ def ensure_database_schema(app):
                 ('stock_securite', 'INTEGER DEFAULT 0'),
                 # Programme de fidelite : points/unite achetee. NULL = pas de regle sur
                 # ce produit (repli vers famille/rayon/section, voir Produit.points_fidelite_effectif).
-                ('points_fidelite', 'INTEGER')
+                ('points_fidelite', 'INTEGER'),
+                # Nombre d'unites par boite (ex: 10, 100...), utilise pour deriver
+                # prix_sous_unite = prix_unite / taille_conditionnement.
+                ('taille_conditionnement', 'INTEGER DEFAULT 1')
             ],
             'familles': [
                 ('points_fidelite', 'INTEGER')

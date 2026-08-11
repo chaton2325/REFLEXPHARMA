@@ -17,9 +17,18 @@ class Produit(db.Model):
     
     # Conditionnement: 1, 2 ou 3
     conditionnement = db.Column(db.Integer, default=1)
-    
+
+    # Taille du conditionnement (nombre d'unites/sous-unites par boite, ex: 10,
+    # 100...) : distinct du champ conditionnement ci-dessus (qui designe le
+    # NIVEAU de vente, pas une quantite). Force a 1 si le produit n'est pas
+    # vendu au detail (conditionnement < 2). Sert a deriver prix_sous_unite.
+    taille_conditionnement = db.Column(db.Integer, nullable=False, default=1)
+
     # Prix
     prix_unite = db.Column(db.Float, default=0.0)
+    # Derive automatiquement de prix_unite / taille_conditionnement quand le
+    # produit est vendu au detail (voir create_produit/edit_produit) -- plus de
+    # saisie manuelle depuis le formulaire produit.
     prix_sous_unite = db.Column(db.Float, nullable=True) # Utilise si conditionnement >= 2
     prix_sous_sous_unite = db.Column(db.Float, nullable=True) # Utilise si conditionnement == 3
     
