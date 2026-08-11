@@ -314,6 +314,9 @@
         <option value="Cond 2">Cond 2</option>
         <option value="Cond 3">Cond 3</option>
       </select>
+      <button type="button" id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;font-weight:600;" title="Réinitialiser la recherche, les filtres et le tri">
+        <i class="fas fa-rotate-left me-1"></i> Réinitialiser
+      </button>
     </div>
     <div class="search-wrapper" style="width:100%;max-width:300px;">
       <i class="fas fa-search search-icon"></i>
@@ -655,13 +658,18 @@ function updateSortIndicators() {
 }
 
 function sortTable(field) {
+    const dir = (currentSort.field === field && currentSort.dir === 'asc') ? 'desc' : 'asc';
+    applySort(field, dir);
+}
+
+function applySort(field, dir) {
     const table = document.getElementById('produitTable');
     if (!table) return;
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.rows);
 
-    currentSort.dir = (currentSort.field === field && currentSort.dir === 'asc') ? 'desc' : 'asc';
     currentSort.field = field;
+    currentSort.dir = dir;
 
     const numeric = (field === 'cond' || field === 'prix');
     rows.sort((a, b) => {
@@ -802,9 +810,22 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterFamille').addEventListener('change', filterTable);
     document.getElementById('filterCond').addEventListener('change', filterTable);
 
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', function() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterFournisseur').value = '';
+            document.getElementById('filterRayon').value = '';
+            document.getElementById('filterFamille').value = '';
+            document.getElementById('filterCond').value = '';
+            applySort('nom', 'asc');
+            filterTable();
+        });
+    }
+
     // Tri par defaut (Nom A->Z) : garantit que le tableau affiche et exporte
     // toujours dans le meme ordre au premier chargement.
-    sortTable('nom');
+    applySort('nom', 'asc');
 
     // Deep-link depuis les alertes du tableau de bord : /admin/produits?q=CODE
     const presetQuery = new URLSearchParams(window.location.search).get('q');
