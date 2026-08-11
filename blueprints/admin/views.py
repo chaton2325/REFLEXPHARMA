@@ -3718,6 +3718,7 @@ def quick_create_produit():
         return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
 
     produit = produit_from_form(request.form, fournisseur)
+    appliquer_prix_sous_unite_calcule(produit)
     db.session.add(produit)
     db.session.commit()
 

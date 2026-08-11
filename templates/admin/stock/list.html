@@ -324,6 +324,103 @@
   .amount-tva { color: #a5670a; }
   .pricing-preview { background: #f8f9fa; }
   html[data-bs-theme="dark"] .pricing-preview { background: #1c2733 !important; }
+  .price-preview-card .price-preview-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .price-preview-total-row { border-top: 1px solid #e9ecef; }
+  html[data-bs-theme="dark"] .price-preview-total-row { border-top-color: #2a3541; }
+
+  /* Bascule "Vente au detail" : identique a templates/admin/produits/form.html,
+     pour que la creation rapide de produit (module Stock) reste visuellement
+     coherente avec le formulaire produit complet. */
+  .detail-toggle-card {
+    --dtc-bg: #fff;
+    --dtc-border: #e9ecef;
+    --dtc-icon-bg: #eef1f4;
+    --dtc-icon-color: #6c757d;
+    --dtc-label: #2c3e50;
+    --dtc-desc: #6c757d;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid var(--dtc-border);
+    border-radius: 12px;
+    background: var(--dtc-bg);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .detail-toggle-card:hover {
+    border-color: rgba(52,152,219,0.4);
+  }
+  .detail-toggle-card.is-active {
+    border-color: rgba(52,152,219,0.45);
+    background: rgba(52,152,219,0.07);
+  }
+  .detail-toggle-icon {
+    width: 42px;
+    height: 42px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--dtc-icon-bg);
+    color: var(--dtc-icon-color);
+    font-size: 1.05rem;
+    transition: all 0.2s;
+  }
+  .detail-toggle-card.is-active .detail-toggle-icon {
+    background: #3498db;
+    color: #fff;
+  }
+  .detail-toggle-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .detail-toggle-body .form-check {
+    padding-left: 2.75em;
+    min-height: auto;
+  }
+  .detail-toggle-body .form-check-input {
+    cursor: pointer;
+    margin-top: 0.2em;
+    width: 2.5em;
+    height: 1.3em;
+  }
+  .detail-toggle-body .form-check-label {
+    cursor: pointer;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--dtc-label);
+  }
+  .detail-toggle-desc {
+    font-size: 0.8rem;
+    color: var(--dtc-desc);
+    margin-top: 0.2rem;
+    line-height: 1.4;
+  }
+  html[data-bs-theme="dark"] .detail-toggle-card {
+    --dtc-bg: #171f27;
+    --dtc-border: #2a3541;
+    --dtc-icon-bg: #202b36;
+    --dtc-icon-color: #9aa7b3;
+    --dtc-label: #e8edf2;
+    --dtc-desc: #9aa7b3;
+  }
+  html[data-bs-theme="dark"] .detail-toggle-card:hover {
+    border-color: rgba(90,169,230,0.45);
+  }
+  html[data-bs-theme="dark"] .detail-toggle-card.is-active {
+    border-color: rgba(90,169,230,0.5);
+    background: rgba(90,169,230,0.12);
+  }
+  html[data-bs-theme="dark"] .detail-toggle-card.is-active .detail-toggle-icon {
+    background: #5aa9e6;
+    color: #10161c;
+  }
 
   /* Detail tarifaire (HT/Marge brute/TVA/TTC) par niveau d'unite : grille de
      "puces" colorees plutot qu'une seule ligne de texte concatenee avec des
@@ -1583,12 +1680,17 @@ document.addEventListener('DOMContentLoaded', function() {
         <hr>
 
         <div class="mb-3">
-          <label for="qcpConditionnement" class="form-label">Type de conditionnement</label>
-          <select id="qcpConditionnement" class="form-select">
-            <option value="1">Cond 1 (Unité seule)</option>
-            <option value="2">Cond 2 (Unité + Sous-unité)</option>
-            <option value="3">Cond 3 (Unité + 2 Niveaux)</option>
-          </select>
+          <label class="form-label">Mode de vente</label>
+          <div class="detail-toggle-card" id="qcpDetailToggleCard">
+            <div class="detail-toggle-icon" id="qcpDetailToggleIcon"><i class="fas fa-box"></i></div>
+            <div class="detail-toggle-body">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="qcpDetailCheckbox">
+                <label class="form-check-label" for="qcpDetailCheckbox">Vendre le produit au détail</label>
+              </div>
+              <div class="detail-toggle-desc" id="qcpDetailDesc">Vente uniquement à l'unité complète (ex : boîte).</div>
+            </div>
+          </div>
         </div>
 
         <div class="row g-3 mb-3">
@@ -1600,18 +1702,12 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
           <div class="col-sm-6" id="qcpGroupSous" style="display:none;">
-            <label for="qcpPrixSousUnite" class="form-label">Prix d'achat (Sous-unité)</label>
+            <label for="qcpTailleConditionnement" class="form-label">Conditionnement</label>
             <div class="input-group">
-              <input type="number" step="0.01" min="0" id="qcpPrixSousUnite" class="form-control" value="0">
-              <span class="input-group-text">{{ devise }}</span>
+              <input type="number" step="1" min="1" id="qcpTailleConditionnement" class="form-control" placeholder="Ex : 10">
+              <span class="input-group-text">unités/boîte</span>
             </div>
-          </div>
-        </div>
-        <div class="mb-3" id="qcpGroupSousSous" style="display:none;">
-          <label for="qcpPrixSousSousUnite" class="form-label">Prix d'achat (Sous-sous-unité)</label>
-          <div class="input-group">
-            <input type="number" step="0.01" min="0" id="qcpPrixSousSousUnite" class="form-control" value="0">
-            <span class="input-group-text">{{ devise }}</span>
+            <div class="form-text small text-muted">Prix d'achat sous-unité calculé : <span id="qcpPrixSousUniteCalc" class="fw-semibold">—</span></div>
           </div>
         </div>
 
@@ -1626,9 +1722,9 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
         </div>
 
-        <div class="border rounded p-3 pricing-preview mb-3">
-          <div class="small text-muted mb-2">Aperçu du prix de vente (unité)</div>
-          <div class="small" id="qcpPreview">0.00 {{ devise }} HT / Marge brute 0.00 {{ devise }} / TVA 0.00 {{ devise }} / 0.00 {{ devise }} TTC</div>
+        <div class="mb-3">
+          <label class="form-label">Aperçu du prix de vente</label>
+          <div id="qcpApercuPrix" class="row g-3"></div>
         </div>
 
         <div class="row g-3">
@@ -2235,7 +2331,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const ht = ttc !== ttcBrut ? ttc / (1 + tauxTva) : htBrut;
             const tva = ttc - ht;
             const benefice = ht - achat;
-            return { ht, benefice, tva, ttc };
+            return { ht, benefice, tva, ttc, ttcBrut };
         }
 
         // Le panier survit a la navigation (changement de page, fermeture du
@@ -3013,31 +3109,83 @@ document.addEventListener('DOMContentLoaded', function() {
             const qcpRayon = document.getElementById('qcpRayon');
             const qcpFamille = document.getElementById('qcpFamille');
             const qcpSection = document.getElementById('qcpSection');
-            const qcpConditionnement = document.getElementById('qcpConditionnement');
+            const qcpDetailCheckbox = document.getElementById('qcpDetailCheckbox');
+            const qcpDetailToggleCard = document.getElementById('qcpDetailToggleCard');
+            const qcpDetailToggleIcon = document.getElementById('qcpDetailToggleIcon');
+            const qcpDetailDesc = document.getElementById('qcpDetailDesc');
             const qcpPrixUnite = document.getElementById('qcpPrixUnite');
-            const qcpPrixSousUnite = document.getElementById('qcpPrixSousUnite');
-            const qcpPrixSousSousUnite = document.getElementById('qcpPrixSousSousUnite');
+            const qcpTailleConditionnement = document.getElementById('qcpTailleConditionnement');
+            const qcpPrixSousUniteCalc = document.getElementById('qcpPrixSousUniteCalc');
             const qcpGroupSous = document.getElementById('qcpGroupSous');
-            const qcpGroupSousSous = document.getElementById('qcpGroupSousSous');
             const qcpCoefficient = document.getElementById('qcpCoefficient');
             const qcpTva = document.getElementById('qcpTva');
             const qcpStockSecurite = document.getElementById('qcpStockSecurite');
             const qcpPointsFidelite = document.getElementById('qcpPointsFidelite');
-            const qcpPreview = document.getElementById('qcpPreview');
+            const qcpApercuPrix = document.getElementById('qcpApercuPrix');
             const qcpError = document.getElementById('qcpError');
             const qcpSubmit = document.getElementById('qcpSubmit');
             const openQuickCreateBtn = document.getElementById('openQuickCreateProduit');
             const quickCreateModal = bootstrap.Modal.getOrCreateInstance(quickCreateModalEl, { backdrop: false });
 
-            function qcpUpdateCond() {
-                const cond = Number(qcpConditionnement.value);
-                qcpGroupSous.style.display = cond >= 2 ? 'block' : 'none';
-                qcpGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+            function qcpUpdateDetail() {
+                const estDetail = qcpDetailCheckbox.checked;
+                qcpGroupSous.style.display = estDetail ? 'block' : 'none';
+                qcpDetailToggleCard.classList.toggle('is-active', estDetail);
+                qcpDetailToggleIcon.querySelector('i').className = estDetail ? 'fas fa-box-open' : 'fas fa-box';
+                qcpDetailDesc.textContent = estDetail
+                    ? "Vente possible à l'unité et à la sous-unité (ex : boîte + comprimé)."
+                    : "Vente uniquement à l'unité complète (ex : boîte).";
             }
 
-            function qcpUpdatePreview() {
-                const b = mUnitBreakdown(qcpPrixUnite.value, qcpCoefficient.value, qcpTva.value);
-                qcpPreview.textContent = mFormat(b.ht) + ' HT / Marge brute ' + mFormat(b.benefice) + ' / TVA ' + mFormat(b.tva) + ' / ' + mFormat(b.ttc) + ' TTC';
+            // Meme formule que templates/admin/produits/form.html (prixSousUniteCalcule) :
+            // le prix d'achat sous-unite n'est plus saisi a la main, deduit du prix
+            // d'achat unite divise par la taille du conditionnement.
+            function qcpPrixSousUniteCalcule() {
+                if (!qcpDetailCheckbox.checked) return 0;
+                const taille = parseInt(qcpTailleConditionnement.value, 10) || 0;
+                const prixUnite = parseFloat(qcpPrixUnite.value) || 0;
+                return taille > 0 ? prixUnite / taille : 0;
+            }
+
+            function qcpUpdatePrixSousUniteCalc() {
+                const valeur = qcpPrixSousUniteCalcule();
+                qcpPrixSousUniteCalc.textContent = valeur > 0 ? mFormat(valeur) : '—';
+            }
+
+            // Meme rendu (cartes HT/Marge brute/TVA/TTC par niveau) que
+            // templates/admin/produits/form.html::renderApercuPrix, pour que ce volet
+            // reste visuellement uniforme avec le formulaire produit complet.
+            function qcpRenderApercuPrix() {
+                const coefficient = parseFloat(qcpCoefficient.value) || 1.0;
+                const tauxTva = parseFloat(qcpTva.value) || 0.0;
+                const niveaux = [
+                    { label: 'Unité', icon: 'fa-box', value: parseFloat(qcpPrixUnite.value) || 0, visible: true },
+                    { label: 'Sous-unité', icon: 'fa-box-open', value: qcpPrixSousUniteCalcule(), visible: qcpDetailCheckbox.checked },
+                ];
+
+                let html = '';
+                niveaux.forEach(function(niveau) {
+                    if (!niveau.visible) return;
+                    const prixAchat = niveau.value;
+                    if (!prixAchat || prixAchat <= 0) return;
+                    const b = mUnitBreakdown(prixAchat, coefficient, tauxTva);
+                    const arrondiNote = b.ttc !== b.ttcBrut
+                        ? `<div class="small text-muted mt-1"><i class="fas fa-magnet me-1"></i>Arrondi (brut : ${mFormat(b.ttcBrut)})</div>`
+                        : '';
+                    html += `
+                        <div class="col-sm-6">
+                            <div class="p-3 pricing-preview price-preview-card">
+                                <div class="price-preview-title small fw-bold text-muted mb-2"><i class="fas ${niveau.icon}"></i>${niveau.label}</div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${mFormat(b.ht)}</span></div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Marge brute</span><span class="fw-semibold text-success">${mFormat(b.benefice)}</span></div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${Number(tauxTva || 0).toFixed(2)}%)</span><span class="fw-semibold">${mFormat(b.tva)}</span></div>
+                                <div class="d-flex justify-content-between small pt-1 mt-1 price-preview-total-row"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${mFormat(b.ttc)}</span></div>
+                                ${arrondiNote}
+                            </div>
+                        </div>
+                    `;
+                });
+                qcpApercuPrix.innerHTML = html;
             }
 
             function qcpReset() {
@@ -3049,21 +3197,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 qcpRayon.value = '';
                 qcpFamille.value = '';
                 qcpSection.value = '';
-                qcpConditionnement.value = '1';
+                qcpDetailCheckbox.checked = false;
                 qcpPrixUnite.value = '0';
-                qcpPrixSousUnite.value = '0';
-                qcpPrixSousSousUnite.value = '0';
+                qcpTailleConditionnement.value = '';
                 qcpCoefficient.value = '1.00';
                 qcpTva.value = '20';
                 qcpStockSecurite.value = '0';
                 qcpPointsFidelite.value = '';
                 qcpError.classList.add('d-none');
-                qcpUpdateCond();
-                qcpUpdatePreview();
+                qcpUpdateDetail();
+                qcpUpdatePrixSousUniteCalc();
+                qcpRenderApercuPrix();
             }
 
-            qcpConditionnement.addEventListener('change', qcpUpdateCond);
-            [qcpPrixUnite, qcpCoefficient, qcpTva].forEach((el) => el.addEventListener('input', qcpUpdatePreview));
+            qcpDetailCheckbox.addEventListener('change', () => { qcpUpdateDetail(); qcpUpdatePrixSousUniteCalc(); qcpRenderApercuPrix(); });
+            qcpDetailToggleCard.addEventListener('click', (e) => {
+                if (e.target === qcpDetailCheckbox || e.target.tagName === 'LABEL') return;
+                qcpDetailCheckbox.checked = !qcpDetailCheckbox.checked;
+                qcpDetailCheckbox.dispatchEvent(new Event('change'));
+            });
+            qcpTailleConditionnement.addEventListener('input', () => { qcpUpdatePrixSousUniteCalc(); qcpRenderApercuPrix(); });
+            [qcpPrixUnite, qcpCoefficient, qcpTva].forEach((el) => el.addEventListener('input', qcpRenderApercuPrix));
+            qcpPrixUnite.addEventListener('input', qcpUpdatePrixSousUniteCalc);
 
             if (openQuickCreateBtn) {
                 openQuickCreateBtn.addEventListener('click', () => {
@@ -3095,10 +3250,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     rayon_id: qcpRayon.value,
                     famille_id: qcpFamille.value,
                     section_id: qcpSection.value,
-                    conditionnement: qcpConditionnement.value,
+                    conditionnement: qcpDetailCheckbox.checked ? '2' : '1',
+                    taille_conditionnement: qcpTailleConditionnement.value,
                     prix_unite: qcpPrixUnite.value,
-                    prix_sous_unite: qcpPrixSousUnite.value,
-                    prix_sous_sous_unite: qcpPrixSousSousUnite.value,
                     coefficient: qcpCoefficient.value,
                     tva: qcpTva.value,
                     stock_securite: qcpStockSecurite.value,
