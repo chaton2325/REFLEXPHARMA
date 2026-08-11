@@ -6148,36 +6148,43 @@ from reportlab.pdfgen import canvas
 @login_required
 @permission_required('gestion_produits')
 def export_produits_excel():
-    produits = Produit.query.all()
+    produits = Produit.query.order_by(Produit.nom).all()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     data = [{
-        'Code': p.code_produit,
+        'CIP': p.code_produit,
         'Nom': p.nom,
         'Fournisseur': p.fournisseur.nom if p.fournisseur else '',
         'Rayon': p.rayon.nom if p.rayon else '',
         'Famille': p.famille.nom if p.famille else '',
+        'Section': p.section.nom if p.section else '',
         'Conditionnement': p.conditionnement,
-        'Prix Unité': p.prix_unite
+        'Prix Achat': p.prix_unite,
+        'Coefficient': p.effectif_coefficient,
+        'TVA %': p.effectif_tva,
+        'Prix Vente TTC': p.prix_unite_ttc,
     } for p in produits]
     
     df = pd.DataFrame(data)
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Produits', startrow=2)
+        df.to_excel(writer, index=False, sheet_name='Produits', startrow=3)
         workbook = writer.book
         worksheet = writer.sheets['Produits']
-        
+
         # Add metadata
-        worksheet['A1'] = f"Rapport généré le : {timestamp}"
-        worksheet['A2'] = f"Tiré par : {current_user.nom} {current_user.prenom}"
-        
+        worksheet['A1'] = pharmacy_name
+        worksheet['A2'] = f"Rapport généré le : {timestamp}"
+        worksheet['A3'] = f"Tiré par : {current_user.nom} {current_user.prenom}"
+
         # Style
         from openpyxl.styles import Font, PatternFill, Alignment
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        
-        for cell in worksheet[3]: # Header row is now 3
+        worksheet['A1'].font = Font(bold=True, size=13)
+
+        for cell in worksheet[4]: # Header row is now 4
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
@@ -6191,35 +6198,62 @@ def export_produits_excel():
 def export_produits_pdf():
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
-    
-    produits = Produit.query.all()
+
+    produits = Produit.query.order_by(Produit.nom).all()
     output = io.BytesIO()
-    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=20, bottomMargin=20, leftMargin=20, rightMargin=20)
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=24, bottomMargin=30, leftMargin=18, rightMargin=18)
     elements = []
     styles = getSampleStyleSheet()
-    
-    elements.append(Paragraph(f'Catalogue Produits - ReflexPharma', styles['Title']))
-    elements.append(Paragraph(f'Tiré par : {current_user.nom} {current_user.prenom} | Date : {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal']))
-    elements.append(Spacer(1, 12))
-    
     devise = devise_active()
-    data = [['Code', 'Nom', 'Fournisseur', 'Prix']]
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+
+    elements.append(Paragraph(f'Catalogue Produits - {pharmacy_name}', styles['Title']))
+    elements.append(Paragraph(
+        f'Tiré par : {current_user.nom} {current_user.prenom} | Date : {datetime.now().strftime("%d/%m/%Y %H:%M")} | '
+        f'{len(produits)} produit(s) | Prix en {devise}',
+        styles['Normal']
+    ))
+    elements.append(Spacer(1, 10))
+
+    cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6, leading=7)
+    right_style = ParagraphStyle('BodyCellRight', parent=cell_style, alignment=2)
+
+    data = [['CIP', 'Nom', 'Fournisseur', 'Rayon', 'Famille', 'Section', 'Cond.', 'Prix Achat', 'Coeff.', 'TVA %', 'Prix Vente TTC']]
     for p in produits:
-        data.append([p.code_produit, p.nom, p.fournisseur.nom if p.fournisseur else '-', f'{p.prix_unite} {devise}'])
-        
-    table = Table(data, repeatRows=1, colWidths=[100, 200, 150, 80])
+        data.append([
+            Paragraph(p.code_produit or '-', cell_style),
+            Paragraph(p.nom or '-', cell_style),
+            Paragraph(p.fournisseur.nom if p.fournisseur else '-', cell_style),
+            Paragraph(p.rayon.nom if p.rayon else '-', cell_style),
+            Paragraph(p.famille.nom if p.famille else '-', cell_style),
+            Paragraph(p.section.nom if p.section else '-', cell_style),
+            Paragraph(str(p.conditionnement or 1), right_style),
+            Paragraph(f'{p.prix_unite or 0:.2f}', right_style),
+            Paragraph(f'{p.effectif_coefficient or 0:.2f}', right_style),
+            Paragraph(f'{p.effectif_tva or 0:.2f}', right_style),
+            Paragraph(f'{p.prix_unite_ttc or 0:.2f}', right_style),
+        ])
+
+    table = Table(data, repeatRows=1, colWidths=[50, 130, 55, 48, 50, 46, 22, 42, 26, 24, 48])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#9CA3AF')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F3F4F6')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2.5),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
-    
+
     elements.append(table)
-    doc.build(elements)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
     output.seek(0)
     return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf', as_attachment=True)
 
