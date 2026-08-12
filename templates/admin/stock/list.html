@@ -4,6 +4,15 @@
 
 {% block extra_head %}
 <style>
+  /* Apercu PDF : hauteur genereuse a partir de sm, plein ecran natif en
+     dessous (voir .modal-fullscreen-sm-down) -- une hauteur fixe en style
+     inline aurait ecrase ce plein ecran mobile (regle Bootstrap sans
+     !important), d'ou une media query dediee ici. */
+  @media (min-width: 576px) {
+    .pdf-preview-dialog { height: 85vh; }
+  }
+  .pdf-preview-dialog .modal-content { height: 100%; }
+
   body { background-color: #fdf2f2 !important; }
   .page-header {
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
@@ -1171,6 +1180,37 @@ document.addEventListener('DOMContentLoaded', function() {
         <button type="button" class="btn btn-primary" id="exportColumnsConfirm" style="border-radius:10px;font-weight:600;">
           <i class="fas fa-download me-1"></i> Exporter
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Apercu PDF (in-page, pas de nouvel onglet) : iframe pointant sur un blob
+     recupere via fetch() (l'export Stock QR est en POST, un iframe ne peut
+     pas pointer directement dessus), avec Imprimer/Exporter PDF en pied de
+     modale. -->
+<div class="modal fade" id="pdfPreviewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down pdf-preview-dialog">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-file-pdf me-2 text-danger"></i>Aperçu PDF</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 d-flex align-items-center justify-content-center" style="flex:1 1 auto;min-height:0;">
+        <div id="pdfPreviewLoading" class="text-center text-muted">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Génération du PDF...</div>
+        </div>
+        <iframe id="pdfPreviewFrame" src="about:blank" class="d-none" style="width:100%;height:100%;border:0;display:block;" title="Aperçu PDF"></iframe>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+        <button type="button" class="btn btn-outline-primary" id="pdfPreviewPrint" style="border-radius:10px;font-weight:600;" disabled>
+          <i class="fas fa-print me-1"></i> Imprimer
+        </button>
+        <a href="#" id="pdfPreviewDownload" class="btn btn-primary disabled" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-file-pdf me-1"></i> Exporter PDF
+        </a>
       </div>
     </div>
   </div>
@@ -3346,6 +3386,62 @@ document.addEventListener('DOMContentLoaded', function() {
     // soumettre bulkQrForm directement ; la confirmation injecte un champ cache
     // 'cols' (cles separees par des virgules) dans bulkQrForm puis la soumet
     // elle-meme vers le formaction du bouton clique. ----
+    // ---- Apercu PDF in-page (pas de nouvel onglet), voir #pdfPreviewModal :
+    // iframe pointant sur un blob (l'export Stock QR est en POST, un iframe ne
+    // peut pas pointer directement sur une requete POST), boutons Imprimer/
+    // Exporter PDF. ----
+    const pdfPreviewModalEl = document.getElementById('pdfPreviewModal');
+    const pdfPreviewModal = pdfPreviewModalEl ? bootstrap.Modal.getOrCreateInstance(pdfPreviewModalEl) : null;
+    const pdfPreviewFrame = document.getElementById('pdfPreviewFrame');
+    const pdfPreviewLoading = document.getElementById('pdfPreviewLoading');
+    const pdfPreviewDownload = document.getElementById('pdfPreviewDownload');
+    const pdfPreviewPrint = document.getElementById('pdfPreviewPrint');
+    let pdfPreviewBlobUrl = null;
+
+    // Nom de fichier horodate (aligne sur le format cote serveur, %Y%m%d_%H%M)
+    // pour que chaque export telecharge porte un nom distinct.
+    function timestampedFilename(prefix) {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+        return `${prefix}_${stamp}.pdf`;
+    }
+
+    function showPdfPreviewLoading() {
+        pdfPreviewFrame.classList.add('d-none');
+        pdfPreviewLoading.classList.remove('d-none');
+        pdfPreviewPrint.disabled = true;
+        pdfPreviewDownload.classList.add('disabled');
+        pdfPreviewModal.show();
+    }
+    function showPdfPreviewBlob(blob, filename) {
+        if (pdfPreviewBlobUrl) URL.revokeObjectURL(pdfPreviewBlobUrl);
+        pdfPreviewBlobUrl = URL.createObjectURL(blob);
+        pdfPreviewFrame.src = pdfPreviewBlobUrl;
+        pdfPreviewDownload.href = pdfPreviewBlobUrl;
+        pdfPreviewDownload.setAttribute('download', filename || 'stock_qr.pdf');
+        pdfPreviewDownload.classList.remove('disabled');
+        pdfPreviewPrint.disabled = false;
+        pdfPreviewLoading.classList.add('d-none');
+        pdfPreviewFrame.classList.remove('d-none');
+    }
+    if (pdfPreviewPrint) {
+        pdfPreviewPrint.addEventListener('click', () => {
+            try {
+                pdfPreviewFrame.contentWindow.focus();
+                pdfPreviewFrame.contentWindow.print();
+            } catch (e) {
+                if (pdfPreviewBlobUrl) window.open(pdfPreviewBlobUrl, '_blank');
+            }
+        });
+    }
+    if (pdfPreviewModalEl) {
+        pdfPreviewModalEl.addEventListener('hidden.bs.modal', () => {
+            pdfPreviewFrame.src = 'about:blank';
+            if (pdfPreviewBlobUrl) { URL.revokeObjectURL(pdfPreviewBlobUrl); pdfPreviewBlobUrl = null; }
+        });
+    }
+
     const exportColumnsModalEl = document.getElementById('exportColumnsModal');
     if (exportColumnsModalEl) {
         const exportColumnsModal = bootstrap.Modal.getOrCreateInstance(exportColumnsModalEl);
@@ -3388,10 +3484,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 form.appendChild(colsInput);
             }
             colsInput.value = selected.join(',');
-            // form.action est modifie temporairement (submit() ignore le
-            // formaction des boutons, contrairement a un clic reel) : restaure
-            // aussitot apres pour ne pas casser le bouton "Apercu QR" par
-            // defaut du meme formulaire lors d'un prochain usage normal.
+            const isPdf = pendingExportAction.includes('/pdf');
+
+            if (isPdf) {
+                // L'export est en POST (stock_ids + cols) : un iframe ne peut pas
+                // pointer directement dessus, donc on la fait nous-memes via
+                // fetch() et on affiche le blob PDF resultant dans #pdfPreviewModal.
+                const formData = new FormData(form);
+                exportColumnsModal.hide();
+                exportColumnsModalEl.addEventListener('hidden.bs.modal', () => {
+                    showPdfPreviewLoading();
+                    fetch(pendingExportAction, { method: 'POST', body: formData })
+                        .then((res) => { if (!res.ok) throw new Error('export failed'); return res.blob(); })
+                        .then((blob) => showPdfPreviewBlob(blob, timestampedFilename('stock_qr')))
+                        .catch(() => {
+                            pdfPreviewModal.hide();
+                            exportColumnsError.textContent = "Impossible de générer l'aperçu PDF. Réessayez.";
+                            exportColumnsError.classList.remove('d-none');
+                            exportColumnsModal.show();
+                        });
+                }, { once: true });
+                return;
+            }
+
+            // Excel : comportement inchange, telechargement direct via soumission
+            // normale de bulkQrForm (form.action/target restaures juste apres,
+            // pour ne pas casser le bouton "Apercu QR" par defaut du meme formulaire).
             const originalAction = form.action;
             form.action = pendingExportAction;
             exportColumnsModal.hide();

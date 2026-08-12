@@ -4937,7 +4937,8 @@ def export_selected_stock_qr_pdf():
     doc.build(elements, canvasmaker=make_numbered_pdf_canvas(landscape(A4)[0]))
     output.seek(0)
     filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
-    return send_file(output, download_name=filename, as_attachment=True)
+    # as_attachment=False (inline) : voir export_produits_pdf pour le pourquoi.
+    return send_file(output, download_name=filename, as_attachment=False)
 
 def get_filtered_stock_modifications():
     modifications = StockModification.query.order_by(StockModification.created_at.desc()).all()
@@ -6400,7 +6401,11 @@ def export_produits_pdf():
     elements.append(table)
     doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
     output.seek(0)
-    return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf', as_attachment=True)
+    # as_attachment=False (inline) : ouvert dans un nouvel onglet par le JS
+    # (voir exportColumnsModal), affiche par le lecteur PDF natif du
+    # navigateur -- permet un apercu avant de choisir telecharger/imprimer,
+    # plutot qu'un telechargement force immediat.
+    return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf', as_attachment=False)
 
 # --- GESTION DES PARAMÈTRES ---
 @admin.route('/settings', methods=['GET', 'POST'])
