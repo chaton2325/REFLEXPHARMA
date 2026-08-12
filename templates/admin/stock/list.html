@@ -1126,12 +1126,55 @@
     </div>
   </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('stockEntrySuccessModal')).show();
 });
 </script>
 {% endif %}
+
+<!-- Choix des colonnes a exporter (PDF/Excel) : ouverte au clic sur un des
+     boutons .stock-export-button, avant l'envoi effectif de bulkQrForm. -->
+<div class="modal fade" id="exportColumnsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-table-columns me-2 text-primary"></i>Colonnes à exporter</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="exportColumnsError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div class="form-check pb-2 mb-2" style="border-bottom:1px solid #e9ecef;">
+          <input class="form-check-input" type="checkbox" id="exportColAll" checked>
+          <label class="form-check-label fw-semibold" for="exportColAll">Tout sélectionner</label>
+        </div>
+        <div class="row g-2">
+          {% for key, label in [
+            ('produit', 'Produit'), ('conditionnement', 'Conditionnement'), ('detail', 'Détail'),
+            ('code_suivi', 'Code suivi'), ('numero_bl', 'BL'), ('date_peremption', 'Péremption'),
+            ('unites', 'Unités'), ('sous_unites', 'Sous-unités'), ('sous_sous_unites', 'Sous-sous-unités'),
+            ('prix_achat', 'Prix Achat'), ('prix_vente_ttc', 'Prix Vente TTC'),
+            ('qr_tire', 'QR tiré'), ('date_tirage', 'Date tirage QR'), ('tire_par', 'Tiré par')
+          ] %}
+          <div class="col-6">
+            <div class="form-check">
+              <input class="form-check-input export-col-checkbox" type="checkbox" id="exportCol_{{ key }}" value="{{ key }}" checked>
+              <label class="form-check-label" for="exportCol_{{ key }}">{{ label }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="exportColumnsConfirm" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-download me-1"></i> Exporter
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modals -->
 {% for stock in stocks %}
@@ -3296,6 +3339,65 @@ document.addEventListener('DOMContentLoaded', function() {
 
             qcpReset();
         }
+    }
+
+    // ---- Choix des colonnes a exporter (PDF/Excel), voir #exportColumnsModal :
+    // clic sur un bouton .stock-export-button -> ouvre la modale au lieu de
+    // soumettre bulkQrForm directement ; la confirmation injecte un champ cache
+    // 'cols' (cles separees par des virgules) dans bulkQrForm puis la soumet
+    // elle-meme vers le formaction du bouton clique. ----
+    const exportColumnsModalEl = document.getElementById('exportColumnsModal');
+    if (exportColumnsModalEl) {
+        const exportColumnsModal = bootstrap.Modal.getOrCreateInstance(exportColumnsModalEl);
+        const exportColAll = document.getElementById('exportColAll');
+        const exportColumnsError = document.getElementById('exportColumnsError');
+        const exportColumnCheckboxes = () => Array.from(document.querySelectorAll('.export-col-checkbox'));
+        let pendingExportAction = null;
+
+        exportColAll.addEventListener('change', () => {
+            exportColumnCheckboxes().forEach(cb => cb.checked = exportColAll.checked);
+        });
+        exportColumnCheckboxes().forEach(cb => cb.addEventListener('change', () => {
+            exportColAll.checked = exportColumnCheckboxes().every(c => c.checked);
+        }));
+
+        document.querySelectorAll('.stock-export-button').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                pendingExportAction = btn.getAttribute('formaction');
+                exportColumnsError.classList.add('d-none');
+                exportColumnsModal.show();
+            });
+        });
+
+        document.getElementById('exportColumnsConfirm').addEventListener('click', () => {
+            const selected = exportColumnCheckboxes().filter(cb => cb.checked).map(cb => cb.value);
+            if (selected.length === 0) {
+                exportColumnsError.textContent = 'Sélectionnez au moins une colonne.';
+                exportColumnsError.classList.remove('d-none');
+                return;
+            }
+            if (!pendingExportAction) return;
+            const form = document.getElementById('bulkQrForm');
+            let colsInput = document.getElementById('exportColsHiddenInput');
+            if (!colsInput) {
+                colsInput = document.createElement('input');
+                colsInput.type = 'hidden';
+                colsInput.name = 'cols';
+                colsInput.id = 'exportColsHiddenInput';
+                form.appendChild(colsInput);
+            }
+            colsInput.value = selected.join(',');
+            // form.action est modifie temporairement (submit() ignore le
+            // formaction des boutons, contrairement a un clic reel) : restaure
+            // aussitot apres pour ne pas casser le bouton "Apercu QR" par
+            // defaut du meme formulaire lors d'un prochain usage normal.
+            const originalAction = form.action;
+            form.action = pendingExportAction;
+            exportColumnsModal.hide();
+            form.submit();
+            form.action = originalAction;
+        });
     }
 });
 </script>

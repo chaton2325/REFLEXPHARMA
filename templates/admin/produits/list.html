@@ -605,6 +605,48 @@
   </div>
 </div>
 
+<!-- Choix des colonnes a exporter (PDF/Excel) : ouverte au clic sur Excel/PDF,
+     avant le telechargement effectif. -->
+<div class="modal fade" id="exportColumnsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-table-columns me-2 text-primary"></i>Colonnes à exporter</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="exportColumnsError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div class="form-check pb-2 mb-2" style="border-bottom:1px solid #e9ecef;">
+          <input class="form-check-input" type="checkbox" id="exportColAll" checked>
+          <label class="form-check-label fw-semibold" for="exportColAll">Tout sélectionner</label>
+        </div>
+        <div class="row g-2">
+          {% for key, label in [
+            ('cip', 'CIP'), ('nom', 'Nom'), ('fournisseur', 'Fournisseur'),
+            ('rayon', 'Rayon'), ('famille', 'Famille'), ('section', 'Section'),
+            ('conditionnement', 'Conditionnement'), ('detail', 'Détail'),
+            ('prix_achat', 'Prix Achat'), ('coefficient', 'Coefficient'),
+            ('tva', 'TVA %'), ('prix_vente_ttc', 'Prix Vente TTC')
+          ] %}
+          <div class="col-6">
+            <div class="form-check">
+              <input class="form-check-input export-col-checkbox" type="checkbox" id="exportCol_{{ key }}" value="{{ key }}" checked>
+              <label class="form-check-label" for="exportCol_{{ key }}">{{ label }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="exportColumnsConfirm" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-download me-1"></i> Exporter
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const EXPORT_EXCEL_BASE = "{{ url_for('admin.export_produits_excel') }}";
 const EXPORT_PDF_BASE = "{{ url_for('admin.export_produits_pdf') }}";
@@ -845,6 +887,51 @@ document.addEventListener('DOMContentLoaded', function() {
             visible[0].classList.add('row-flash');
             visible[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+    }
+
+    // ---- Choix des colonnes a exporter (PDF/Excel), voir #exportColumnsModal :
+    // clic sur Excel/PDF -> ouvre la modale au lieu de naviguer directement ;
+    // la confirmation ajoute 'cols=...' (cles separees par des virgules) au lien
+    // deja construit par updateExportLinks() (qui porte filtres/tri). ----
+    const exportColumnsModalEl = document.getElementById('exportColumnsModal');
+    if (exportColumnsModalEl) {
+        const exportColumnsModal = bootstrap.Modal.getOrCreateInstance(exportColumnsModalEl);
+        const exportColAll = document.getElementById('exportColAll');
+        const exportColumnsError = document.getElementById('exportColumnsError');
+        const exportColumnCheckboxes = () => Array.from(document.querySelectorAll('.export-col-checkbox'));
+        let pendingExportBtn = null;
+
+        exportColAll.addEventListener('change', () => {
+            exportColumnCheckboxes().forEach(cb => cb.checked = exportColAll.checked);
+        });
+        exportColumnCheckboxes().forEach(cb => cb.addEventListener('change', () => {
+            exportColAll.checked = exportColumnCheckboxes().every(c => c.checked);
+        }));
+
+        function openExportColumnsModal(btn) {
+            pendingExportBtn = btn;
+            exportColumnsError.classList.add('d-none');
+            exportColumnsModal.show();
+        }
+
+        const excelBtnEl = document.getElementById('exportExcelBtn');
+        const pdfBtnEl = document.getElementById('exportPdfBtn');
+        if (excelBtnEl) excelBtnEl.addEventListener('click', (e) => { e.preventDefault(); openExportColumnsModal(excelBtnEl); });
+        if (pdfBtnEl) pdfBtnEl.addEventListener('click', (e) => { e.preventDefault(); openExportColumnsModal(pdfBtnEl); });
+
+        document.getElementById('exportColumnsConfirm').addEventListener('click', () => {
+            const selected = exportColumnCheckboxes().filter(cb => cb.checked).map(cb => cb.value);
+            if (selected.length === 0) {
+                exportColumnsError.textContent = 'Sélectionnez au moins une colonne.';
+                exportColumnsError.classList.remove('d-none');
+                return;
+            }
+            if (!pendingExportBtn) return;
+            const url = new URL(pendingExportBtn.href, window.location.origin);
+            url.searchParams.set('cols', selected.join(','));
+            exportColumnsModal.hide();
+            window.location.href = url.toString();
+        });
     }
 });
 </script>

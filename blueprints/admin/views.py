@@ -416,17 +416,56 @@ def build_stock_qr_report_rows(stocks):
 
         rows.append({
             'produit': stock.produit.nom,
+            'conditionnement': stock.produit.taille_conditionnement or 1,
+            'detail': 'Oui' if (stock.produit.conditionnement and stock.produit.conditionnement >= 2) else 'Non',
             'code_suivi': stock.code_suivi,
             'numero_bl': stock.numero_bl,
             'date_peremption': stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else '-',
             'unites': stock.quantite_unites,
             'sous_unites': stock.quantite_sous_unites,
             'sous_sous_unites': stock.quantite_sous_sous_unites,
+            'prix_achat': stock.produit.prix_unite or 0,
+            'prix_vente_ttc': stock.produit.prix_unite_ttc or 0,
             'qr_tire': 'Oui' if stock.qr_tire else 'Non',
             'date_tirage': print_info.created_at.strftime('%d/%m/%Y %H:%M') if print_info and print_info.created_at else '-',
             'tire_par': user_label
         })
     return rows
+
+# Colonnes disponibles pour l'export Stock QR (PDF/Excel) -- voir
+# PRODUITS_EXPORT_COLUMNS pour le meme mecanisme cote catalogue. 'value' lit
+# sur le dict produit par build_stock_qr_report_rows (pas sur Stock/Produit
+# directement, ces valeurs etant deja calculees une fois par ligne).
+STOCK_QR_EXPORT_COLUMNS = [
+    {'key': 'produit', 'excel_label': 'Produit', 'pdf_label': 'Produit',
+     'value': lambda r: r['produit'], 'align': 'left', 'width': 90},
+    {'key': 'conditionnement', 'excel_label': 'Conditionnement', 'pdf_label': 'Cond.',
+     'value': lambda r: r['conditionnement'], 'align': 'right', 'width': 28},
+    {'key': 'detail', 'excel_label': 'Détail', 'pdf_label': 'Détail',
+     'value': lambda r: r['detail'], 'align': 'right', 'width': 30},
+    {'key': 'code_suivi', 'excel_label': 'Code suivi', 'pdf_label': 'Code suivi',
+     'value': lambda r: r['code_suivi'], 'align': 'left', 'width': 110},
+    {'key': 'numero_bl', 'excel_label': 'BL', 'pdf_label': 'BL',
+     'value': lambda r: r['numero_bl'], 'align': 'left', 'width': 60},
+    {'key': 'date_peremption', 'excel_label': 'Peremption', 'pdf_label': 'Peremp.',
+     'value': lambda r: r['date_peremption'], 'align': 'center', 'width': 46},
+    {'key': 'unites', 'excel_label': 'Unites', 'pdf_label': 'U',
+     'value': lambda r: r['unites'], 'align': 'center', 'width': 22},
+    {'key': 'sous_unites', 'excel_label': 'Sous-unites', 'pdf_label': 'S/U',
+     'value': lambda r: r['sous_unites'], 'align': 'center', 'width': 24},
+    {'key': 'sous_sous_unites', 'excel_label': 'Sous-sous-unites', 'pdf_label': 'SS/U',
+     'value': lambda r: r['sous_sous_unites'], 'align': 'center', 'width': 26},
+    {'key': 'prix_achat', 'excel_label': 'Prix Achat', 'pdf_label': 'Prix Achat',
+     'value': lambda r: r['prix_achat'], 'align': 'right', 'width': 42, 'currency': True},
+    {'key': 'prix_vente_ttc', 'excel_label': 'Prix Vente TTC', 'pdf_label': 'Prix Vente TTC',
+     'value': lambda r: r['prix_vente_ttc'], 'align': 'right', 'width': 48, 'currency': True},
+    {'key': 'qr_tire', 'excel_label': 'QR tire', 'pdf_label': 'QR',
+     'value': lambda r: r['qr_tire'], 'align': 'center', 'width': 24},
+    {'key': 'date_tirage', 'excel_label': 'Date tirage QR', 'pdf_label': 'Date tirage',
+     'value': lambda r: r['date_tirage'], 'align': 'center', 'width': 62},
+    {'key': 'tire_par', 'excel_label': 'Tire par', 'pdf_label': 'Tire par',
+     'value': lambda r: r['tire_par'], 'align': 'left', 'width': 65},
+]
 
 # --- DASHBOARD ---
 @admin.route('/dashboard')
@@ -4782,25 +4821,15 @@ def export_selected_stock_qr_excel():
     import pandas as pd
     import io
     from flask import send_file
-    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+    from openpyxl.styles import Alignment, Font, PatternFill
 
     generated_at = datetime.now()
     rows = build_stock_qr_report_rows(stocks)
+    columns = get_export_selected_columns(STOCK_QR_EXPORT_COLUMNS, request.form.get('cols'))
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df = pd.DataFrame(rows)
-        df = df.rename(columns={
-            'produit': 'Produit',
-            'code_suivi': 'Code suivi',
-            'numero_bl': 'BL',
-            'date_peremption': 'Peremption',
-            'unites': 'Unites',
-            'sous_unites': 'Sous-unites',
-            'sous_sous_unites': 'Sous-sous-unites',
-            'qr_tire': 'QR tire',
-            'date_tirage': 'Date tirage QR',
-            'tire_par': 'Tire par'
-        })
+        data = [{c['excel_label']: c['value'](row) for c in columns} for row in rows]
+        df = pd.DataFrame(data, columns=[c['excel_label'] for c in columns])
         df.to_excel(writer, index=False, sheet_name='Stock QR', startrow=4)
         worksheet = writer.sheets['Stock QR']
         worksheet['A1'] = 'Rapport Stock QR - ReflexPharma'
@@ -4808,30 +4837,17 @@ def export_selected_stock_qr_excel():
         worksheet['A3'] = f'Genere par : {current_user.nom} {current_user.prenom}'
         worksheet['A4'] = f'Lignes exportees : {len(rows)}'
 
-        title_font = Font(bold=True, size=14, color='1F2937')
-        meta_font = Font(size=10, color='374151')
+        # Memes tailles/polices que export_produits_excel (catalogue), pour que
+        # les rapports Stock et Catalogue restent visuellement uniformes.
+        worksheet['A1'].font = Font(bold=True, size=13)
+        worksheet['A4'].font = Font(italic=True, color='555555')
+
         header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
-        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
-
-        worksheet['A1'].font = title_font
-        for row_number in range(2, 5):
-            worksheet[f'A{row_number}'].font = meta_font
-
+        header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
         for cell in worksheet[5]:
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
-            for cell in row:
-                cell.border = thin_border
-                cell.alignment = Alignment(vertical='top', wrap_text=True)
-
-        widths = [24, 34, 16, 14, 10, 12, 16, 10, 18, 22]
-        for index, width in enumerate(widths, start=1):
-            worksheet.column_dimensions[chr(64 + index)].width = width
-        worksheet.freeze_panes = 'A6'
+            cell.alignment = Alignment(horizontal='center')
 
     output.seek(0)
     filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
@@ -4866,69 +4882,59 @@ def export_selected_stock_qr_pdf():
         leftMargin=12,
         rightMargin=12
     )
+    # Memes tailles/polices que export_produits_pdf (catalogue), pour que les
+    # rapports Stock et Catalogue restent visuellement uniformes. Chaque
+    # cellule -- y compris dates/quantites/QR -- passe par un Paragraph stylé a
+    # 6pt : une valeur brute (str/int) herite sinon la police par defaut de la
+    # table (10pt), largement trop grande pour des colonnes aussi etroites, ce
+    # qui donnait l'impression que le contenu debordait/etait coupe.
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('StockQrTitle', parent=styles['Title'], fontSize=12, leading=14, spaceAfter=4)
-    meta_style = ParagraphStyle('StockQrMeta', parent=styles['Normal'], fontSize=7, leading=9, textColor=colors.HexColor('#374151'))
     cell_style = ParagraphStyle('StockQrCell', parent=styles['Normal'], fontSize=6, leading=7)
-    header_style = ParagraphStyle('StockQrHeader', parent=cell_style, alignment=TA_CENTER, textColor=colors.white)
+    right_style = ParagraphStyle('StockQrCellRight', parent=cell_style, alignment=2)
+    center_style = ParagraphStyle('StockQrCellCenter', parent=cell_style, alignment=TA_CENTER)
+    header_style = ParagraphStyle('StockQrHeader', parent=cell_style, fontSize=7, alignment=TA_CENTER, textColor=colors.whitesmoke)
 
     elements = [
-        Paragraph('Rapport Stock QR - ReflexPharma', title_style),
+        Paragraph('Rapport Stock QR - ReflexPharma', styles['Title']),
         Paragraph(
             f'Genere le : {generated_at.strftime("%d/%m/%Y %H:%M")} | Genere par : {current_user.nom} {current_user.prenom} | Lignes : {len(rows)}',
-            meta_style
+            styles['Normal']
         ),
-        Spacer(1, 6)
+        Spacer(1, 10)
     ]
 
-    data = [[
-        Paragraph('Produit', header_style),
-        Paragraph('Code suivi', header_style),
-        Paragraph('BL', header_style),
-        Paragraph('Peremp.', header_style),
-        Paragraph('U', header_style),
-        Paragraph('S/U', header_style),
-        Paragraph('SS/U', header_style),
-        Paragraph('QR', header_style),
-        Paragraph('Date tirage', header_style),
-        Paragraph('Tire par', header_style)
-    ]]
+    align_styles = {'left': cell_style, 'right': right_style, 'center': center_style}
+    columns = get_export_selected_columns(STOCK_QR_EXPORT_COLUMNS, request.form.get('cols'))
+    data = [[Paragraph(c['pdf_label'], header_style) for c in columns]]
     for row in rows:
-        data.append([
-            Paragraph(str(row['produit']), cell_style),
-            Paragraph(str(row['code_suivi']), cell_style),
-            Paragraph(str(row['numero_bl']), cell_style),
-            row['date_peremption'],
-            row['unites'],
-            row['sous_unites'],
-            row['sous_sous_unites'],
-            row['qr_tire'],
-            row['date_tirage'],
-            Paragraph(str(row['tire_par']), cell_style)
-        ])
+        data_row = []
+        for c in columns:
+            value = c['value'](row)
+            text = f'{value:.2f}' if c.get('currency') else str(value)
+            data_row.append(Paragraph(text, align_styles[c['align']]))
+        data.append(data_row)
 
     table = Table(
         data,
         repeatRows=1,
-        colWidths=[95, 155, 70, 52, 28, 32, 36, 30, 75, 85]
+        colWidths=[c['width'] for c in columns]
     )
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 6),
-        ('LEADING', (0, 0), (-1, -1), 7),
-        ('ALIGN', (3, 1), (8, -1), 'CENTER'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#9CA3AF')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F3F4F6')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2.5),
         ('TOPPADDING', (0, 0), (-1, -1), 2),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-        ('LEFTPADDING', (0, 0), (-1, -1), 2),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
     ]))
     elements.append(table)
-    doc.build(elements)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(landscape(A4)[0]))
     output.seek(0)
     filename = f'stock_qr_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
     return send_file(output, download_name=filename, as_attachment=True)
@@ -6248,6 +6254,53 @@ def _produits_export_summary():
     parts.append(f'Trié par {sort_label} ({dir_label})')
     return ' | '.join(parts)
 
+def get_export_selected_columns(all_columns, requested):
+    """Filtre une liste de colonnes d'export (voir PRODUITS_EXPORT_COLUMNS /
+    STOCK_QR_EXPORT_COLUMNS) sur un parametre 'cols' (cle,cle,...) envoye par
+    la modale de selection de colonnes -- absent/vide/invalide => toutes les
+    colonnes (comportement par defaut, y compris pour un lien d'export appele
+    directement sans passer par la modale)."""
+    all_keys = {c['key'] for c in all_columns}
+    requested = (requested or '').strip()
+    if not requested:
+        return all_columns
+    selected_keys = {k for k in requested.split(',') if k in all_keys}
+    if not selected_keys:
+        return all_columns
+    return [c for c in all_columns if c['key'] in selected_keys]
+
+# Colonnes disponibles pour l'export catalogue (PDF/Excel), dans l'ordre
+# d'affichage par defaut. 'value' lit directement sur un Produit ; 'width' est
+# la largeur (pt) utilisee dans le tableau PDF ; 'currency' formate a 2
+# decimales en PDF (le format Excel reste le nombre brut, format par Excel
+# lui-meme). 'align' pilote a la fois le style PDF et l'alignement visuel.
+PRODUITS_EXPORT_COLUMNS = [
+    {'key': 'cip', 'excel_label': 'CIP', 'pdf_label': 'CIP',
+     'value': lambda p: p.code_produit or '-', 'align': 'left', 'width': 50},
+    {'key': 'nom', 'excel_label': 'Nom', 'pdf_label': 'Nom',
+     'value': lambda p: p.nom or '-', 'align': 'left', 'width': 121},
+    {'key': 'fournisseur', 'excel_label': 'Fournisseur', 'pdf_label': 'Fournisseur',
+     'value': lambda p: p.fournisseur.nom if p.fournisseur else '-', 'align': 'left', 'width': 53},
+    {'key': 'rayon', 'excel_label': 'Rayon', 'pdf_label': 'Rayon',
+     'value': lambda p: p.rayon.nom if p.rayon else '-', 'align': 'left', 'width': 48},
+    {'key': 'famille', 'excel_label': 'Famille', 'pdf_label': 'Famille',
+     'value': lambda p: p.famille.nom if p.famille else '-', 'align': 'left', 'width': 50},
+    {'key': 'section', 'excel_label': 'Section', 'pdf_label': 'Section',
+     'value': lambda p: p.section.nom if p.section else '-', 'align': 'left', 'width': 46},
+    {'key': 'conditionnement', 'excel_label': 'Conditionnement', 'pdf_label': 'Cond.',
+     'value': lambda p: p.taille_conditionnement or 1, 'align': 'right', 'width': 22},
+    {'key': 'detail', 'excel_label': 'Détail', 'pdf_label': 'Détail',
+     'value': lambda p: 'Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non', 'align': 'right', 'width': 26},
+    {'key': 'prix_achat', 'excel_label': 'Prix Achat', 'pdf_label': 'Prix Achat',
+     'value': lambda p: p.prix_unite or 0, 'align': 'right', 'width': 42, 'currency': True},
+    {'key': 'coefficient', 'excel_label': 'Coefficient', 'pdf_label': 'Coeff.',
+     'value': lambda p: p.effectif_coefficient or 0, 'align': 'right', 'width': 26, 'currency': True},
+    {'key': 'tva', 'excel_label': 'TVA %', 'pdf_label': 'TVA %',
+     'value': lambda p: p.effectif_tva or 0, 'align': 'right', 'width': 24, 'currency': True},
+    {'key': 'prix_vente_ttc', 'excel_label': 'Prix Vente TTC', 'pdf_label': 'Prix Vente TTC',
+     'value': lambda p: p.prix_unite_ttc or 0, 'align': 'right', 'width': 48, 'currency': True},
+]
+
 @admin.route('/produits/export/excel')
 @login_required
 @permission_required('gestion_produits')
@@ -6256,22 +6309,10 @@ def export_produits_excel():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     filter_summary = _produits_export_summary()
-    data = [{
-        'CIP': p.code_produit,
-        'Nom': p.nom,
-        'Fournisseur': p.fournisseur.nom if p.fournisseur else '',
-        'Rayon': p.rayon.nom if p.rayon else '',
-        'Famille': p.famille.nom if p.famille else '',
-        'Section': p.section.nom if p.section else '',
-        'Conditionnement': p.taille_conditionnement or 1,
-        'Détail': 'Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non',
-        'Prix Achat': p.prix_unite,
-        'Coefficient': p.effectif_coefficient,
-        'TVA %': p.effectif_tva,
-        'Prix Vente TTC': p.prix_unite_ttc,
-    } for p in produits]
-    
-    df = pd.DataFrame(data)
+    columns = get_export_selected_columns(PRODUITS_EXPORT_COLUMNS, request.args.get('cols'))
+    data = [{c['excel_label']: c['value'](p) for c in columns} for p in produits]
+
+    df = pd.DataFrame(data, columns=[c['excel_label'] for c in columns])
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -6330,24 +6371,17 @@ def export_produits_pdf():
     cell_style = ParagraphStyle('BodyCell', parent=styles['Normal'], fontSize=6, leading=7)
     right_style = ParagraphStyle('BodyCellRight', parent=cell_style, alignment=2)
 
-    data = [['CIP', 'Nom', 'Fournisseur', 'Rayon', 'Famille', 'Section', 'Cond.', 'Détail', 'Prix Achat', 'Coeff.', 'TVA %', 'Prix Vente TTC']]
+    columns = get_export_selected_columns(PRODUITS_EXPORT_COLUMNS, request.args.get('cols'))
+    data = [[c['pdf_label'] for c in columns]]
     for p in produits:
-        data.append([
-            Paragraph(p.code_produit or '-', cell_style),
-            Paragraph(p.nom or '-', cell_style),
-            Paragraph(p.fournisseur.nom if p.fournisseur else '-', cell_style),
-            Paragraph(p.rayon.nom if p.rayon else '-', cell_style),
-            Paragraph(p.famille.nom if p.famille else '-', cell_style),
-            Paragraph(p.section.nom if p.section else '-', cell_style),
-            Paragraph(str(p.taille_conditionnement or 1), right_style),
-            Paragraph('Oui' if (p.conditionnement and p.conditionnement >= 2) else 'Non', right_style),
-            Paragraph(f'{p.prix_unite or 0:.2f}', right_style),
-            Paragraph(f'{p.effectif_coefficient or 0:.2f}', right_style),
-            Paragraph(f'{p.effectif_tva or 0:.2f}', right_style),
-            Paragraph(f'{p.prix_unite_ttc or 0:.2f}', right_style),
-        ])
+        row = []
+        for c in columns:
+            value = c['value'](p)
+            text = f'{value:.2f}' if c.get('currency') else str(value)
+            row.append(Paragraph(text, right_style if c['align'] == 'right' else cell_style))
+        data.append(row)
 
-    table = Table(data, repeatRows=1, colWidths=[50, 121, 53, 48, 50, 46, 22, 26, 42, 26, 24, 48])
+    table = Table(data, repeatRows=1, colWidths=[c['width'] for c in columns])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
