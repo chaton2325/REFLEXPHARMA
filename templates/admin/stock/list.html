@@ -1718,6 +1718,9 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
       <div class="modal-body form-custom">
         <div id="qcpError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div id="qcpExistingHint" class="alert alert-info small py-2 px-3 d-none">
+          <i class="fas fa-info-circle me-1"></i>Nom et CIP repris du produit déjà catalogué chez <strong id="qcpExistingFournisseur"></strong>. Il ne reste plus qu'à renseigner les informations propres à ce fournisseur.
+        </div>
 
         <div class="mb-3">
           <label for="qcpNom" class="form-label">Nom du produit <span class="text-danger">*</span></label>
@@ -2579,10 +2582,23 @@ document.addEventListener('DOMContentLoaded', function() {
             lastResults = [];
         }
 
-        function renderResultsList(items) {
+        function renderResultsList(items, existingOtherFournisseur) {
             lastResults = items;
             activeResultIndex = -1;
             if (items.length === 0) {
+                if (existingOtherFournisseur) {
+                    produitSearchResults.innerHTML = `
+                        <div class="result-empty">Aucun produit chez ce fournisseur.</div>
+                        <div class="alert alert-info small mt-2 mb-0 p-2 d-flex justify-content-between align-items-center gap-2">
+                            <span><i class="fas fa-info-circle me-1"></i>Ce CIP existe déjà chez <strong>${escapeHtml(existingOtherFournisseur.fournisseur || '')}</strong> (${escapeHtml(existingOtherFournisseur.nom)}).</span>
+                            <button type="button" id="createFromExistingBtn" class="btn btn-sm btn-primary flex-shrink-0">Créer ici</button>
+                        </div>
+                    `;
+                    produitSearchResults.classList.remove('d-none');
+                    const btn = document.getElementById('createFromExistingBtn');
+                    if (btn) btn.addEventListener('click', () => qcpOpenForExisting(existingOtherFournisseur));
+                    return;
+                }
                 produitSearchResults.innerHTML = '<div class="result-empty">Aucun produit trouvé.</div>';
                 produitSearchResults.classList.remove('d-none');
                 return;
@@ -2609,7 +2625,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fournisseurParam = activeFournisseurId ? `&fournisseur_id=${encodeURIComponent(activeFournisseurId)}` : '';
             fetch(`{{ url_for('admin.stock_produits_search') }}?q=${encodeURIComponent(q)}${fournisseurParam}`, { signal: searchAbortController.signal })
                 .then((res) => res.json())
-                .then((data) => renderResultsList(data.results || []))
+                .then((data) => renderResultsList(data.results || [], data.existing_other_fournisseur || null))
                 .catch((err) => {
                     if (err.name !== 'AbortError') {
                         produitSearchResults.innerHTML = '<div class="result-empty">Erreur lors de la recherche.</div>';
@@ -3206,6 +3222,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const qcpPointsFidelite = document.getElementById('qcpPointsFidelite');
             const qcpApercuPrix = document.getElementById('qcpApercuPrix');
             const qcpError = document.getElementById('qcpError');
+            const qcpExistingHint = document.getElementById('qcpExistingHint');
+            const qcpExistingFournisseur = document.getElementById('qcpExistingFournisseur');
             const qcpSubmit = document.getElementById('qcpSubmit');
             const openQuickCreateBtn = document.getElementById('openQuickCreateProduit');
             const quickCreateModal = bootstrap.Modal.getOrCreateInstance(quickCreateModalEl, { backdrop: false });
@@ -3273,7 +3291,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             function qcpReset() {
                 qcpNom.value = '';
+                qcpNom.readOnly = false;
                 qcpCip.value = '';
+                qcpCip.readOnly = false;
                 // Pre-selectionne le fournisseur actif de l'etape 1 : un produit
                 // cree ici concerne quasi toujours ce meme fournisseur.
                 qcpFournisseur.value = activeFournisseurId || '';
@@ -3288,9 +3308,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 qcpStockSecurite.value = '0';
                 qcpPointsFidelite.value = '';
                 qcpError.classList.add('d-none');
+                qcpExistingHint.classList.add('d-none');
                 qcpUpdateDetail();
                 qcpUpdatePrixSousUniteCalc();
                 qcpRenderApercuPrix();
+            }
+
+            // Cas "CIP deja catalogue chez un autre fournisseur" (voir
+            // stock_produits_search / existing_other_fournisseur) : reprend nom et
+            // CIP tels quels (verrouilles, non modifiables) plutot que de les faire
+            // ressaisir -- il ne reste que les infos propres a ce fournisseur
+            // (prix, coefficient, TVA, etc.) a completer.
+            function qcpOpenForExisting(existing) {
+                qcpReset();
+                qcpNom.value = existing.nom;
+                qcpNom.readOnly = true;
+                qcpCip.value = existing.code_produit;
+                qcpCip.readOnly = true;
+                qcpExistingFournisseur.textContent = existing.fournisseur || 'un autre fournisseur';
+                qcpExistingHint.classList.remove('d-none');
+                quickCreateModal.show();
+                window.setTimeout(() => qcpPrixUnite.focus(), 300);
             }
 
             qcpDetailCheckbox.addEventListener('change', () => { qcpUpdateDetail(); qcpUpdatePrixSousUniteCalc(); qcpRenderApercuPrix(); });
