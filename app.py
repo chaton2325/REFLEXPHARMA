@@ -198,6 +198,22 @@ def ensure_database_schema(app):
         except Exception:
             db.session.rollback()
 
+        # Le CIP (code_produit) etait jusque-la unique sur toute la table : un
+        # meme produit ne pouvait exister que chez un seul fournisseur. On passe
+        # a une unicite par (code_produit, fournisseur_id), pour permettre au
+        # meme CIP d'etre propose par plusieurs fournisseurs.
+        try:
+            db.session.execute(text("ALTER TABLE produits DROP CONSTRAINT IF EXISTS produits_code_produit_key;"))
+            db.session.execute(text("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_produit_code_produit_fournisseur') THEN
+                        ALTER TABLE produits ADD CONSTRAINT uq_produit_code_produit_fournisseur UNIQUE (code_produit, fournisseur_id);
+                    END IF;
+                END $$;
+            """))
+        except Exception:
+            db.session.rollback()
+
         # Une fois le backfill ci-dessus effectue, ces colonnes ne sont plus lues
         # nulle part dans l'application : nettoyage du schema.
         try:

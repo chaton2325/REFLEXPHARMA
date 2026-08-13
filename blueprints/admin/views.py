@@ -3706,8 +3706,8 @@ def create_produit():
         if not code_produit:
             flash('Veuillez préciser le CIP du produit.', 'warning')
             return redirect(url_for('admin.create_produit'))
-        if Produit.query.filter_by(code_produit=code_produit).first():
-            flash(f'Le CIP "{code_produit}" est déjà utilisé par un autre produit.', 'danger')
+        if Produit.query.filter_by(code_produit=code_produit, fournisseur_id=fournisseur.id).first():
+            flash(f'Le CIP "{code_produit}" est déjà utilisé par un autre produit chez ce fournisseur.', 'danger')
             return redirect(url_for('admin.create_produit'))
 
         new_produit = produit_from_form(request.form, fournisseur)
@@ -3736,13 +3736,14 @@ def quick_create_produit():
     code_produit = (request.form.get('code_produit') or '').strip()
     if not code_produit:
         return jsonify({'success': False, 'message': 'Le CIP est requis.'}), 400
-    if Produit.query.filter_by(code_produit=code_produit).first():
-        return jsonify({'success': False, 'message': f'Le CIP "{code_produit}" est déjà utilisé par un autre produit.'}), 400
 
     fournisseur_id = request.form.get('fournisseur_id')
     fournisseur = Fournisseur.query.get(int(fournisseur_id)) if fournisseur_id else None
     if not fournisseur:
         return jsonify({'success': False, 'message': 'Veuillez choisir un fournisseur.'}), 400
+
+    if Produit.query.filter_by(code_produit=code_produit, fournisseur_id=fournisseur.id).first():
+        return jsonify({'success': False, 'message': f'Le CIP "{code_produit}" est déjà utilisé par un autre produit chez ce fournisseur.'}), 400
 
     try:
         prix_unite = float(request.form.get('prix_unite') or 0)
@@ -3936,7 +3937,19 @@ def commandes_stats_ventes():
     ).select_from(VenteLigne).join(
         Vente, Vente.numero_vente == VenteLigne.numero_vente
     ).join(
-        Produit, Produit.code_produit == VenteLigne.produit_code
+        # Un CIP peut desormais exister chez plusieurs fournisseurs : on
+        # desambiguise la jointure avec le fournisseur snapshote sur la ligne
+        # de vente (produit_fournisseur), sinon une meme vente compterait pour
+        # chaque produit partageant ce CIP. Les ventes anterieures a l'ajout de
+        # ce snapshot (produit_fournisseur NULL) retombent sur l'ancien
+        # comportement (match par CIP seul).
+        Produit, db.and_(
+            Produit.code_produit == VenteLigne.produit_code,
+            db.or_(
+                Produit.fournisseur.has(Fournisseur.nom == VenteLigne.produit_fournisseur),
+                VenteLigne.produit_fournisseur.is_(None)
+            )
+        )
     ).filter(*filtres).group_by(Produit.id).all()
 
     total_ca = float(sum(ca or 0 for _, _, ca in rows))

@@ -196,7 +196,23 @@ def setup_database():
             db.session.execute(text("UPDATE vente_lignes SET numero_vente = ventes.numero_vente FROM ventes WHERE vente_lignes.vente_id = ventes.id AND (vente_lignes.numero_vente IS NULL OR vente_lignes.numero_vente = '');"))
         except Exception:
             db.session.rollback()
-        
+
+        # Le CIP (code_produit) etait jusque-la unique sur toute la table : un
+        # meme produit ne pouvait exister que chez un seul fournisseur. On passe
+        # a une unicite par (code_produit, fournisseur_id), pour permettre au
+        # meme CIP d'etre propose par plusieurs fournisseurs.
+        try:
+            db.session.execute(text("ALTER TABLE produits DROP CONSTRAINT IF EXISTS produits_code_produit_key;"))
+            db.session.execute(text("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_produit_code_produit_fournisseur') THEN
+                        ALTER TABLE produits ADD CONSTRAINT uq_produit_code_produit_fournisseur UNIQUE (code_produit, fournisseur_id);
+                    END IF;
+                END $$;
+            """))
+        except Exception:
+            db.session.rollback()
+
         db.session.commit()
         print("Structure de la base de données vérifiée et mise à jour.")
 

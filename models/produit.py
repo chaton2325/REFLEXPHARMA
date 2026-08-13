@@ -4,10 +4,16 @@ from utils import arrondi
 
 class Produit(db.Model):
     __tablename__ = 'produits'
-    
+    __table_args__ = (
+        # Le CIP est unique, mais un meme CIP peut etre propose par plusieurs
+        # fournisseurs differents : l'unicite s'applique par fournisseur, pas
+        # globalement sur toute la table.
+        db.UniqueConstraint('code_produit', 'fournisseur_id', name='uq_produit_code_produit_fournisseur'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(200), nullable=False)
-    code_produit = db.Column(db.String(50), unique=True, nullable=False)
+    code_produit = db.Column(db.String(50), nullable=False)
     
     # Relations
     fournisseur_id = db.Column(db.Integer, db.ForeignKey('fournisseurs.id'), nullable=False)
