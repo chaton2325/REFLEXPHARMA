@@ -4507,26 +4507,31 @@ def stock_produits_search():
     produits = query.order_by(Produit.nom.asc()).limit(20).all()
     result = {'results': [produit_to_stock_json(p) for p in produits]}
 
-    # Rien chez ce fournisseur : le meme CIP peut deja exister chez un autre
-    # fournisseur (meme produit, catalogue distinct depuis le passage a
-    # l'unicite (code_produit, fournisseur_id)) -- si c'est le cas, propose de
-    # le recreer ici plutot que de faire ressaisir CIP/nom a la main.
+    # Rien chez ce fournisseur : le meme produit (par CIP OU par nom, comme la
+    # recherche principale ci-dessus) peut deja exister chez un autre
+    # fournisseur (catalogue distinct depuis le passage a l'unicite
+    # (code_produit, fournisseur_id)) -- si c'est le cas, propose de le
+    # recreer ici plutot que de faire ressaisir CIP/nom a la main.
     if not produits and q and fournisseur_id:
         try:
             fid = int(fournisseur_id)
         except ValueError:
             fid = None
         if fid is not None:
-            existing = Produit.query.filter(
-                Produit.code_produit.ilike(q),
+            like = f'%{q}%'
+            autres = Produit.query.filter(
+                db.or_(Produit.nom.ilike(like), Produit.code_produit.ilike(like)),
                 Produit.fournisseur_id != fid
-            ).first()
-            if existing:
-                result['existing_other_fournisseur'] = {
-                    'code_produit': existing.code_produit,
-                    'nom': existing.nom,
-                    'fournisseur': existing.fournisseur.nom if existing.fournisseur else None,
-                }
+            ).order_by(Produit.nom.asc()).limit(5).all()
+            if autres:
+                result['autres_fournisseurs'] = [
+                    {
+                        'code_produit': p.code_produit,
+                        'nom': p.nom,
+                        'fournisseur': p.fournisseur.nom if p.fournisseur else None,
+                    }
+                    for p in autres
+                ]
     return jsonify(result)
 
 @admin.route('/stock', methods=['GET', 'POST'])

@@ -2582,21 +2582,30 @@ document.addEventListener('DOMContentLoaded', function() {
             lastResults = [];
         }
 
-        function renderResultsList(items, existingOtherFournisseur) {
+        function renderResultsList(items, autresFournisseurs) {
             lastResults = items;
             activeResultIndex = -1;
             if (items.length === 0) {
-                if (existingOtherFournisseur) {
+                if (autresFournisseurs && autresFournisseurs.length > 0) {
                     produitSearchResults.innerHTML = `
                         <div class="result-empty">Aucun produit chez ce fournisseur.</div>
-                        <div class="alert alert-info small mt-2 mb-0 p-2 d-flex justify-content-between align-items-center gap-2">
-                            <span><i class="fas fa-info-circle me-1"></i>Ce CIP existe déjà chez <strong>${escapeHtml(existingOtherFournisseur.fournisseur || '')}</strong> (${escapeHtml(existingOtherFournisseur.nom)}).</span>
-                            <button type="button" id="createFromExistingBtn" class="btn btn-sm btn-primary flex-shrink-0">Créer ici</button>
+                        <div class="small text-muted px-2 pt-2 pb-1">Trouvé chez d'autres fournisseurs :</div>
+                    ` + autresFournisseurs.map((p, idx) => `
+                        <div class="result-item d-flex justify-content-between align-items-center gap-2" data-other-index="${idx}">
+                            <div>
+                                <div class="result-name">${escapeHtml(p.nom)}</div>
+                                <div class="result-meta">${escapeHtml(p.code_produit)}${p.fournisseur ? ' · ' + escapeHtml(p.fournisseur) : ''}</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary flex-shrink-0 create-here-btn" data-other-index="${idx}">Créer ici</button>
                         </div>
-                    `;
+                    `).join('');
                     produitSearchResults.classList.remove('d-none');
-                    const btn = document.getElementById('createFromExistingBtn');
-                    if (btn) btn.addEventListener('click', () => qcpOpenForExisting(existingOtherFournisseur));
+                    produitSearchResults.querySelectorAll('.create-here-btn').forEach((btn) => {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            qcpOpenForExisting(autresFournisseurs[Number(btn.dataset.otherIndex)]);
+                        });
+                    });
                     return;
                 }
                 produitSearchResults.innerHTML = '<div class="result-empty">Aucun produit trouvé.</div>';
@@ -2625,7 +2634,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fournisseurParam = activeFournisseurId ? `&fournisseur_id=${encodeURIComponent(activeFournisseurId)}` : '';
             fetch(`{{ url_for('admin.stock_produits_search') }}?q=${encodeURIComponent(q)}${fournisseurParam}`, { signal: searchAbortController.signal })
                 .then((res) => res.json())
-                .then((data) => renderResultsList(data.results || [], data.existing_other_fournisseur || null))
+                .then((data) => renderResultsList(data.results || [], data.autres_fournisseurs || []))
                 .catch((err) => {
                     if (err.name !== 'AbortError') {
                         produitSearchResults.innerHTML = '<div class="result-empty">Erreur lors de la recherche.</div>';
@@ -3314,11 +3323,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 qcpRenderApercuPrix();
             }
 
-            // Cas "CIP deja catalogue chez un autre fournisseur" (voir
-            // stock_produits_search / existing_other_fournisseur) : reprend nom et
-            // CIP tels quels (verrouilles, non modifiables) plutot que de les faire
-            // ressaisir -- il ne reste que les infos propres a ce fournisseur
-            // (prix, coefficient, TVA, etc.) a completer.
+            // Cas "produit deja catalogue chez un autre fournisseur" (trouve par
+            // CIP ou par nom, voir stock_produits_search / autres_fournisseurs) :
+            // reprend nom et CIP tels quels (verrouilles, non modifiables) plutot
+            // que de les faire ressaisir -- il ne reste que les infos propres a ce
+            // fournisseur (prix, coefficient, TVA, etc.) a completer.
             function qcpOpenForExisting(existing) {
                 qcpReset();
                 qcpNom.value = existing.nom;
