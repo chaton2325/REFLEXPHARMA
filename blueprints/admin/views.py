@@ -6371,6 +6371,27 @@ def export_produits_excel():
     output.seek(0)
     return send_file(output, download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx', as_attachment=True)
 
+@admin.route('/produits/export/csv')
+@login_required
+@permission_required('gestion_produits')
+def export_produits_csv():
+    produits = _produits_export_query().all()
+    columns = get_export_selected_columns(PRODUITS_EXPORT_COLUMNS, request.args.get('cols'))
+    data = [{c['excel_label']: c['value'](p) for c in columns} for p in produits]
+
+    df = pd.DataFrame(data, columns=[c['excel_label'] for c in columns])
+    output = io.BytesIO()
+    # utf-8-sig (BOM) : Excel ouvre sinon les accents en mojibake sur un CSV
+    # en simple utf-8.
+    output.write(df.to_csv(index=False).encode('utf-8-sig'))
+    output.seek(0)
+    return send_file(
+        output,
+        download_name=f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
+        as_attachment=True,
+        mimetype='text/csv'
+    )
+
 @admin.route('/produits/export/pdf')
 @login_required
 @permission_required('gestion_produits')

@@ -248,6 +248,9 @@
         <a id="exportPdfBtn" href="{{ url_for('admin.export_produits_pdf') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la vue filtrée/triée actuelle">
           <i class="fas fa-file-pdf me-1"></i> PDF
         </a>
+        <a id="exportCsvBtn" href="{{ url_for('admin.export_produits_csv') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1rem;" title="Exporter la vue filtrée/triée actuelle">
+          <i class="fas fa-file-csv me-1"></i> CSV
+        </a>
         <a href="{{ url_for('admin.create_produit') }}" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;padding:0.5rem 1.2rem;">
           <i class="fas fa-plus me-1"></i> Nouveau Produit
         </a>
@@ -696,6 +699,7 @@
 <script>
 const EXPORT_EXCEL_BASE = "{{ url_for('admin.export_produits_excel') }}";
 const EXPORT_PDF_BASE = "{{ url_for('admin.export_produits_pdf') }}";
+const EXPORT_CSV_BASE = "{{ url_for('admin.export_produits_csv') }}";
 const SORT_LABELS = { code: 'CIP', nom: 'Nom', fournisseur: 'Fournisseur', rayon: 'Rayon', detail: 'Détail', cond: 'Conditionnement', prix: 'Prix Achat' };
 let currentSort = { field: null, dir: 'asc' };
 
@@ -721,8 +725,10 @@ function updateExportLinks() {
     const qs = params.toString();
     const excelBtn = document.getElementById('exportExcelBtn');
     const pdfBtn = document.getElementById('exportPdfBtn');
+    const csvBtn = document.getElementById('exportCsvBtn');
     if (excelBtn) excelBtn.href = EXPORT_EXCEL_BASE + (qs ? '?' + qs : '');
     if (pdfBtn) pdfBtn.href = EXPORT_PDF_BASE + (qs ? '?' + qs : '');
+    if (csvBtn) csvBtn.href = EXPORT_CSV_BASE + (qs ? '?' + qs : '');
 
     const hint = document.getElementById('exportHint');
     if (hint) {
@@ -1047,8 +1053,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const excelBtnEl = document.getElementById('exportExcelBtn');
         const pdfBtnEl = document.getElementById('exportPdfBtn');
+        const csvBtnEl = document.getElementById('exportCsvBtn');
         if (excelBtnEl) excelBtnEl.addEventListener('click', (e) => { e.preventDefault(); openExportColumnsModal(excelBtnEl); });
         if (pdfBtnEl) pdfBtnEl.addEventListener('click', (e) => { e.preventDefault(); openExportColumnsModal(pdfBtnEl); });
+        if (csvBtnEl) csvBtnEl.addEventListener('click', (e) => { e.preventDefault(); openExportColumnsModal(csvBtnEl); });
 
         document.getElementById('exportColumnsConfirm').addEventListener('click', () => {
             const selected = exportColumnCheckboxes().filter(cb => cb.checked).map(cb => cb.value);
