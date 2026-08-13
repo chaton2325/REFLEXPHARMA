@@ -6266,7 +6266,23 @@ def _produits_export_summary():
     sort_label = PRODUITS_SORT_LABELS.get(sort_key, 'Nom')
     dir_label = 'décroissant' if request.args.get('dir') == 'desc' else 'croissant'
     parts.append(f'Trié par {sort_label} ({dir_label})')
+    if (request.args.get('sans_doublons') or '') == '1':
+        parts.append('Doublons exclus (1 ligne par CIP)')
     return ' | '.join(parts)
+
+def _dedupe_produits_by_cip(produits):
+    """Ne garde qu'une occurrence par CIP. Un meme CIP peut desormais figurer
+    plusieurs fois dans le catalogue s'il est propose par plusieurs
+    fournisseurs (voir l'unicite (code_produit, fournisseur_id) sur Produit) --
+    conserve la premiere occurrence rencontree, dans l'ordre de tri actif."""
+    seen = set()
+    result = []
+    for p in produits:
+        if p.code_produit in seen:
+            continue
+        seen.add(p.code_produit)
+        result.append(p)
+    return result
 
 def get_export_selected_columns(all_columns, requested):
     """Filtre une liste de colonnes d'export (voir PRODUITS_EXPORT_COLUMNS /
@@ -6365,6 +6381,8 @@ def export_produits_pdf():
     from reportlab.lib.pagesizes import A4
 
     produits = _produits_export_query().all()
+    if (request.args.get('sans_doublons') or '') == '1':
+        produits = _dedupe_produits_by_cip(produits)
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=A4, topMargin=24, bottomMargin=30, leftMargin=18, rightMargin=18)
     elements = []

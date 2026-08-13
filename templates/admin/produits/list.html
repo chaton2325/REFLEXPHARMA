@@ -645,6 +645,11 @@
           </div>
           {% endfor %}
         </div>
+        <div id="exportNoDupesWrap" class="form-check pt-2 mt-2 d-none" style="border-top:1px solid #e9ecef;">
+          <input class="form-check-input" type="checkbox" id="exportNoDupes">
+          <label class="form-check-label" for="exportNoDupes">Ne pas exporter les doublons</label>
+          <div class="form-text small text-muted">Un même produit (CIP) proposé par plusieurs fournisseurs n'apparaîtra qu'une seule fois.</div>
+        </div>
       </div>
       <div class="modal-footer" style="border-top:1px solid #e9ecef;">
         <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
@@ -1028,9 +1033,15 @@ document.addEventListener('DOMContentLoaded', function() {
             exportColAll.checked = exportColumnCheckboxes().every(c => c.checked);
         }));
 
+        const exportNoDupesWrap = document.getElementById('exportNoDupesWrap');
+        const exportNoDupes = document.getElementById('exportNoDupes');
+
         function openExportColumnsModal(btn) {
             pendingExportBtn = btn;
             exportColumnsError.classList.add('d-none');
+            // "Ne pas exporter les doublons" n'a de sens que pour le PDF (voir
+            // _dedupe_produits_by_cip, non applique a l'export Excel).
+            if (exportNoDupesWrap) exportNoDupesWrap.classList.toggle('d-none', btn !== pdfBtnEl);
             exportColumnsModal.show();
         }
 
@@ -1049,6 +1060,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!pendingExportBtn) return;
             const url = new URL(pendingExportBtn.href, window.location.origin);
             url.searchParams.set('cols', selected.join(','));
+            if (pendingExportBtn === pdfBtnEl && exportNoDupes && exportNoDupes.checked) {
+                url.searchParams.set('sans_doublons', '1');
+            } else {
+                url.searchParams.delete('sans_doublons');
+            }
             exportColumnsModal.hide();
             if (pendingExportBtn === pdfBtnEl) {
                 // Affiche dans #pdfPreviewModal (meme page) plutot que dans un
