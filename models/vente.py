@@ -61,6 +61,22 @@ class Vente(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
+    # Annulation (statut == 'annulee') : tous NULL tant que la vente n'est pas
+    # annulee. raison_annulation_nom est un snapshot du nom de la raison au
+    # moment de l'annulation (survit a la suppression de la raison, comme
+    # produit_nom/produit_code sur VenteLigne). annulee_par_* suit le meme
+    # style que auteur_nom/auteur_prenom/auteur_email (pas de FK utilisateur).
+    raison_annulation_id = db.Column(db.Integer, db.ForeignKey('raisons_annulation_vente.id'), nullable=True)
+    raison_annulation_nom = db.Column(db.String(200), nullable=True)
+    annulation_commentaire = db.Column(db.Text, nullable=True)
+    annulee_at = db.Column(db.DateTime, nullable=True)
+    annulee_par_nom = db.Column(db.String(100), nullable=True)
+    annulee_par_prenom = db.Column(db.String(100), nullable=True)
+    annulee_par_email = db.Column(db.String(150), nullable=True)
+    # NULL tant que non annulee ; True/False une fois annulee selon que le
+    # stock deduit par la vente a ete remis en stock ou non.
+    stock_restaure = db.Column(db.Boolean, nullable=True)
+
     @cached_property
     def lignes(self):
         return VenteLigne.query.filter_by(numero_vente=self.numero_vente).order_by(VenteLigne.id.asc()).all()

@@ -22,6 +22,7 @@ from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
+from models.raison_annulation_vente import RaisonAnnulationVente
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
@@ -94,7 +95,17 @@ def ensure_database_schema(app):
                 ('code_promo_id', 'INTEGER'),
                 ('code_promo_utilise', 'VARCHAR(50)'),
                 ('code_promo_pourcentage', 'FLOAT'),
-                ('code_promo_montant_deduit', 'FLOAT DEFAULT 0')
+                ('code_promo_montant_deduit', 'FLOAT DEFAULT 0'),
+                # Annulation de vente (voir raisons_annulation_vente / statut
+                # 'annulee') : tous NULL tant que la vente n'est pas annulee.
+                ('raison_annulation_id', 'INTEGER'),
+                ('raison_annulation_nom', 'VARCHAR(200)'),
+                ('annulation_commentaire', 'TEXT'),
+                ('annulee_at', 'TIMESTAMP'),
+                ('annulee_par_nom', 'VARCHAR(100)'),
+                ('annulee_par_prenom', 'VARCHAR(100)'),
+                ('annulee_par_email', 'VARCHAR(150)'),
+                ('stock_restaure', 'BOOLEAN')
             ],
             'vente_lignes': [
                 ('numero_vente', 'VARCHAR(80)'),

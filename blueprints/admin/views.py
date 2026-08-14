@@ -23,6 +23,7 @@ from models.groupe_client import GroupeClient
 from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
+from models.raison_annulation_vente import RaisonAnnulationVente
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
@@ -188,6 +189,7 @@ STOCK_MODIFICATION_ACTION_LABELS = {
     'sortie': 'Sortie',
     'qr_print': 'Tirage QR',
     'update': 'Mise à jour',
+    'restock': 'Restockage (annulation vente)',
 }
 
 def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
@@ -1931,6 +1933,7 @@ def get_filtered_ventes(default_today=False):
     auteur_id = request.args.get('auteur_id', type=int)
     min_ttc = request.args.get('min_ttc', type=float)
     max_ttc = request.args.get('max_ttc', type=float)
+    raison_annulation_id = request.args.get('raison_annulation_id', type=int)
     sort = (request.args.get('sort') or 'created_at').strip()
     direction = (request.args.get('direction') or 'desc').strip()
 
@@ -1966,12 +1969,15 @@ def get_filtered_ventes(default_today=False):
         ventes = [vente for vente in ventes if vente.total_ttc >= min_ttc]
     if max_ttc is not None:
         ventes = [vente for vente in ventes if vente.total_ttc <= max_ttc]
+    if raison_annulation_id:
+        ventes = [vente for vente in ventes if vente.raison_annulation_id == raison_annulation_id]
 
     sorters = {
         'numero_vente': lambda vente: vente.numero_vente or '',
         'client': lambda vente: vente.client_label.lower(),
         'mode_paiement': lambda vente: vente.mode_paiement or '',
         'statut': lambda vente: vente.statut or '',
+        'raison_annulation': lambda vente: vente.raison_annulation_nom or '',
         'total_ht': lambda vente: vente.total_ht or 0,
         'total_tva': lambda vente: vente.total_tva or 0,
         'total_ttc': lambda vente: vente.total_ttc or 0,
@@ -2194,6 +2200,7 @@ def list_ventes():
         total_pages=total_pages,
         clients=Client.query.order_by(Client.nom.asc()).all(),
         users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all(),
+        raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all(),
         date_from_val=date_from,
         date_to_val=date_to,
         page_total_benefice=totals_reels['benefice'],
@@ -2210,7 +2217,8 @@ def list_all_ventes():
         'admin/ventes/all.html',
         ventes=ventes,
         total_benefice=totals_reels['benefice'],
-        total_tva_reelle=totals_reels['tva_reelle']
+        total_tva_reelle=totals_reels['tva_reelle'],
+        raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all()
     )
 
 
@@ -2813,8 +2821,142 @@ def detail_vente(id):
         vente=vente,
         pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
         auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true',
-        fidelite_active=fidelite.is_active()
+        fidelite_active=fidelite.is_active(),
+        raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all()
     )
+
+@admin.route('/ventes/raisons-annulation')
+@login_required
+@permission_required('gestion_ventes')
+def list_raisons_annulation_vente():
+    """Page de gestion des raisons d'annulation de vente : meme permission que
+    le module Ventes, sur le meme patron que list_raisons_financieres (liste
+    plate + creation en ligne + suppression, pas d'edition)."""
+    q = (request.args.get('q') or '').strip()
+    query = RaisonAnnulationVente.query
+    if q:
+        query = query.filter(RaisonAnnulationVente.nom.ilike(f'%{q}%'))
+    raisons = query.order_by(RaisonAnnulationVente.nom.asc()).all()
+    return render_template('admin/ventes/raisons.html', raisons=raisons)
+
+@admin.route('/ventes/raisons-annulation/create', methods=['POST'])
+@login_required
+@permission_required('gestion_ventes')
+def create_raison_annulation_vente():
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        flash('Le nom de la raison est requis.', 'warning')
+        return redirect(url_for('admin.list_raisons_annulation_vente'))
+    if RaisonAnnulationVente.query.filter(RaisonAnnulationVente.nom.ilike(nom)).first():
+        flash(f'La raison « {nom} » existe déjà.', 'warning')
+        return redirect(url_for('admin.list_raisons_annulation_vente'))
+    db.session.add(RaisonAnnulationVente(nom=nom))
+    db.session.commit()
+    flash(f'Raison « {nom} » créée : elle est maintenant proposée pour annuler une vente.', 'success')
+    return redirect(url_for('admin.list_raisons_annulation_vente'))
+
+@admin.route('/ventes/raisons-annulation/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_ventes')
+def delete_raison_annulation_vente(id):
+    raison = RaisonAnnulationVente.query.get_or_404(id)
+    nom = raison.nom
+    db.session.delete(raison)
+    db.session.commit()
+    flash(f'Raison « {nom} » supprimée. Les ventes déjà annulées avec cette raison la conservent (nom archivé).', 'success')
+    return redirect(url_for('admin.list_raisons_annulation_vente'))
+
+@admin.route('/ventes/<int:id>/annuler', methods=['POST'])
+@login_required
+@permission_required('gestion_ventes')
+def annuler_vente(id):
+    """Annule une vente : marque statut='annulee' avec raison/auteur/date, et
+    reverse au choix le stock deduit (lot par lot, via les StockModification
+    'sortie' loguees a la vente -- voir consume_product_stock_for_sale) et
+    systematiquement les effets financiers/fidelite (solde client/groupe,
+    points gagnes, budget code promo), a partir des montants deja snapshotes
+    sur la vente au moment de sa creation."""
+    vente = Vente.query.get_or_404(id)
+    if vente.statut == 'annulee':
+        return jsonify({'success': False, 'message': 'Cette vente est déjà annulée.'}), 400
+
+    raison_id = request.form.get('raison_annulation_id')
+    raison = None
+    if raison_id:
+        try:
+            raison = RaisonAnnulationVente.query.get(int(raison_id))
+        except ValueError:
+            raison = None
+    if not raison:
+        return jsonify({'success': False, 'message': "Veuillez choisir une raison d'annulation."}), 400
+
+    restaurer_stock = request.form.get('restaurer_stock') == '1'
+    commentaire = (request.form.get('commentaire') or '').strip()
+
+    stock_warning = None
+    if restaurer_stock:
+        modifications = StockModification.query.filter_by(
+            reason=f'Vente {vente.numero_vente}', action='sortie'
+        ).all()
+        lots_introuvables = 0
+        for mod in modifications:
+            stock = Stock.query.filter_by(code_suivi=mod.code_suivi).first() if mod.code_suivi else None
+            if not stock:
+                lots_introuvables += 1
+                continue
+            old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+            stock.quantite_unites = (stock.quantite_unites or 0) + ((mod.old_quantite_unites or 0) - (mod.new_quantite_unites or 0))
+            stock.quantite_sous_unites = (stock.quantite_sous_unites or 0) + ((mod.old_quantite_sous_unites or 0) - (mod.new_quantite_sous_unites or 0))
+            stock.quantite_sous_sous_unites = (stock.quantite_sous_sous_unites or 0) + ((mod.old_quantite_sous_sous_unites or 0) - (mod.new_quantite_sous_sous_unites or 0))
+            new_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+            create_stock_modification(
+                stock=stock,
+                produit=mod.produit,
+                action='restock',
+                reason=f'Annulation vente {vente.numero_vente}',
+                reason_id=None,
+                old_values=old_values,
+                new_values=new_values,
+                old_qr_tire=stock.qr_tire,
+                new_qr_tire=stock.qr_tire
+            )
+        if lots_introuvables:
+            stock_warning = f"{lots_introuvables} lot(s) de stock n'existent plus : stock non restauré pour ces lignes."
+
+    # Reversion finance/fidelite : toujours, independamment du choix stock.
+    # Le client n'est retrouvable que par matricule (Vente.client_id est
+    # toujours NULL, voir create_vente).
+    if vente.client_matricule:
+        client = Client.query.filter_by(matricule=vente.client_matricule).first()
+        if client:
+            if vente.montant_solde_client:
+                client.solde = (client.solde or 0) + vente.montant_solde_client
+            if client.groupe and vente.montant_solde_groupe:
+                client.groupe.solde = (client.groupe.solde or 0) + vente.montant_solde_groupe
+            if vente.points_gagnes:
+                client.points_fidelite = max(0, (client.points_fidelite or 0) - vente.points_gagnes)
+
+    if vente.code_promo_id and vente.code_promo_montant_deduit:
+        code_promo = CodePromo.query.get(vente.code_promo_id)
+        if code_promo:
+            code_promo.montant_utilise = max(0, (code_promo.montant_utilise or 0) - vente.code_promo_montant_deduit)
+
+    vente.statut = 'annulee'
+    vente.raison_annulation_id = raison.id
+    vente.raison_annulation_nom = raison.nom
+    vente.annulation_commentaire = commentaire or None
+    vente.annulee_at = datetime.now()
+    vente.annulee_par_nom = current_user.nom
+    vente.annulee_par_prenom = current_user.prenom
+    vente.annulee_par_email = current_user.email
+    vente.stock_restaure = restaurer_stock
+
+    db.session.commit()
+
+    message = f'Vente {vente.numero_vente} annulée.'
+    if stock_warning:
+        message += ' ' + stock_warning
+    return jsonify({'success': True, 'message': message})
 
 @admin.route('/ventes/code-promo/verifier')
 @login_required

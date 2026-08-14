@@ -271,6 +271,9 @@
         <i class="fas fa-chart-line me-1"></i> Stats<span class="d-none d-sm-inline">istiques</span>
       </a>
       {% endif %}
+      <a href="{{ url_for('admin.list_raisons_annulation_vente') }}" class="btn btn-light btn-sm" title="Gérer les raisons d'annulation">
+        <i class="fas fa-ban me-1"></i> Raisons<span class="d-none d-sm-inline"> d'annulation</span>
+      </a>
       <a href="{{ url_for('admin.create_vente') }}" class="btn btn-light btn-sm">
         <i class="fas fa-plus-circle me-1"></i> Nouvelle vente
       </a>
@@ -339,7 +342,7 @@
   </div>
 </div>
 
-{% set filters_active = request.args.get('q') or request.args.get('statut') or request.args.get('mode_paiement') or request.args.get('client_id') or request.args.get('auteur_id') or request.args.get('date_from') or request.args.get('date_to') or request.args.get('min_ttc') or request.args.get('max_ttc') %}
+{% set filters_active = request.args.get('q') or request.args.get('statut') or request.args.get('mode_paiement') or request.args.get('client_id') or request.args.get('auteur_id') or request.args.get('date_from') or request.args.get('date_to') or request.args.get('min_ttc') or request.args.get('max_ttc') or request.args.get('raison_annulation_id') %}
 <form method="GET" class="card-form mb-3">
   <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#ventesFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="ventesFilters">
     <span><i class="fas fa-filter me-1"></i> Filtres & tri{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
@@ -359,6 +362,15 @@
           <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
           <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
           <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Raison d'annulation</label>
+        <select name="raison_annulation_id" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for r in raisons_annulation %}
+          <option value="{{ r.id }}" {% if request.args.get('raison_annulation_id')|int == r.id %}selected{% endif %}>{{ r.nom }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-6 col-md-2">
@@ -418,6 +430,8 @@
           <option value="total_ttc" {% if selected_sort == 'total_ttc' %}selected{% endif %}>Total TTC</option>
           <option value="mode_paiement" {% if selected_sort == 'mode_paiement' %}selected{% endif %}>Paiement</option>
           <option value="auteur" {% if selected_sort == 'auteur' %}selected{% endif %}>Auteur</option>
+          <option value="statut" {% if selected_sort == 'statut' %}selected{% endif %}>Statut</option>
+          <option value="raison_annulation" {% if selected_sort == 'raison_annulation' %}selected{% endif %}>Raison d'annulation</option>
         </select>
       </div>
       <div class="col-6 col-md-1">
@@ -454,13 +468,24 @@
           <div class="fw-bold" style="color:#1a1a2e;font-size:0.82rem;">{{ vente.numero_vente }}</div>
           <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%y %H:%M') if vente.created_at else '-' }} · {{ vente.client_label }}</div>
         </div>
-        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info flex-shrink-0" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
-          <i class="fas fa-eye" style="font-size:0.7rem;"></i>
-        </a>
+        <div class="d-flex gap-1 flex-shrink-0">
+          <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-eye" style="font-size:0.7rem;"></i>
+          </a>
+          {% if vente.statut != 'annulee' %}
+          <button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="{{ vente.id }}" data-vente-numero="{{ vente.numero_vente }}" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;" title="Annuler cette vente">
+            <i class="fas fa-ban" style="font-size:0.7rem;"></i>
+          </button>
+          {% endif %}
+        </div>
       </div>
       <div class="d-flex align-items-center gap-1 mt-1">
         <span class="badge-code">{{ vente.mode_paiement }}</span>
+        {% if vente.statut == 'annulee' %}
+        <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.65rem;" title="{{ vente.raison_annulation_nom or '' }}"><i class="fas fa-ban me-1"></i>Annulée</span>
+        {% else %}
         <span class="badge bg-dark-subtle text-dark border" style="font-size:0.65rem;">{{ vente.statut }}</span>
+        {% endif %}
       </div>
       <div class="mt-1 d-flex flex-wrap gap-2" style="font-size:0.72rem;">
         <span>HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
@@ -512,7 +537,11 @@
           </td>
           <td>
             <span class="badge-code">{{ vente.mode_paiement }}</span>
+            {% if vente.statut == 'annulee' %}
+            <div class="cell-sub text-danger fw-semibold" title="{{ vente.raison_annulation_nom or '' }}"><i class="fas fa-ban me-1"></i>Annulée — {{ vente.raison_annulation_nom }}</div>
+            {% else %}
             <div class="cell-sub">{{ vente.statut }}</div>
+            {% endif %}
           </td>
           <td class="text-end" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_ht) }}</td>
           <td class="text-end fw-semibold amount-benefice" style="font-family:Consolas,monospace;">{{ "%.2f"|format(vente.total_benefice) }}</td>
@@ -526,9 +555,14 @@
           <td class="text-end col-rendu">{{ "%.2f"|format(vente.monnaie_rendue) }}</td>
           <td class="col-auteur">{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
           <td class="text-end">
-            <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info">
+            <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info" title="Voir">
               <i class="fas fa-eye"></i>
             </a>
+            {% if vente.statut != 'annulee' %}
+            <button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="{{ vente.id }}" data-vente-numero="{{ vente.numero_vente }}" title="Annuler cette vente">
+              <i class="fas fa-ban"></i>
+            </button>
+            {% endif %}
           </td>
         </tr>
         {% else %}
@@ -604,17 +638,128 @@
   </div>
 </div>
 
+<!-- Modal d'annulation de vente : une seule instance partagee, peuplee en JS
+     via les attributs data-* du bouton "Annuler" clique (voir .annuler-vente-btn) -->
+<div class="modal fade" id="annulerVenteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;">
+        <h5 class="modal-title"><i class="fas fa-ban me-2"></i>Annuler la vente <span id="annulerVenteNumero"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="annulerVenteError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div class="mb-3">
+          <label for="annulerVenteRaison" class="form-label">Raison <span class="text-danger">*</span></label>
+          <select id="annulerVenteRaison" class="form-select">
+            <option value="">Choisir une raison...</option>
+            {% for r in raisons_annulation %}
+            <option value="{{ r.id }}">{{ r.nom }}</option>
+            {% endfor %}
+          </select>
+          {% if not raisons_annulation %}
+          <div class="form-text small text-muted">Aucune raison définie. <a href="{{ url_for('admin.list_raisons_annulation_vente') }}">En créer une</a>.</div>
+          {% endif %}
+        </div>
+        <div class="mb-3">
+          <label for="annulerVenteCommentaire" class="form-label">Commentaire (optionnel)</label>
+          <textarea id="annulerVenteCommentaire" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="annulerVenteRestaurerStock" checked>
+          <label class="form-check-label" for="annulerVenteRestaurerStock">Remettre les produits en stock</label>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Fermer</button>
+        <button type="button" class="btn btn-danger" id="annulerVenteConfirm">
+          <i class="fas fa-ban me-1"></i> Annuler la vente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const alerts = Array.from(document.querySelectorAll('.alert-success'));
   const venteAlert = alerts.find((alert) => alert.textContent.includes('Vente') && alert.textContent.includes('enregistr'));
-  if (!venteAlert) return;
-  const message = venteAlert.textContent.trim();
-  venteAlert.remove();
-  if (message) {
-    document.getElementById('venteSuccessMessage').textContent = message;
+  if (venteAlert) {
+    const message = venteAlert.textContent.trim();
+    venteAlert.remove();
+    if (message) {
+      document.getElementById('venteSuccessMessage').textContent = message;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('venteSuccessModal')).show();
   }
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('venteSuccessModal')).show();
+
+  // Annulation de vente : voir #annulerVenteModal ci-dessus. L'URL est
+  // construite a partir d'un id factice (0) rendu par url_for, remplace en JS
+  // par l'id reel -- evite de coder /admin en dur (prefixe du blueprint).
+  const annulerModalEl = document.getElementById('annulerVenteModal');
+  if (annulerModalEl) {
+    const annulerVenteUrlTemplate = "{{ url_for('admin.annuler_vente', id=0) }}";
+    const annulerModal = bootstrap.Modal.getOrCreateInstance(annulerModalEl);
+    const annulerNumero = document.getElementById('annulerVenteNumero');
+    const annulerRaison = document.getElementById('annulerVenteRaison');
+    const annulerCommentaire = document.getElementById('annulerVenteCommentaire');
+    const annulerRestaurerStock = document.getElementById('annulerVenteRestaurerStock');
+    const annulerError = document.getElementById('annulerVenteError');
+    const annulerConfirm = document.getElementById('annulerVenteConfirm');
+    let pendingVenteId = null;
+
+    document.querySelectorAll('.annuler-vente-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            pendingVenteId = btn.dataset.venteId;
+            annulerNumero.textContent = btn.dataset.venteNumero || '';
+            annulerRaison.value = '';
+            annulerCommentaire.value = '';
+            annulerRestaurerStock.checked = true;
+            annulerError.classList.add('d-none');
+            annulerModal.show();
+        });
+    });
+
+    annulerConfirm.addEventListener('click', () => {
+        annulerError.classList.add('d-none');
+        if (!annulerRaison.value) {
+            annulerError.textContent = 'Veuillez choisir une raison.';
+            annulerError.classList.remove('d-none');
+            return;
+        }
+        if (!pendingVenteId) return;
+        const url = annulerVenteUrlTemplate.replace('/0/annuler', `/${pendingVenteId}/annuler`);
+        const payload = new URLSearchParams({
+            raison_annulation_id: annulerRaison.value,
+            commentaire: annulerCommentaire.value,
+            restaurer_stock: annulerRestaurerStock.checked ? '1' : '0'
+        });
+        annulerConfirm.disabled = true;
+        annulerConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Annulation...';
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: payload.toString()
+        })
+            .then((res) => res.json().then((data) => ({ status: res.status, data })))
+            .then(({ status, data }) => {
+                if (status !== 200 || !data.success) {
+                    annulerError.textContent = data.message || "Impossible d'annuler la vente.";
+                    annulerError.classList.remove('d-none');
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(() => {
+                annulerError.textContent = 'Erreur réseau, veuillez réessayer.';
+                annulerError.classList.remove('d-none');
+            })
+            .finally(() => {
+                annulerConfirm.disabled = false;
+                annulerConfirm.innerHTML = '<i class="fas fa-ban me-1"></i> Annuler la vente';
+            });
+    });
+  }
 });
 </script>
 {% endblock %}
