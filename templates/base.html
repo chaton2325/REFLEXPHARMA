@@ -72,6 +72,23 @@
             text-align: center;
         }
 
+        .sidebar-brand-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand-logo img {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            border-radius: 7px;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
         .sidebar-brand span {
             font-weight: 700;
             color: #2c3e50;
@@ -699,7 +716,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
     {# ===== DESKTOP SIDEBAR ===== #}
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <i class="fas fa-prescription-bottle-alt"></i>
+            <span class="sidebar-brand-logo"><img src="{{ url_for('static', filename='logos/tsaripharm.png') }}" alt="TsariPharm"></span>
             <span>TsariPharm</span>
         </div>
 
@@ -930,8 +947,9 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
     {# ===== OFF CANVAS MOBILE ===== #}
     <div class="offcanvas offcanvas-start offcanvas-sidebar" tabindex="-1" id="mobileMenu">
         <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">
-                <i class="fas fa-prescription-bottle-alt me-2 text-primary"></i>TsariPharm
+            <h5 class="offcanvas-title d-flex align-items-center gap-2">
+                <span class="sidebar-brand-logo"><img src="{{ url_for('static', filename='logos/tsaripharm.png') }}" alt="TsariPharm"></span>
+                TsariPharm
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
