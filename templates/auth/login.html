@@ -183,9 +183,11 @@
     .login-visual-text h2 { font-size: 1.15rem; }
     .login-form-panel { padding: 1.75rem 1.5rem 2rem; }
 
-    /* Sur mobile on garde l'icone + texte (deja valide) plutot que le logo image */
-    .login-logos-row, .login-logo-img { display: none; }
-    .login-icon-fallback { display: inline; }
+    /* Sur mobile : logos plus petits, alignes a gauche avec le reste du texte */
+    .login-logos-row { justify-content: flex-start; gap: 0.5rem; margin-bottom: 0.4rem; }
+    .login-logo-card { padding: 4px 6px; border-radius: 8px; }
+    .login-logo-tsaripharm { max-height: 40px; }
+    .login-logo-joel { max-height: 26px; }
   }
 </style>
 {% endblock %}
