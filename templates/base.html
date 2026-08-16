@@ -25,6 +25,7 @@
             --accent: #3498db;
             --nav-h: 44px;
             --bottom-h: 62px;
+            --topbar-h: 50px;
         }
 
         * { box-sizing: border-box; }
@@ -280,6 +281,29 @@
 
         .btn-primary:hover { background: #2980b9; }
 
+        /* ===== MOBILE TOP BAR (logo toujours visible, sans interaction) ===== */
+        .mobile-topbar {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: calc(var(--topbar-h) + env(safe-area-inset-top));
+            padding: env(safe-area-inset-top) 14px 0;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            z-index: 1030;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .mobile-topbar span {
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 1rem;
+        }
+
         /* ===== MOBILE BOTTOM NAV ===== */
         .mobile-bottom-nav {
             display: none;
@@ -413,10 +437,12 @@
 
             .main-content {
                 margin-left: 0;
+                margin-top: calc(var(--topbar-h) + env(safe-area-inset-top));
                 padding-bottom: calc(var(--bottom-h) + env(safe-area-inset-bottom) + 10px);
             }
 
             .mobile-bottom-nav { display: flex; }
+            .mobile-topbar { display: flex; }
         }
 
         /* Bouton de bascule flottant, uniquement sur les pages sans barre de navigation (connexion) */
@@ -469,6 +495,9 @@
         html[data-bs-theme="dark"] .mobile-bottom-nav { background: #171f27 !important; border-top-color: #2a3541; box-shadow: 0 -2px 8px rgba(0,0,0,0.4); }
         html[data-bs-theme="dark"] .mobile-bottom-nav a,
         html[data-bs-theme="dark"] .mobile-bottom-nav .nav-more-btn { color: #9aa7b3; }
+
+        html[data-bs-theme="dark"] .mobile-topbar { background: #171f27; border-bottom-color: #2a3541; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        html[data-bs-theme="dark"] .mobile-topbar span { color: #e8edf2; }
 
         html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body a { color: #dbe4ea; border-bottom-color: #2a3541; }
         html[data-bs-theme="dark"] .offcanvas-sidebar .offcanvas-body a:hover,
@@ -713,6 +742,12 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
 </head>
 <body>
     {% if current_user.is_authenticated %}
+    {# ===== MOBILE TOP BAR (logo toujours visible, meme sans interaction) ===== #}
+    <nav class="mobile-topbar">
+        <span class="sidebar-brand-logo"><img src="{{ url_for('static', filename='logos/tsaripharm.png') }}" alt="TsariPharm"></span>
+        <span>TsariPharm</span>
+    </nav>
+
     {# ===== DESKTOP SIDEBAR ===== #}
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-brand">
