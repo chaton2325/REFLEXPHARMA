@@ -37,6 +37,15 @@
     display: block;
 }
 
+.qr-label-nom {
+    margin-top: 0.5mm;
+    font-size: 7.5px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    word-break: break-word;
+}
+
 .qr-label-code {
     margin-top: 1mm;
     font-size: 7px;
@@ -361,6 +370,7 @@
                 </div>
                 {% for _ in range(item.qr_count) %}
                 <div class="qr-label">
+                    <div class="qr-label-nom">{{ item.stock.produit.nom }}</div>
                     <img src="{{ item.qr_image }}" alt="QR code {{ item.stock.code_suivi }}">
                     <div class="qr-label-code">{{ item.stock.code_suivi }}</div>
                     <div class="qr-label-meta">{{ item.stock.produit.code_produit }}</div>
