@@ -15,7 +15,7 @@ from models.user import User
 from models.license_cache import LicenseCache
 
 ADMIN_USERNAME = 'admin'
-ADMIN_EMAIL_PLACEHOLDER = 'admin@reflexpharma.local'
+ADMIN_EMAIL_PLACEHOLDER = 'admin@tsaripharm.local'
 
 
 def ensure_bootstrap_admin_user(app):
@@ -43,7 +43,7 @@ def ensure_bootstrap_admin_user(app):
 
         password = secrets.token_urlsafe(12)
         admin_user = User(
-            nom='Administrateur', prenom='ReflexPharma',
+            nom='Administrateur', prenom='TsariPharm',
             email=ADMIN_EMAIL_PLACEHOLDER, username=ADMIN_USERNAME,
             role='superadmin', is_active=True,
         )
