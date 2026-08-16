@@ -96,6 +96,26 @@
     margin: 0 auto 0.75rem;
     filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25));
   }
+  .login-logos-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+    margin-bottom: 0.75rem;
+  }
+  .login-logos-row .login-logo-img {
+    margin: 0;
+  }
+  .login-logo-card {
+    display: inline-flex;
+    background: #fff;
+    border-radius: 14px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  }
+  .login-logo-card .login-logo-img { filter: none; }
+  .login-logo-tsaripharm { max-height: 84px; }
+  .login-logo-joel { max-height: 48px; }
   .login-icon-fallback { display: none; }
   .login-mascotte {
     position: relative;
@@ -164,7 +184,7 @@
     .login-form-panel { padding: 1.75rem 1.5rem 2rem; }
 
     /* Sur mobile on garde l'icone + texte (deja valide) plutot que le logo image */
-    .login-logo-img { display: none; }
+    .login-logos-row, .login-logo-img { display: none; }
     .login-icon-fallback { display: inline; }
   }
 </style>
@@ -175,7 +195,12 @@
   <div class="login-card">
     <div class="login-visual">
       <div class="login-visual-text">
-        <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="TsariPharm" class="login-logo-img">
+        <div class="login-logos-row">
+          <span class="login-logo-card">
+            <img src="{{ url_for('static', filename='logos/tsaripharm.png') }}" alt="TsariPharm" class="login-logo-img login-logo-tsaripharm">
+          </span>
+          <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="Joel Computech Solutions" class="login-logo-img login-logo-joel">
+        </div>
         <h2><i class="fas fa-prescription-bottle-alt me-1 login-icon-fallback"></i>TsariPharm</h2>
         <p class="login-slogan">L'innovation africaine au service de la pharmacie</p>
         <p>Gestion de pharmacie simplifiée</p>
