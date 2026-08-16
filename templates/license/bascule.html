@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Transfert de base de données - ReflexPharma{% endblock %}
+{% block title %}Transfert de base de données - TsariPharm{% endblock %}
 
 {% block extra_head %}
 {% if status.status not in ('error', 'done') %}
@@ -115,7 +115,7 @@
     {% elif status.status == 'done' %}
     <p class="bascule-hint">
       Toutes vos données ont été transférées avec succès vers la nouvelle base.
-      <strong>Fermez complètement ReflexPharma puis relancez-le</strong> pour basculer
+      <strong>Fermez complètement TsariPharm puis relancez-le</strong> pour basculer
       dessus — tant que l'application n'est pas relancée, ce poste continue de
       fonctionner sur l'ancienne base.
     </p>

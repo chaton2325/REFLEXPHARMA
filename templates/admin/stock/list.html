@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Gestion du Stock - ReflexPharma{% endblock %}
+{% block title %}Gestion du Stock - TsariPharm{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -2423,7 +2423,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Le panier survit a la navigation (changement de page, fermeture du
         // modal) via localStorage : on retrouve le travail en cours en rouvrant
         // le modal, meme apres avoir quitte /admin/stock puis y etre revenu.
-        const CART_STORAGE_KEY = 'reflexpharma_stock_entry_cart_v1';
+        const CART_STORAGE_KEY = 'tsaripharm_stock_entry_cart_v1';
 
         function saveCartToStorage() {
             try {

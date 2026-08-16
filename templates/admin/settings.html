@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Paramètres de l'application - ReflexPharma{% endblock %}
+{% block title %}Paramètres de l'application - TsariPharm{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -120,14 +120,14 @@
 <div class="page-header">
   <div>
     <h1><i class="fas fa-gear me-2"></i>Paramètres de l'application</h1>
-    <p>Configuration générale de ReflexPharma.</p>
+    <p>Configuration générale de TsariPharm.</p>
   </div>
 </div>
 
 <div class="row g-3 mt-0">
   <div class="col-12">
     <div class="card-custom">
-      <div class="card-custom-header"><i class="fas fa-id-card"></i> Abonnement ReflexPharma</div>
+      <div class="card-custom-header"><i class="fas fa-id-card"></i> Abonnement TsariPharm</div>
       <div class="p-3 p-sm-4">
         {% if license_info.cache %}
         <div class="row g-3">
@@ -261,7 +261,7 @@
         </label>
         <p class="text-muted mb-2" style="font-size: 0.8rem;">
           Ouvrez ce lien (ou scannez le QR code) depuis n'importe quel appareil connecté à Internet —
-          téléphone, tablette, autre ordinateur — pour accéder à votre espace ReflexPharma sans rien installer.
+          téléphone, tablette, autre ordinateur — pour accéder à votre espace TsariPharm sans rien installer.
           {% if remote_access.readonly %}
           En package Hybride, cet accès est en <strong>consultation uniquement</strong> (aucune vente ni
           modification possible) : la base locale de ce poste reste la seule source de vérité.
@@ -346,7 +346,7 @@
         <form method="POST">
           <div class="mb-3">
             <label for="pharmacy_name" class="form-label">Nom de la pharmacie</label>
-            <input type="text" class="form-control" id="pharmacy_name" name="pharmacy_name" value="{{ settings.pharmacy_name }}" placeholder="Ex: REFLEXPHARMA" required>
+            <input type="text" class="form-control" id="pharmacy_name" name="pharmacy_name" value="{{ settings.pharmacy_name }}" placeholder="Ex: TSARIPHARM" required>
             <div class="form-text">Ce nom apparaîtra en haut de tous les tickets de caisse.</div>
           </div>
           <div class="d-grid">
@@ -363,7 +363,7 @@
       <div class="p-3 p-sm-4">
         <p class="text-muted" style="font-size: 0.82rem;">
           Imprime le ticket de vente directement sur l'imprimante choisie ci-dessous, sans jamais afficher
-          la boîte de dialogue d'impression. Nécessite l'agent d'impression ReflexPharma
+          la boîte de dialogue d'impression. Nécessite l'agent d'impression TsariPharm
           (voir dossier <code>print_agent/</code>) lancé <strong>sur ce poste de caisse</strong> —
           à installer séparément sur chaque poste.
         </p>
@@ -497,7 +497,7 @@
             </div>
             <div class="col-md-6">
               <label for="smtp_from_name" class="form-label">Nom d'expéditeur</label>
-              <input type="text" class="form-control" id="smtp_from_name" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="Ex: ReflexPharma">
+              <input type="text" class="form-control" id="smtp_from_name" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="Ex: TsariPharm">
             </div>
           </div>
           <div class="d-grid mt-3">

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Activation - ReflexPharma{% endblock %}
+{% block title %}Activation - TsariPharm{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -123,7 +123,7 @@
     <div class="license-visual">
       <i class="fas fa-key license-visual-icon"></i>
       <div class="license-visual-text">
-        <h2>ReflexPharma</h2>
+        <h2>TsariPharm</h2>
         <p>{% if never_activated %}Activation de votre installation{% else %}Nouveau code d'activation{% endif %}</p>
       </div>
     </div>
@@ -134,16 +134,16 @@
           <h2 class="fw-bold mb-1">Activation</h2>
           <p class="text-muted mb-0">
             {% if never_activated %}
-              Saisissez le code d'activation reçu par email pour démarrer ReflexPharma.
+              Saisissez le code d'activation reçu par email pour démarrer TsariPharm.
             {% else %}
-              Saisissez votre nouveau code d'activation pour poursuivre l'utilisation de ReflexPharma.
+              Saisissez votre nouveau code d'activation pour poursuivre l'utilisation de TsariPharm.
             {% endif %}
           </p>
         </div>
         <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-3" style="font-size: 0.82rem;">
           <i class="fas fa-wifi mt-1"></i>
           <span>
-            Une connexion Internet est <strong>obligatoire</strong> pour activer ReflexPharma
+            Une connexion Internet est <strong>obligatoire</strong> pour activer TsariPharm
             (vérification du code auprès du serveur). Une fois activée, l'application fonctionne
             hors ligne jusqu'à la date d'expiration de votre abonnement.
           </span>
@@ -189,7 +189,7 @@
           </div>
         </form>
         <p class="text-muted small mt-3 mb-0">
-          Pas encore de code ? <a href="{{ reactivate_url }}" target="_blank" rel="noopener">Souscrivez un abonnement ReflexPharma</a>.
+          Pas encore de code ? <a href="{{ reactivate_url }}" target="_blank" rel="noopener">Souscrivez un abonnement TsariPharm</a>.
         </p>
       </div>
     </div>

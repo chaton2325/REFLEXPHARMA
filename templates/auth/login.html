@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Connexion - ReflexPharma{% endblock %}
+{% block title %}Connexion - TsariPharm{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -82,6 +82,12 @@
     font-size: 0.85rem;
     color: rgba(255,255,255,0.75);
     margin: 0;
+  }
+  .login-slogan {
+    font-style: italic;
+    font-weight: 600;
+    color: rgba(255,255,255,0.92) !important;
+    margin-bottom: 0.35rem !important;
   }
   .login-logo-img {
     display: block;
@@ -169,11 +175,12 @@
   <div class="login-card">
     <div class="login-visual">
       <div class="login-visual-text">
-        <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="ReflexPharma" class="login-logo-img">
-        <h2><i class="fas fa-prescription-bottle-alt me-1 login-icon-fallback"></i>ReflexPharma</h2>
+        <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="TsariPharm" class="login-logo-img">
+        <h2><i class="fas fa-prescription-bottle-alt me-1 login-icon-fallback"></i>TsariPharm</h2>
+        <p class="login-slogan">L'innovation africaine au service de la pharmacie</p>
         <p>Gestion de pharmacie simplifiée</p>
       </div>
-      <img src="{{ url_for('static', filename='mascotte/Mascotte_explique.png') }}" alt="Mascotte ReflexPharma" class="login-mascotte">
+      <img src="{{ url_for('static', filename='mascotte/Mascotte_explique.png') }}" alt="Mascotte TsariPharm" class="login-mascotte">
     </div>
 
     <div class="login-form-panel">

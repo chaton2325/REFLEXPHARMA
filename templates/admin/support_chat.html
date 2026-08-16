@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Support ReflexPharma{% endblock %}
+{% block title %}Support TsariPharm{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -161,7 +161,7 @@
     <div class="support-header">
       <div class="support-header-icon"><i class="fas fa-headset"></i></div>
       <div>
-        <h1 class="support-header-title">Support ReflexPharma</h1>
+        <h1 class="support-header-title">Support TsariPharm</h1>
         <p class="support-header-sub"><span class="support-status-dot"></span>Notre équipe vous répond généralement sous 24h</p>
       </div>
     </div>
@@ -195,7 +195,7 @@
         <p>Impossible de charger vos messages : connexion Internet requise.<br>Cette page reste utilisable hors ligne, mais la messagerie a besoin d'Internet.</p>
         {% else %}
         <i class="fas fa-comments"></i>
-        <p>Aucun message pour le moment.<br>Posez votre question, l'équipe ReflexPharma vous répondra ici.</p>
+        <p>Aucun message pour le moment.<br>Posez votre question, l'équipe TsariPharm vous répondra ici.</p>
         {% endif %}
       </div>
       {% endfor %}
@@ -211,7 +211,7 @@
           <i class="fas fa-paperclip"></i>
         </button>
         <input type="file" id="imageInput" accept="image/png,image/jpeg,image/gif,image/webp" class="d-none">
-        <textarea id="chatInput" class="support-input" rows="1" placeholder="Écrire un message à ReflexPharma..."></textarea>
+        <textarea id="chatInput" class="support-input" rows="1" placeholder="Écrire un message à TsariPharm..."></textarea>
         <button type="submit" id="btnSend" class="support-send-btn" title="Envoyer"><i class="fas fa-paper-plane"></i></button>
       </form>
       <div class="support-hint">Images uniquement (PNG, JPG, GIF, WEBP), 5 Mo max · Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne</div>
@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Affichage optimiste : la bulle apparaît immédiatement (icône horloge),
   // avant même la réponse du serveur -- la latence perçue à l'envoi vient du
-  // double aller-retour reseau (REFLEXPHARMA -> ReflexPharma Admin) qui avait
+  // double aller-retour reseau (TSARIPHARM -> TsariPharm Admin) qui avait
   // lieu AVANT tout affichage. Une fois la reponse arrivee, la bulle
   // temporaire est remplacee par la vraie (id reel, coche d'envoi) ; en cas
   // d'echec elle est marquee en erreur plutot que de disparaitre.

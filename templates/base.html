@@ -6,7 +6,7 @@
         // Applique le theme sauvegarde avant le premier rendu (evite le flash de theme).
         (function () {
             try {
-                var t = localStorage.getItem('reflexpharma-theme');
+                var t = localStorage.getItem('tsaripharm-theme');
                 if (t === 'dark' || t === 'light') {
                     document.documentElement.setAttribute('data-bs-theme', t);
                 }
@@ -14,7 +14,7 @@
         })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>{% block title %}ReflexPharma{% endblock %}</title>
+    <title>{% block title %}TsariPharm{% endblock %}</title>
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
     <style>
@@ -700,7 +700,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <i class="fas fa-prescription-bottle-alt"></i>
-            <span>ReflexPharma</span>
+            <span>TsariPharm</span>
         </div>
 
         <div class="sidebar-nav">
@@ -866,7 +866,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                     {% if current_user.has_permission('gestion_parametres') %}
                     <a href="{{ url_for('admin.app_settings') }}"><span class="nav-label">Paramètres App</span></a>
                     <a href="{{ url_for('admin.support_chat') }}">
-                        <span class="nav-label">Support ReflexPharma <span id="supportUnreadBadge" class="badge bg-danger rounded-pill d-none"></span></span>
+                        <span class="nav-label">Support TsariPharm <span id="supportUnreadBadge" class="badge bg-danger rounded-pill d-none"></span></span>
                     </a>
                     {% endif %}
                 </div>
@@ -931,7 +931,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
     <div class="offcanvas offcanvas-start offcanvas-sidebar" tabindex="-1" id="mobileMenu">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">
-                <i class="fas fa-prescription-bottle-alt me-2 text-primary"></i>ReflexPharma
+                <i class="fas fa-prescription-bottle-alt me-2 text-primary"></i>TsariPharm
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
@@ -1095,7 +1095,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
         </div>
 
         <footer class="mt-5 py-3 text-center text-muted border-top">
-            <p>&copy; 2026 ReflexPharma - Gestion de Pharmacie</p>
+            <p>&copy; 2026 TsariPharm - Gestion de Pharmacie</p>
         </footer>
     </div>
 
@@ -1177,15 +1177,15 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
     </style>
 
     <div class="ai-assistant-widget" id="aiAssistantWidget">
-      <button type="button" class="ai-assistant-toggle" id="aiAssistantToggle" aria-label="Ouvrir l'assistant ReflexPharma">
-        <img id="aiAssistantToggleImg" src="{{ url_for('static', filename='mascotte/mascotte-explique-web.jpg') }}" alt="Assistante ReflexPharma">
+      <button type="button" class="ai-assistant-toggle" id="aiAssistantToggle" aria-label="Ouvrir l'assistant TsariPharm">
+        <img id="aiAssistantToggleImg" src="{{ url_for('static', filename='mascotte/mascotte-explique-web.jpg') }}" alt="Assistante TsariPharm">
       </button>
 
       <div class="ai-assistant-panel d-none" id="aiAssistantPanel">
         <div class="ai-assistant-header">
           <img id="aiAssistantHeaderImg" src="{{ url_for('static', filename='mascotte/mascotte-explique-web.jpg') }}" alt="">
           <div>
-            <div class="ai-assistant-title">Assistante ReflexPharma</div>
+            <div class="ai-assistant-title">Assistante TsariPharm</div>
             <div class="ai-assistant-subtitle" id="aiAssistantStatus">En ligne</div>
           </div>
           <button type="button" class="ai-assistant-close" id="aiAssistantClose" aria-label="Fermer l'assistant">
@@ -1193,7 +1193,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
           </button>
         </div>
         <div class="ai-assistant-messages" id="aiAssistantMessages">
-          <div class="ai-msg ai-msg-bot">Bonjour{{ ' ' ~ current_user.prenom if current_user.prenom else '' }} ! Je suis l'assistante ReflexPharma. Je peux vous aider à utiliser le logiciel, mais aussi répondre à des questions sur vos données : ventes du jour, chiffre d'affaires, prévisions, employé du mois, stock d'un produit...</div>
+          <div class="ai-msg ai-msg-bot">Bonjour{{ ' ' ~ current_user.prenom if current_user.prenom else '' }} ! Je suis l'assistante TsariPharm. Je peux vous aider à utiliser le logiciel, mais aussi répondre à des questions sur vos données : ventes du jour, chiffre d'affaires, prévisions, employé du mois, stock d'un produit...</div>
         </div>
         <form class="ai-assistant-input" id="aiAssistantForm">
           <input type="text" id="aiAssistantInput" placeholder="Posez votre question..." autocomplete="off" maxlength="2000">
@@ -1479,7 +1479,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
         // tiroir mobile, bouton flottant sur la page de connexion). Choix mémorisé
         // par navigateur (localStorage), applique immediatement partout.
         (function() {
-            var STORAGE_KEY = 'reflexpharma-theme';
+            var STORAGE_KEY = 'tsaripharm-theme';
             var boutons = [
                 document.getElementById('themeToggleSidebar'),
                 document.getElementById('themeToggleOffcanvas'),
