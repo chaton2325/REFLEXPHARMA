@@ -90,6 +90,10 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         }
 
+        /* .sidebar-brand span cible aussi ce span (le logo est un span) : on force
+           le logo a rester visible sans hover, seul le texte doit se reveler. */
+        .sidebar-brand .sidebar-brand-logo { opacity: 1; }
+
         .sidebar-brand span {
             font-weight: 700;
             color: #2c3e50;
