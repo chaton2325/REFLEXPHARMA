@@ -1020,7 +1020,7 @@ def export_conges_excel():
 def export_conges_pdf():
     import io
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from xml.sax.saxutils import escape
@@ -1028,48 +1028,59 @@ def export_conges_pdf():
     conges = _conges_filtered_query().all()
     generated_at = datetime.now()
     output = io.BytesIO()
-    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=12, bottomMargin=12, leftMargin=12, rightMargin=12)
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=28, bottomMargin=26, leftMargin=24, rightMargin=24)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CongesTitle', parent=styles['Title'], fontSize=12, leading=14)
-    meta_style = ParagraphStyle('CongesMeta', parent=styles['Normal'], fontSize=7, leading=9)
-    cell_style = ParagraphStyle('CongesCell', parent=styles['Normal'], fontSize=7, leading=8)
+    title_style = ParagraphStyle('CongesTitle', parent=styles['Title'], fontSize=15, leading=18, textColor=colors.HexColor('#1F2937'))
+    subtitle_style = ParagraphStyle('CongesSubtitle', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=colors.HexColor('#4b5563'))
+    header_cell_style = ParagraphStyle('CongesHeaderCell', parent=styles['Normal'], fontSize=7.6, leading=9, textColor=colors.white, fontName='Helvetica-Bold', alignment=1)
+    cell_style = ParagraphStyle('CongesCell', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.HexColor('#1f2937'))
+    cell_center_style = ParagraphStyle('CongesCellCenter', parent=cell_style, alignment=1)
 
     elements = [
-        Paragraph('Congés des employés - TsariPharm', title_style),
-        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tiré par : {current_user.nom} {current_user.prenom} | Lignes : {len(conges)}', meta_style),
-        Spacer(1, 6)
+        Paragraph('Registre des congés — TsariPharm', title_style),
+        Spacer(1, 3),
+        Paragraph(
+            f'Tiré le {generated_at.strftime("%d/%m/%Y à %H:%M")} par {current_user.prenom} {current_user.nom} '
+            f'&nbsp;·&nbsp; {len(conges)} congé(s)',
+            subtitle_style
+        ),
+        Spacer(1, 12),
     ]
-    data = [['Employé', 'Type', 'Début', 'Fin', 'Jours', 'Statut', 'Créé par', 'Créé le', 'Commentaire']]
+
+    def h(text):
+        return Paragraph(text, header_cell_style)
+
+    data = [[h('Employé'), h('Type'), h('Période'), h('J.'), h('Statut'), h('Créé par / le'), h('Commentaire')]]
     for c in conges:
+        employe_nom = f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A'
+        cree_par_nom = f'{c.cree_par.prenom} {c.cree_par.nom}' if c.cree_par else 'N/A'
+        periode = f'{c.date_debut.strftime("%d/%m/%y")}<br/>→ {c.date_fin.strftime("%d/%m/%y")}'
+        cree = f'{escape(cree_par_nom)}<br/><font color="#7a8896" size="7">{c.created_at.strftime("%d/%m/%y %H:%M")}</font>'
         data.append([
-            Paragraph(escape(f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A'), cell_style),
+            Paragraph(escape(employe_nom), cell_style),
             Paragraph(escape(c.type_conge_nom or 'Non précisé'), cell_style),
-            c.date_debut.strftime('%d/%m/%Y'),
-            c.date_fin.strftime('%d/%m/%Y'),
-            str(c.nb_jours),
-            c.statut,
-            Paragraph(escape(f'{c.cree_par.prenom} {c.cree_par.nom}' if c.cree_par else 'N/A'), cell_style),
-            c.created_at.strftime('%d/%m/%Y %H:%M'),
-            Paragraph(escape(c.commentaire or '-'), cell_style),
+            Paragraph(periode, cell_center_style),
+            Paragraph(str(c.nb_jours), cell_center_style),
+            Paragraph(c.statut, cell_center_style),
+            Paragraph(cree, cell_style),
+            Paragraph(escape(c.commentaire or '—'), cell_style),
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[90, 70, 48, 48, 28, 48, 90, 60, 150])
+    table = Table(data, repeatRows=1, colWidths=[78, 60, 62, 20, 52, 92, 138])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#9CA3AF')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#D1D5DB')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F3F4F6')]),
-        ('LEFTPADDING', (0, 0), (-1, -1), 3),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-        ('TOPPADDING', (0, 0), (-1, -1), 2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
     ]))
     elements.append(table)
-    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(landscape(A4)[0]))
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
     output.seek(0)
     filename = f'conges_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
     return send_file(output, download_name=filename, as_attachment=True)
