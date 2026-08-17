@@ -49,6 +49,8 @@ from .finance_reports import (
 )
 from models.user import User
 from models.poste import Poste
+from models.conge import Conge
+from models.type_conge import TypeConge
 from utils.permissions import FEATURES
 from utils import fidelite
 
@@ -1850,6 +1852,95 @@ def tool_postes_disponibles(user):
     }
 
 
+def tool_conges_employe(user, recherche, limite=20):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
+    recherche = (recherche or '').strip()
+    if not recherche:
+        raise ValueError("Le parametre 'recherche' (nom ou prenom de l'employe) est requis.")
+
+    employes = User.query.filter(
+        or_(User.nom.ilike(f'%{recherche}%'), User.prenom.ilike(f'%{recherche}%'))
+    ).limit(5).all()
+    if not employes:
+        return {'trouve': False, 'message': f"Aucun employe ne correspond a '{recherche}'."}
+
+    employe_ids = [e.id for e in employes]
+    conges = Conge.query.filter(Conge.user_id.in_(employe_ids)).order_by(Conge.date_debut.desc()).limit(limite).all()
+    return {
+        'trouve': True,
+        'employes_correspondants': [f'{e.prenom} {e.nom}' for e in employes],
+        'nombre_conges': len(conges),
+        'conges': [
+            {
+                'employe': f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A',
+                'type': c.type_conge_nom or 'Non precise',
+                'date_debut': c.date_debut.isoformat(),
+                'date_fin': c.date_fin.isoformat(),
+                'jours': c.nb_jours,
+                'statut': c.statut,
+                'cree_par': f'{c.cree_par.prenom} {c.cree_par.nom}' if c.cree_par else 'N/A',
+                'cree_le': c.created_at.strftime('%d/%m/%Y'),
+            }
+            for c in conges
+        ],
+    }
+
+
+def tool_conges_en_cours(user):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
+    today = date.today()
+    conges = Conge.query.filter(Conge.date_debut <= today, Conge.date_fin >= today).order_by(Conge.date_fin.asc()).all()
+    return {
+        'nombre': len(conges),
+        'employes_en_conge': [
+            {
+                'employe': f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A',
+                'type': c.type_conge_nom or 'Non precise',
+                'retour_prevu': c.date_fin.isoformat(),
+            }
+            for c in conges
+        ],
+    }
+
+
+def tool_conges_a_venir(user, nb_jours=30):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
+    today = date.today()
+    horizon = today + timedelta(days=int(nb_jours or 30))
+    conges = Conge.query.filter(Conge.date_debut > today, Conge.date_debut <= horizon).order_by(Conge.date_debut.asc()).all()
+    return {
+        'horizon_jours': int(nb_jours or 30),
+        'nombre': len(conges),
+        'conges_a_venir': [
+            {
+                'employe': f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A',
+                'type': c.type_conge_nom or 'Non precise',
+                'date_debut': c.date_debut.isoformat(),
+                'date_fin': c.date_fin.isoformat(),
+                'jours': c.nb_jours,
+            }
+            for c in conges
+        ],
+    }
+
+
+def tool_types_conge_disponibles(user):
+    denied = _check_access(user, 'gestion_employes')
+    if denied:
+        return denied
+    types_conge = TypeConge.query.order_by(TypeConge.nom.asc()).all()
+    return {
+        'nombre_types': len(types_conge),
+        'types': [t.nom for t in types_conge],
+    }
+
+
 def tool_acces_module(user, module):
     denied = _check_access(user, 'gestion_employes')
     if denied:
@@ -2162,6 +2253,10 @@ TOOL_FUNCTIONS = {
     'liste_employes': tool_liste_employes,
     'employes_par_poste': tool_employes_par_poste,
     'postes_disponibles': tool_postes_disponibles,
+    'conges_employe': tool_conges_employe,
+    'conges_en_cours': tool_conges_en_cours,
+    'conges_a_venir': tool_conges_a_venir,
+    'types_conge_disponibles': tool_types_conge_disponibles,
     'acces_module': tool_acces_module,
     'modules_disponibles': tool_modules_disponibles,
     'mes_modules_accessibles': tool_mes_modules_accessibles,
@@ -3054,6 +3149,60 @@ AI_TOOLS = [
         'function': {
             'name': 'postes_disponibles',
             'description': "Liste les postes/metiers configures dans la pharmacie (nom et description).",
+            'parameters': {'type': 'object', 'properties': {}},
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'conges_employe',
+            'description': (
+                "Donne l'historique des conges (dates, type, statut, qui l'a enregistre) pour un "
+                "employe recherche par nom/prenom. A utiliser pour 'quels conges a pris untel', "
+                "'quand untel a-t-il ete en conge', etc."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'recherche': {'type': 'string', 'description': "Nom ou prenom de l'employe."},
+                    'limite': {'type': 'integer', 'description': "Nombre maximum de conges a renvoyer (defaut 20)."},
+                },
+                'required': ['recherche'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'conges_en_cours',
+            'description': (
+                "Liste les employes actuellement en conge aujourd'hui, avec leur date de retour "
+                "prevue. A utiliser pour 'qui est en conge en ce moment/aujourd'hui'."
+            ),
+            'parameters': {'type': 'object', 'properties': {}},
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'conges_a_venir',
+            'description': (
+                "Liste les conges a venir dans les prochains jours (par defaut 30 jours). A utiliser "
+                "pour 'qui part bientot en conge', 'prochains conges'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'nb_jours': {'type': 'integer', 'description': "Horizon en jours a partir d'aujourd'hui (defaut 30)."},
+                },
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'types_conge_disponibles',
+            'description': "Liste les types de conge configures (ex: Conge annuel, Maladie, Sans solde...).",
             'parameters': {'type': 'object', 'properties': {}},
         },
     },

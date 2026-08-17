@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Congés - TsariPharm{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.4rem; position: relative; z-index: 1; margin-bottom: 0.2rem; }
+  .page-header p, .page-header .breadcrumb-item, .page-header .breadcrumb-item a { color: rgba(255,255,255,0.8) !important; position: relative; z-index: 1; }
+  .page-header .breadcrumb-item.active { color: rgba(255,255,255,0.55) !important; }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+  }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.3rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label { font-size: 0.72rem; color: #7a8896; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  .card-custom { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.03); overflow: hidden; }
+
+  .table-custom { margin-bottom: 0; }
+  .table-custom thead th {
+    background: #f8f9fa; color: #495057; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 0.75rem 0.9rem; border-bottom: 2px solid #e9ecef; white-space: nowrap;
+  }
+  .table-custom tbody td { padding: 0.75rem 0.9rem; vertical-align: middle; border-bottom: 1px solid #f0f2f5; font-size: 0.86rem; }
+  .table-custom tbody tr:hover { background: #f8faff; }
+
+  .badge-statut { font-weight: 600; padding: 0.3rem 0.65rem; border-radius: 8px; font-size: 0.74rem; }
+
+  .btn-action { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.85rem; }
+  .action-group { display: flex; gap: 0.3rem; justify-content: flex-end; }
+
+  .mobile-card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f0f2f5; }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.1rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.15rem; }
+    .stat-card { padding: 0.75rem 0.9rem; }
+    .stat-card .stat-number { font-size: 1.05rem; }
+    .stat-card .stat-icon { width: 34px; height: 34px; font-size: 0.9rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set en_cours = conges|selectattr('statut', 'equalto', 'En cours')|list %}
+{% set a_venir = conges|selectattr('statut', 'equalto', 'À venir')|list %}
+
+<div class="page-header">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{{ url_for('admin.list_users') }}">Employés</a></li>
+          <li class="breadcrumb-item active">Congés</li>
+        </ol>
+      </nav>
+      <h1><i class="fas fa-umbrella-beach me-2"></i>Gestion des Congés</h1>
+      <p class="mb-0">Registre des congés pris par les employés.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('admin.list_types_conge') }}" class="btn btn-outline-light btn-sm" style="border-radius:10px;font-weight:600;">
+        <i class="fas fa-list-check me-1"></i> Types de congé
+      </a>
+      <a href="{{ url_for('admin.export_conges_excel', **request.args) }}" class="btn btn-outline-light btn-sm" style="border-radius:10px;font-weight:600;">
+        <i class="fas fa-file-excel me-1"></i> Excel
+      </a>
+      <a href="{{ url_for('admin.export_conges_pdf', **request.args) }}" class="btn btn-outline-light btn-sm" style="border-radius:10px;font-weight:600;">
+        <i class="fas fa-file-pdf me-1"></i> PDF
+      </a>
+      <button type="button" class="btn btn-light btn-sm" style="color:#2c3e50;font-weight:600;border-radius:10px;" data-bs-toggle="modal" data-bs-target="#createCongeModal">
+        <i class="fas fa-plus me-1"></i> Nouveau congé
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-umbrella-beach"></i></div>
+      <div>
+        <div class="stat-number">{{ conges|length }}</div>
+        <div class="stat-label">Total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-person-walking-luggage"></i></div>
+      <div>
+        <div class="stat-number">{{ en_cours|length }}</div>
+        <div class="stat-label">En cours</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-sm-4">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;"><i class="fas fa-calendar-plus"></i></div>
+      <div>
+        <div class="stat-number">{{ a_venir|length }}</div>
+        <div class="stat-label">À venir</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<form method="GET" class="card-custom mb-3">
+  <div class="p-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-bold mb-1">Employé</label>
+        <select name="user_id" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for e in employes %}
+          <option value="{{ e.id }}" {% if request.args.get('user_id', type=int) == e.id %}selected{% endif %}>{{ e.prenom }} {{ e.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-bold mb-1">Type</label>
+        <select name="type_conge_id" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for t in types_conge %}
+          <option value="{{ t.id }}" {% if request.args.get('type_conge_id', type=int) == t.id %}selected{% endif %}>{{ t.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold mb-1">Statut</label>
+        <select name="statut" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for s in ['À venir', 'En cours', 'Terminé'] %}
+          <option value="{{ s }}" {% if request.args.get('statut') == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold mb-1">Du</label>
+        <input type="date" name="date_debut" class="form-control form-control-sm" value="{{ request.args.get('date_debut', '') }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold mb-1">Au</label>
+        <input type="date" name="date_fin" class="form-control form-control-sm" value="{{ request.args.get('date_fin', '') }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label small fw-bold mb-1">Recherche</label>
+        <div class="input-group input-group-sm">
+          <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Nom de l'employé...">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Filtrer</button>
+          <a href="{{ url_for('admin.list_conges') }}" class="btn btn-outline-secondary" title="Réinitialiser"><i class="fas fa-rotate-left"></i></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card-custom">
+  <!-- Mobile cards -->
+  <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;">
+    {% for c in conges %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;">
+          <div class="fw-semibold" style="color:#1a1a2e;font-size:0.9rem;">{{ c.employe.prenom }} {{ c.employe.nom }}</div>
+          <div class="text-muted" style="font-size:0.78rem;">{{ c.type_conge_nom or 'Non précisé' }}</div>
+        </div>
+        <span class="badge badge-statut {% if c.statut == 'En cours' %}bg-success{% elif c.statut == 'À venir' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ c.statut }}</span>
+      </div>
+      <div class="mt-2" style="font-size:0.82rem;">
+        <i class="fas fa-calendar-day text-muted me-1"></i>{{ c.date_debut.strftime('%d/%m/%Y') }} → {{ c.date_fin.strftime('%d/%m/%Y') }}
+        <span class="text-muted">({{ c.nb_jours }} j.)</span>
+      </div>
+      <div class="mt-1" style="font-size:0.74rem;color:#7a8896;">
+        Créé par {{ c.cree_par.prenom }} {{ c.cree_par.nom }} le {{ c.created_at.strftime('%d/%m/%Y') }}
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-sm btn-outline-primary flex-fill" data-bs-toggle="modal" data-bs-target="#editCongeModal{{ c.id }}"><i class="fas fa-edit"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-danger flex-fill" data-bs-toggle="modal" data-bs-target="#deleteCongeModal{{ c.id }}"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4">
+      <i class="fas fa-umbrella-beach fa-2x mb-2 d-block" style="color:#3498db;"></i>
+      Aucun congé enregistré.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-responsive d-none d-sm-block">
+    <table class="table table-custom align-middle">
+      <thead>
+        <tr>
+          <th>Employé</th>
+          <th>Type</th>
+          <th>Début</th>
+          <th>Fin</th>
+          <th class="text-end">Jours</th>
+          <th>Statut</th>
+          <th>Créé par</th>
+          <th>Créé le</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in conges %}
+        <tr>
+          <td class="fw-semibold">{{ c.employe.prenom }} {{ c.employe.nom }}</td>
+          <td>{{ c.type_conge_nom or 'Non précisé' }}</td>
+          <td>{{ c.date_debut.strftime('%d/%m/%Y') }}</td>
+          <td>{{ c.date_fin.strftime('%d/%m/%Y') }}</td>
+          <td class="text-end">{{ c.nb_jours }}</td>
+          <td><span class="badge badge-statut {% if c.statut == 'En cours' %}bg-success{% elif c.statut == 'À venir' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ c.statut }}</span></td>
+          <td class="text-muted" style="font-size:0.8rem;">{{ c.cree_par.prenom }} {{ c.cree_par.nom }}</td>
+          <td class="text-muted" style="font-size:0.8rem;">{{ c.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            <div class="action-group">
+              <button type="button" class="btn btn-outline-primary btn-action" title="Modifier" data-bs-toggle="modal" data-bs-target="#editCongeModal{{ c.id }}">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-action" title="Supprimer" data-bs-toggle="modal" data-bs-target="#deleteCongeModal{{ c.id }}">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-4">
+            <i class="fas fa-umbrella-beach fa-2x mb-2 d-block" style="color:#3498db;"></i>
+            Aucun congé enregistré.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal : nouveau congé -->
+<div class="modal fade" id="createCongeModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <form method="POST" action="{{ url_for('admin.create_conge') }}">
+        <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+          <h5 class="modal-title"><i class="fas fa-umbrella-beach me-2"></i>Nouveau congé</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Employé <span class="text-danger">*</span></label>
+            <select name="user_id" class="form-select" required>
+              <option value="">Choisir...</option>
+              {% for e in employes %}
+              <option value="{{ e.id }}">{{ e.prenom }} {{ e.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Type de congé</label>
+            <select name="type_conge_id" class="form-select">
+              <option value="">Non précisé</option>
+              {% for t in types_conge %}
+              <option value="{{ t.id }}">{{ t.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label fw-bold">Date de début <span class="text-danger">*</span></label>
+              <input type="date" name="date_debut" class="form-control" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-bold">Date de fin <span class="text-danger">*</span></label>
+              <input type="date" name="date_fin" class="form-control" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label fw-bold">Commentaire</label>
+            <textarea name="commentaire" class="form-control" rows="2" placeholder="Optionnel"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary" style="border-radius:10px;font-weight:600;">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% for c in conges %}
+<!-- Modal : modifier congé {{ c.id }} -->
+<div class="modal fade" id="editCongeModal{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <form method="POST" action="{{ url_for('admin.edit_conge', id=c.id) }}">
+        <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+          <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modifier le congé</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Employé <span class="text-danger">*</span></label>
+            <select name="user_id" class="form-select" required>
+              {% for e in employes %}
+              <option value="{{ e.id }}" {% if e.id == c.user_id %}selected{% endif %}>{{ e.prenom }} {{ e.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Type de congé</label>
+            <select name="type_conge_id" class="form-select">
+              <option value="">Non précisé</option>
+              {% for t in types_conge %}
+              <option value="{{ t.id }}" {% if t.id == c.type_conge_id %}selected{% endif %}>{{ t.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label fw-bold">Date de début <span class="text-danger">*</span></label>
+              <input type="date" name="date_debut" class="form-control" value="{{ c.date_debut.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-bold">Date de fin <span class="text-danger">*</span></label>
+              <input type="date" name="date_fin" class="form-control" value="{{ c.date_fin.strftime('%Y-%m-%d') }}" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label fw-bold">Commentaire</label>
+            <textarea name="commentaire" class="form-control" rows="2">{{ c.commentaire or '' }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary" style="border-radius:10px;font-weight:600;">Mettre à jour</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : supprimer congé {{ c.id }} -->
+<div class="modal fade" id="deleteCongeModal{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center px-4 pb-4">
+        <div style="width:64px;height:64px;border-radius:50%;background:#fee8e8;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="fas fa-exclamation-triangle" style="color:#d93025;font-size:1.5rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">Confirmer la suppression</h5>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+          Supprimer le congé de <strong>{{ c.employe.prenom }} {{ c.employe.nom }}</strong>
+          du {{ c.date_debut.strftime('%d/%m/%Y') }} au {{ c.date_fin.strftime('%d/%m/%Y') }} ?
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;min-width:100px;">Annuler</button>
+        <form action="{{ url_for('admin.delete_conge', id=c.id) }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-danger" style="border-radius:10px;min-width:100px;font-weight:600;">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

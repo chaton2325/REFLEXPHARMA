@@ -23,6 +23,8 @@ from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne
 from models.raison_annulation_vente import RaisonAnnulationVente
+from models.type_conge import TypeConge
+from models.conge import Conge
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot

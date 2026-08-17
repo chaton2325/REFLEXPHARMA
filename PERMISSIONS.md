@@ -10,7 +10,7 @@ Les accès sont déterminés selon une logique de priorité stricte :
 3. **Rôle Superadmin** : Le superadmin conserve un accès total par défaut, sauf restriction explicite.
 
 ## Fonctionnalités gérées
-- `gestion_employes` : Accès à la liste et modification des employés.
+- `gestion_employes` : Accès à la liste et modification des employés, ainsi qu'au registre des congés (types de congé, saisie/modification/suppression, export PDF/Excel).
 - `gestion_postes` : Accès à la configuration des types de postes.
 - `gestion_fournisseurs` : Accès au CRUD des fournisseurs.
 - `gestion_groupes_fournisseurs` : Accès aux groupes de fournisseurs.

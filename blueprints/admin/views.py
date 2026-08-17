@@ -24,6 +24,8 @@ from models.client import Client
 from models.client_modification_log import ClientModificationLog
 from models.vente import Vente, VenteLigne, benefice_ligne_sql_expr
 from models.raison_annulation_vente import RaisonAnnulationVente
+from models.type_conge import TypeConge
+from models.conge import Conge
 from models.setting import Setting
 from models.inventaire import Inventaire, InventaireLigne
 from models.declaration_impot import DeclarationImpot
@@ -832,6 +834,284 @@ def delete_user(id):
     db.session.commit()
     flash('Utilisateur supprim?.', 'success')
     return redirect(url_for('admin.list_users'))
+
+# --- GESTION DES CONGES ---
+def _conges_filtered_query():
+    query = Conge.query
+    recherche = (request.args.get('q') or '').strip()
+    if recherche:
+        query = query.join(User, Conge.user_id == User.id).filter(
+            db.or_(User.nom.ilike(f'%{recherche}%'), User.prenom.ilike(f'%{recherche}%'))
+        )
+    user_id = request.args.get('user_id', type=int)
+    if user_id:
+        query = query.filter(Conge.user_id == user_id)
+    type_conge_id = request.args.get('type_conge_id', type=int)
+    if type_conge_id:
+        query = query.filter(Conge.type_conge_id == type_conge_id)
+    date_debut = request.args.get('date_debut')
+    if date_debut:
+        query = query.filter(Conge.date_fin >= datetime.strptime(date_debut, '%Y-%m-%d').date())
+    date_fin = request.args.get('date_fin')
+    if date_fin:
+        query = query.filter(Conge.date_debut <= datetime.strptime(date_fin, '%Y-%m-%d').date())
+    return query.order_by(Conge.date_debut.desc())
+
+@admin.route('/employes/conges')
+@login_required
+@permission_required('gestion_employes')
+def list_conges():
+    conges = _conges_filtered_query().all()
+    statut = request.args.get('statut')
+    if statut in ('À venir', 'En cours', 'Terminé'):
+        conges = [c for c in conges if c.statut == statut]
+    return render_template(
+        'admin/users/conges.html',
+        conges=conges,
+        employes=User.query.order_by(User.nom.asc()).all(),
+        types_conge=TypeConge.query.order_by(TypeConge.nom.asc()).all(),
+    )
+
+@admin.route('/employes/conges/create', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def create_conge():
+    user_id = request.form.get('user_id', type=int)
+    date_debut_str = request.form.get('date_debut')
+    date_fin_str = request.form.get('date_fin')
+    if not user_id or not date_debut_str or not date_fin_str:
+        flash("Employé, date de début et date de fin sont requis.", 'warning')
+        return redirect(url_for('admin.list_conges'))
+
+    employe = User.query.get(user_id)
+    if not employe:
+        flash("Employé introuvable.", 'danger')
+        return redirect(url_for('admin.list_conges'))
+
+    date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
+    date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
+    if date_fin < date_debut:
+        flash("La date de fin ne peut pas être avant la date de début.", 'warning')
+        return redirect(url_for('admin.list_conges'))
+
+    type_conge = None
+    type_conge_id = request.form.get('type_conge_id', type=int)
+    if type_conge_id:
+        type_conge = TypeConge.query.get(type_conge_id)
+
+    conge = Conge(
+        user_id=employe.id,
+        type_conge_id=type_conge.id if type_conge else None,
+        type_conge_nom=type_conge.nom if type_conge else None,
+        date_debut=date_debut,
+        date_fin=date_fin,
+        commentaire=(request.form.get('commentaire') or '').strip() or None,
+        created_by_id=current_user.id,
+    )
+    db.session.add(conge)
+    db.session.commit()
+    flash(f'Congé enregistré pour {employe.prenom} {employe.nom}.', 'success')
+    return redirect(url_for('admin.list_conges'))
+
+@admin.route('/employes/conges/edit/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def edit_conge(id):
+    conge = Conge.query.get_or_404(id)
+    user_id = request.form.get('user_id', type=int)
+    date_debut_str = request.form.get('date_debut')
+    date_fin_str = request.form.get('date_fin')
+    if not user_id or not date_debut_str or not date_fin_str:
+        flash("Employé, date de début et date de fin sont requis.", 'warning')
+        return redirect(url_for('admin.list_conges'))
+
+    employe = User.query.get(user_id)
+    if not employe:
+        flash("Employé introuvable.", 'danger')
+        return redirect(url_for('admin.list_conges'))
+
+    date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
+    date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
+    if date_fin < date_debut:
+        flash("La date de fin ne peut pas être avant la date de début.", 'warning')
+        return redirect(url_for('admin.list_conges'))
+
+    type_conge = None
+    type_conge_id = request.form.get('type_conge_id', type=int)
+    if type_conge_id:
+        type_conge = TypeConge.query.get(type_conge_id)
+
+    conge.user_id = employe.id
+    conge.type_conge_id = type_conge.id if type_conge else None
+    conge.type_conge_nom = type_conge.nom if type_conge else None
+    conge.date_debut = date_debut
+    conge.date_fin = date_fin
+    conge.commentaire = (request.form.get('commentaire') or '').strip() or None
+    db.session.commit()
+    flash('Congé mis à jour.', 'success')
+    return redirect(url_for('admin.list_conges'))
+
+@admin.route('/employes/conges/delete/<int:id>', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def delete_conge(id):
+    conge = Conge.query.get_or_404(id)
+    db.session.delete(conge)
+    db.session.commit()
+    flash('Congé supprimé.', 'success')
+    return redirect(url_for('admin.list_conges'))
+
+@admin.route('/employes/conges/export/excel')
+@login_required
+@permission_required('gestion_employes')
+def export_conges_excel():
+    import io
+    import pandas as pd
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+    conges = _conges_filtered_query().all()
+    generated_at = datetime.now()
+    rows = []
+    for c in conges:
+        rows.append({
+            'Employé': f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A',
+            'Type': c.type_conge_nom or 'Non précisé',
+            'Début': c.date_debut.strftime('%d/%m/%Y'),
+            'Fin': c.date_fin.strftime('%d/%m/%Y'),
+            'Jours': c.nb_jours,
+            'Statut': c.statut,
+            'Créé par': f'{c.cree_par.prenom} {c.cree_par.nom}' if c.cree_par else 'N/A',
+            'Créé le': c.created_at.strftime('%d/%m/%Y %H:%M'),
+            'Commentaire': c.commentaire or '',
+        })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name='Congés', startrow=4)
+        worksheet = writer.sheets['Congés']
+        worksheet['A1'] = 'Congés des employés - TsariPharm'
+        worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
+        worksheet['A3'] = f'Tiré par : {current_user.nom} {current_user.prenom}'
+        worksheet['A4'] = f'Lignes exportées : {len(rows)}'
+
+        header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+            for cell in row:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        widths = [24, 20, 14, 14, 8, 12, 24, 18, 40]
+        for index, width in enumerate(widths, start=1):
+            worksheet.column_dimensions[chr(64 + index)].width = width
+        worksheet.freeze_panes = 'A6'
+
+    output.seek(0)
+    filename = f'conges_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@admin.route('/employes/conges/export/pdf')
+@login_required
+@permission_required('gestion_employes')
+def export_conges_pdf():
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    conges = _conges_filtered_query().all()
+    generated_at = datetime.now()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), topMargin=12, bottomMargin=12, leftMargin=12, rightMargin=12)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('CongesTitle', parent=styles['Title'], fontSize=12, leading=14)
+    meta_style = ParagraphStyle('CongesMeta', parent=styles['Normal'], fontSize=7, leading=9)
+    cell_style = ParagraphStyle('CongesCell', parent=styles['Normal'], fontSize=7, leading=8)
+
+    elements = [
+        Paragraph('Congés des employés - TsariPharm', title_style),
+        Paragraph(f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tiré par : {current_user.nom} {current_user.prenom} | Lignes : {len(conges)}', meta_style),
+        Spacer(1, 6)
+    ]
+    data = [['Employé', 'Type', 'Début', 'Fin', 'Jours', 'Statut', 'Créé par', 'Créé le', 'Commentaire']]
+    for c in conges:
+        data.append([
+            Paragraph(escape(f'{c.employe.prenom} {c.employe.nom}' if c.employe else 'N/A'), cell_style),
+            Paragraph(escape(c.type_conge_nom or 'Non précisé'), cell_style),
+            c.date_debut.strftime('%d/%m/%Y'),
+            c.date_fin.strftime('%d/%m/%Y'),
+            str(c.nb_jours),
+            c.statut,
+            Paragraph(escape(f'{c.cree_par.prenom} {c.cree_par.nom}' if c.cree_par else 'N/A'), cell_style),
+            c.created_at.strftime('%d/%m/%Y %H:%M'),
+            Paragraph(escape(c.commentaire or '-'), cell_style),
+        ])
+
+    table = Table(data, repeatRows=1, colWidths=[90, 70, 48, 48, 28, 48, 90, 60, 150])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#9CA3AF')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F3F4F6')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(table)
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(landscape(A4)[0]))
+    output.seek(0)
+    filename = f'conges_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
+# --- TYPES DE CONGE ---
+@admin.route('/employes/conges/types')
+@login_required
+@permission_required('gestion_employes')
+def list_types_conge():
+    q = (request.args.get('q') or '').strip()
+    query = TypeConge.query
+    if q:
+        query = query.filter(TypeConge.nom.ilike(f'%{q}%'))
+    types_conge = query.order_by(TypeConge.nom.asc()).all()
+    return render_template('admin/users/conges_types.html', types_conge=types_conge)
+
+@admin.route('/employes/conges/types/create', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def create_type_conge():
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        flash('Le nom du type de congé est requis.', 'warning')
+        return redirect(url_for('admin.list_types_conge'))
+    if TypeConge.query.filter(TypeConge.nom.ilike(nom)).first():
+        flash(f'Le type « {nom} » existe déjà.', 'warning')
+        return redirect(url_for('admin.list_types_conge'))
+    db.session.add(TypeConge(nom=nom))
+    db.session.commit()
+    flash(f'Type « {nom} » créé : il est maintenant proposé lors de la saisie d\'un congé.', 'success')
+    return redirect(url_for('admin.list_types_conge'))
+
+@admin.route('/employes/conges/types/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('gestion_employes')
+def delete_type_conge(id):
+    type_conge = TypeConge.query.get_or_404(id)
+    nom = type_conge.nom
+    db.session.delete(type_conge)
+    db.session.commit()
+    flash(f'Type « {nom} » supprimé. Les congés déjà enregistrés avec ce type le conservent (nom archivé).', 'success')
+    return redirect(url_for('admin.list_types_conge'))
 
 # --- GESTION DES CLIENTS ---
 def client_snapshot(client):
