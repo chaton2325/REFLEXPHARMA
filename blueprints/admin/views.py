@@ -5372,7 +5372,8 @@ def preview_stock_qr_codes(id):
         'admin/stock/qr_preview.html',
         qr_items=qr_items,
         total_qr_count=sum(item['qr_count'] for item in qr_items),
-        selected_ids=[stock.id]
+        selected_ids=[stock.id],
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     )
 
 @admin.route('/stock/qr-preview', methods=['POST'])
@@ -5394,7 +5395,8 @@ def preview_selected_stock_qr_codes():
         'admin/stock/qr_preview.html',
         qr_items=qr_items,
         total_qr_count=sum(item['qr_count'] for item in qr_items),
-        selected_ids=[stock.id for stock in stocks]
+        selected_ids=[stock.id for stock in stocks],
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
     )
 
 @admin.route('/stock/<int:id>/mark-qr-printed', methods=['POST'])

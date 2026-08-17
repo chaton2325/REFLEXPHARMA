@@ -37,6 +37,18 @@
     display: block;
 }
 
+.qr-label-pharmacy {
+    width: 100%;
+    font-size: 6px;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: center;
+    color: #495057;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .qr-label-nom {
     margin-top: 0.5mm;
     font-size: 7.5px;
@@ -370,6 +382,7 @@
                 </div>
                 {% for _ in range(item.qr_count) %}
                 <div class="qr-label">
+                    <div class="qr-label-pharmacy">{{ pharmacy_name }}</div>
                     <div class="qr-label-nom">{{ item.stock.produit.nom }}</div>
                     <img src="{{ item.qr_image }}" alt="QR code {{ item.stock.code_suivi }}">
                     <div class="qr-label-code">{{ item.stock.code_suivi }}</div>
