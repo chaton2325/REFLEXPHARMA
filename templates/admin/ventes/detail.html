@@ -4,6 +4,14 @@
 
 {% block extra_head %}
 <style>
+  /* Apercu PDF : hauteur genereuse a partir de sm, plein ecran natif en
+     dessous (voir .modal-fullscreen-sm-down) -- meme regle que le catalogue
+     produits/stock. */
+  @media (min-width: 576px) {
+    .pdf-preview-dialog { height: 85vh; }
+  }
+  .pdf-preview-dialog .modal-content { height: 100%; }
+
   body { background-color: #fdf2f2 !important; }
   .page-header {
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
@@ -91,6 +99,9 @@
     <div class="d-flex gap-2 flex-wrap">
         <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#receiptModal">
             <i class="fas fa-receipt me-1"></i> Voir le Ticket
+        </button>
+        <button type="button" class="btn btn-light btn-sm" id="factureePdfBtn">
+            <i class="fas fa-file-pdf me-1 text-danger"></i> Facture PDF
         </button>
         {% if vente.statut != 'annulee' %}
         <button type="button" class="btn btn-light btn-sm text-danger annuler-vente-btn" data-vente-id="{{ vente.id }}" data-vente-numero="{{ vente.numero_vente }}">
@@ -258,6 +269,37 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Apercu PDF (in-page, pas de nouvel onglet) : le PDF est recupere via
+     fetch() et affiche comme blob dans l'iframe, avec Imprimer/Exporter PDF
+     en pied de modale -- meme patron que #pdfPreviewModal du catalogue
+     produits/stock. -->
+<div class="modal fade" id="pdfPreviewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down pdf-preview-dialog">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-file-pdf me-2 text-danger"></i>Facture PDF — {{ vente.numero_vente }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 d-flex align-items-center justify-content-center" style="flex:1 1 auto;min-height:0;">
+        <div id="pdfPreviewLoading" class="text-center text-muted">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Génération du PDF...</div>
+        </div>
+        <iframe id="pdfPreviewFrame" src="about:blank" class="d-none" style="width:100%;height:100%;border:0;display:block;" title="Aperçu PDF"></iframe>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+        <button type="button" class="btn btn-outline-primary" id="pdfPreviewPrint" style="border-radius:10px;font-weight:600;" disabled>
+          <i class="fas fa-print me-1"></i> Imprimer
+        </button>
+        <a href="#" id="pdfPreviewDownload" class="btn btn-primary disabled" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-file-pdf me-1"></i> Télécharger
+        </a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">
@@ -467,6 +509,62 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
             window.print();
+        });
+    }
+
+    // ---- Apercu Facture PDF in-page (pas de nouvel onglet), meme patron
+    // que #pdfPreviewModal du catalogue produits/stock : fetch() -> blob ->
+    // iframe, avec Imprimer/Telecharger en pied de modale. ----
+    const pdfPreviewModalEl = document.getElementById('pdfPreviewModal');
+    const pdfPreviewModal = pdfPreviewModalEl ? bootstrap.Modal.getOrCreateInstance(pdfPreviewModalEl) : null;
+    const pdfPreviewFrame = document.getElementById('pdfPreviewFrame');
+    const pdfPreviewLoading = document.getElementById('pdfPreviewLoading');
+    const pdfPreviewDownload = document.getElementById('pdfPreviewDownload');
+    const pdfPreviewPrint = document.getElementById('pdfPreviewPrint');
+    let pdfPreviewBlobUrl = null;
+
+    function showPdfPreviewLoading() {
+        pdfPreviewFrame.classList.add('d-none');
+        pdfPreviewLoading.classList.remove('d-none');
+        pdfPreviewPrint.disabled = true;
+        pdfPreviewDownload.classList.add('disabled');
+        pdfPreviewModal.show();
+    }
+    function showPdfPreviewBlob(blob, filename) {
+        if (pdfPreviewBlobUrl) URL.revokeObjectURL(pdfPreviewBlobUrl);
+        pdfPreviewBlobUrl = URL.createObjectURL(blob);
+        pdfPreviewFrame.src = pdfPreviewBlobUrl;
+        pdfPreviewDownload.href = pdfPreviewBlobUrl;
+        pdfPreviewDownload.setAttribute('download', filename || 'facture.pdf');
+        pdfPreviewDownload.classList.remove('disabled');
+        pdfPreviewPrint.disabled = false;
+        pdfPreviewLoading.classList.add('d-none');
+        pdfPreviewFrame.classList.remove('d-none');
+    }
+    function loadPdfPreview(url, filename) {
+        showPdfPreviewLoading();
+        fetch(url)
+            .then((res) => { if (!res.ok) throw new Error('export failed'); return res.blob(); })
+            .then((blob) => showPdfPreviewBlob(blob, filename))
+            .catch(() => {
+                pdfPreviewModal.hide();
+                alert("Impossible de générer la facture PDF. Réessayez.");
+            });
+    }
+    if (pdfPreviewPrint) {
+        pdfPreviewPrint.addEventListener('click', () => {
+            try {
+                pdfPreviewFrame.contentWindow.focus();
+                pdfPreviewFrame.contentWindow.print();
+            } catch (e) {
+                if (pdfPreviewBlobUrl) window.open(pdfPreviewBlobUrl, '_blank');
+            }
+        });
+    }
+    const factureePdfBtn = document.getElementById('factureePdfBtn');
+    if (factureePdfBtn) {
+        factureePdfBtn.addEventListener('click', () => {
+            loadPdfPreview({{ url_for('admin.export_vente_pdf', id=vente.id)|tojson }}, {{ ('facture_' ~ vente.numero_vente ~ '.pdf')|tojson }});
         });
     }
 });

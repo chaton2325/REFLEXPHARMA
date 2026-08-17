@@ -3116,6 +3116,185 @@ def detail_vente(id):
         raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all()
     )
 
+@admin.route('/ventes/<int:id>/export/pdf')
+@login_required
+@permission_required('gestion_ventes')
+def export_vente_pdf(id):
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, HRFlowable
+    from xml.sax.saxutils import escape
+
+    vente = Vente.query.get_or_404(id)
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    devise = devise_active()
+    generated_at = datetime.now()
+
+    def money(value):
+        return f'{value:,.2f} {devise}'.replace(',', ' ')
+
+    def unite_label(u):
+        return {'sous_unite': 'S.U.', 'sous_sous_unite': 'S.S.U.'}.get(u, 'Unité')
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=28, bottomMargin=30, leftMargin=32, rightMargin=32)
+    styles = getSampleStyleSheet()
+
+    pharmacy_style = ParagraphStyle('FacturePharmacy', parent=styles['Normal'], fontSize=19, leading=22, textColor=colors.HexColor('#1F2937'), fontName='Helvetica-Bold')
+    doc_type_style = ParagraphStyle('FactureDocType', parent=styles['Normal'], fontSize=9.5, leading=12, textColor=colors.HexColor('#3498db'), fontName='Helvetica-Bold')
+    meta_right_style = ParagraphStyle('FactureMetaRight', parent=styles['Normal'], fontSize=9, leading=13, textColor=colors.HexColor('#4b5563'), alignment=2)
+    meta_right_num_style = ParagraphStyle('FactureMetaRightNum', parent=meta_right_style, fontSize=12, textColor=colors.HexColor('#1F2937'), fontName='Helvetica-Bold')
+    section_label_style = ParagraphStyle('FactureSectionLabel', parent=styles['Normal'], fontSize=7.3, leading=9, textColor=colors.HexColor('#9aa7b3'), fontName='Helvetica-Bold')
+    info_style = ParagraphStyle('FactureInfo', parent=styles['Normal'], fontSize=9.5, leading=13, textColor=colors.HexColor('#1f2937'))
+    info_sub_style = ParagraphStyle('FactureInfoSub', parent=styles['Normal'], fontSize=8, leading=11, textColor=colors.HexColor('#7a8896'))
+    header_cell_style = ParagraphStyle('FactureHeaderCell', parent=styles['Normal'], fontSize=8.2, leading=10, textColor=colors.white, fontName='Helvetica-Bold')
+    header_cell_right = ParagraphStyle('FactureHeaderCellRight', parent=header_cell_style, alignment=2)
+    cell_style = ParagraphStyle('FactureCell', parent=styles['Normal'], fontSize=8.8, leading=11, textColor=colors.HexColor('#1f2937'))
+    cell_right_style = ParagraphStyle('FactureCellRight', parent=cell_style, alignment=2)
+    cancel_banner_style = ParagraphStyle('FactureCancelBanner', parent=styles['Normal'], fontSize=9, leading=12, textColor=colors.HexColor('#7a1f1f'))
+    totals_label_style = ParagraphStyle('FactureTotalsLabel', parent=styles['Normal'], fontSize=8.8, leading=12, textColor=colors.HexColor('#4b5563'))
+    totals_value_style = ParagraphStyle('FactureTotalsValue', parent=totals_label_style, alignment=2, textColor=colors.HexColor('#1f2937'))
+    net_label_style = ParagraphStyle('FactureNetLabel', parent=styles['Normal'], fontSize=11.5, leading=15, textColor=colors.HexColor('#1F2937'), fontName='Helvetica-Bold')
+    net_value_style = ParagraphStyle('FactureNetValue', parent=net_label_style, alignment=2, textColor=colors.HexColor('#1e8e3e'))
+    footer_style = ParagraphStyle('FactureFooter', parent=styles['Normal'], fontSize=8, leading=11, textColor=colors.HexColor('#9aa7b3'), alignment=1)
+    thanks_style = ParagraphStyle('FactureThanks', parent=footer_style, fontSize=9.5, textColor=colors.HexColor('#4b5563'))
+
+    elements = []
+
+    title_left = [Paragraph(escape(pharmacy_name), pharmacy_style), Paragraph('Facture de vente', doc_type_style)]
+    title_right = [
+        Paragraph(escape(vente.numero_vente), meta_right_num_style),
+        Paragraph(f'Le {vente.created_at.strftime("%d/%m/%Y à %H:%M")}', meta_right_style),
+    ]
+    header_tbl = Table([[title_left, title_right]], colWidths=[300, 199])
+    header_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elements.append(header_tbl)
+    elements.append(Spacer(1, 10))
+    elements.append(HRFlowable(width='100%', thickness=2, color=colors.HexColor('#1F2937'), spaceAfter=14))
+
+    if vente.statut == 'annulee':
+        banner_text = (
+            f'<b>VENTE ANNULÉE</b> — le {vente.annulee_at.strftime("%d/%m/%Y à %H:%M") if vente.annulee_at else "-"} '
+            f'par {escape(vente.annulee_par_prenom or "")} {escape(vente.annulee_par_nom or "")}. '
+            f'Raison : {escape(vente.raison_annulation_nom or "-")}'
+        )
+        if vente.annulation_commentaire:
+            banner_text += f'<br/>{escape(vente.annulation_commentaire)}'
+        banner = Table([[Paragraph(banner_text, cancel_banner_style)]], colWidths=[499])
+        banner.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fdecec')),
+            ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#e6a8a8')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(banner)
+        elements.append(Spacer(1, 14))
+
+    info_left = [
+        Paragraph('CLIENT', section_label_style),
+        Spacer(1, 3),
+        Paragraph(escape(vente.client_label), info_style),
+        Paragraph(escape(vente.client_matricule or 'Vente comptoir'), info_sub_style),
+    ]
+    if vente.groupe_client_nom:
+        info_left.append(Paragraph(f'Groupe : {escape(vente.groupe_client_nom)}', info_sub_style))
+
+    info_right = [
+        Paragraph('DÉTAILS', section_label_style),
+        Spacer(1, 3),
+        Paragraph(f'Vendeur : {escape(vente.auteur_prenom or "")} {escape(vente.auteur_nom or "")}', info_style),
+        Paragraph(f'Paiement : {escape((vente.mode_paiement or "").replace("_", " ").capitalize())}', info_sub_style),
+    ]
+    info_tbl = Table([[info_left, info_right]], colWidths=[280, 219])
+    info_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elements.append(info_tbl)
+    elements.append(Spacer(1, 18))
+
+    def h(text, right=False):
+        return Paragraph(text, header_cell_right if right else header_cell_style)
+
+    data = [[h('Désignation'), h('Unité'), h('Qté', True), h(f'P.U. TTC ({devise})', True), h(f'Total TTC ({devise})', True)]]
+    for l in vente.lignes:
+        data.append([
+            Paragraph(escape(l.produit_nom), cell_style),
+            Paragraph(unite_label(l.unite), cell_style),
+            Paragraph(f'{l.quantite:g}', cell_right_style),
+            Paragraph(f'{l.prix_unitaire_ttc:,.2f}'.replace(',', ' '), cell_right_style),
+            Paragraph(f'{l.total_ttc:,.2f}'.replace(',', ' '), cell_right_style),
+        ])
+
+    items_table = Table(data, repeatRows=1, colWidths=[218, 55, 45, 90, 91])
+    items_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, 1), (-1, -1), 0.4, colors.HexColor('#e5e7eb')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+    ]))
+    elements.append(items_table)
+    elements.append(Spacer(1, 16))
+
+    totals_rows = [
+        ('Total HT', money(vente.total_ht)),
+        ('TVA', money(vente.total_tva_reelle)),
+    ]
+    if vente.code_promo_utilise:
+        totals_rows.append((
+            f'Remise ({vente.code_promo_utilise} -{vente.code_promo_pourcentage:g}%)',
+            f'-{money(vente.code_promo_montant_deduit)}',
+        ))
+    totals_data = [[Paragraph(escape(lbl), totals_label_style), Paragraph(val, totals_value_style)] for lbl, val in totals_rows]
+    totals_data.append([Paragraph('NET À PAYER (TTC)', net_label_style), Paragraph(money(vente.total_ttc), net_value_style)])
+    totals_data.append([Paragraph('Montant reçu', totals_label_style), Paragraph(money(vente.montant_recu), totals_value_style)])
+    totals_data.append([Paragraph('Monnaie rendue', totals_label_style), Paragraph(money(vente.monnaie_rendue), totals_value_style)])
+
+    totals_table = Table(totals_data, colWidths=[150, 130])
+    totals_table.setStyle(TableStyle([
+        ('LINEABOVE', (0, -3), (-1, -3), 0.8, colors.HexColor('#1F2937')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    wrapper = Table([[None, totals_table]], colWidths=[219, 280])
+    wrapper.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(wrapper)
+    elements.append(Spacer(1, 26))
+    elements.append(HRFlowable(width='100%', thickness=0.6, color=colors.HexColor('#e5e7eb'), spaceAfter=8))
+    elements.append(Paragraph('Merci de votre confiance !', thanks_style))
+    elements.append(Paragraph(f'Facture générée le {generated_at.strftime("%d/%m/%Y à %H:%M")} — Logiciel {escape(pharmacy_name)}', footer_style))
+
+    doc.build(elements, canvasmaker=make_numbered_pdf_canvas(A4[0]))
+    output.seek(0)
+    filename = f'facture_{vente.numero_vente}.pdf'
+    return send_file(output, download_name=filename, as_attachment=True)
+
 @admin.route('/ventes/raisons-annulation')
 @login_required
 @permission_required('gestion_ventes')
