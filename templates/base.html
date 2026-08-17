@@ -766,17 +766,14 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             </a>
 
             {% if current_user.has_permission('gestion_employes') %}
-            <div class="nav-group">
-                <a class="nav-link" data-bs-toggle="collapse" href="#employesCollapse" role="button" title="Employés">
-                    <i class="fas fa-users"></i>
-                    <span class="nav-label">Employés</span>
-                    <i class="fas fa-chevron-down collapse-indicator"></i>
-                </a>
-                <div class="collapse sub-menu" id="employesCollapse">
-                    <a href="{{ url_for('admin.list_users') }}"><span class="nav-label">Liste des employés</span></a>
-                    <a href="{{ url_for('admin.list_conges') }}"><span class="nav-label">Congés</span></a>
-                </div>
-            </div>
+            <a href="{{ url_for('admin.list_users') }}" class="nav-link" title="Employés">
+                <i class="fas fa-users"></i>
+                <span class="nav-label">Employés</span>
+            </a>
+            <a href="{{ url_for('admin.list_conges') }}" class="nav-link" title="Congés">
+                <i class="fas fa-umbrella-beach"></i>
+                <span class="nav-label">Congés</span>
+            </a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_produits') or current_user.has_permission('gestion_rayons') or current_user.has_permission('gestion_familles') or current_user.has_permission('gestion_sections') %}
@@ -1003,14 +1000,8 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-gauge-high"></i>Tableau de bord</a>
 
             {% if current_user.has_permission('gestion_employes') %}
-            <a data-bs-toggle="collapse" href="#ocEmployesCollapse" role="button" class="d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-users"></i>Employés</span>
-                <i class="fas fa-chevron-down chevron"></i>
-            </a>
-            <div class="collapse sub-menu" id="ocEmployesCollapse">
-                <a href="{{ url_for('admin.list_users') }}">Liste des employés</a>
-                <a href="{{ url_for('admin.list_conges') }}">Congés</a>
-            </div>
+            <a href="{{ url_for('admin.list_users') }}"><i class="fas fa-users"></i>Employés</a>
+            <a href="{{ url_for('admin.list_conges') }}"><i class="fas fa-umbrella-beach"></i>Congés</a>
             {% endif %}
 
             {% if current_user.has_permission('gestion_produits') or current_user.has_permission('gestion_rayons') or current_user.has_permission('gestion_familles') or current_user.has_permission('gestion_sections') %}
