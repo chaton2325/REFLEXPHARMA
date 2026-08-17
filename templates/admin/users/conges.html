@@ -141,7 +141,7 @@
         <select name="user_id" class="form-select form-select-sm">
           <option value="">Tous</option>
           {% for e in employes %}
-          <option value="{{ e.id }}" {% if request.args.get('user_id', type=int) == e.id %}selected{% endif %}>{{ e.prenom }} {{ e.nom }}</option>
+          <option value="{{ e.id }}" {% if request.args.get('user_id', '') == e.id|string %}selected{% endif %}>{{ e.prenom }} {{ e.nom }}</option>
           {% endfor %}
         </select>
       </div>
@@ -150,7 +150,7 @@
         <select name="type_conge_id" class="form-select form-select-sm">
           <option value="">Tous</option>
           {% for t in types_conge %}
-          <option value="{{ t.id }}" {% if request.args.get('type_conge_id', type=int) == t.id %}selected{% endif %}>{{ t.nom }}</option>
+          <option value="{{ t.id }}" {% if request.args.get('type_conge_id', '') == t.id|string %}selected{% endif %}>{{ t.nom }}</option>
           {% endfor %}
         </select>
       </div>
