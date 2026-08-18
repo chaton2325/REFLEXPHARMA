@@ -5769,14 +5769,19 @@ def export_stock_modifications_pdf():
 @login_required
 @permission_required('gestion_modifications_stock')
 def list_stock_exit_logs():
-    exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
+    filters = get_stock_exit_stats_filters()
+    all_exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
+    exits = list(reversed(get_filtered_stock_exit_logs(filters)))
     exit_prices = {item.id: get_exit_log_prices(item) for item in exits}
     exit_suppliers = {item.id: get_exit_log_supplier_info(item) for item in exits}
     return render_template(
         'admin/stock/exit_logs.html',
         exits=exits,
         exit_prices=exit_prices,
-        exit_suppliers=exit_suppliers
+        exit_suppliers=exit_suppliers,
+        filters=filters,
+        options=get_stock_exit_stats_options(all_exits),
+        total_count=len(all_exits)
     )
 
 def parse_date_arg(name):
@@ -5797,6 +5802,13 @@ def parse_float_arg(name):
     except ValueError:
         return None
 
+def _exit_log_origine(item):
+    """Libelle d'origine d'une sortie : titre de l'inventaire si l'ecart en
+    vient (voir validate_inventaire/source='inventaire'), sinon 'Manuel'."""
+    if item.source == 'inventaire':
+        return item.inventaire_titre or 'Inventaire'
+    return 'Manuel'
+
 def get_stock_exit_stats_filters():
     return {
         'date_from': request.args.get('date_from', '').strip(),
@@ -5807,6 +5819,7 @@ def get_stock_exit_stats_filters():
         'sorti_par': request.args.get('sorti_par', '').strip(),
         'mis_en_stock_par': request.args.get('mis_en_stock_par', '').strip(),
         'raison': request.args.get('raison', '').strip(),
+        'origine': request.args.get('origine', '').strip(),
         'tva': request.args.get('tva', '').strip(),
         'min_ttc': request.args.get('min_ttc', '').strip(),
         'max_ttc': request.args.get('max_ttc', '').strip()
@@ -5823,7 +5836,8 @@ def get_stock_exit_stats_options(exits):
         'sorti_par': sorted_values({f'{item.user_prenom} {item.user_nom}'.strip() for item in exits}),
         'mis_en_stock_par': sorted_values({f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-' for item in exits}),
         'raisons': sorted_values({item.reason_nom or '-' for item in exits}),
-        'tvas': sorted_values({f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}' for item in exits})
+        'tvas': sorted_values({f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}' for item in exits}),
+        'origines': sorted_values({_exit_log_origine(item) for item in exits})
     }
 
 def get_filtered_stock_exit_logs(filters=None):
@@ -5847,6 +5861,8 @@ def get_filtered_stock_exit_logs(filters=None):
             return f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-'
         if key == 'raison':
             return item.reason_nom or '-'
+        if key == 'origine':
+            return _exit_log_origine(item)
         if key == 'tva':
             return f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}'
         return ''
@@ -5862,7 +5878,7 @@ def get_filtered_stock_exit_logs(filters=None):
             continue
         if max_ttc is not None and get_exit_log_prices(item)['total_ttc'] > max_ttc:
             continue
-        if any(filters[key] and item_value(item, key) != filters[key] for key in ['produit', 'fournisseur', 'groupe', 'sorti_par', 'mis_en_stock_par', 'raison', 'tva']):
+        if any(filters[key] and item_value(item, key) != filters[key] for key in ['produit', 'fournisseur', 'groupe', 'sorti_par', 'mis_en_stock_par', 'raison', 'origine', 'tva']):
             continue
         filtered.append(item)
     return filtered
@@ -6575,7 +6591,13 @@ def build_stock_exit_log_rows(exits):
     return rows
 
 def get_stock_exit_logs_for_export():
-    exits = StockExitLog.query.order_by(StockExitLog.created_at.desc()).all()
+    # Part des memes filtres structures que la liste/les statistiques (date,
+    # produit, fournisseur, raison, origine/inventaire...), puis affine avec
+    # la recherche libre 'q' et le tri actifs sur la page au moment de l'export
+    # -- un export correspond donc toujours a ce que l'utilisateur a sous les yeux.
+    # (le tri explicite plus bas rend l'ordre initial de get_filtered_stock_exit_logs
+    # sans consequence.)
+    exits = get_filtered_stock_exit_logs(get_stock_exit_stats_filters())
     query = (request.args.get('q') or '').strip().lower()
     sort_field = request.args.get('sort') or 'date'
     sort_direction = request.args.get('direction') or 'desc'
@@ -6632,6 +6654,7 @@ def export_stock_exit_logs_excel():
     from flask import send_file
     from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
+    filters = get_stock_exit_stats_filters()
     exits = get_stock_exit_logs_for_export()
     rows = build_stock_exit_log_rows(exits)
     generated_at = datetime.now()
@@ -6666,12 +6689,14 @@ def export_stock_exit_logs_excel():
             'apres': 'Apres',
             'origine': 'Origine'
         })
-        df.to_excel(writer, index=False, sheet_name='Sorties stock', startrow=4)
+        df.to_excel(writer, index=False, sheet_name='Sorties stock', startrow=5)
         worksheet = writer.sheets['Sorties stock']
-        worksheet['A1'] = 'Historique des sorties de stock - ReflexPharma'
+        worksheet['A1'] = 'Historique des sorties de stock - TsariPharm'
         worksheet['A2'] = f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")}'
         worksheet['A3'] = f'Tire par : {current_user.nom} {current_user.prenom}'
-        worksheet['A4'] = f'Lignes exportees : {len(rows)}'
+        active_filters = ', '.join(f'{key}={value}' for key, value in filters.items() if value) or 'Aucun filtre'
+        worksheet['A4'] = f'Filtres : {active_filters}'
+        worksheet['A5'] = f'Lignes exportees : {len(rows)}'
 
         header_font = Font(bold=True, color='FFFFFF')
         header_fill = PatternFill(start_color='1F2937', end_color='1F2937', fill_type='solid')
@@ -6679,13 +6704,13 @@ def export_stock_exit_logs_excel():
         thin_border = Border(bottom=Side(style='thin', color='D1D5DB'))
 
         worksheet['A1'].font = Font(bold=True, size=14, color='1F2937')
-        for row_number in range(2, 5):
+        for row_number in range(2, 6):
             worksheet[f'A{row_number}'].font = meta_font
-        for cell in worksheet[5]:
+        for cell in worksheet[6]:
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row):
+        for row in worksheet.iter_rows(min_row=7, max_row=worksheet.max_row):
             for cell in row:
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
@@ -6693,7 +6718,7 @@ def export_stock_exit_logs_excel():
         widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 16, 16, 18, 21, 21, 26]
         for index, width in enumerate(widths, start=1):
             worksheet.column_dimensions[chr(64 + index)].width = width
-        worksheet.freeze_panes = 'A6'
+        worksheet.freeze_panes = 'A7'
 
     output.seek(0)
     filename = f'sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.xlsx'
@@ -6712,6 +6737,7 @@ def export_stock_exit_logs_pdf():
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from xml.sax.saxutils import escape
 
+    filters = get_stock_exit_stats_filters()
     exits = get_stock_exit_logs_for_export()
     rows = build_stock_exit_log_rows(exits)
     generated_at = datetime.now()
@@ -6723,12 +6749,14 @@ def export_stock_exit_logs_pdf():
     cell_style = ParagraphStyle('ExitLogCell', parent=styles['Normal'], fontSize=5.5, leading=6.4)
     header_style = ParagraphStyle('ExitLogHeader', parent=cell_style, alignment=TA_CENTER, textColor=colors.white)
 
+    active_filters = ', '.join(f'{key}={value}' for key, value in filters.items() if value) or 'Aucun filtre'
     elements = [
-        Paragraph('Historique des sorties de stock - ReflexPharma', title_style),
+        Paragraph('Historique des sorties de stock - TsariPharm', title_style),
         Paragraph(
             f'Date du tirage : {generated_at.strftime("%d/%m/%Y %H:%M")} | Tire par : {current_user.nom} {current_user.prenom} | Lignes : {len(rows)}',
             meta_style
         ),
+        Paragraph(f'Filtres : {escape(active_filters)}', meta_style),
         Spacer(1, 4)
     ]
 

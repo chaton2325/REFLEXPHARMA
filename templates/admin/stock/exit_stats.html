@@ -155,7 +155,7 @@
   </div>
 </div>
 
-{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.tva or filters.min_ttc or filters.max_ttc %}
+{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.tva or filters.min_ttc or filters.max_ttc %}
 <form method="GET" class="card-form mb-4">
   <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#exitStatsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="exitStatsFilters">
     <span><i class="fas fa-filter me-1"></i> Filtres{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
@@ -223,6 +223,15 @@
           <option value="">Toutes</option>
           {% for item in options.raisons %}
           <option value="{{ item }}" {% if filters.raison == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Origine</label>
+        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, ou ecart valide via un inventaire precis">
+          <option value="">Toutes</option>
+          {% for item in options.origines %}
+          <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
           {% endfor %}
         </select>
       </div>

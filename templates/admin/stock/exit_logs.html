@@ -91,6 +91,25 @@
     overflow: hidden;
   }
 
+  .card-form {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+  .card-form .form-label { font-size: 0.78rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.3rem; }
+  .card-form .form-control, .card-form .form-select { border-radius: 8px; border: 1px solid #e9ecef; font-size: 0.85rem; }
+  .card-form .form-control:focus, .card-form .form-select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); }
+
+  .filters-toggle {
+    width: 100%; background: #f8f9fa; border: 0; border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem; font-weight: 600; color: #2c3e50; padding: 0.55rem 0.85rem;
+    text-align: left; display: flex; align-items: center; justify-content: space-between;
+  }
+  .filters-toggle .toggle-chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .filters-toggle:not(.collapsed) .toggle-chevron { transform: rotate(180deg); }
+  .filters-toggle.collapsed { border-bottom: 0; }
+
   .search-wrapper {
     position: relative;
   }
@@ -342,6 +361,11 @@
     .stat-card { padding: 0.9rem 1rem; }
     .stat-card .stat-number { font-size: 1.2rem; }
     .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
+
+    .card-form.mb-3, .card-form.mb-4 { margin-bottom: 0.75rem !important; }
+    .card-form .p-3, .card-form .p-sm-4 { padding: 0.7rem !important; }
+    .card-form .form-label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .card-form .form-control, .card-form .form-select { font-size: 0.78rem; padding: 0.28rem 0.5rem; }
   }
 
   @media (max-width: 768px) {
@@ -478,6 +502,116 @@
   </div>
 </div>
 
+{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.tva or filters.min_ttc or filters.max_ttc %}
+<form method="GET" class="card-form mb-4">
+  <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#exitLogsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="exitLogsFilters">
+    <span><i class="fas fa-filter me-1"></i> Filtres{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
+    <i class="fas fa-chevron-down toggle-chevron"></i>
+  </button>
+  <div class="collapse d-sm-block {% if filters_active %}show{% endif %}" id="exitLogsFilters">
+  <div class="p-3 p-sm-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label">Du</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Au</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label">Produit</label>
+        <select name="produit" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.produits %}
+          <option value="{{ item }}" {% if filters.produit == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Fournisseur</label>
+        <select name="fournisseur" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.fournisseurs %}
+          <option value="{{ item }}" {% if filters.fournisseur == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Groupe</label>
+        <select name="groupe" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.groupes %}
+          <option value="{{ item }}" {% if filters.groupe == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Sorti par</label>
+        <select name="sorti_par" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.sorti_par %}
+          <option value="{{ item }}" {% if filters.sorti_par == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Mis en stock par</label>
+        <select name="mis_en_stock_par" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.mis_en_stock_par %}
+          <option value="{{ item }}" {% if filters.mis_en_stock_par == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Raison</label>
+        <select name="raison" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for item in options.raisons %}
+          <option value="{{ item }}" {% if filters.raison == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Origine</label>
+        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, ou ecart valide via un inventaire precis">
+          <option value="">Toutes</option>
+          {% for item in options.origines %}
+          <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">TVA</label>
+        <select name="tva" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for item in options.tvas %}
+          <option value="{{ item }}" {% if filters.tva == item %}selected{% endif %}>{{ item }}%</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label">TTC min</label>
+        <input type="number" step="0.01" name="min_ttc" class="form-control form-control-sm" value="{{ filters.min_ttc }}">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label">TTC max</label>
+        <input type="number" step="0.01" name="max_ttc" class="form-control form-control-sm" value="{{ filters.max_ttc }}">
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="fas fa-filter me-1"></i> Appliquer
+        </button>
+        <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  </div>
+</form>
+
 <div class="row g-3 mb-4">
   <div class="col-6 col-sm-4 col-md-3">
     <div class="stat-card d-flex align-items-center gap-3">
@@ -485,7 +619,7 @@
         <i class="fas fa-sign-out-alt"></i>
       </div>
       <div>
-        <div class="stat-number">{{ exits|length }}</div>
+        <div class="stat-number">{{ exits|length }}{% if filters_active %}<span class="fs-6 text-muted"> / {{ total_count }}</span>{% endif %}</div>
         <div class="stat-label">Total sorties</div>
       </div>
     </div>
@@ -719,7 +853,9 @@
         </tr>
         {% else %}
         <tr id="emptyExitLogsRow">
-          <td colspan="17" class="text-center py-4">Aucune sortie de stock enregistree.</td>
+          <td colspan="17" class="text-center py-4">
+            {% if filters_active %}Aucune sortie ne correspond a ces filtres.{% else %}Aucune sortie de stock enregistree.{% endif %}
+          </td>
         </tr>
         {% endfor %}
         <tr id="noExitSearchResultsRow" class="d-none">
@@ -803,7 +939,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateExportLinks() {
-        const params = new URLSearchParams();
+        // Part des filtres serveur deja actifs dans l'URL (date, produit,
+        // origine/inventaire...) pour que l'export reste coherent avec la
+        // liste filtree affichee, en y ajoutant recherche libre + tri.
+        const params = new URLSearchParams(window.location.search);
+        params.delete('q');
+        params.delete('sort');
+        params.delete('direction');
         const query = searchInput ? searchInput.value.trim() : '';
         if (query) {
             params.set('q', query);
