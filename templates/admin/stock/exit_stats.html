@@ -155,7 +155,7 @@
   </div>
 </div>
 
-{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.tva or filters.min_ttc or filters.max_ttc %}
+{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.bl or filters.tva or filters.min_ttc or filters.max_ttc %}
 <form method="GET" class="card-form mb-4">
   <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#exitStatsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="exitStatsFilters">
     <span><i class="fas fa-filter me-1"></i> Filtres{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
@@ -174,12 +174,18 @@
       </div>
       <div class="col-12 col-md-4">
         <label class="form-label">Produit</label>
-        <select name="produit" class="form-select form-select-sm">
-          <option value="">Tous</option>
-          {% for item in options.produits %}
-          <option value="{{ item }}" {% if filters.produit == item %}selected{% endif %}>{{ item }}</option>
-          {% endfor %}
-        </select>
+        <div class="input-group input-group-sm">
+          <input type="text" id="produitFilterDisplay" class="form-control" placeholder="Tous les produits" value="{{ filters.produit }}" readonly style="cursor:pointer;background:#fff;" data-bs-toggle="modal" data-bs-target="#produitFilterModal">
+          <input type="hidden" name="produit" id="produitFilterHidden" value="{{ filters.produit }}">
+          {% if filters.produit %}
+          <button type="button" class="btn btn-outline-secondary" id="clearProduitFilter" title="Effacer">
+            <i class="fas fa-times"></i>
+          </button>
+          {% endif %}
+          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#produitFilterModal" title="Rechercher un produit">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label">Fournisseur</label>
@@ -228,10 +234,25 @@
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label">Origine</label>
-        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, ou ecart valide via un inventaire precis">
+        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, n'importe quel inventaire, ou un inventaire precis">
           <option value="">Toutes</option>
-          {% for item in options.origines %}
-          <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
+          <option value="Manuel" {% if filters.origine == 'Manuel' %}selected{% endif %}>Manuel</option>
+          <option value="__inventaire__" {% if filters.origine == '__inventaire__' %}selected{% endif %}>Tous les inventaires</option>
+          {% if options.inventaire_titres %}
+          <optgroup label="Inventaire précis">
+            {% for item in options.inventaire_titres %}
+            <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">BL</label>
+        <select name="bl" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.bls %}
+          <option value="{{ item }}" {% if filters.bl == item %}selected{% endif %}>{{ item }}</option>
           {% endfor %}
         </select>
       </div>
@@ -264,6 +285,29 @@
   </div>
   </div>
 </form>
+
+<div class="modal fade" id="produitFilterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-search me-2"></i>Rechercher un produit</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="produitFilterSearch" class="form-control mb-3" placeholder="Tapez pour rechercher...">
+        <div class="list-group" id="produitFilterList" style="max-height:50vh;overflow-y:auto;">
+          {% for item in options.produits %}
+          <button type="button" class="list-group-item list-group-item-action produit-filter-option" data-value="{{ item }}">{{ item }}</button>
+          {% endfor %}
+        </div>
+        <p class="text-muted text-center mb-0 mt-2 d-none" id="produitFilterNoResults">Aucun produit ne correspond a cette recherche.</p>
+        {% if not options.produits %}
+        <p class="text-muted text-center mb-0">Aucun produit disponible.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="row g-3 mb-4 row-cols-2 row-cols-lg-4">
   <div class="col">
@@ -479,6 +523,62 @@
 <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const produitDisplay = document.getElementById('produitFilterDisplay');
+    const produitHidden = document.getElementById('produitFilterHidden');
+    const produitSearch = document.getElementById('produitFilterSearch');
+    const produitOptions = Array.from(document.querySelectorAll('.produit-filter-option'));
+    const produitNoResults = document.getElementById('produitFilterNoResults');
+    const produitModalEl = document.getElementById('produitFilterModal');
+    const clearProduitButton = document.getElementById('clearProduitFilter');
+
+    function normalizeProduitText(value) {
+        return (value || '').toString().toLowerCase();
+    }
+
+    if (produitSearch) {
+        produitSearch.addEventListener('input', function() {
+            const query = normalizeProduitText(produitSearch.value.trim());
+            let visibleCount = 0;
+            produitOptions.forEach((option) => {
+                const match = !query || normalizeProduitText(option.dataset.value).includes(query);
+                option.classList.toggle('d-none', !match);
+                if (match) visibleCount += 1;
+            });
+            if (produitNoResults) {
+                produitNoResults.classList.toggle('d-none', visibleCount !== 0);
+            }
+        });
+    }
+
+    produitOptions.forEach((option) => {
+        option.addEventListener('click', function() {
+            const value = option.dataset.value;
+            if (produitDisplay) produitDisplay.value = value;
+            if (produitHidden) produitHidden.value = value;
+            if (produitModalEl && window.bootstrap) {
+                const instance = window.bootstrap.Modal.getInstance(produitModalEl) || new window.bootstrap.Modal(produitModalEl);
+                instance.hide();
+            }
+        });
+    });
+
+    if (clearProduitButton) {
+        clearProduitButton.addEventListener('click', function() {
+            if (produitDisplay) produitDisplay.value = '';
+            if (produitHidden) produitHidden.value = '';
+        });
+    }
+
+    if (produitModalEl) {
+        produitModalEl.addEventListener('shown.bs.modal', function() {
+            if (produitSearch) {
+                produitSearch.value = '';
+                produitSearch.dispatchEvent(new Event('input'));
+                produitSearch.focus();
+            }
+        });
+    }
+
     const stats = {{ stats|tojson }};
     // Couleurs fixes par mesure (jamais par rang) : cohérent avec le reste de l'app.
     const colorHT = '#1a73e8';

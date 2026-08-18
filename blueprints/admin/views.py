@@ -5820,6 +5820,7 @@ def get_stock_exit_stats_filters():
         'mis_en_stock_par': request.args.get('mis_en_stock_par', '').strip(),
         'raison': request.args.get('raison', '').strip(),
         'origine': request.args.get('origine', '').strip(),
+        'bl': request.args.get('bl', '').strip(),
         'tva': request.args.get('tva', '').strip(),
         'min_ttc': request.args.get('min_ttc', '').strip(),
         'max_ttc': request.args.get('max_ttc', '').strip()
@@ -5836,8 +5837,12 @@ def get_stock_exit_stats_options(exits):
         'sorti_par': sorted_values({f'{item.user_prenom} {item.user_nom}'.strip() for item in exits}),
         'mis_en_stock_par': sorted_values({f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-' for item in exits}),
         'raisons': sorted_values({item.reason_nom or '-' for item in exits}),
+        'bls': sorted_values({item.numero_bl or '-' for item in exits}),
         'tvas': sorted_values({f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}' for item in exits}),
-        'origines': sorted_values({_exit_log_origine(item) for item in exits})
+        # Titres d'inventaire distincts, pour le choix "un inventaire precis"
+        # du filtre Origine (voir template : Manuel / Tous les inventaires /
+        # un titre precis).
+        'inventaire_titres': sorted_values({item.inventaire_titre for item in exits if item.source == 'inventaire' and item.inventaire_titre})
     }
 
 def get_filtered_stock_exit_logs(filters=None):
@@ -5861,8 +5866,8 @@ def get_filtered_stock_exit_logs(filters=None):
             return f'{item.mise_en_stock_user_prenom or ""} {item.mise_en_stock_user_nom or ""}'.strip() or '-'
         if key == 'raison':
             return item.reason_nom or '-'
-        if key == 'origine':
-            return _exit_log_origine(item)
+        if key == 'bl':
+            return item.numero_bl or '-'
         if key == 'tva':
             return f'{get_exit_log_prices(item)["tva_pourcentage"]:.2f}'
         return ''
@@ -5878,8 +5883,18 @@ def get_filtered_stock_exit_logs(filters=None):
             continue
         if max_ttc is not None and get_exit_log_prices(item)['total_ttc'] > max_ttc:
             continue
-        if any(filters[key] and item_value(item, key) != filters[key] for key in ['produit', 'fournisseur', 'groupe', 'sorti_par', 'mis_en_stock_par', 'raison', 'origine', 'tva']):
+        if any(filters[key] and item_value(item, key) != filters[key] for key in ['produit', 'fournisseur', 'groupe', 'sorti_par', 'mis_en_stock_par', 'raison', 'bl', 'tva']):
             continue
+        # Origine : 'Manuel', '__inventaire__' (n'importe quel inventaire) ou
+        # le titre precis d'un inventaire -- traite a part car ce n'est pas
+        # une simple egalite (le sentinel __inventaire__ matche PLUSIEURS
+        # valeurs distinctes de _exit_log_origine).
+        if filters.get('origine'):
+            if filters['origine'] == '__inventaire__':
+                if item.source != 'inventaire':
+                    continue
+            elif _exit_log_origine(item) != filters['origine']:
+                continue
         filtered.append(item)
     return filtered
 

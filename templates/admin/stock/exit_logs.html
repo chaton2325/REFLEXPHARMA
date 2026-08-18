@@ -142,18 +142,20 @@
   .table-custom thead th {
     background: #f8f9fa;
     color: #495057;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    padding: 0.85rem 1rem;
+    padding: 0.6rem 0.75rem;
     border-bottom: 2px solid #e9ecef;
+    white-space: nowrap;
   }
   .table-custom tbody td {
-    padding: 0.85rem 1rem;
+    padding: 0.45rem 0.75rem;
     vertical-align: middle;
     border-bottom: 1px solid #f0f2f5;
-    font-size: 0.88rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
   }
   .table-custom tbody tr {
     transition: background 0.15s;
@@ -502,7 +504,7 @@
   </div>
 </div>
 
-{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.tva or filters.min_ttc or filters.max_ttc %}
+{% set filters_active = filters.date_from or filters.date_to or filters.produit or filters.fournisseur or filters.groupe or filters.sorti_par or filters.mis_en_stock_par or filters.raison or filters.origine or filters.bl or filters.tva or filters.min_ttc or filters.max_ttc %}
 <form method="GET" class="card-form mb-4">
   <button type="button" class="filters-toggle d-sm-none {% if not filters_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#exitLogsFilters" aria-expanded="{{ 'true' if filters_active else 'false' }}" aria-controls="exitLogsFilters">
     <span><i class="fas fa-filter me-1"></i> Filtres{% if filters_active %} <span class="badge bg-primary ms-1" style="font-size:0.6rem;">actifs</span>{% endif %}</span>
@@ -521,12 +523,18 @@
       </div>
       <div class="col-12 col-md-4">
         <label class="form-label">Produit</label>
-        <select name="produit" class="form-select form-select-sm">
-          <option value="">Tous</option>
-          {% for item in options.produits %}
-          <option value="{{ item }}" {% if filters.produit == item %}selected{% endif %}>{{ item }}</option>
-          {% endfor %}
-        </select>
+        <div class="input-group input-group-sm">
+          <input type="text" id="produitFilterDisplay" class="form-control" placeholder="Tous les produits" value="{{ filters.produit }}" readonly style="cursor:pointer;background:#fff;" data-bs-toggle="modal" data-bs-target="#produitFilterModal">
+          <input type="hidden" name="produit" id="produitFilterHidden" value="{{ filters.produit }}">
+          {% if filters.produit %}
+          <button type="button" class="btn btn-outline-secondary" id="clearProduitFilter" title="Effacer">
+            <i class="fas fa-times"></i>
+          </button>
+          {% endif %}
+          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#produitFilterModal" title="Rechercher un produit">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label">Fournisseur</label>
@@ -575,10 +583,25 @@
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label">Origine</label>
-        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, ou ecart valide via un inventaire precis">
+        <select name="origine" class="form-select form-select-sm" title="Sortie manuelle, n'importe quel inventaire, ou un inventaire precis">
           <option value="">Toutes</option>
-          {% for item in options.origines %}
-          <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
+          <option value="Manuel" {% if filters.origine == 'Manuel' %}selected{% endif %}>Manuel</option>
+          <option value="__inventaire__" {% if filters.origine == '__inventaire__' %}selected{% endif %}>Tous les inventaires</option>
+          {% if options.inventaire_titres %}
+          <optgroup label="Inventaire précis">
+            {% for item in options.inventaire_titres %}
+            <option value="{{ item }}" {% if filters.origine == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">BL</label>
+        <select name="bl" class="form-select form-select-sm">
+          <option value="">Tous</option>
+          {% for item in options.bls %}
+          <option value="{{ item }}" {% if filters.bl == item %}selected{% endif %}>{{ item }}</option>
           {% endfor %}
         </select>
       </div>
@@ -707,15 +730,15 @@
           <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
           <td>
             <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit_nom }}</div>
-            <small class="text-muted">{{ item.produit_code }}</small>
-            {% if item.source == 'inventaire' %}
-            <div class="mt-1">
-              <span class="badge bg-warning-subtle text-warning-emphasis border" title="Écart constaté lors de l'inventaire « {{ item.inventaire_titre }} »">
+            <div class="d-flex align-items-center flex-wrap gap-1">
+              <small class="text-muted">{{ item.produit_code }}</small>
+              {% if item.source == 'inventaire' %}
+              <span class="badge bg-warning-subtle text-warning-emphasis border" style="font-size:0.6rem;" title="Écart constaté lors de l'inventaire « {{ item.inventaire_titre }} »">
                 <i class="fas fa-clipboard-list me-1"></i>Inventaire
               </span>
+              {% endif %}
             </div>
-            {% endif %}
-            <div class="mt-2">
+            <div class="mt-1">
               <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}">
                 <span class="life-path-pulse"></span>
                 <i class="fas fa-route me-1"></i> Chemin de vie
@@ -820,36 +843,18 @@
             <small class="text-muted">{{ item.user_email }}</small>
           </td>
           <td>{{ item.reason_nom }}</td>
-          <td>
-            <div>U: {{ item.quantite_unites_sortie }}</div>
-            <div>S/U: {{ item.quantite_sous_unites_sortie }}</div>
-            <div>SS/U: {{ item.quantite_sous_sous_unites_sortie }}</div>
-          </td>
+          <td class="text-nowrap">U:{{ item.quantite_unites_sortie }} &middot; S/U:{{ item.quantite_sous_unites_sortie }} &middot; SS/U:{{ item.quantite_sous_sous_unites_sortie }}</td>
           <td>{{ "%.2f"|format(prices.tva_pourcentage) }}%</td>
-          <td>
-            <div class="small text-muted">HT</div>
-            <div>U: {{ "%.2f"|format(prices.prix_unite_ht) }}</div>
-            <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ht) }}</div>
-            <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
-            <div class="small text-muted mt-1">TTC</div>
-            <div>U: {{ "%.2f"|format(prices.prix_unite_ttc) }}</div>
-            <div>S/U: {{ "%.2f"|format(prices.prix_sous_unite_ttc) }}</div>
-            <div>SS/U: {{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
+          <td class="text-nowrap">
+            <div><span class="text-muted">HT</span> U:{{ "%.2f"|format(prices.prix_unite_ht) }} &middot; S/U:{{ "%.2f"|format(prices.prix_sous_unite_ht) }} &middot; SS/U:{{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
+            <div><span class="text-muted">TTC</span> U:{{ "%.2f"|format(prices.prix_unite_ttc) }} &middot; S/U:{{ "%.2f"|format(prices.prix_sous_unite_ttc) }} &middot; SS/U:{{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
           </td>
-          <td>
+          <td class="text-nowrap">
             <div>HT: {{ "%.2f"|format(prices.total_ht) }}</div>
             <div class="fw-bold text-danger">TTC: {{ "%.2f"|format(prices.total_ttc) }}</div>
           </td>
-          <td>
-            <div>U: {{ item.old_quantite_unites }}</div>
-            <div>S/U: {{ item.old_quantite_sous_unites }}</div>
-            <div>SS/U: {{ item.old_quantite_sous_sous_unites }}</div>
-          </td>
-          <td>
-            <div>U: {{ item.new_quantite_unites }}</div>
-            <div>S/U: {{ item.new_quantite_sous_unites }}</div>
-            <div>SS/U: {{ item.new_quantite_sous_sous_unites }}</div>
-          </td>
+          <td class="text-nowrap">U:{{ item.old_quantite_unites }} &middot; S/U:{{ item.old_quantite_sous_unites }} &middot; SS/U:{{ item.old_quantite_sous_sous_unites }}</td>
+          <td class="text-nowrap">U:{{ item.new_quantite_unites }} &middot; S/U:{{ item.new_quantite_sous_unites }} &middot; SS/U:{{ item.new_quantite_sous_sous_unites }}</td>
         </tr>
         {% else %}
         <tr id="emptyExitLogsRow">
@@ -875,7 +880,14 @@
       <div class="d-flex justify-content-between align-items-start mb-2">
         <div>
           <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit_nom }}</div>
-          <small class="text-muted">{{ item.produit_code }}</small>
+          <div class="d-flex align-items-center flex-wrap gap-1">
+            <small class="text-muted">{{ item.produit_code }}</small>
+            {% if item.source == 'inventaire' %}
+            <span class="badge bg-warning-subtle text-warning-emphasis border" style="font-size:0.58rem;" title="Écart constaté lors de l'inventaire « {{ item.inventaire_titre }} »">
+              <i class="fas fa-clipboard-list me-1"></i>Inventaire
+            </span>
+            {% endif %}
+          </div>
         </div>
         <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}" style="flex-shrink:0;">
           <span class="life-path-pulse"></span>
@@ -910,8 +922,87 @@
   </div>
 </div>
 
+<div class="modal fade" id="produitFilterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-search me-2"></i>Rechercher un produit</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="produitFilterSearch" class="form-control mb-3" placeholder="Tapez pour rechercher...">
+        <div class="list-group" id="produitFilterList" style="max-height:50vh;overflow-y:auto;">
+          {% for item in options.produits %}
+          <button type="button" class="list-group-item list-group-item-action produit-filter-option" data-value="{{ item }}">{{ item }}</button>
+          {% endfor %}
+        </div>
+        <p class="text-muted text-center mb-0 mt-2 d-none" id="produitFilterNoResults">Aucun produit ne correspond a cette recherche.</p>
+        {% if not options.produits %}
+        <p class="text-muted text-center mb-0">Aucun produit disponible.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const produitDisplay = document.getElementById('produitFilterDisplay');
+    const produitHidden = document.getElementById('produitFilterHidden');
+    const produitSearch = document.getElementById('produitFilterSearch');
+    const produitOptions = Array.from(document.querySelectorAll('.produit-filter-option'));
+    const produitNoResults = document.getElementById('produitFilterNoResults');
+    const produitModalEl = document.getElementById('produitFilterModal');
+    const clearProduitButton = document.getElementById('clearProduitFilter');
+
+    function normalizeText(value) {
+        return (value || '').toString().toLowerCase();
+    }
+
+    if (produitSearch) {
+        produitSearch.addEventListener('input', function() {
+            const query = normalizeText(produitSearch.value.trim());
+            let visibleCount = 0;
+            produitOptions.forEach((option) => {
+                const match = !query || normalizeText(option.dataset.value).includes(query);
+                option.classList.toggle('d-none', !match);
+                if (match) visibleCount += 1;
+            });
+            if (produitNoResults) {
+                produitNoResults.classList.toggle('d-none', visibleCount !== 0);
+            }
+        });
+    }
+
+    produitOptions.forEach((option) => {
+        option.addEventListener('click', function() {
+            const value = option.dataset.value;
+            if (produitDisplay) produitDisplay.value = value;
+            if (produitHidden) produitHidden.value = value;
+            if (produitModalEl && window.bootstrap) {
+                const instance = window.bootstrap.Modal.getInstance(produitModalEl) || new window.bootstrap.Modal(produitModalEl);
+                instance.hide();
+            }
+        });
+    });
+
+    if (clearProduitButton) {
+        clearProduitButton.addEventListener('click', function() {
+            if (produitDisplay) produitDisplay.value = '';
+            if (produitHidden) produitHidden.value = '';
+        });
+    }
+
+    if (produitModalEl) {
+        produitModalEl.addEventListener('shown.bs.modal', function() {
+            if (produitSearch) {
+                produitSearch.value = '';
+                produitSearch.dispatchEvent(new Event('input'));
+                produitSearch.focus();
+            }
+        });
+    }
+
     const searchInput = document.getElementById('exitSearchInput');
     const clearButton = document.getElementById('clearExitSearch');
     const sortField = document.getElementById('exitSortField');
