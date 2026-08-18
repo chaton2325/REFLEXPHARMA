@@ -216,7 +216,7 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
     )
     db.session.add(modification)
 
-def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
+def create_stock_exit_log(stock, reason, old_values, new_values, exit_values, source=None, inventaire_titre=None):
     fournisseur = stock.produit.fournisseur
     groupe_fournisseur = fournisseur.groupe if fournisseur else None
     stock_creation = (
@@ -284,7 +284,9 @@ def create_stock_exit_log(stock, reason, old_values, new_values, exit_values):
         old_quantite_sous_sous_unites=old_values[2],
         new_quantite_unites=new_values[0],
         new_quantite_sous_unites=new_values[1],
-        new_quantite_sous_sous_unites=new_values[2]
+        new_quantite_sous_sous_unites=new_values[2],
+        source=source,
+        inventaire_titre=inventaire_titre
     )
     db.session.add(log)
 
@@ -5346,7 +5348,8 @@ def stock_exit():
             reason=reason,
             old_values=old_values,
             new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
-            exit_values=(q_u, q_su, q_ssu)
+            exit_values=(q_u, q_su, q_ssu),
+            source='manuel'
         )
         db.session.commit()
         flash(f'Sortie de stock effectuée pour {stock.produit.nom}.', 'success')
@@ -6566,7 +6569,8 @@ def build_stock_exit_log_rows(exits):
             'benefice': f'{prices["benefice"]:.2f}',
             'total_ttc': f'{prices["total_ttc"]:.2f}',
             'avant': f'U:{item.old_quantite_unites} S/U:{item.old_quantite_sous_unites} SS/U:{item.old_quantite_sous_sous_unites}',
-            'apres': f'U:{item.new_quantite_unites} S/U:{item.new_quantite_sous_unites} SS/U:{item.new_quantite_sous_sous_unites}'
+            'apres': f'U:{item.new_quantite_unites} S/U:{item.new_quantite_sous_unites} SS/U:{item.new_quantite_sous_sous_unites}',
+            'origine': f'Inventaire : {item.inventaire_titre}' if item.source == 'inventaire' else 'Manuel'
         })
     return rows
 
@@ -6659,7 +6663,8 @@ def export_stock_exit_logs_excel():
             'benefice': 'Benefice perdu',
             'total_ttc': 'Perte / valeur TTC',
             'avant': 'Avant',
-            'apres': 'Apres'
+            'apres': 'Apres',
+            'origine': 'Origine'
         })
         df.to_excel(writer, index=False, sheet_name='Sorties stock', startrow=4)
         worksheet = writer.sheets['Sorties stock']
@@ -6685,7 +6690,7 @@ def export_stock_exit_logs_excel():
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
 
-        widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 16, 16, 18, 21, 21]
+        widths = [17, 24, 15, 22, 22, 34, 14, 13, 17, 20, 26, 20, 26, 20, 21, 24, 24, 10, 16, 16, 16, 18, 21, 21, 26]
         for index, width in enumerate(widths, start=1):
             worksheet.column_dimensions[chr(64 + index)].width = width
         worksheet.freeze_panes = 'A6'
@@ -8089,7 +8094,29 @@ def validate_inventaire(id):
                     old_qr_tire=stock.qr_tire,
                     new_qr_tire=stock.qr_tire
                 )
-                
+
+                # Ecart a la baisse avec une raison renseignee (voir
+                # save_inventaire_line) : loggue aussi comme une veritable
+                # sortie de stock, pour apparaitre dans l'historique/rapports
+                # des sorties comme les sorties manuelles. Un surplus (ecart a
+                # la hausse) n'est pas une sortie -- seul create_stock_modification
+                # le trace, pas de StockExitLog dans ce cas.
+                exit_values = (
+                    max(old_vals[0] - new_vals[0], 0),
+                    max(old_vals[1] - new_vals[1], 0),
+                    max(old_vals[2] - new_vals[2], 0),
+                )
+                if line.raison and any(exit_values):
+                    create_stock_exit_log(
+                        stock=stock,
+                        reason=line.raison,
+                        old_values=old_vals,
+                        new_values=new_vals,
+                        exit_values=exit_values,
+                        source='inventaire',
+                        inventaire_titre=inventaire.titre
+                    )
+
     inventaire.statut = 'valide'
     inventaire.validated_at = datetime.now()
     inventaire.validated_by_id = current_user.id

@@ -145,7 +145,11 @@ def ensure_database_schema(app):
                 # alignee sur les ventes) : NULL sur les sorties anterieures.
                 ('prix_achat_unite', 'FLOAT'),
                 ('prix_achat_sous_unite', 'FLOAT'),
-                ('prix_achat_sous_sous_unite', 'FLOAT')
+                ('prix_achat_sous_sous_unite', 'FLOAT'),
+                # Origine de la sortie ('manuel'/'inventaire', voir
+                # validate_inventaire) : NULL sur les sorties anterieures.
+                ('source', 'VARCHAR(20)'),
+                ('inventaire_titre', 'VARCHAR(150)')
             ]
         }
 

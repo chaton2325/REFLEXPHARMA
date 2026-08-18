@@ -557,7 +557,7 @@
         {% set fournisseur = supplier.fournisseur %}
         {% set groupe_fournisseur = supplier.groupe_fournisseur %}
         <tr class="exit-log-row"
-            data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc))|lower }}"
+            data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc) ~ ' ' ~ (item.inventaire_titre if item.source == 'inventaire' else 'manuel'))|lower }}"
             data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
             data-produit="{{ item.produit_nom|lower }}"
             data-fournisseur="{{ fournisseur|lower }}"
@@ -574,6 +574,13 @@
           <td>
             <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit_nom }}</div>
             <small class="text-muted">{{ item.produit_code }}</small>
+            {% if item.source == 'inventaire' %}
+            <div class="mt-1">
+              <span class="badge bg-warning-subtle text-warning-emphasis border" title="Écart constaté lors de l'inventaire « {{ item.inventaire_titre }} »">
+                <i class="fas fa-clipboard-list me-1"></i>Inventaire
+              </span>
+            </div>
+            {% endif %}
             <div class="mt-2">
               <button type="button" class="life-path-button" data-bs-toggle="modal" data-bs-target="#lifePathModal{{ item.id }}">
                 <span class="life-path-pulse"></span>

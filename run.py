@@ -82,7 +82,11 @@ def setup_database():
                 ('prix_achat_sous_sous_unite', 'FLOAT'),
                 ('tva_pourcentage', 'FLOAT DEFAULT 0'),
                 ('total_sortie_ht', 'FLOAT DEFAULT 0'),
-                ('total_sortie_ttc', 'FLOAT DEFAULT 0')
+                ('total_sortie_ttc', 'FLOAT DEFAULT 0'),
+                # Origine de la sortie ('manuel'/'inventaire', voir
+                # validate_inventaire) : NULL sur les sorties anterieures.
+                ('source', 'VARCHAR(20)'),
+                ('inventaire_titre', 'VARCHAR(150)')
             ],
             'groupes_clients': [
                 ('pourcentage_absorption', 'FLOAT DEFAULT 0')

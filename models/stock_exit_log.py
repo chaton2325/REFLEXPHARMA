@@ -56,5 +56,13 @@ class StockExitLog(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
 
+    # Origine de la sortie : 'manuel' (formulaire Stock > Sortie) ou
+    # 'inventaire' (ecart constate + valide via un inventaire, voir
+    # validate_inventaire). NULL = sorties anterieures a cet ajout (manuelles).
+    # inventaire_titre est un snapshot texte (pas de FK) : reste lisible meme
+    # si l'inventaire est supprime plus tard.
+    source = db.Column(db.String(20), nullable=True)
+    inventaire_titre = db.Column(db.String(150), nullable=True)
+
     def __repr__(self):
         return f'<StockExitLog {self.produit_code} {self.code_suivi}>'
