@@ -56,6 +56,13 @@ class InventaireLigne(db.Model):
     
     is_scanned = db.Column(db.Boolean, default=False)
 
+    # Raison de l'ecart constate (memes raisons predefinies que les sorties
+    # de stock, voir StockReason type='sortie') : requise cote serveur des
+    # qu'un comptage differe du stock theorique (voir save_inventaire_line).
+    raison_id = db.Column(db.Integer, db.ForeignKey('stock_reasons.id'), nullable=True)
+    raison = db.relationship('StockReason')
+    raison_commentaire = db.Column(db.Text, nullable=True)
+
     @property
     def total_avant(self):
         return self.quantite_unites_avant + self.quantite_sous_unites_avant + self.quantite_sous_sous_unites_avant

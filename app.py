@@ -79,6 +79,14 @@ def ensure_database_schema(app):
                 # sans contrainte FK ajoutee en ALTER (coherent avec le reste du self-heal).
                 ('commande_ligne_id', 'INTEGER')
             ],
+            'inventaire_lignes': [
+                # Raison de l'ecart constate (memes raisons predefinies que les
+                # sorties de stock, voir stock_reasons) : reference souple,
+                # sans contrainte FK ajoutee en ALTER (coherent avec le reste
+                # du self-heal).
+                ('raison_id', 'INTEGER'),
+                ('raison_commentaire', 'TEXT')
+            ],
             'ventes': [
                 ('montant_recu', 'FLOAT DEFAULT 0'),
                 ('montant_hors_solde', 'FLOAT DEFAULT 0'),

@@ -45,6 +45,14 @@ def setup_database():
             'inventaires': [
                 ('date_planifiee', 'TIMESTAMP')
             ],
+            'inventaire_lignes': [
+                # Raison de l'ecart constate (memes raisons predefinies que les
+                # sorties de stock, voir stock_reasons) : reference souple,
+                # sans contrainte FK ajoutee en ALTER (coherent avec le reste
+                # du self-heal).
+                ('raison_id', 'INTEGER'),
+                ('raison_commentaire', 'TEXT')
+            ],
             'stock_modification_logs': [
                 ('numero_bl', 'VARCHAR(120)'),
                 ('date_peremption', 'DATE'),

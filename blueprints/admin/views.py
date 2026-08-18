@@ -7698,6 +7698,9 @@ def _inventaire_line_payload(line):
         'quantite_sous_sous_unites_avant': line.quantite_sous_sous_unites_avant,
         'constate_by': f"{line.constate_by.prenom} {line.constate_by.nom}" if line.constate_by else None,
         'constate_at': line.constate_at.strftime('%d/%m %H:%M') if line.constate_at else None,
+        'raison_id': line.raison_id,
+        'raison_nom': line.raison.nom if line.raison else None,
+        'raison_commentaire': line.raison_commentaire,
     }
 
 def _snapshot_stock_into_inventaire(inventaire):
@@ -7824,7 +7827,8 @@ def show_inventaire(id):
         lines=lines,
         total_count=total_count,
         scanned_count=scanned_count,
-        comptages_par=comptages_par
+        comptages_par=comptages_par,
+        raisons_sortie=StockReason.query.filter_by(type='sortie').order_by(StockReason.nom.asc()).all()
     )
 
 @admin.route('/inventaire/<int:id>/line/<int:line_id>/save', methods=['POST'])
@@ -7869,6 +7873,25 @@ def save_inventaire_line(id, line_id):
             flash(message, "danger")
             return redirect(url_for('admin.show_inventaire', id=id))
 
+        avant_total = line.quantite_unites_avant + line.quantite_sous_unites_avant + line.quantite_sous_sous_unites_avant
+        apres_total = u_apres + su_apres + ssu_apres
+        a_decalage = apres_total != avant_total
+
+        if a_decalage:
+            raison_id = request.form.get('raison_id', type=int)
+            raison = StockReason.query.filter_by(id=raison_id, type='sortie').first() if raison_id else None
+            if not raison:
+                message = "Un écart a été constaté : merci de sélectionner une raison avant d'enregistrer."
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return {'success': False, 'need_reason': True, 'message': message}, 400
+                flash(message, "warning")
+                return redirect(url_for('admin.show_inventaire', id=id))
+            line.raison_id = raison.id
+            line.raison_commentaire = (request.form.get('raison_commentaire') or '').strip() or None
+        else:
+            line.raison_id = None
+            line.raison_commentaire = None
+
         line.quantite_unites_apres = u_apres
         line.quantite_sous_unites_apres = su_apres
         line.quantite_sous_sous_unites_apres = ssu_apres
@@ -7892,7 +7915,9 @@ def save_inventaire_line(id, line_id):
                 'success': True,
                 'message': 'Ligne enregistrée avec succès.',
                 'total_apres': line.total_apres,
-                'a_decalage': line.a_decalage
+                'a_decalage': line.a_decalage,
+                'raison_nom': line.raison.nom if line.raison else None,
+                'raison_commentaire': line.raison_commentaire,
             }
         flash("Ligne mise à jour avec succès.", "success")
     except Exception as e:
@@ -8235,7 +8260,7 @@ def export_rapport_inventaire_pdf(id):
     elements.append(Paragraph(tri_str, normal_style))
     elements.append(Spacer(1, 10))
 
-    data = [['Code Lot', 'Produit', 'Stock Théor.', 'Stock Constaté', 'Écart', 'Saisi par']]
+    data = [['Code Lot', 'Produit', 'Stock Théor.', 'Stock Constaté', 'Écart', 'Raison', 'Saisi par']]
     for l in lignes:
         cond = l.produit.conditionnement
         
@@ -8276,16 +8301,19 @@ def export_rapport_inventaire_pdf(id):
         else:
             saisi_par_str = "Non saisi"
 
+        raison_str = l.raison.nom if l.raison else ("-" if diff_parts else "")
+
         data.append([
             Paragraph(l.code_suivi, code_style),
             Paragraph(l.produit.nom, cell_style),
             th_str,
             ap_str,
             diff_str,
+            Paragraph(raison_str, cell_style),
             saisi_par_str
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[105, 135, 65, 65, 55, 110])
+    table = Table(data, repeatRows=1, colWidths=[80, 105, 55, 55, 45, 90, 95])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

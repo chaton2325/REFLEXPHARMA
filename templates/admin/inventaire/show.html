@@ -239,6 +239,11 @@
             {% endif %}
 
             {% if inventaire.statut == 'en_cours' %}
+            {% if current_user.has_permission('gestion_raisons_stock') %}
+            <a href="{{ url_for('admin.list_stock_reasons') }}" class="btn btn-light btn-sm" title="Gérer les raisons utilisées pour les écarts d'inventaire">
+                <i class="fas fa-list-check me-1"></i> Raisons<span class="d-none d-sm-inline"> de sortie</span>
+            </a>
+            {% endif %}
             <a href="{{ url_for('admin.scan_inventaire_qrcode', id=inventaire.id) }}" class="btn btn-light btn-sm">
                 <i class="fas fa-qrcode me-1"></i> Scanner<span class="d-none d-sm-inline"> mobile</span>
             </a>
@@ -361,7 +366,10 @@
                         data-decalage="{% if line.a_decalage %}true{% else %}false{% endif %}"
                         data-u-avant="{{ line.quantite_unites_avant }}"
                         data-su-avant="{{ line.quantite_sous_unites_avant }}"
-                        data-ssu-avant="{{ line.quantite_sous_sous_unites_avant }}">
+                        data-ssu-avant="{{ line.quantite_sous_sous_unites_avant }}"
+                        data-raison-id="{{ line.raison_id or '' }}"
+                        data-raison-commentaire="{{ line.raison_commentaire or '' }}"
+                        data-produit-nom="{{ line.produit.nom }}">
                         <td>
                             <div class="fw-bold">{{ line.code_suivi }}</div>
                             <span class="badge-lot">BL: {{ line.numero_bl }}</span>
@@ -452,6 +460,11 @@
                                             </span>
                                         {% endif %}
                                     </div>
+                                    {% if line.raison %}
+                                    <div class="cell-sub" id="raison-cell-{{ line.id }}"><i class="fas fa-triangle-exclamation me-1 text-warning"></i>{{ line.raison.nom }}</div>
+                                    {% else %}
+                                    <div class="cell-sub" id="raison-cell-{{ line.id }}"></div>
+                                    {% endif %}
                                 {% endif %}
                             {% else %}
                                 <span class="text-muted small">-</span>
@@ -494,6 +507,46 @@
 </div>
 
 {% if inventaire.statut == 'en_cours' %}
+<!-- Modal Raison de l'ecart : ouverte automatiquement des qu'un comptage saisi
+     differe du stock theorique (voir logique JS plus bas), avant meme d'envoyer
+     la sauvegarde au serveur -- la raison est obligatoire cote serveur aussi. -->
+<div class="modal fade" id="raisonEcartModal" tabindex="-1" aria-labelledby="raisonEcartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#fff3cd;">
+                <h5 class="modal-title fw-bold" id="raisonEcartModalLabel"><i class="fas fa-triangle-exclamation me-2 text-warning"></i>Écart constaté</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3" id="raisonEcartSummary"></p>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Raison de l'écart <span class="text-danger">*</span></label>
+                    <select class="form-select" id="raisonEcartSelect" required>
+                        <option value="">Choisir...</option>
+                        {% for r in raisons_sortie %}
+                        <option value="{{ r.id }}">{{ r.nom }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback">Merci de sélectionner une raison.</div>
+                    {% if not raisons_sortie %}
+                    <div class="form-text text-danger">Aucune raison de sortie configurée. <a href="{{ url_for('admin.list_stock_reasons') }}">Créez-en une</a>.</div>
+                    {% endif %}
+                </div>
+                <div class="mb-1">
+                    <label class="form-label fw-bold">Commentaire</label>
+                    <textarea class="form-control" id="raisonEcartCommentaire" rows="2" placeholder="Optionnel"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-warning fw-bold" id="raisonEcartConfirm">
+                    <i class="fas fa-check me-1"></i> Confirmer et enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Validation -->
 <div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -676,109 +729,178 @@ document.addEventListener('DOMContentLoaded', function() {
     // LOGIQUE AJAX D'ENREGISTREMENT EN DIRECT
     const forms = document.querySelectorAll('.ajax-save-form');
 
+    // ---- Modal "Raison de l'ecart" : voir #raisonEcartModal. Ouverte cote
+    // client des qu'un ecart est detecte (avant meme l'envoi au serveur), qui
+    // exige de toute facon la raison en repli si ce pre-check est contourne. ----
+    const raisonModalEl = document.getElementById('raisonEcartModal');
+    const raisonModal = raisonModalEl ? bootstrap.Modal.getOrCreateInstance(raisonModalEl) : null;
+    const raisonSelect = document.getElementById('raisonEcartSelect');
+    const raisonCommentaire = document.getElementById('raisonEcartCommentaire');
+    const raisonSummary = document.getElementById('raisonEcartSummary');
+    let pendingSave = null; // { form, formData, row, cond }
+
+    function performSave(form, formData, row, cond) {
+        const lineId = form.dataset.lineId;
+        const badge = document.getElementById('badge-' + lineId);
+        const diffCell = document.getElementById('diff-cell-' + lineId);
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (data.success) {
+                // Mettre à jour le statut dans les datasets de la ligne
+                row.dataset.scanned = 'true';
+                row.dataset.decalage = data.a_decalage ? 'true' : 'false';
+                row.dataset.raisonId = formData.get('raison_id') || '';
+                row.dataset.raisonCommentaire = formData.get('raison_commentaire') || '';
+
+                // Appliquer la couleur de ligne saisie
+                row.classList.add('table-success-light');
+
+                // Mettre à jour le badge d'état
+                if (badge) {
+                    badge.className = 'badge bg-success-subtle text-success-emphasis border';
+                    badge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Saisi';
+                }
+
+                // Afficher qui vient de saisir cette ligne
+                setWhoLine(lineId, CURRENT_USER_NAME, "à l'instant");
+
+                // Calcul et affichage de la différence
+                const uAvant = parseInt(row.dataset.uAvant || 0);
+                const suAvant = parseInt(row.dataset.suAvant || 0);
+                const ssuAvant = parseInt(row.dataset.ssuAvant || 0);
+
+                const uVal = parseInt(formData.get('quantite_unites') || 0);
+                const suVal = parseInt(formData.get('quantite_sous_unites') || 0);
+                const ssuVal = parseInt(formData.get('quantite_sous_sous_unites') || 0);
+
+                const diff_u = uVal - uAvant;
+                const diff_su = suVal - suAvant;
+                const diff_ssu = ssuVal - ssuAvant;
+
+                if (diff_u === 0 && diff_su === 0 && diff_ssu === 0) {
+                    diffCell.innerHTML = '<span class="text-muted small"><i class="fas fa-equals me-1"></i>Conforme</span>';
+                } else {
+                    let html = '<div class="small fw-bold">';
+                    if (diff_u !== 0) {
+                        html += `<span class="${diff_u > 0 ? 'text-success' : 'text-danger'}">U: ${diff_u > 0 ? '+' : ''}${diff_u}</span> `;
+                    }
+                    if (cond >= 2 && diff_su !== 0) {
+                        html += `<span class="${diff_su > 0 ? 'text-success' : 'text-danger'}">SU: ${diff_su > 0 ? '+' : ''}${diff_su}</span> `;
+                    }
+                    if (cond === 3 && diff_ssu !== 0) {
+                        html += `<span class="${diff_ssu > 0 ? 'text-success' : 'text-danger'}">SSU: ${diff_ssu > 0 ? '+' : ''}${diff_ssu}</span>`;
+                    }
+                    html += '</div>';
+                    diffCell.innerHTML = html;
+                    const raisonNom = data.raison_nom || (raisonSelect ? raisonSelect.options[raisonSelect.selectedIndex]?.textContent : '');
+                    if (raisonNom) {
+                        diffCell.insertAdjacentHTML('beforeend', '<div class="cell-sub" id="raison-cell-' + lineId + '"><i class="fas fa-triangle-exclamation me-1 text-warning"></i>' + raisonNom + '</div>');
+                    }
+                }
+
+                // Recalculer les stats globales en haut de page
+                let totalCount = document.querySelectorAll('.inventory-row').length;
+                let scannedCount = document.querySelectorAll('.inventory-row[data-scanned="true"]').length;
+                let pendingCount = totalCount - scannedCount;
+                let pct = totalCount > 0 ? Math.round((scannedCount / totalCount) * 100) : 0;
+
+                const statScanned = document.getElementById('stat-scanned-count');
+                const statPending = document.getElementById('stat-pending-count');
+                const statProgress = document.getElementById('stat-progress-bar');
+                const statProgressText = document.getElementById('stat-progress-text');
+
+                if (statScanned) statScanned.textContent = scannedCount;
+                if (statPending) statPending.textContent = pendingCount;
+                if (statProgress) {
+                    statProgress.style.width = pct + '%';
+                    statProgress.setAttribute('aria-valuenow', pct);
+                }
+                if (statProgressText) statProgressText.textContent = pct + '%';
+
+                // Re-filtrer les lignes au cas où le filtre actif cache les lignes saisies
+                filterRows();
+
+                // Effet visuel flash vert
+                row.style.transition = 'background-color 0.5s';
+                row.style.backgroundColor = '#d1e7dd';
+                setTimeout(() => {
+                    row.style.backgroundColor = '';
+                }, 1000);
+            } else if (data.need_reason) {
+                // Filet de securite serveur (le pre-check cote client aurait deja du
+                // ouvrir la modale) : on l'ouvre quand meme plutot que d'alerter.
+                openRaisonModal(form, formData, row, cond);
+            } else {
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Erreur de connexion au serveur.');
+        });
+    }
+
+    function openRaisonModal(form, formData, row, cond) {
+        if (!raisonModal) {
+            // Repli si la modale/bootstrap n'est pas disponible pour une raison quelconque.
+            performSave(form, formData, row, cond);
+            return;
+        }
+        pendingSave = { form, formData, row, cond };
+        raisonSelect.value = row.dataset.raisonId || '';
+        raisonSelect.classList.remove('is-invalid');
+        raisonCommentaire.value = row.dataset.raisonCommentaire || '';
+        const codeSuivi = row.querySelector('td:nth-child(1) .fw-bold')?.textContent || '';
+        raisonSummary.textContent = `Le comptage saisi pour « ${row.dataset.produitNom || ''} » (${codeSuivi}) ne correspond pas au stock théorique.`;
+        raisonModal.show();
+    }
+
+    if (raisonModal) {
+        document.getElementById('raisonEcartConfirm').addEventListener('click', function() {
+            if (!raisonSelect.value) {
+                raisonSelect.classList.add('is-invalid');
+                return;
+            }
+            raisonSelect.classList.remove('is-invalid');
+            if (!pendingSave) return;
+            pendingSave.formData.set('raison_id', raisonSelect.value);
+            pendingSave.formData.set('raison_commentaire', raisonCommentaire.value.trim());
+            raisonModal.hide();
+            performSave(pendingSave.form, pendingSave.formData, pendingSave.row, pendingSave.cond);
+            pendingSave = null;
+        });
+    }
+
     forms.forEach(form => {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             const lineId = this.dataset.lineId;
             const cond = parseInt(this.dataset.cond || 1);
             const row = document.getElementById('row-' + lineId);
-            const badge = document.getElementById('badge-' + lineId);
-            const diffCell = document.getElementById('diff-cell-' + lineId);
-
             const formData = new FormData(this);
 
-            fetch(this.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Mettre à jour le statut dans les datasets de la ligne
-                    row.dataset.scanned = 'true';
-                    row.dataset.decalage = data.a_decalage ? 'true' : 'false';
+            const uAvant = parseInt(row.dataset.uAvant || 0);
+            const suAvant = parseInt(row.dataset.suAvant || 0);
+            const ssuAvant = parseInt(row.dataset.ssuAvant || 0);
+            const uVal = parseInt(formData.get('quantite_unites') || 0);
+            const suVal = parseInt(formData.get('quantite_sous_unites') || 0);
+            const ssuVal = parseInt(formData.get('quantite_sous_sous_unites') || 0);
+            const hasDecalage = (uVal !== uAvant) || (suVal !== suAvant) || (ssuVal !== ssuAvant);
 
-                    // Appliquer la couleur de ligne saisie
-                    row.classList.add('table-success-light');
+            if (hasDecalage) {
+                openRaisonModal(this, formData, row, cond);
+                return;
+            }
 
-                    // Mettre à jour le badge d'état
-                    if (badge) {
-                        badge.className = 'badge bg-success-subtle text-success-emphasis border';
-                        badge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Saisi';
-                    }
-
-                    // Afficher qui vient de saisir cette ligne
-                    setWhoLine(lineId, CURRENT_USER_NAME, "à l'instant");
-
-                    // Calcul et affichage de la différence
-                    const uAvant = parseInt(row.dataset.uAvant || 0);
-                    const suAvant = parseInt(row.dataset.suAvant || 0);
-                    const ssuAvant = parseInt(row.dataset.ssuAvant || 0);
-
-                    const uVal = parseInt(formData.get('quantite_unites') || 0);
-                    const suVal = parseInt(formData.get('quantite_sous_unites') || 0);
-                    const ssuVal = parseInt(formData.get('quantite_sous_sous_unites') || 0);
-
-                    const diff_u = uVal - uAvant;
-                    const diff_su = suVal - suAvant;
-                    const diff_ssu = ssuVal - ssuAvant;
-
-                    if (diff_u === 0 && diff_su === 0 && diff_ssu === 0) {
-                        diffCell.innerHTML = '<span class="text-muted small"><i class="fas fa-equals me-1"></i>Conforme</span>';
-                    } else {
-                        let html = '<div class="small fw-bold">';
-                        if (diff_u !== 0) {
-                            html += `<span class="${diff_u > 0 ? 'text-success' : 'text-danger'}">U: ${diff_u > 0 ? '+' : ''}${diff_u}</span> `;
-                        }
-                        if (cond >= 2 && diff_su !== 0) {
-                            html += `<span class="${diff_su > 0 ? 'text-success' : 'text-danger'}">SU: ${diff_su > 0 ? '+' : ''}${diff_su}</span> `;
-                        }
-                        if (cond === 3 && diff_ssu !== 0) {
-                            html += `<span class="${diff_ssu > 0 ? 'text-success' : 'text-danger'}">SSU: ${diff_ssu > 0 ? '+' : ''}${diff_ssu}</span>`;
-                        }
-                        html += '</div>';
-                        diffCell.innerHTML = html;
-                    }
-
-                    // Recalculer les stats globales en haut de page
-                    let totalCount = document.querySelectorAll('.inventory-row').length;
-                    let scannedCount = document.querySelectorAll('.inventory-row[data-scanned="true"]').length;
-                    let pendingCount = totalCount - scannedCount;
-                    let pct = totalCount > 0 ? Math.round((scannedCount / totalCount) * 100) : 0;
-
-                    const statScanned = document.getElementById('stat-scanned-count');
-                    const statPending = document.getElementById('stat-pending-count');
-                    const statProgress = document.getElementById('stat-progress-bar');
-                    const statProgressText = document.getElementById('stat-progress-text');
-
-                    if (statScanned) statScanned.textContent = scannedCount;
-                    if (statPending) statPending.textContent = pendingCount;
-                    if (statProgress) {
-                        statProgress.style.width = pct + '%';
-                        statProgress.setAttribute('aria-valuenow', pct);
-                    }
-                    if (statProgressText) statProgressText.textContent = pct + '%';
-
-                    // Re-filtrer les lignes au cas où le filtre actif cache les lignes saisies
-                    filterRows();
-
-                    // Effet visuel flash vert
-                    row.style.transition = 'background-color 0.5s';
-                    row.style.backgroundColor = '#d1e7dd';
-                    setTimeout(() => {
-                        row.style.backgroundColor = '';
-                    }, 1000);
-                } else {
-                    alert('Erreur : ' + data.message);
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Erreur de connexion au serveur.');
-            });
+            performSave(this, formData, row, cond);
         });
     });
 
@@ -808,6 +930,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         row.dataset.scanned = item.is_scanned ? 'true' : 'false';
         row.dataset.decalage = item.a_decalage ? 'true' : 'false';
+        row.dataset.raisonId = item.raison_id || '';
+        row.dataset.raisonCommentaire = item.raison_commentaire || '';
         if (item.is_scanned) row.classList.add('table-success-light');
 
         const badge = document.getElementById('badge-' + item.id);
@@ -836,6 +960,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (diff_su !== 0) html += `<span class="${diff_su > 0 ? 'text-success' : 'text-danger'}">SU: ${diff_su > 0 ? '+' : ''}${diff_su}</span> `;
                     if (diff_ssu !== 0) html += `<span class="${diff_ssu > 0 ? 'text-success' : 'text-danger'}">SSU: ${diff_ssu > 0 ? '+' : ''}${diff_ssu}</span>`;
                     html += '</div>';
+                    if (item.raison_nom) {
+                        html += '<div class="cell-sub" id="raison-cell-' + item.id + '"><i class="fas fa-triangle-exclamation me-1 text-warning"></i>' + item.raison_nom + '</div>';
+                    }
                     diffCell.innerHTML = html;
                 }
             }
