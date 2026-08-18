@@ -4,6 +4,16 @@
 
 {% block extra_head %}
 <style>
+  /* Apercu PDF : hauteur genereuse a partir de sm, plein ecran natif en
+     dessous (voir .modal-fullscreen-sm-down) -- une hauteur fixe en style
+     inline aurait ecrase ce plein ecran mobile (regle Bootstrap sans
+     !important), d'ou une media query dediee ici. Meme regle que
+     produits/list.html (pas de partage global de cette classe). */
+  @media (min-width: 576px) {
+    .pdf-preview-dialog { height: 85vh; }
+  }
+  .pdf-preview-dialog .modal-content { height: 100%; }
+
   .page-header {
     background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
     border-radius: 16px;
@@ -494,6 +504,12 @@
       <a href="{{ url_for('admin.export_stock_exit_logs_pdf') }}" class="btn btn-light btn-sm" id="exportExitPdf">
         <i class="fas fa-file-pdf me-1"></i> PDF
       </a>
+      <!-- L'export PDF passe desormais par un choix de colonnes (voir
+           #pdfColumnsModal) puis un apercu in-page (#pdfPreviewModal) avant
+           telechargement/impression -- meme pattern que produits/list.html.
+           L'Excel reste un lien direct (pas de probleme de largeur/overlap
+           puisque les colonnes s'y auto-dimensionnent). -->
+
       <a href="{{ url_for('admin.stock_exit') }}" class="btn btn-light btn-sm">
         <i class="fas fa-sign-out-alt me-1"></i> Nouvelle sortie
       </a>
@@ -691,20 +707,14 @@
           <th data-sort-field="date" style="cursor:pointer">Date <i class="fas fa-sort small text-muted"></i></th>
           <th data-sort-field="produit" style="cursor:pointer">Produit <i class="fas fa-sort small text-muted"></i></th>
           <th data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="groupe" style="cursor:pointer">Groupe fournisseur <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="code" style="cursor:pointer">Code suivi <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="bl" style="cursor:pointer">BL <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="peremption" style="cursor:pointer">Peremption <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="mise_stock" style="cursor:pointer">Mise en stock <i class="fas fa-sort small text-muted"></i></th>
-          <th data-sort-field="mis_par" style="cursor:pointer">Mis en stock par <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="code" style="cursor:pointer">Traçabilité <i class="fas fa-sort small text-muted"></i></th>
+          <th data-sort-field="peremption" style="cursor:pointer">Lot <i class="fas fa-sort small text-muted"></i></th>
           <th data-sort-field="auteur" style="cursor:pointer">Sorti par <i class="fas fa-sort small text-muted"></i></th>
           <th data-sort-field="raison" style="cursor:pointer">Raison <i class="fas fa-sort small text-muted"></i></th>
           <th>Quantite sortie</th>
-          <th>TVA</th>
           <th>Prix unitaires</th>
           <th data-sort-field="perte" style="cursor:pointer">Perte / valeur <i class="fas fa-sort small text-muted"></i></th>
-          <th>Avant</th>
-          <th>Apres</th>
+          <th>Avant / Apres</th>
         </tr>
       </thead>
       <tbody id="exitLogsBody">
@@ -828,15 +838,18 @@
               </div>
             </div>
           </td>
-          <td>{{ fournisseur }}</td>
-          <td>{{ groupe_fournisseur }}</td>
-          <td style="min-width: 220px;"><span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span></td>
-          <td>{{ item.numero_bl }}</td>
-          <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
-          <td>{{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</td>
           <td>
-            <div>{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}</div>
-            <small class="text-muted">{{ item.mise_en_stock_user_email or '-' }}</small>
+            <div>{{ fournisseur }}</div>
+            <small class="text-muted">{{ groupe_fournisseur }}</small>
+          </td>
+          <td style="min-width: 150px;">
+            <span class="badge bg-dark-subtle text-dark border">{{ item.code_suivi }}</span>
+            {% if item.numero_bl %}<div class="small text-muted mt-1">BL: {{ item.numero_bl }}</div>{% endif %}
+          </td>
+          <td class="text-nowrap">
+            <div>Perem: {{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</div>
+            <div class="small text-muted">Stock: {{ item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '-' }}</div>
+            <div class="small text-muted">{{ ((item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or ''))|trim or '-' }}</div>
           </td>
           <td>
             <div>{{ item.user_prenom }} {{ item.user_nom }}</div>
@@ -844,27 +857,29 @@
           </td>
           <td>{{ item.reason_nom }}</td>
           <td class="text-nowrap">U:{{ item.quantite_unites_sortie }} &middot; S/U:{{ item.quantite_sous_unites_sortie }} &middot; SS/U:{{ item.quantite_sous_sous_unites_sortie }}</td>
-          <td>{{ "%.2f"|format(prices.tva_pourcentage) }}%</td>
           <td class="text-nowrap">
             <div><span class="text-muted">HT</span> U:{{ "%.2f"|format(prices.prix_unite_ht) }} &middot; S/U:{{ "%.2f"|format(prices.prix_sous_unite_ht) }} &middot; SS/U:{{ "%.2f"|format(prices.prix_sous_sous_unite_ht) }}</div>
             <div><span class="text-muted">TTC</span> U:{{ "%.2f"|format(prices.prix_unite_ttc) }} &middot; S/U:{{ "%.2f"|format(prices.prix_sous_unite_ttc) }} &middot; SS/U:{{ "%.2f"|format(prices.prix_sous_sous_unite_ttc) }}</div>
+            <div class="small text-muted">TVA {{ "%.2f"|format(prices.tva_pourcentage) }}%</div>
           </td>
           <td class="text-nowrap">
             <div>HT: {{ "%.2f"|format(prices.total_ht) }}</div>
             <div class="fw-bold text-danger">TTC: {{ "%.2f"|format(prices.total_ttc) }}</div>
           </td>
-          <td class="text-nowrap">U:{{ item.old_quantite_unites }} &middot; S/U:{{ item.old_quantite_sous_unites }} &middot; SS/U:{{ item.old_quantite_sous_sous_unites }}</td>
-          <td class="text-nowrap">U:{{ item.new_quantite_unites }} &middot; S/U:{{ item.new_quantite_sous_unites }} &middot; SS/U:{{ item.new_quantite_sous_sous_unites }}</td>
+          <td class="text-nowrap">
+            <div>Avant: U:{{ item.old_quantite_unites }} &middot; S/U:{{ item.old_quantite_sous_unites }} &middot; SS/U:{{ item.old_quantite_sous_sous_unites }}</div>
+            <div>Après: U:{{ item.new_quantite_unites }} &middot; S/U:{{ item.new_quantite_sous_unites }} &middot; SS/U:{{ item.new_quantite_sous_sous_unites }}</div>
+          </td>
         </tr>
         {% else %}
         <tr id="emptyExitLogsRow">
-          <td colspan="17" class="text-center py-4">
+          <td colspan="11" class="text-center py-4">
             {% if filters_active %}Aucune sortie ne correspond a ces filtres.{% else %}Aucune sortie de stock enregistree.{% endif %}
           </td>
         </tr>
         {% endfor %}
         <tr id="noExitSearchResultsRow" class="d-none">
-          <td colspan="17" class="text-center py-4">Aucune sortie ne correspond a la recherche.</td>
+          <td colspan="11" class="text-center py-4">Aucune sortie ne correspond a la recherche.</td>
         </tr>
       </tbody>
     </table>
@@ -940,6 +955,81 @@
         {% if not options.produits %}
         <p class="text-muted text-center mb-0">Aucun produit disponible.</p>
         {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Choix des colonnes a exporter en PDF : ouverte au clic sur PDF, avant
+     l'apercu. Meme largeur relative que cote serveur (STOCK_EXIT_PDF colonnes
+     dans export_stock_exit_logs_pdf) -- inutile de la dupliquer ici, seule la
+     liste des cles/labels doit rester synchronisee. -->
+<div class="modal fade" id="pdfColumnsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-table-columns me-2 text-primary"></i>Colonnes à exporter (PDF)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pdfColumnsError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div class="form-check pb-2 mb-2" style="border-bottom:1px solid #e9ecef;">
+          <input class="form-check-input" type="checkbox" id="pdfColAll" checked>
+          <label class="form-check-label fw-semibold" for="pdfColAll">Tout sélectionner</label>
+        </div>
+        <div class="row g-2">
+          {% for key, label in [
+            ('date', 'Date'), ('produit', 'Produit'), ('fournisseur', 'Fournisseur'),
+            ('groupe', 'Groupe fournisseur'), ('code_suivi', 'Code suivi'), ('bl', 'BL'),
+            ('peremption', 'Péremption'), ('mise_stock', 'Mise en stock'), ('mis_par', 'Mis en stock par'),
+            ('auteur', 'Sorti par'), ('raison', 'Raison'), ('origine', 'Origine'),
+            ('sortie', 'Quantité sortie'), ('tva', 'TVA'), ('prix_ttc', 'Prix unitaires TTC'),
+            ('perte_ttc', 'Perte / valeur TTC'), ('avant', 'Avant'), ('apres', 'Après')
+          ] %}
+          <div class="col-6">
+            <div class="form-check">
+              <input class="form-check-input pdf-col-checkbox" type="checkbox" id="pdfCol_{{ key }}" value="{{ key }}" checked>
+              <label class="form-check-label" for="pdfCol_{{ key }}">{{ label }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-muted small mb-0 mt-2">Même une seule colonne cochée occupera presque toute la largeur de la page.</p>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="pdfColumnsConfirm" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-eye me-1"></i> Aperçu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Apercu PDF in-page (pas de nouvel onglet) : fetch() -> blob -> iframe,
+     meme pattern que produits/list.html. -->
+<div class="modal fade" id="pdfPreviewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down pdf-preview-dialog">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-file-pdf me-2 text-danger"></i>Aperçu PDF</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 d-flex align-items-center justify-content-center" style="flex:1 1 auto;min-height:0;">
+        <div id="pdfPreviewLoading" class="text-center text-muted">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Génération du PDF...</div>
+        </div>
+        <iframe id="pdfPreviewFrame" src="about:blank" class="d-none" style="width:100%;height:100%;border:0;display:block;" title="Aperçu PDF"></iframe>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Fermer</button>
+        <button type="button" class="btn btn-outline-primary" id="pdfPreviewPrint" style="border-radius:10px;font-weight:600;" disabled>
+          <i class="fas fa-print me-1"></i> Imprimer
+        </button>
+        <a href="#" id="pdfPreviewDownload" class="btn btn-primary disabled" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-file-pdf me-1"></i> Exporter PDF
+        </a>
       </div>
     </div>
   </div>
@@ -1109,6 +1199,107 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateVisibleCount();
     updateExportLinks();
+
+    // ---- Choix des colonnes PDF (#pdfColumnsModal) puis apercu in-page
+    // (#pdfPreviewModal, fetch()->blob->iframe) -- meme pattern que
+    // produits/list.html. L'Excel reste un lien direct (pas de probleme de
+    // largeur cote tableur). ----
+    const pdfColumnsModalEl = document.getElementById('pdfColumnsModal');
+    const pdfPreviewModalEl = document.getElementById('pdfPreviewModal');
+    if (pdfColumnsModalEl && pdfPreviewModalEl && exportPdf) {
+        const pdfColumnsModal = bootstrap.Modal.getOrCreateInstance(pdfColumnsModalEl);
+        const pdfPreviewModal = bootstrap.Modal.getOrCreateInstance(pdfPreviewModalEl);
+        const pdfColAll = document.getElementById('pdfColAll');
+        const pdfColumnsError = document.getElementById('pdfColumnsError');
+        const pdfColCheckboxes = () => Array.from(document.querySelectorAll('.pdf-col-checkbox'));
+        const pdfPreviewFrame = document.getElementById('pdfPreviewFrame');
+        const pdfPreviewLoading = document.getElementById('pdfPreviewLoading');
+        const pdfPreviewDownload = document.getElementById('pdfPreviewDownload');
+        const pdfPreviewPrint = document.getElementById('pdfPreviewPrint');
+        let pdfPreviewBlobUrl = null;
+
+        pdfColAll.addEventListener('change', () => {
+            pdfColCheckboxes().forEach((cb) => { cb.checked = pdfColAll.checked; });
+        });
+        pdfColCheckboxes().forEach((cb) => cb.addEventListener('change', () => {
+            pdfColAll.checked = pdfColCheckboxes().every((c) => c.checked);
+        }));
+
+        function timestampedPdfFilename(prefix) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+            return `${prefix}_${stamp}.pdf`;
+        }
+        function showPdfPreviewLoading() {
+            pdfPreviewFrame.classList.add('d-none');
+            pdfPreviewLoading.classList.remove('d-none');
+            pdfPreviewPrint.disabled = true;
+            pdfPreviewDownload.classList.add('disabled');
+            pdfPreviewModal.show();
+        }
+        function showPdfPreviewBlob(blob, filename) {
+            if (pdfPreviewBlobUrl) URL.revokeObjectURL(pdfPreviewBlobUrl);
+            pdfPreviewBlobUrl = URL.createObjectURL(blob);
+            pdfPreviewFrame.src = pdfPreviewBlobUrl;
+            pdfPreviewDownload.href = pdfPreviewBlobUrl;
+            pdfPreviewDownload.setAttribute('download', filename || 'export.pdf');
+            pdfPreviewDownload.classList.remove('disabled');
+            pdfPreviewPrint.disabled = false;
+            pdfPreviewLoading.classList.add('d-none');
+            pdfPreviewFrame.classList.remove('d-none');
+        }
+        function pdfColumnsErrorFallback(message) {
+            pdfColumnsError.textContent = message;
+            pdfColumnsError.classList.remove('d-none');
+            pdfColumnsModal.show();
+        }
+        function loadPdfPreview(url, filename) {
+            showPdfPreviewLoading();
+            fetch(url)
+                .then((res) => { if (!res.ok) throw new Error('export failed'); return res.blob(); })
+                .then((blob) => showPdfPreviewBlob(blob, filename))
+                .catch(() => {
+                    pdfPreviewModal.hide();
+                    pdfColumnsErrorFallback("Impossible de générer l'aperçu PDF. Réessayez.");
+                });
+        }
+        if (pdfPreviewPrint) {
+            pdfPreviewPrint.addEventListener('click', () => {
+                try {
+                    pdfPreviewFrame.contentWindow.focus();
+                    pdfPreviewFrame.contentWindow.print();
+                } catch (e) {
+                    if (pdfPreviewBlobUrl) window.open(pdfPreviewBlobUrl, '_blank');
+                }
+            });
+        }
+        pdfPreviewModalEl.addEventListener('hidden.bs.modal', () => {
+            pdfPreviewFrame.src = 'about:blank';
+            if (pdfPreviewBlobUrl) { URL.revokeObjectURL(pdfPreviewBlobUrl); pdfPreviewBlobUrl = null; }
+        });
+
+        exportPdf.addEventListener('click', function(e) {
+            e.preventDefault();
+            pdfColumnsError.classList.add('d-none');
+            pdfColumnsModal.show();
+        });
+
+        document.getElementById('pdfColumnsConfirm').addEventListener('click', () => {
+            const selected = pdfColCheckboxes().filter((cb) => cb.checked).map((cb) => cb.value);
+            if (selected.length === 0) {
+                pdfColumnsError.textContent = 'Sélectionnez au moins une colonne.';
+                pdfColumnsError.classList.remove('d-none');
+                return;
+            }
+            const url = new URL(exportPdf.href, window.location.origin);
+            url.searchParams.set('cols', selected.join(','));
+            pdfColumnsModal.hide();
+            pdfColumnsModalEl.addEventListener('hidden.bs.modal', () => {
+                loadPdfPreview(url.toString(), timestampedPdfFilename('sorties_stock'));
+            }, { once: true });
+        });
+    }
 });
 </script>
 {% endblock %}

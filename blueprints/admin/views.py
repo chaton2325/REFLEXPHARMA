@@ -6752,6 +6752,44 @@ def export_stock_exit_logs_pdf():
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from xml.sax.saxutils import escape
 
+    def plain(value):
+        return escape(str(value))
+
+    def multiline(value):
+        # Coupe chaque segment "U:x / S/U:x / SS/U:x" sur sa propre ligne :
+        # une valeur brute (non Paragraph) trop large pour sa colonne
+        # deborde sur la colonne voisine au lieu de passer a la ligne (voir
+        # le rendu superpose corrige par ce fix), donc TOUT passe desormais
+        # par un Paragraph, avec un retour a la ligne explicite par segment.
+        return plain(value).replace(' ', '<br/>')
+
+    # Colonnes disponibles pour cet export. 'weight' pilote la largeur
+    # relative de la colonne : les largeurs sont mises a l'echelle (voir
+    # col_widths plus bas) pour que les colonnes SELECTIONNEES remplissent
+    # toujours (presque) toute la largeur de la page, meme si une seule
+    # colonne est cochee dans #pdfColumnsModal (exit_logs.html).
+    all_columns = [
+        {'key': 'date', 'label': 'Date', 'weight': 1.0, 'center': True, 'value': lambda r: plain(r['date_sortie'])},
+        {'key': 'produit', 'label': 'Produit', 'weight': 1.8, 'center': False, 'value': lambda r: f"{plain(r['produit'])}<br/>{plain(r['code_produit'])}"},
+        {'key': 'fournisseur', 'label': 'Fournisseur', 'weight': 1.2, 'center': False, 'value': lambda r: plain(r['fournisseur'])},
+        {'key': 'groupe', 'label': 'Groupe fourn.', 'weight': 1.1, 'center': False, 'value': lambda r: plain(r['groupe_fournisseur'])},
+        {'key': 'code_suivi', 'label': 'Code suivi', 'weight': 1.3, 'center': True, 'value': lambda r: plain(r['code_suivi'])},
+        {'key': 'bl', 'label': 'BL', 'weight': 0.9, 'center': True, 'value': lambda r: plain(r['numero_bl'])},
+        {'key': 'peremption', 'label': 'Peremp.', 'weight': 0.8, 'center': True, 'value': lambda r: plain(r['date_peremption'])},
+        {'key': 'mise_stock', 'label': 'Mise en stock', 'weight': 1.1, 'center': True, 'value': lambda r: plain(r['date_mise_en_stock'])},
+        {'key': 'mis_par', 'label': 'Mis par', 'weight': 1.1, 'center': False, 'value': lambda r: plain(r['mis_en_stock_par'])},
+        {'key': 'auteur', 'label': 'Sorti par', 'weight': 1.1, 'center': False, 'value': lambda r: plain(r['sorti_par'])},
+        {'key': 'raison', 'label': 'Raison', 'weight': 1.3, 'center': False, 'value': lambda r: plain(r['raison'])},
+        {'key': 'origine', 'label': 'Origine', 'weight': 1.2, 'center': False, 'value': lambda r: plain(r['origine'])},
+        {'key': 'sortie', 'label': 'Sortie', 'weight': 1.0, 'center': True, 'value': lambda r: multiline(r['sortie'])},
+        {'key': 'tva', 'label': 'TVA', 'weight': 0.55, 'center': True, 'value': lambda r: f"{plain(r['tva'])}%"},
+        {'key': 'prix_ttc', 'label': 'Prix TTC', 'weight': 1.3, 'center': True, 'value': lambda r: multiline(r['prix_ttc'])},
+        {'key': 'perte_ttc', 'label': 'Perte TTC', 'weight': 0.85, 'center': True, 'value': lambda r: plain(r['total_ttc'])},
+        {'key': 'avant', 'label': 'Avant', 'weight': 1.0, 'center': True, 'value': lambda r: multiline(r['avant'])},
+        {'key': 'apres', 'label': 'Apres', 'weight': 1.0, 'center': True, 'value': lambda r: multiline(r['apres'])},
+    ]
+    columns = get_export_selected_columns(all_columns, request.args.get('cols'))
+
     filters = get_stock_exit_stats_filters()
     exits = get_stock_exit_logs_for_export()
     rows = build_stock_exit_log_rows(exits)
@@ -6761,7 +6799,7 @@ def export_stock_exit_logs_pdf():
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('ExitLogTitle', parent=styles['Title'], fontSize=11, leading=13, spaceAfter=3)
     meta_style = ParagraphStyle('ExitLogMeta', parent=styles['Normal'], fontSize=7, leading=8, textColor=colors.HexColor('#374151'))
-    cell_style = ParagraphStyle('ExitLogCell', parent=styles['Normal'], fontSize=5.5, leading=6.4)
+    cell_style = ParagraphStyle('ExitLogCell', parent=styles['Normal'], fontSize=6, leading=7.2)
     header_style = ParagraphStyle('ExitLogHeader', parent=cell_style, alignment=TA_CENTER, textColor=colors.white)
 
     active_filters = ', '.join(f'{key}={value}' for key, value in filters.items() if value) or 'Aucun filtre'
@@ -6775,70 +6813,42 @@ def export_stock_exit_logs_pdf():
         Spacer(1, 4)
     ]
 
-    data = [[
-        Paragraph('Date', header_style),
-        Paragraph('Produit', header_style),
-        Paragraph('Fourn.', header_style),
-        Paragraph('Groupe', header_style),
-        Paragraph('Code suivi', header_style),
-        Paragraph('BL', header_style),
-        Paragraph('Peremp.', header_style),
-        Paragraph('Mise stock', header_style),
-        Paragraph('Mis par', header_style),
-        Paragraph('Auteur', header_style),
-        Paragraph('Raison', header_style),
-        Paragraph('Sortie', header_style),
-        Paragraph('TVA', header_style),
-        Paragraph('Prix TTC', header_style),
-        Paragraph('Perte TTC', header_style),
-        Paragraph('Avant', header_style),
-        Paragraph('Apres', header_style)
-    ]]
+    data = [[Paragraph(c['label'], header_style) for c in columns]]
     for row in rows:
-        produit = escape(str(row['produit']))
-        code_produit = escape(str(row['code_produit']))
-        data.append([
-            row['date_sortie'],
-            Paragraph(f"{produit}<br/>{code_produit}", cell_style),
-            Paragraph(escape(str(row['fournisseur'])), cell_style),
-            Paragraph(escape(str(row['groupe_fournisseur'])), cell_style),
-            Paragraph(escape(str(row['code_suivi'])), cell_style),
-            Paragraph(escape(str(row['numero_bl'])), cell_style),
-            row['date_peremption'],
-            row['date_mise_en_stock'],
-            Paragraph(escape(str(row['mis_en_stock_par'])), cell_style),
-            Paragraph(escape(str(row['sorti_par'])), cell_style),
-            Paragraph(escape(str(row['raison'])), cell_style),
-            row['sortie'],
-            f"{row['tva']}%",
-            row['prix_ttc'],
-            row['total_ttc'],
-            row['avant'],
-            row['apres']
-        ])
+        data.append([Paragraph(c['value'](row), cell_style) for c in columns])
 
-    table = Table(data, repeatRows=1, colWidths=[42, 68, 54, 50, 76, 36, 32, 47, 47, 48, 48, 45, 43, 58, 39, 42, 42])
-    table.setStyle(TableStyle([
+    usable_width = landscape(A4)[0] - doc.leftMargin - doc.rightMargin
+    total_weight = sum(c['weight'] for c in columns) or 1
+    col_widths = [usable_width * c['weight'] / total_weight for c in columns]
+
+    table_style_cmds = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 5.5),
-        ('LEADING', (0, 0), (-1, -1), 6.4),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-        ('ALIGN', (3, 1), (4, -1), 'CENTER'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6),
+        ('LEADING', (0, 0), (-1, -1), 7.2),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#D1D5DB')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
         ('TOPPADDING', (0, 0), (-1, -1), 1.4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 1.4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 1.5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 1.5),
-    ]))
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]
+    for idx, c in enumerate(columns):
+        if c['center']:
+            table_style_cmds.append(('ALIGN', (idx, 1), (idx, -1), 'CENTER'))
+
+    table = Table(data, repeatRows=1, colWidths=col_widths)
+    table.setStyle(TableStyle(table_style_cmds))
     elements.append(table)
     doc.build(elements)
     output.seek(0)
     filename = f'sorties_stock_{generated_at.strftime("%Y%m%d_%H%M")}.pdf'
-    return send_file(output, download_name=filename, as_attachment=True)
+    # as_attachment=False (inline) : recupere via fetch()->blob par le JS de
+    # #pdfColumnsModal/#pdfPreviewModal (exit_logs.html) pour l'apercu avant
+    # telechargement/impression, meme pattern que produits/list.html.
+    return send_file(output, download_name=filename, as_attachment=False)
 
 # --- VUES FILTRÉES PRODUITS ---
 @admin.route('/produits/rayon/<int:id>')
