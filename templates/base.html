@@ -349,6 +349,23 @@
             white-space: nowrap;
         }
 
+        .nav-loading-progress {
+            width: 100%;
+            max-width: 200px;
+            height: 4px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.08);
+        }
+
+        .nav-loading-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: var(--accent);
+            transition: width 0.25s ease-out;
+        }
+
         @media (max-width: 380px) {
             .nav-loading-box { padding: 1.1rem 1.5rem; border-radius: 12px; }
             .nav-loading-text { font-size: 0.78rem; }
@@ -545,6 +562,7 @@
         html[data-bs-theme="dark"] .nav-loading-overlay { background: rgba(15,20,26,0.72); }
         html[data-bs-theme="dark"] .nav-loading-box { background: #1c2733; box-shadow: 0 10px 34px rgba(0,0,0,0.55); }
         html[data-bs-theme="dark"] .nav-loading-text { color: #e8edf2; }
+        html[data-bs-theme="dark"] .nav-loading-progress { background: rgba(255,255,255,0.1); }
 
         html[data-bs-theme="dark"] .mobile-bottom-nav { background: #171f27 !important; border-top-color: #2a3541; box-shadow: 0 -2px 8px rgba(0,0,0,0.4); }
         html[data-bs-theme="dark"] .mobile-bottom-nav a,
@@ -1181,6 +1199,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
         <div class="nav-loading-box">
             <div class="spinner-border" role="status"></div>
             <div class="nav-loading-text">Chargement...</div>
+            <div class="nav-loading-progress"><div class="nav-loading-progress-bar" id="navLoadingProgressBar"></div></div>
         </div>
     </div>
     {% endif %}
@@ -1573,20 +1592,35 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             var overlay = document.getElementById('navLoadingOverlay');
             if (!overlay) return;
 
+            var progressBar = document.getElementById('navLoadingProgressBar');
             var NAV_LINKS_SELECTOR = '.sidebar-nav a[href], .offcanvas-body a[href], .mobile-bottom-nav a[href], .feature-card a[href], .inventaire-banner-btn[href]';
-            var hideTimer = null;
+            var progressTimer = null;
+            var progress = 0;
+
+            function setProgress(value) {
+                progress = value;
+                if (progressBar) progressBar.style.width = value + '%';
+            }
+
+            // Avance vite au debut puis ralentit en se rapprochant de 90%
+            // sans jamais l'atteindre : la barre reste "vivante" quelle que
+            // soit la duree reelle du chargement (page lourde, connexion
+            // lente...), au lieu de mentir sur une progression exacte.
+            function tickProgress() {
+                setProgress(progress + Math.max((90 - progress) * 0.06, 0.15));
+            }
 
             function showOverlay() {
                 overlay.classList.add('show');
-                // Filet de securite : si la navigation n'aboutit pas (erreur,
-                // lien qui ne quitte pas la page...), ne pas rester bloque.
-                clearTimeout(hideTimer);
-                hideTimer = setTimeout(hideOverlay, 8000);
+                setProgress(0);
+                clearInterval(progressTimer);
+                progressTimer = setInterval(tickProgress, 200);
             }
 
             function hideOverlay() {
-                clearTimeout(hideTimer);
+                clearInterval(progressTimer);
                 overlay.classList.remove('show');
+                setProgress(0);
             }
 
             document.addEventListener('click', function(e) {
@@ -1598,6 +1632,20 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                 var href = link.getAttribute('href') || '';
                 if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) return;
                 showOverlay();
+            });
+
+            // Pas de duree fixe pour la disparition : sur une connexion lente
+            // ou une grosse page, l'overlay doit rester tant que la nouvelle
+            // page n'est pas arrivee, plutot que de se refermer tout seul et
+            // laisser croire que le clic n'a pas fonctionne. Filet de
+            // securite manuel si un clic n'a exceptionnellement pas abouti a
+            // une navigation (lien casse, action interceptee...) : clic hors
+            // de la boite ou touche Echap.
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) hideOverlay();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && overlay.classList.contains('show')) hideOverlay();
             });
 
             // Navigation retour/avant restauree depuis le cache (bfcache) :
