@@ -1858,6 +1858,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <span class="input-group-text">{{ devise }}</span>
           </div>
         </div>
+        <div class="mb-3">
+          <label for="eppPrixVenteTtc" class="form-label">Prix de vente (Unité) TTC</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixVenteTtc" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+          <div class="form-text small text-muted">Modifier le prix d'achat ou le prix de vente ajuste automatiquement le coefficient pour rester cohérent.</div>
+        </div>
         <div class="mb-3" id="eppGroupSous">
           <label for="eppPrixSousUnite" class="form-label">Prix d'achat (Sous-unité)</label>
           <div class="input-group">
@@ -1882,6 +1890,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <input type="number" step="0.01" min="0" id="eppTva" class="form-control">
           </div>
         </div>
+        <div id="eppBreakdown" class="pricing-levels mt-3"></div>
       </div>
       <div class="modal-footer border-top">
         <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
@@ -3030,12 +3039,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const eppProduitNom = document.getElementById('eppProduitNom');
             const eppError = document.getElementById('eppError');
             const eppPrixUnite = document.getElementById('eppPrixUnite');
+            const eppPrixVenteTtc = document.getElementById('eppPrixVenteTtc');
             const eppPrixSousUnite = document.getElementById('eppPrixSousUnite');
             const eppPrixSousSousUnite = document.getElementById('eppPrixSousSousUnite');
             const eppGroupSous = document.getElementById('eppGroupSous');
             const eppGroupSousSous = document.getElementById('eppGroupSousSous');
             const eppCoefficient = document.getElementById('eppCoefficient');
             const eppTva = document.getElementById('eppTva');
+            const eppBreakdown = document.getElementById('eppBreakdown');
             const eppSubmit = document.getElementById('eppSubmit');
             const editProduitPricingModal = bootstrap.Modal.getOrCreateInstance(editProduitPricingModalEl, { backdrop: false });
             const PRICING_UPDATE_URL_TEMPLATE = `{{ url_for('admin.quick_update_produit_pricing', id=999999999) }}`;
@@ -3043,6 +3054,44 @@ document.addEventListener('DOMContentLoaded', function() {
             // 'line' = produit en cours de configuration (pas encore au panier)
             // 'cart-item' = ligne deja ajoutee, ouverte via "Voir / modifier"
             let pricingEditContext = null;
+
+            // ---- Recalcul intelligent et bidirectionnel (unite) : modifier le prix
+            // d'achat, le coefficient ou la TVA recalcule le prix de vente TTC (marge
+            // conservee) ; modifier directement le prix de vente TTC recalcule au
+            // contraire le coefficient necessaire pour l'atteindre (prix d'achat et
+            // TVA inchanges). Le detail HT/marge/TVA/TTC est toujours reaffiche a jour,
+            // que ce soit pour la seule unite : le coefficient est partage par tous les
+            // niveaux (sous-unite/sous-sous-unite), donc le fixer ici suffit a garder
+            // ces autres niveaux coherents une fois enregistre. ----
+            function eppRenderBreakdown() {
+                const achat = Number(eppPrixUnite.value || 0);
+                const coefficient = Number(eppCoefficient.value || 0) || 1;
+                const tva = Number(eppTva.value || 0);
+                eppBreakdown.innerHTML = pricingLevelHtml('Unité', mUnitBreakdown(achat, coefficient, tva));
+            }
+
+            function eppRecalcFromAchat() {
+                const achat = Number(eppPrixUnite.value || 0);
+                const coefficient = Number(eppCoefficient.value || 0) || 1;
+                const tva = Number(eppTva.value || 0);
+                eppPrixVenteTtc.value = achat > 0 ? mUnitBreakdown(achat, coefficient, tva).ttc.toFixed(2) : '';
+                eppRenderBreakdown();
+            }
+
+            function eppRecalcFromVente() {
+                const achat = Number(eppPrixUnite.value || 0);
+                const venteTtc = Number(eppPrixVenteTtc.value || 0);
+                const tva = Number(eppTva.value || 0);
+                if (achat > 0 && venteTtc > 0) {
+                    eppCoefficient.value = (venteTtc / (1 + tva / 100) / achat).toFixed(4);
+                }
+                eppRenderBreakdown();
+            }
+
+            eppPrixUnite.addEventListener('input', eppRecalcFromAchat);
+            eppCoefficient.addEventListener('input', eppRecalcFromAchat);
+            eppTva.addEventListener('input', eppRecalcFromAchat);
+            eppPrixVenteTtc.addEventListener('input', eppRecalcFromVente);
 
             function openPricingEditor(produit, context) {
                 pricingEditContext = context;
@@ -3056,6 +3105,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const cond = Number(produit.conditionnement || 1);
                 eppGroupSous.style.display = cond >= 2 ? 'block' : 'none';
                 eppGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+                eppRecalcFromAchat();
                 editProduitPricingModal.show();
             }
 
