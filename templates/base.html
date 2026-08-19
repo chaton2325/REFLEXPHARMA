@@ -366,6 +366,19 @@
             transition: width 0.25s ease-out;
         }
 
+        .nav-loading-cancel-btn {
+            border: none;
+            background: transparent;
+            color: #8a95a1;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 0.15rem 0.4rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .nav-loading-cancel-btn:hover { color: #2c3e50; }
+
         @media (max-width: 380px) {
             .nav-loading-box { padding: 1.1rem 1.5rem; border-radius: 12px; }
             .nav-loading-text { font-size: 0.78rem; }
@@ -563,6 +576,8 @@
         html[data-bs-theme="dark"] .nav-loading-box { background: #1c2733; box-shadow: 0 10px 34px rgba(0,0,0,0.55); }
         html[data-bs-theme="dark"] .nav-loading-text { color: #e8edf2; }
         html[data-bs-theme="dark"] .nav-loading-progress { background: rgba(255,255,255,0.1); }
+        html[data-bs-theme="dark"] .nav-loading-cancel-btn { color: #8b98a5; }
+        html[data-bs-theme="dark"] .nav-loading-cancel-btn:hover { color: #e8edf2; }
 
         html[data-bs-theme="dark"] .mobile-bottom-nav { background: #171f27 !important; border-top-color: #2a3541; box-shadow: 0 -2px 8px rgba(0,0,0,0.4); }
         html[data-bs-theme="dark"] .mobile-bottom-nav a,
@@ -1200,6 +1215,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             <div class="spinner-border" role="status"></div>
             <div class="nav-loading-text">Chargement...</div>
             <div class="nav-loading-progress"><div class="nav-loading-progress-bar" id="navLoadingProgressBar"></div></div>
+            <button type="button" class="nav-loading-cancel-btn" id="navLoadingCancelBtn">Annuler</button>
         </div>
     </div>
     {% endif %}
@@ -1593,6 +1609,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             if (!overlay) return;
 
             var progressBar = document.getElementById('navLoadingProgressBar');
+            var cancelBtn = document.getElementById('navLoadingCancelBtn');
             var NAV_LINKS_SELECTOR = '.sidebar-nav a[href], .offcanvas-body a[href], .mobile-bottom-nav a[href], .feature-card a[href], .inventaire-banner-btn[href]';
             var progressTimer = null;
             var progress = 0;
@@ -1618,6 +1635,12 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             }
 
             function hideOverlay() {
+                // window.stop() annule la navigation en cours (equivalent au bouton
+                // "stop" du navigateur) : sans ca, une navigation deja lancee finirait
+                // par remplacer la page meme apres une fermeture manuelle de l'overlay.
+                // Ne fait rien s'il n'y a rien a interrompre (retour bfcache, page deja
+                // chargee), donc sans danger sur les autres appels (pageshow...).
+                if (window.stop) window.stop();
                 clearInterval(progressTimer);
                 overlay.classList.remove('show');
                 setProgress(0);
@@ -1647,6 +1670,7 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && overlay.classList.contains('show')) hideOverlay();
             });
+            if (cancelBtn) cancelBtn.addEventListener('click', hideOverlay);
 
             // Navigation retour/avant restauree depuis le cache (bfcache) :
             // la page reapparait telle quelle, l'overlay ne doit pas rester affiche.
