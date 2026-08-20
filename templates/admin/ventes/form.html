@@ -189,6 +189,36 @@
   .sale-line .product-meta { padding: 0.22rem 0.42rem; }
   .sale-line .mb-2 { margin-bottom: 0.3rem !important; }
   .sale-line .form-label { margin-bottom: 0.12rem; }
+  /* Stock disponible : une pastille coloree par palier (unite/sous-unite/
+     sous-sous-unite existant pour ce produit -- selon son conditionnement),
+     au lieu d'un simple texte gris a peine lisible ne montrant que le palier
+     choisi. Le nombre de pastilles indique aussi si le produit se vend au
+     detail ou non : un seul palier affiche = pas de detail possible. */
+  .stock-available { display: flex; flex-wrap: wrap; align-items: center; gap: 0.28em; }
+  .stock-chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 0.16em 0.52em;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    line-height: 1.4;
+  }
+  .stock-chip-ok { background: #e6f6ec; color: #1f8a4c; border-color: #bfe8cf; }
+  .stock-chip-empty { background: #eef1f5; color: #94a3b8; border-color: #dde3ea; }
+  .stock-chip-danger { background: #fdeaea; color: #c62828; border-color: #f5c2c2; }
+  .stock-chip-selected { box-shadow: 0 0 0 2px rgba(59,130,246,0.4); }
+  .stock-detail-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28em;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #5b6472;
+  }
+  .stock-detail-note-muted { color: #94a3b8; }
+  .stock-available-neutral { font-size: 0.78rem; font-weight: 700; color: #64748b; }
   /* Alternance rouge doux / violet doux par article du panier */
   #saleLinesBody > .sale-line:nth-child(odd) {
     background: #fdecec;
@@ -453,7 +483,9 @@
     .sale-line { padding: 0.36rem 0.42rem; border-radius: 8px; }
     .sale-line .line-number { font-size: 0.52rem; padding: 0.12em 0.5em; }
     .sale-line .remove-line { width: 22px; height: 22px; font-size: 0.62rem; }
-    .sale-line .stock-available { font-size: 0.56rem; margin-top: 0.12rem !important; }
+    .sale-line .stock-available { margin-top: 0.12rem !important; gap: 0.2em; }
+    .sale-line .stock-chip { font-size: 0.66rem; padding: 0.12em 0.42em; }
+    .sale-line .stock-detail-note { font-size: 0.6rem; }
     .sale-line > .d-flex.mb-2 { margin-bottom: 0.3rem !important; }
 
     .pay-stat { padding: 0.24rem 0.36rem; border-radius: 7px; }
@@ -977,7 +1009,7 @@
             <div class="col-5 col-sm-6 col-lg-3">
               <label class="form-label">Quantité</label>
               <input type="number" min="1" step="1" name="quantite[]" class="form-control" value="1" required>
-              <div class="small mt-1 stock-available text-muted">Stock disponible : 0</div>
+              <div class="mt-1 stock-available"><span class="stock-available-neutral">Stock disponible : -</span></div>
             </div>
           </div>
         </div>
@@ -1576,6 +1608,12 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.sale-line').forEach(updateUnitOptions);
     }
 
+    const UNIT_TIERS = [
+        { key: 'unite', label: 'U', minConditionnement: 1 },
+        { key: 'sous_unite', label: 'SU', minConditionnement: 2 },
+        { key: 'sous_sous_unite', label: 'SSU', minConditionnement: 3 },
+    ];
+
     function updateLineStockState(line) {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
         const unitSelect = line.querySelector('select[name="unite[]"]');
@@ -1588,10 +1626,33 @@ document.addEventListener('DOMContentLoaded', function() {
         const invalid = !noProduct && (available <= 0 || quantity > available);
 
         quantityInput.max = noProduct ? '' : available;
-        stockAvailable.textContent = noProduct ? 'Stock disponible : -' : `Stock disponible : ${formatMoney(available)}`;
-        stockAvailable.classList.toggle('text-danger', invalid);
-        stockAvailable.classList.toggle('text-muted', !invalid);
         quantityInput.classList.toggle('is-invalid', invalid);
+
+        if (noProduct) {
+            stockAvailable.innerHTML = '<span class="stock-available-neutral">Stock disponible : -</span>';
+            return;
+        }
+
+        // Un palier (U/SU/SSU) n'est affiche que s'il existe reellement pour ce
+        // produit (conditionnement) -- pas juste "en rupture" : le nombre de
+        // pastilles montre donc aussi si le produit se vend au detail ou non.
+        const conditionnement = Math.min(Math.max(parseInt(selectedProduct.dataset.conditionnement || '1', 10), 1), 3);
+        const applicableTiers = UNIT_TIERS.filter((tier) => tier.minConditionnement <= conditionnement);
+
+        const chipsHtml = applicableTiers.map((tier) => {
+            const stock = getSelectedStock(selectedProduct, tier.key);
+            const isSelectedTier = unitSelect.value === tier.key;
+            let stateClass = stock > 0 ? 'stock-chip-ok' : 'stock-chip-empty';
+            if (isSelectedTier && invalid) stateClass = 'stock-chip-danger';
+            const selectedClass = isSelectedTier ? ' stock-chip-selected' : '';
+            return `<span class="stock-chip ${stateClass}${selectedClass}" title="${escapeHtml(tier.label === 'U' ? 'Unités' : tier.label === 'SU' ? 'Sous unités' : 'Sous sous unités')}">${tier.label} : ${formatMoney(stock)}</span>`;
+        }).join('');
+
+        const detailNote = applicableTiers.length > 1
+            ? '<span class="stock-detail-note"><i class="fas fa-layer-group"></i>Vendu au détail</span>'
+            : '<span class="stock-detail-note stock-detail-note-muted"><i class="fas fa-box"></i>Vendu entier uniquement</span>';
+
+        stockAvailable.innerHTML = chipsHtml + detailNote;
     }
 
     function updateLineProductMeta(line) {
@@ -2567,6 +2628,48 @@ document.addEventListener('DOMContentLoaded', function() {
     updateClientAccountVisibility();
     applyClientBalanceToggleVisibility();
     updateSaleSummary();
+
+    // Rafraichissement live des quantites en stock (autre poste qui vend en
+    // meme temps) : les quantites sont figees dans le HTML au chargement de
+    // la page (data-stock-* sur chaque <option> produit), donc sans ca deux
+    // caissiers pourraient vendre le meme dernier article sans le savoir.
+    // Poll leger (pas de websocket dans cette app) toutes les 5s + a la
+    // reprise de focus de l'onglet ; met a jour les data-stock-* puis
+    // rejoue les memes fonctions que lors d'une saisie normale.
+    const STOCK_LEVELS_URL = "{{ url_for('admin.stock_levels') }}";
+
+    function applyStockLevels(levels) {
+        document.querySelectorAll('select[name="produit_id[]"] option[value]').forEach((option) => {
+            if (!option.value || !levels[option.value]) return;
+            const level = levels[option.value];
+            option.dataset.stockUnite = level.unite;
+            option.dataset.stockSousUnite = level.sous_unite;
+            option.dataset.stockSousSousUnite = level.sous_sous_unite;
+        });
+        updateSaleSummary();
+        // Rejoue aussi le rendu des panneaux de resultats de recherche produit
+        // actuellement ouverts, pour ne pas afficher un stock perime tant que
+        // l'utilisateur ne retape rien.
+        document.querySelectorAll('.sale-line').forEach((line) => {
+            const panel = line.querySelector('.product-results');
+            if (!panel || panel.classList.contains('d-none')) return;
+            const select = line.querySelector('.product-select');
+            const search = line.querySelector('.product-search');
+            if (select && search) renderSearchResults(select, search.value);
+        });
+    }
+
+    function pollStockLevels() {
+        fetch(STOCK_LEVELS_URL, { headers: { 'Accept': 'application/json' } })
+            .then((res) => { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
+            .then(applyStockLevels)
+            .catch(() => {}); // silencieux : on reessaiera au prochain tick
+    }
+
+    setInterval(pollStockLevels, 5000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') pollStockLevels();
+    });
 
     // Après enregistrement, remplacer l'alerte flash par le modal succès animé
     const successAlert = Array.from(document.querySelectorAll('.alert-success'))

@@ -2838,6 +2838,30 @@ def vente_scan_lookup():
         'code_suivi': stock.code_suivi if stock else None
     }
 
+@admin.route('/api/stock-levels')
+@login_required
+@permission_required('gestion_ventes')
+def stock_levels():
+    """Quantites en stock de tous les produits, agregees en une seule requete
+    SQL (pas de boucle sur Produit.stocks). Interrogee en JS toutes les 5s
+    par la page Nouvelle vente pour refleter en direct les ventes faites sur
+    un autre poste, sans recharger la page."""
+    from sqlalchemy import func
+    rows = (
+        db.session.query(
+            Stock.produit_id,
+            func.coalesce(func.sum(Stock.quantite_unites), 0),
+            func.coalesce(func.sum(Stock.quantite_sous_unites), 0),
+            func.coalesce(func.sum(Stock.quantite_sous_sous_unites), 0),
+        )
+        .group_by(Stock.produit_id)
+        .all()
+    )
+    return jsonify({
+        str(produit_id): {'unite': unite, 'sous_unite': sous_unite, 'sous_sous_unite': sous_sous_unite}
+        for produit_id, unite, sous_unite, sous_sous_unite in rows
+    })
+
 @admin.route('/ventes/create', methods=['GET', 'POST'])
 @login_required
 @permission_required('gestion_ventes')
