@@ -267,7 +267,7 @@
         <i class="fas fa-pills"></i>
       </div>
       <div>
-        <div class="stat-number">{{ produits|length }}</div>
+        <div class="stat-number">{{ total_produits if total_produits is defined else produits|length }}</div>
         <div class="stat-label">Total Produits</div>
       </div>
     </div>
@@ -296,44 +296,90 @@
   </div>
 </div>
 
+{% macro sort_th(field, label) %}
+{% set next_dir = 'desc' if (sort_field == field and sort_dir != 'desc') else 'asc' %}
+<th style="cursor:pointer">
+  <a class="text-reset text-decoration-none js-nav-loading" href="{{ url_for('admin.list_produits', q=search_q, fournisseur=search_fournisseur, rayon=search_rayon, famille=search_famille, detail=search_detail, sort=field, dir=next_dir) }}">
+    {{ label }}
+    {% if sort_field == field %}<i class="fas {{ 'fa-sort-up' if sort_dir == 'asc' else 'fa-sort-down' }}"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+  </a>
+</th>
+{% endmacro %}
+
+{% macro produits_pagination() %}
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top">
+  <div class="small text-muted">{{ pagination.total }} produit(s) — page {{ pagination.page }} / {{ pagination.pages }}</div>
+  <nav aria-label="Pagination du catalogue">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item{{ ' disabled' if not pagination.has_prev }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.list_produits', page=pagination.prev_num, q=search_q, fournisseur=search_fournisseur, rayon=search_rayon, famille=search_famille, detail=search_detail, sort=sort_field, dir=sort_dir) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
+      </li>
+      {% for p_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p_num %}
+        <li class="page-item{{ ' active' if p_num == pagination.page }}">
+          <a class="page-link js-nav-loading" href="{{ url_for('admin.list_produits', page=p_num, q=search_q, fournisseur=search_fournisseur, rayon=search_rayon, famille=search_famille, detail=search_detail, sort=sort_field, dir=sort_dir) }}">{{ p_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item{{ ' disabled' if not pagination.has_next }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.list_produits', page=pagination.next_num, q=search_q, fournisseur=search_fournisseur, rayon=search_rayon, famille=search_famille, detail=search_detail, sort=sort_field, dir=sort_dir) if pagination.has_next else '#' }}">Suivant &raquo;</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endif %}
+{% endmacro %}
+
 <div class="card-custom">
-  <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+  <form method="GET" id="produitsFilterForm" class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+    <input type="hidden" name="sort" value="{{ sort_field }}">
+    <input type="hidden" name="dir" value="{{ sort_dir }}">
     <div class="d-flex flex-wrap gap-2">
       <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkDeleteModal" style="border-radius:8px;font-weight:600;">
         <i class="fas fa-trash me-1"></i> Supprimer (<span id="selectedCount">0</span>)
       </button>
-      <select id="filterFournisseur" class="filter-select" style="width:140px;">
+      <select name="fournisseur" id="filterFournisseur" class="filter-select" style="width:140px;">
         <option value="">Tous Fournisseurs</option>
         {% for f in fournisseurs_list %}
-        <option value="{{ f.nom }}">{{ f.nom }}</option>
+        <option value="{{ f.nom }}"{{ ' selected' if search_fournisseur == f.nom }}>{{ f.nom }}</option>
         {% endfor %}
       </select>
-      <select id="filterRayon" class="filter-select" style="width:130px;">
+      <select name="rayon" id="filterRayon" class="filter-select" style="width:130px;">
         <option value="">Tous Rayons</option>
         {% for r in rayons_list %}
-        <option value="{{ r.nom }}">{{ r.nom }}</option>
+        <option value="{{ r.nom }}"{{ ' selected' if search_rayon == r.nom }}>{{ r.nom }}</option>
         {% endfor %}
       </select>
-      <select id="filterFamille" class="filter-select" style="width:130px;">
+      <select name="famille" id="filterFamille" class="filter-select" style="width:130px;">
         <option value="">Toutes Familles</option>
         {% for f in familles_list %}
-        <option value="{{ f.nom }}">{{ f.nom }}</option>
+        <option value="{{ f.nom }}"{{ ' selected' if search_famille == f.nom }}>{{ f.nom }}</option>
         {% endfor %}
       </select>
-      <select id="filterDetail" class="filter-select" style="width:110px;">
+      <select name="detail" id="filterDetail" class="filter-select" style="width:110px;">
         <option value="">Tout Détail</option>
-        <option value="Oui">Détail : Oui</option>
-        <option value="Non">Détail : Non</option>
+        <option value="Oui"{{ ' selected' if search_detail == 'Oui' }}>Détail : Oui</option>
+        <option value="Non"{{ ' selected' if search_detail == 'Non' }}>Détail : Non</option>
       </select>
-      <button type="button" id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;font-weight:600;" title="Réinitialiser la recherche, les filtres et le tri">
+      <a href="{{ url_for('admin.list_produits') }}" id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm js-nav-loading" style="border-radius:8px;font-weight:600;" title="Réinitialiser la recherche, les filtres et le tri">
         <i class="fas fa-rotate-left me-1"></i> Réinitialiser
+      </a>
+    </div>
+    <div class="d-flex gap-2" style="width:100%;max-width:340px;">
+      <div class="search-wrapper" style="flex:1;">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" name="q" id="searchInput" class="form-control" placeholder="Rechercher un produit..." value="{{ search_q }}" autocomplete="off">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm flex-shrink-0" style="border-radius:8px;font-weight:600;">
+        <i class="fas fa-search me-1"></i> Rechercher
       </button>
     </div>
-    <div class="search-wrapper" style="width:100%;max-width:300px;">
-      <i class="fas fa-search search-icon"></i>
-      <input type="text" id="searchInput" class="form-control" placeholder="Rechercher un produit...">
-    </div>
-  </div>
+  </form>
+
+  {{ produits_pagination() }}
 
   <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_produits') }}" method="POST">
     <!-- Mobile cards (xs only) -->
@@ -390,13 +436,13 @@
                 <input class="form-check-input" type="checkbox" id="selectAll" style="cursor:pointer;">
               </div>
             </th>
-            <th onclick="sortTable('code')" data-sort-field="code" style="cursor:pointer">Code <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('nom')" data-sort-field="nom" style="cursor:pointer">Nom <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('fournisseur')" data-sort-field="fournisseur" style="cursor:pointer">Fournisseur <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('rayon')" data-sort-field="rayon" style="cursor:pointer">Rayon/Famille <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('detail')" data-sort-field="detail" style="cursor:pointer">Détail <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('cond')" data-sort-field="cond" style="cursor:pointer">Cond <i class="fas fa-sort"></i></th>
-            <th onclick="sortTable('prix')" data-sort-field="prix" style="cursor:pointer">Achat / Vente TTC <i class="fas fa-sort"></i></th>
+            {{ sort_th('code', 'Code') }}
+            {{ sort_th('nom', 'Nom') }}
+            {{ sort_th('fournisseur', 'Fournisseur') }}
+            {{ sort_th('rayon', 'Rayon/Famille') }}
+            {{ sort_th('detail', 'Détail') }}
+            {{ sort_th('cond', 'Cond') }}
+            {{ sort_th('prix', 'Achat / Vente TTC') }}
             <th>Points fidélité</th>
             <th class="text-end">Actions</th>
           </tr>
@@ -449,6 +495,8 @@
       </table>
     </div>
   </form>
+
+  {{ produits_pagination() }}
 </div>
 
 <!-- Modals -->
@@ -700,28 +748,14 @@
 const EXPORT_EXCEL_BASE = "{{ url_for('admin.export_produits_excel') }}";
 const EXPORT_PDF_BASE = "{{ url_for('admin.export_produits_pdf') }}";
 const EXPORT_CSV_BASE = "{{ url_for('admin.export_produits_csv') }}";
-const SORT_LABELS = { code: 'CIP', nom: 'Nom', fournisseur: 'Fournisseur', rayon: 'Rayon', detail: 'Détail', cond: 'Conditionnement', prix: 'Prix Achat' };
-let currentSort = { field: null, dir: 'asc' };
-
+// Recherche/filtres/tri sont desormais geres cote serveur (voir
+// admin.list_produits) : l'URL de la page courante porte deja tous les
+// parametres actifs, il suffit de la reprendre telle quelle pour les exports
+// (en retirant juste "page", un export porte sur TOUS les resultats
+// correspondants, pas seulement la page affichee).
 function updateExportLinks() {
-    const searchInput = document.getElementById('searchInput');
-    const params = new URLSearchParams();
-    const q = searchInput ? searchInput.value.trim() : '';
-    const fFournisseur = document.getElementById('filterFournisseur').value;
-    const fRayon = document.getElementById('filterRayon').value;
-    const fFamille = document.getElementById('filterFamille').value;
-    const fDetail = document.getElementById('filterDetail').value;
-
-    if (q) params.set('q', q);
-    if (fFournisseur) params.set('fournisseur', fFournisseur);
-    if (fRayon) params.set('rayon', fRayon);
-    if (fFamille) params.set('famille', fFamille);
-    if (fDetail) params.set('detail', fDetail);
-    if (currentSort.field) {
-        params.set('sort', currentSort.field);
-        params.set('dir', currentSort.dir);
-    }
-
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');
     const qs = params.toString();
     const excelBtn = document.getElementById('exportExcelBtn');
     const pdfBtn = document.getElementById('exportPdfBtn');
@@ -732,78 +766,8 @@ function updateExportLinks() {
 
     const hint = document.getElementById('exportHint');
     if (hint) {
-        const table = document.getElementById('produitTable');
-        const visibleRows = table ? Array.from(table.querySelectorAll('tbody tr')).filter(r => r.style.display !== 'none') : [];
-        const sortLabel = SORT_LABELS[currentSort.field] || 'Nom';
-        const dirIcon = currentSort.dir === 'asc' ? '↑' : '↓';
-        hint.innerHTML = '<i class="fas fa-download me-1"></i>' + visibleRows.length + ' produit(s) seront exportés — trié par ' + sortLabel + ' ' + dirIcon;
+        hint.innerHTML = '<i class="fas fa-download me-1"></i>' + {{ pagination.total if pagination else produits|length }} + ' produit(s) seront exportés (recherche/filtres/tri actuels)';
     }
-}
-
-function updateSortIndicators() {
-    document.querySelectorAll('#produitTable thead th[data-sort-field]').forEach(function(th) {
-        const icon = th.querySelector('i');
-        if (!icon) return;
-        const field = th.getAttribute('data-sort-field');
-        if (field === currentSort.field) {
-            icon.className = currentSort.dir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
-            th.classList.add('text-primary');
-        } else {
-            icon.className = 'fas fa-sort';
-            th.classList.remove('text-primary');
-        }
-    });
-}
-
-function sortTable(field) {
-    const dir = (currentSort.field === field && currentSort.dir === 'asc') ? 'desc' : 'asc';
-    applySort(field, dir);
-}
-
-function applySort(field, dir) {
-    const table = document.getElementById('produitTable');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.rows);
-
-    currentSort.field = field;
-    currentSort.dir = dir;
-
-    const numeric = (field === 'cond' || field === 'prix');
-    rows.sort((a, b) => {
-        let x = a.dataset[field] || '';
-        let y = b.dataset[field] || '';
-        if (numeric) {
-            x = parseFloat(x) || 0;
-            y = parseFloat(y) || 0;
-            return currentSort.dir === 'asc' ? x - y : y - x;
-        }
-        return currentSort.dir === 'asc'
-            ? x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' })
-            : y.localeCompare(x, undefined, { numeric: true, sensitivity: 'base' });
-    });
-    rows.forEach(row => tbody.appendChild(row));
-
-    const mobileList = document.getElementById('mobileList');
-    if (mobileList) {
-        const cards = Array.from(mobileList.querySelectorAll('.mobile-card'));
-        cards.sort((a, b) => {
-            let x = a.dataset[field] || '';
-            let y = b.dataset[field] || '';
-            if (numeric) {
-                x = parseFloat(x) || 0;
-                y = parseFloat(y) || 0;
-                return currentSort.dir === 'asc' ? x - y : y - x;
-            }
-            return currentSort.dir === 'asc'
-                ? x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' })
-                : y.localeCompare(x, undefined, { numeric: true, sensitivity: 'base' });
-        });
-        cards.forEach(card => mobileList.appendChild(card));
-    }
-
-    updateSortIndicators();
-    updateExportLinks();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -839,102 +803,36 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', updateBulkDeleteUI);
     });
 
-    function filterTable() {
-        const query = document.getElementById('searchInput').value.toLowerCase();
-        const fFournisseur = document.getElementById('filterFournisseur').value;
-        const fRayon = document.getElementById('filterRayon').value;
-        const fFamille = document.getElementById('filterFamille').value;
-        const fDetail = document.getElementById('filterDetail').value;
-
-        const table = document.getElementById('produitTable');
-        const tbody = table ? table.querySelector('tbody') : null;
-        const rows = tbody ? tbody.getElementsByTagName('tr') : [];
-
-        const mobileList = document.getElementById('mobileList');
-        const mobileCards = mobileList ? mobileList.querySelectorAll('.mobile-card') : [];
-
-        let visibleCount = 0;
-
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            if (row.cells.length < 8) continue;
-            const textContent = row.textContent.toLowerCase();
-
-            const matchQuery = textContent.includes(query);
-            const matchFournisseur = !fFournisseur || row.dataset.fournisseur === fFournisseur;
-            const matchRayon = !fRayon || row.dataset.rayon === fRayon;
-            const matchFamille = !fFamille || row.dataset.famille === fFamille;
-            const matchDetail = !fDetail || row.dataset.detail === fDetail;
-
-            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchDetail;
-            row.style.display = show ? '' : 'none';
-            if (show) visibleCount++;
-        }
-
-        for (let i = 0; i < mobileCards.length; i++) {
-            const card = mobileCards[i];
-            const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
-            const matchQuery = text.includes(query);
-            const matchFournisseur = !fFournisseur || card.dataset.fournisseur === fFournisseur;
-            const matchRayon = !fRayon || card.dataset.rayon === fRayon;
-            const matchFamille = !fFamille || card.dataset.famille === fFamille;
-            const matchDetail = !fDetail || card.dataset.detail === fDetail;
-            const show = matchQuery && matchFournisseur && matchRayon && matchFamille && matchDetail;
-            card.style.display = show ? '' : 'none';
-            if (show) visibleCount++;
-        }
-
-        let noResultMsg = document.getElementById('noResultMsg');
-        if (visibleCount === 0) {
-            if (!noResultMsg) {
-                noResultMsg = document.createElement('div');
-                noResultMsg.id = 'noResultMsg';
-                noResultMsg.className = 'text-center py-5 text-muted';
-                noResultMsg.innerHTML = '<i class="fas fa-search" style="font-size:2rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>Aucun produit trouvé';
-                var target = mobileList || (table ? table.parentNode : null);
-                if (target) target.parentNode.appendChild(noResultMsg);
-            }
-        } else if (noResultMsg) {
-            noResultMsg.remove();
-        }
-
-        updateExportLinks();
-    }
-
-    document.getElementById('searchInput').addEventListener('input', filterTable);
-    document.getElementById('filterFournisseur').addEventListener('change', filterTable);
-    document.getElementById('filterRayon').addEventListener('change', filterTable);
-    document.getElementById('filterFamille').addEventListener('change', filterTable);
-    document.getElementById('filterDetail').addEventListener('change', filterTable);
-
-    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
-    if (resetFiltersBtn) {
-        resetFiltersBtn.addEventListener('click', function() {
-            document.getElementById('searchInput').value = '';
-            document.getElementById('filterFournisseur').value = '';
-            document.getElementById('filterRayon').value = '';
-            document.getElementById('filterFamille').value = '';
-            document.getElementById('filterDetail').value = '';
-            applySort('nom', 'asc');
-            filterTable();
+    // Recherche/filtres desormais geres cote serveur (voir admin.list_produits) :
+    // un changement de filtre repart toujours de la page 1 (nouveau resultat,
+    // l'ancienne pagination n'a plus de sens), en recharge normal. Pas d'envoi
+    // auto pendant la frappe (debounce) : sur un vrai rechargement de page,
+    // une saisie lente ou hesitante declencherait des recherches prematurees
+    // en boucle -- on attend le bouton "Rechercher" (ou Entree, natif sur un
+    // formulaire). L'overlay de navigation s'affiche via le 'submit' du
+    // formulaire (bouton, Entree, ou changement de filtre plus bas).
+    const filterForm = document.getElementById('produitsFilterForm');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function() {
+            if (window.showNavLoadingOverlay) window.showNavLoadingOverlay();
         });
     }
+    ['filterFournisseur', 'filterRayon', 'filterFamille', 'filterDetail'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', function() {
+            if (filterForm) filterForm.requestSubmit();
+        });
+    });
+    updateExportLinks();
 
-    // Tri par defaut (Nom A->Z) : garantit que le tableau affiche et exporte
-    // toujours dans le meme ordre au premier chargement.
-    applySort('nom', 'asc');
-
-    // Deep-link depuis les alertes du tableau de bord : /admin/produits?q=CODE
-    const presetQuery = new URLSearchParams(window.location.search).get('q');
-    if (presetQuery) {
-        const searchInput = document.getElementById('searchInput');
-        searchInput.value = presetQuery;
-        filterTable();
-
+    // Deep-link depuis les alertes du tableau de bord : /admin/produits?q=CODE --
+    // la recherche est deja appliquee cote serveur (produits = seulement ce qui
+    // correspond), reste juste a mettre en avant le premier resultat.
+    if (document.getElementById('searchInput').value.trim()) {
         const tableRows = document.querySelectorAll('#produitTable tbody tr');
         const mobileCards = document.querySelectorAll('#mobileList .mobile-card');
         const visible = Array.from(tableRows).concat(Array.from(mobileCards))
-            .filter(el => el.style.display !== 'none' && el.offsetParent !== null);
+            .filter(el => el.offsetParent !== null);
         if (visible.length > 0) {
             visible[0].classList.add('row-flash');
             visible[0].scrollIntoView({ behavior: 'smooth', block: 'center' });

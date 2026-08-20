@@ -60,34 +60,36 @@
 
   .stat-card {
     background: #fff;
-    border-radius: 14px;
-    padding: 1.1rem 1.25rem;
+    border-radius: 12px;
+    padding: 0.75rem 0.9rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     transition: transform 0.2s, box-shadow 0.2s;
     height: 100%;
+    gap: 0.65rem !important;
   }
   .stat-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.1);
   }
   .stat-card .stat-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     flex-shrink: 0;
   }
   .stat-card .stat-number {
-    font-size: 1.4rem;
+    font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.2;
     color: #1a1a2e;
+    word-break: break-word;
   }
   .stat-card .stat-label {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     color: #7a8896;
     font-weight: 500;
     text-transform: uppercase;
@@ -728,10 +730,10 @@
     .page-header h1 { font-size: 1.25rem; }
     .page-header .d-flex.gap-2.flex-wrap { gap: 0.4rem !important; }
     .page-header .btn-light { font-size: 0.75rem; padding: 0.3rem 0.7rem; }
-    .stat-card { padding: 0.7rem 0.85rem; }
-    .stat-card .stat-number { font-size: 1.1rem; }
-    .stat-card .stat-icon { width: 32px; height: 32px; font-size: 0.9rem; }
-    .stat-card .stat-label { font-size: 0.65rem; }
+    .stat-card { padding: 0.5rem 0.6rem; gap: 0.5rem !important; border-radius: 10px; }
+    .stat-card .stat-number { font-size: 0.88rem; line-height: 1.15; word-break: break-word; }
+    .stat-card .stat-icon { width: 26px; height: 26px; font-size: 0.7rem; border-radius: 8px; }
+    .stat-card .stat-label { font-size: 0.58rem; letter-spacing: 0.1px; }
     .card-form .card-body { padding: 1rem; }
   }
 </style>
@@ -780,7 +782,7 @@
         <i class="fas fa-boxes"></i>
       </div>
       <div>
-        <div class="stat-number">{{ total_stock_entries }}</div>
+        <div class="stat-number" id="statTotalStockEntries"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
         <div class="stat-label">Entrées en stock</div>
       </div>
     </div>
@@ -791,7 +793,7 @@
         <i class="fas fa-cubes"></i>
       </div>
       <div>
-        <div class="stat-number">{{ total_produits_en_stock }}</div>
+        <div class="stat-number" id="statTotalProduitsEnStock"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
         <div class="stat-label">Produits en stock</div>
       </div>
     </div>
@@ -802,7 +804,7 @@
         <i class="fas fa-shopping-basket"></i>
       </div>
       <div>
-        <div class="stat-number">{{ total_quantite }}</div>
+        <div class="stat-number" id="statTotalQuantite"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
         <div class="stat-label">Quantité totale</div>
       </div>
     </div>
@@ -813,12 +815,116 @@
         <i class="fas fa-qrcode"></i>
       </div>
       <div>
-        <div class="stat-number">{{ qr_non_tires }}</div>
+        <div class="stat-number" id="statQrNonTires"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
         <div class="stat-label">QR non tirés</div>
       </div>
     </div>
   </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;">
+        <i class="fas fa-sack-dollar"></i>
+      </div>
+      <div>
+        <div class="stat-number" id="statMargeBrute"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
+        <div class="stat-label">Marge brute totale</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;">
+        <i class="fas fa-percent"></i>
+      </div>
+      <div>
+        <div class="stat-number" id="statTvaTotale"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
+        <div class="stat-label">TVA totale</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-cash-register"></i>
+      </div>
+      <div>
+        <div class="stat-number" id="statChiffreAffaires"><span class="spinner-border spinner-border-sm text-muted" role="status"></span></div>
+        <div class="stat-label">Chiffre d'affaires total</div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Cartes de stats chargees a part, une fois la page affichee (voir
+    // admin.stock_stats) : evite de faire attendre le rendu de la liste
+    // elle-meme pour un calcul qui boucle sur tout le stock (marge/TVA/CA).
+    // Espace comme separateur de milliers (point garde pour les decimales,
+    // coherent avec le formatage "%.2f" utilise partout ailleurs dans
+    // l'appli) : rend les grands nombres beaucoup plus lisibles d'un coup
+    // d'oeil qu'une longue suite de chiffres collee.
+    function withThousands(intPart) {
+        return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+    function fmtInt(v) {
+        return withThousands(String(Math.round(Number(v || 0))));
+    }
+    function fmtMoney(v) {
+        var parts = Number(v || 0).toFixed(2).split('.');
+        return withThousands(parts[0]) + '.' + parts[1] + ' {{ devise }}';
+    }
+    function setStat(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+    var STAT_IDS = ['statTotalStockEntries', 'statTotalProduitsEnStock', 'statTotalQuantite', 'statQrNonTires', 'statMargeBrute', 'statTvaTotale', 'statChiffreAffaires'];
+    fetch('{{ url_for("admin.stock_stats") }}', { headers: { 'Accept': 'application/json' } })
+        .then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function(data) {
+            setStat('statTotalStockEntries', fmtInt(data.total_stock_entries));
+            setStat('statTotalProduitsEnStock', fmtInt(data.total_produits_en_stock));
+            setStat('statTotalQuantite', fmtInt(data.total_quantite));
+            setStat('statQrNonTires', fmtInt(data.qr_non_tires));
+            setStat('statMargeBrute', fmtMoney(data.marge_brute_totale));
+            setStat('statTvaTotale', fmtMoney(data.tva_totale));
+            setStat('statChiffreAffaires', fmtMoney(data.chiffre_affaires_total));
+        })
+        .catch(function() {
+            STAT_IDS.forEach(function(id) { setStat(id, '—'); });
+        });
+});
+</script>
+
+{% macro stock_pagination() %}
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top">
+  <div class="small text-muted">{{ pagination.total }} lot(s) — page {{ pagination.page }} / {{ pagination.pages }}</div>
+  <nav aria-label="Pagination du stock">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item{{ ' disabled' if not pagination.has_prev }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=pagination.prev_num, q=search_q) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
+      </li>
+      {% for p_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p_num %}
+        <li class="page-item{{ ' active' if p_num == pagination.page }}">
+          <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=p_num, q=search_q) }}">{{ p_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item{{ ' disabled' if not pagination.has_next }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=pagination.next_num, q=search_q) if pagination.has_next else '#' }}">Suivant &raquo;</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endif %}
+{% endmacro %}
 
 <div class="row g-4">
   <div class="col-12">
@@ -837,7 +943,8 @@
             <div class="d-flex flex-row align-items-center gap-2 flex-wrap">
               <div class="input-group input-group-sm" style="min-width:200px;width:auto;">
                 <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher...">
+                <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
+                <button type="button" id="stockSearchBtn" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
               </div>
               <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:120px;width:auto;">
                 <option value="all">QR : Tous</option>
@@ -879,7 +986,8 @@
           <div class="d-flex d-sm-none align-items-center gap-2 w-100">
             <div class="input-group input-group-sm" style="flex:1;">
               <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-              <input type="text" id="stockSearchInputMobile" class="form-control" placeholder="Rechercher...">
+              <input type="text" id="stockSearchInputMobile" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
+              <button type="button" id="stockSearchBtnMobile" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
             </div>
             <details style="position:relative;">
               <summary style="list-style:none;cursor:pointer;font-size:0.75rem;padding:0.3rem 0.6rem;border:1px solid #dee2e6;border-radius:8px;background:#fff;white-space:nowrap;">
@@ -970,6 +1078,8 @@
           <span class="small text-muted"><span id="selectedStockCount">0</span> ligne(s)</span>
         </div>
       </div>
+
+      {{ stock_pagination() }}
 
       <!-- Mobile cards (xs only) -->
       <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileStockList">
@@ -1109,6 +1219,8 @@
           </tbody>
         </table>
       </div>
+
+      {{ stock_pagination() }}
     </div>
   </div>
 </div>
@@ -1928,7 +2040,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sortableHeaders = stockTable ? stockTable.querySelectorAll('thead th[data-sort-type]') : [];
     let stockRows = stockTableBody ? Array.from(stockTableBody.querySelectorAll('tr[data-search]')) : [];
     let currentSort = { index: null, direction: 'asc' };
-    let searchTimer = null;
 
     function setActivityIndicator(isVisible) {
         if (stockActivityIndicator) {
@@ -1986,16 +2097,17 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectionState();
     }
 
+    // La recherche texte est desormais geree cote serveur (voir plus bas,
+    // navigation sur ?q=...) : stockRows ne contient deja que des lots
+    // correspondants. Ne restent a filtrer cote client que le QR et la date
+    // (affinages rapides sur le resultat de recherche deja obtenu).
     function filterStockRows() {
-        const query = stockSearchInput ? stockSearchInput.value.trim().toLowerCase() : '';
         const qrFilter = qrTireFilter ? qrTireFilter.value : 'all';
         const dateFilter = stockDateFilter ? stockDateFilter.value : '';
         stockRows.forEach((row) => {
-            const text = row.dataset.search || '';
-            const matchesSearch = !query || text.includes(query);
             const matchesQr = qrFilter === 'all' || row.dataset.qrTire === qrFilter;
             const matchesDate = !dateFilter || rowDateValue(row) === dateFilter;
-            row.style.display = matchesSearch && matchesQr && matchesDate ? '' : 'none';
+            row.style.display = matchesQr && matchesDate ? '' : 'none';
         });
         updateVisibleCount();
 
@@ -2003,11 +2115,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const mobileList = document.getElementById('mobileStockList');
         const mobileCards = mobileList ? mobileList.querySelectorAll('.mobile-card') : [];
         mobileCards.forEach((card) => {
-            const text = card.getAttribute('data-search') ? card.getAttribute('data-search').toLowerCase() : card.textContent.toLowerCase();
-            const matchesSearch = !query || text.includes(query);
             const matchesQr = qrFilter === 'all' || card.dataset.qrTire === qrFilter;
             const matchesDate = !dateFilter || cardDateValue(card) === dateFilter;
-            card.style.display = matchesSearch && matchesQr && matchesDate ? '' : 'none';
+            card.style.display = matchesQr && matchesDate ? '' : 'none';
         });
     }
 
@@ -2124,16 +2234,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 0);
     }
 
-    if (stockSearchInput) {
-        stockSearchInput.addEventListener('input', () => {
-            window.clearTimeout(searchTimer);
-            setActivityIndicator(true);
-            searchTimer = window.setTimeout(() => {
-                filterStockRows();
-                setActivityIndicator(false);
-            }, 120);
-        });
+    // La recherche texte porte sur TOUT le stock (pas seulement la page
+    // affichee) : elle est donc envoyee au serveur (?q=...), en rechargement
+    // normal -- l'indicateur d'activite de navigation (base.html) s'affiche
+    // via showNavLoadingOverlay(). Declenchee explicitement (bouton ou
+    // Entree), pas pendant la frappe : sur un vrai rechargement de page, une
+    // saisie lente ou hesitante declencherait des recherches prematurees en
+    // boucle. La saisie mobile est synchronisee sur stockSearchInput (voir
+    // plus bas), donc son propre bouton/Entree passe par la meme fonction.
+    function goToStockSearch() {
+        const url = new URL(window.location.href);
+        const q = stockSearchInput ? stockSearchInput.value.trim() : '';
+        if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
+        url.searchParams.delete('page');
+        if (window.showNavLoadingOverlay) window.showNavLoadingOverlay();
+        window.location.href = url.toString();
     }
+    const stockSearchBtn = document.getElementById('stockSearchBtn');
+    const stockSearchBtnMobile = document.getElementById('stockSearchBtnMobile');
+    if (stockSearchBtn) stockSearchBtn.addEventListener('click', goToStockSearch);
+    if (stockSearchBtnMobile) stockSearchBtnMobile.addEventListener('click', goToStockSearch);
+    [stockSearchInput, document.getElementById('stockSearchInputMobile')].forEach((input) => {
+        if (!input) return;
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                goToStockSearch();
+            }
+        });
+    });
 
     if (qrTireFilter) {
         qrTireFilter.addEventListener('change', () => {
@@ -2321,13 +2450,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateVisibleCount();
 
-    // Deep-link depuis les alertes du tableau de bord : /admin/stock?q=CODE_SUIVI
-    const presetQuery = new URLSearchParams(window.location.search).get('q');
-    if (presetQuery && stockSearchInput) {
-        stockSearchInput.value = presetQuery;
-        if (stockSearchInputMobile) stockSearchInputMobile.value = presetQuery;
-        filterStockRows();
-
+    // Deep-link depuis les alertes du tableau de bord : /admin/stock?q=CODE_SUIVI --
+    // la recherche est deja appliquee cote serveur (stocks = seulement ce qui
+    // correspond, stockSearchInput deja pre-rempli), reste juste a mettre en
+    // avant le premier resultat.
+    if (stockSearchInput && stockSearchInput.value.trim()) {
         const mobileCards = document.querySelectorAll('#mobileStockList .mobile-card');
         const visible = visibleStockRows().concat(
             Array.from(mobileCards).filter(card => card.style.display !== 'none')

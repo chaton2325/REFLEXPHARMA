@@ -1610,7 +1610,10 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
 
             var progressBar = document.getElementById('navLoadingProgressBar');
             var cancelBtn = document.getElementById('navLoadingCancelBtn');
-            var NAV_LINKS_SELECTOR = '.sidebar-nav a[href], .offcanvas-body a[href], .mobile-bottom-nav a[href], .feature-card a[href], .inventaire-banner-btn[href]';
+            // .js-nav-loading : opt-in generique pour des liens hors des zones de
+            // nav habituelles (ex : pagination, tri par colonne) qui declenchent
+            // aussi un vrai rechargement de page.
+            var NAV_LINKS_SELECTOR = '.sidebar-nav a[href], .offcanvas-body a[href], .mobile-bottom-nav a[href], .feature-card a[href], .inventaire-banner-btn[href], .js-nav-loading[href]';
             var progressTimer = null;
             var progress = 0;
 
@@ -1633,6 +1636,12 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
                 clearInterval(progressTimer);
                 progressTimer = setInterval(tickProgress, 200);
             }
+
+            // Expose pour les pages qui declenchent elles-memes une navigation en
+            // JS (ex : recherche serveur debounced sur Catalogue/Stock) et ont donc
+            // besoin d'afficher l'overlay avant un window.location.href/submit()
+            // qui n'est pas un simple clic sur <a href>.
+            window.showNavLoadingOverlay = showOverlay;
 
             function hideOverlay() {
                 clearInterval(progressTimer);

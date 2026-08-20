@@ -52,6 +52,7 @@ from utils.mailer import (
 from utils import fidelite
 from utils import arrondi
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
 from .carte_fidelite_render import build_cartes_fidelite_pdf, build_carte_fidelite_png
@@ -4290,18 +4291,50 @@ def delete_section(id):
     return redirect(url_for('admin.list_sections'))
 
 # --- GESTION DES PRODUITS ---
+PRODUITS_PAGE_SIZE = 150
+
 @admin.route('/produits')
 @login_required
 @permission_required('gestion_produits')
 def list_produits():
-    produits = Produit.query.all()
-    fournisseurs_list = Fournisseur.query.all()
-    rayons_list = Rayon.query.all()
-    familles_list = Famille.query.all()
-    return render_template('admin/produits/list.html', produits=produits, 
-                           fournisseurs_list=fournisseurs_list, 
-                           rayons_list=rayons_list, 
-                           familles_list=familles_list)
+    # Recherche/filtres/tri cote serveur (reutilise _produits_export_query(),
+    # deja utilisee par les exports Excel/PDF/CSV pour retrouver exactement ce
+    # que l'utilisateur voit a l'ecran) + pagination + eager-loading
+    # (fournisseur/rayon/famille) : avant, TOUT le catalogue etait charge et
+    # rendu d'un coup (tres lent des que le catalogue grossit), et la recherche
+    # ne portait que sur les lignes deja dans la page -- un produit sur une
+    # autre "page" restait introuvable. Desormais la recherche porte sur le
+    # catalogue entier, la pagination ne sert plus qu'a limiter ce qui est
+    # rendu par page. Le compteur "Total Produits" en haut reste base sur le
+    # catalogue entier (total_produits), pas sur les resultats filtres.
+    page = request.args.get('page', 1, type=int)
+    total_produits = Produit.query.count()
+    pagination = (
+        _produits_export_query()
+        .options(
+            joinedload(Produit.fournisseur),
+            joinedload(Produit.rayon),
+            joinedload(Produit.famille),
+        )
+        .paginate(page=page, per_page=PRODUITS_PAGE_SIZE, error_out=False)
+    )
+    produits = pagination.items
+    fournisseurs_list = Fournisseur.query.order_by(Fournisseur.nom.asc()).all()
+    rayons_list = Rayon.query.order_by(Rayon.nom.asc()).all()
+    familles_list = Famille.query.order_by(Famille.nom.asc()).all()
+    return render_template('admin/produits/list.html', produits=produits,
+                           fournisseurs_list=fournisseurs_list,
+                           rayons_list=rayons_list,
+                           familles_list=familles_list,
+                           total_produits=total_produits,
+                           pagination=pagination,
+                           search_q=(request.args.get('q') or '').strip(),
+                           search_fournisseur=(request.args.get('fournisseur') or '').strip(),
+                           search_rayon=(request.args.get('rayon') or '').strip(),
+                           search_famille=(request.args.get('famille') or '').strip(),
+                           search_detail=(request.args.get('detail') or '').strip(),
+                           sort_field=request.args.get('sort', 'nom'),
+                           sort_dir='desc' if request.args.get('dir') == 'desc' else 'asc')
 
 @admin.route('/produits/create', methods=['GET', 'POST'])
 @login_required
@@ -5148,6 +5181,8 @@ def stock_produits_search():
                 ]
     return jsonify(result)
 
+STOCK_PAGE_SIZE = 150
+
 @admin.route('/stock', methods=['GET', 'POST'])
 @login_required
 @permission_required('gestion_stock')
@@ -5223,20 +5258,75 @@ def manage_stock():
             flash(f'{len(rows)} entrées en stock enregistrées avec succès.', 'stock_success')
         return redirect(url_for('admin.manage_stock'))
 
-    stocks = Stock.query.join(Produit).order_by(Produit.nom.asc(), Stock.date_peremption.asc()).all()
-    total_stock_entries = len(stocks)
-    total_produits_en_stock = len(set(s.produit_id for s in stocks))
-    total_quantite = sum(s.quantite_totale for s in stocks)
-    qr_non_tires = sum(1 for s in stocks if not s.qr_tire)
+    # Recherche cote serveur (q, sur produit/CIP/code suivi/BL/fournisseur) +
+    # pagination + eager-loading (produit + son fournisseur) : avant, TOUS les
+    # lots etaient charges/rendus d'un coup, avec 2 requetes de plus par ligne
+    # rien que pour "Nom produit | Fournisseur" (N+1) -- tres lent des que le
+    # stock s'accumule, et la recherche ne portait que sur les lots deja dans
+    # la page. Le filtre QR/date et le tri restent cote client (JS existant,
+    # inchange) : ils affinent desormais le resultat de la recherche serveur
+    # au lieu de tout le stock, ce qui reste coherent (une recherche precede
+    # naturellement ces reglages fins). Les stats du haut (total, produits
+    # distincts, quantite, QR non tires) restent calculees a part directement
+    # en base, sur l'ensemble du stock, jamais juste la recherche/la page.
+    q = (request.args.get('q') or '').strip()
+    stock_query = (
+        Stock.query
+        .options(joinedload(Stock.produit).joinedload(Produit.fournisseur))
+        .join(Produit)
+        .outerjoin(Fournisseur, Produit.fournisseur_id == Fournisseur.id)
+    )
+    if q:
+        like = f'%{q}%'
+        stock_query = stock_query.filter(db.or_(
+            Produit.nom.ilike(like),
+            Produit.code_produit.ilike(like),
+            Stock.code_suivi.ilike(like),
+            Stock.numero_bl.ilike(like),
+            Fournisseur.nom.ilike(like),
+        ))
+    page = request.args.get('page', 1, type=int)
+    pagination = (
+        stock_query
+        .order_by(Produit.nom.asc(), Stock.date_peremption.asc())
+        .paginate(page=page, per_page=STOCK_PAGE_SIZE, error_out=False)
+    )
+    stocks = pagination.items
+    # Les cartes de stats du haut (entrees, produits distincts, quantite, QR,
+    # marge/TVA/CA) sont chargees a part en JS une fois la page affichee (voir
+    # /admin/api/stock-stats) plutot que calculees ici : la marge/TVA/CA
+    # dependent du prix de vente par produit (coefficient, TVA, arrondi -- voir
+    # Stock.benefice_total/tva_total/prix_ttc_total) et necessitent donc de
+    # boucler sur tout le stock, ce qui ne doit pas retarder le premier rendu
+    # de la liste elle-meme.
     return render_template('admin/stock/list.html',
-        stocks=stocks, reasons=reasons,
+        stocks=stocks, reasons=reasons, pagination=pagination, search_q=q,
         fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
-        total_stock_entries=total_stock_entries,
-        total_produits_en_stock=total_produits_en_stock,
-        total_quantite=total_quantite,
-        qr_non_tires=qr_non_tires,
         arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier()
     )
+
+@admin.route('/api/stock-stats')
+@login_required
+@permission_required('gestion_stock')
+def stock_stats():
+    """Stats globales du stock (cartes en haut de /admin/stock) : chargees a
+    part en JS apres l'affichage de la page (meme principe que
+    dashboard_alerts), pour ne jamais retarder le rendu de la liste. Marge
+    brute/TVA/chiffre d'affaires reutilisent les proprietes Python du modele
+    (deja correctes vis-a-vis du coefficient/TVA effectifs et de l'arrondi
+    configure) plutot qu'une reimplementation SQL : boucler sur tout le stock
+    ici est acceptable puisque justement fait de maniere asynchrone, a part du
+    premier rendu."""
+    stocks = Stock.query.options(joinedload(Stock.produit)).all()
+    return jsonify({
+        'total_stock_entries': len(stocks),
+        'total_produits_en_stock': len(set(s.produit_id for s in stocks)),
+        'total_quantite': sum(s.quantite_totale for s in stocks),
+        'qr_non_tires': sum(1 for s in stocks if not s.qr_tire),
+        'marge_brute_totale': round(sum(s.benefice_total for s in stocks), 2),
+        'tva_totale': round(sum(s.tva_total for s in stocks), 2),
+        'chiffre_affaires_total': round(sum(s.prix_ttc_total for s in stocks), 2),
+    })
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
 @login_required

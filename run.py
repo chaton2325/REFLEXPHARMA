@@ -235,6 +235,19 @@ def setup_database():
         except Exception:
             db.session.rollback()
 
+        # Index de performance sur les colonnes filtrees/jointes/triees par les
+        # pages Catalogue (admin.list_produits) et Stock (admin.manage_stock) :
+        # sans eux, ces requetes degradent de plus en plus a mesure que le
+        # catalogue/le stock grossissent (pas de FK -> index automatique sur
+        # Postgres).
+        try:
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_produits_nom ON produits (nom);"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_produits_fournisseur_id ON produits (fournisseur_id);"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_entries_produit_id ON stock_entries (produit_id);"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_entries_date_peremption ON stock_entries (date_peremption);"))
+        except Exception:
+            db.session.rollback()
+
         db.session.commit()
         print("Structure de la base de données vérifiée et mise à jour.")
 
