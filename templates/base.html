@@ -1635,15 +1635,23 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             }
 
             function hideOverlay() {
-                // window.stop() annule la navigation en cours (equivalent au bouton
-                // "stop" du navigateur) : sans ca, une navigation deja lancee finirait
-                // par remplacer la page meme apres une fermeture manuelle de l'overlay.
-                // Ne fait rien s'il n'y a rien a interrompre (retour bfcache, page deja
-                // chargee), donc sans danger sur les autres appels (pageshow...).
-                if (window.stop) window.stop();
                 clearInterval(progressTimer);
                 overlay.classList.remove('show');
                 setProgress(0);
+            }
+
+            function cancelNavigation() {
+                // window.stop() annule la navigation en cours (equivalent au bouton
+                // "stop" du navigateur) : sans ca, une navigation deja lancee finirait
+                // par remplacer la page meme apres une fermeture manuelle de l'overlay.
+                // Reserve aux fermetures manuelles (bouton Annuler, clic hors boite,
+                // Echap) : PAS a "pageshow", qui se declenche sur CHAQUE arrivee sur
+                // une page (pas seulement un retour bfcache) et stopperait alors aussi
+                // les requetes legitimes que la page qui vient de charger a elle-meme
+                // lancees (ex : le fetch des alertes du tableau de bord, encore en
+                // cours a ce moment-la).
+                if (window.stop) window.stop();
+                hideOverlay();
             }
 
             document.addEventListener('click', function(e) {
@@ -1665,12 +1673,12 @@ html[data-bs-theme="dark"] .main-content [style*="color: #adb5bd" i] { color: #8
             // une navigation (lien casse, action interceptee...) : clic hors
             // de la boite ou touche Echap.
             overlay.addEventListener('click', function(e) {
-                if (e.target === overlay) hideOverlay();
+                if (e.target === overlay) cancelNavigation();
             });
             document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && overlay.classList.contains('show')) hideOverlay();
+                if (e.key === 'Escape' && overlay.classList.contains('show')) cancelNavigation();
             });
-            if (cancelBtn) cancelBtn.addEventListener('click', hideOverlay);
+            if (cancelBtn) cancelBtn.addEventListener('click', cancelNavigation);
 
             // Navigation retour/avant restauree depuis le cache (bfcache) :
             // la page reapparait telle quelle, l'overlay ne doit pas rester affiche.
