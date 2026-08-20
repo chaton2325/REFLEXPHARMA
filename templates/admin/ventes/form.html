@@ -179,6 +179,31 @@
   }
   .info-pane .stat-card { box-shadow: none; border: 1px solid #efe8c0; }
 
+  /* Modal "Voir les détails" d'un produit (bouton i) : zones encadrées
+     colorées par theme (identification / stock / tarifs / fidélité) au lieu
+     d'une simple grille grise, pour reperer l'info d'un coup d'oeil. */
+  .info-section { border-radius: 10px; padding: 0.65rem 0.75rem; border: 1px solid transparent; }
+  .info-section-title {
+    display: flex; align-items: center;
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.3px; margin-bottom: 0.55rem;
+  }
+  .info-section-blue { background: #e8f1fb; border-color: #d3e4f7; }
+  .info-section-blue .info-section-title { color: #1a5fa8; }
+  .info-section-green { background: #e6f6ec; border-color: #bfe8cf; }
+  .info-section-green .info-section-title { color: #1f8a4c; }
+  .info-section-amber { background: #fefce8; border-color: #f1ecc9; }
+  .info-section-amber .info-section-title { color: #b45309; }
+  .info-section-purple { background: #f4eefc; border-color: #e2d4f5; }
+  .info-section-purple .info-section-title { color: #6f42c1; }
+
+  .info-field-label { font-size: 0.62rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.2px; }
+  .info-field-value { font-size: 0.85rem; font-weight: 600; color: #1a1a2e; word-break: break-word; }
+
+  .info-price-tile { background: rgba(255,255,255,0.65); border: 1px solid #f1ecc9; border-radius: 8px; padding: 0.4rem; text-align: center; height: 100%; }
+  .info-price-label { font-size: 0.6rem; font-weight: 700; color: #b45309; text-transform: uppercase; }
+  .info-price-value { font-size: 0.95rem; font-weight: 800; color: #92400e; }
+
   /* --- Panier : lignes de vente (cartes) --- */
   #saleLinesBody { counter-reset: sale-line; }
   .sale-line {
@@ -465,6 +490,12 @@
     .meta-box { padding: 0.28rem 0.42rem; font-size: 0.6rem; line-height: 1.3; }
     .meta-box .text-muted { font-size: 0.56rem; }
     .client-pane, .info-pane { padding: 0.36rem; border-radius: 8px; }
+
+    .info-section { padding: 0.5rem 0.6rem; }
+    .info-section-title { font-size: 0.66rem; }
+    .info-field-label { font-size: 0.58rem; }
+    .info-field-value { font-size: 0.78rem; }
+    .info-price-value { font-size: 0.85rem; }
     /* Méta client sur 2 colonnes pour réduire la hauteur */
     #clientSelectedMeta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 0.5rem; }
     #clientSelectedMeta > .fw-bold { grid-column: 1 / -1; }
@@ -1353,15 +1384,18 @@
 </div>
 
 <div class="modal fade" id="productInfoModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
-        <div class="modal-content">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title" id="productInfoTitle">Détails produit</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border:none;">
+                <div style="min-width:0;">
+                    <h5 class="modal-title text-truncate mb-0" id="productInfoTitle">Détails produit</h5>
+                    <div class="small text-truncate" style="opacity:0.85;" id="productInfoSubtitle"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white flex-shrink-0" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="productInfoBody"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
     </div>
@@ -1930,31 +1964,71 @@ document.addEventListener('DOMContentLoaded', function() {
         return remainingAfterGroup - covered;
     }
 
+    const PRICE_TTC_DATASET_KEY = { unite: 'uniteTtc', sous_unite: 'sousUniteTtc', sous_sous_unite: 'sousSousUniteTtc' };
+
     function showProductInfo(option) {
         if (!option) return;
         const pointsFidelite = Math.round(toNumber(option.dataset.pointsFidelite));
         const pointsBadge = pointsFidelite > 0
             ? `<span class="badge bg-success"><i class="fas fa-star me-1"></i>${pointsFidelite} point${pointsFidelite > 1 ? 's' : ''} / unité</span>`
             : `<span class="badge bg-secondary">Aucun point fidélité</span>`;
+
+        // Memes paliers U/SU/SSU (selon conditionnement) et memes pastilles que
+        // le panier (voir updateLineStockState) : coherence visuelle + reponse
+        // a "ca doit montrer si on detail le produit ou pas" ici aussi.
+        const conditionnement = Math.min(Math.max(parseInt(option.dataset.conditionnement || '1', 10), 1), 3);
+        const applicableTiers = UNIT_TIERS.filter((tier) => tier.minConditionnement <= conditionnement);
+        const stockChips = applicableTiers.map((tier) => {
+            const stock = getSelectedStock(option, tier.key);
+            const stateClass = stock > 0 ? 'stock-chip-ok' : 'stock-chip-empty';
+            return `<span class="stock-chip ${stateClass}">${tier.label} : ${formatMoney(stock)}</span>`;
+        }).join('');
+        const detailNote = applicableTiers.length > 1
+            ? '<span class="stock-detail-note"><i class="fas fa-layer-group"></i>Vendu au détail</span>'
+            : '<span class="stock-detail-note stock-detail-note-muted"><i class="fas fa-box"></i>Vendu entier uniquement</span>';
+        const priceTiles = applicableTiers.map((tier) => `
+            <div class="col-4">
+                <div class="info-price-tile">
+                    <div class="info-price-label">Prix ${tier.label}</div>
+                    <div class="info-price-value">${formatMoney(toNumber(option.dataset[PRICE_TTC_DATASET_KEY[tier.key]]))}</div>
+                </div>
+            </div>
+        `).join('');
+
         document.getElementById('productInfoTitle').textContent = getOptionTitle(option);
+        document.getElementById('productInfoSubtitle').textContent = `${option.dataset.productCode || '-'} · ${option.dataset.fournisseur || 'Fournisseur inconnu'}`;
         document.getElementById('productInfoBody').innerHTML = `
-            <div class="row g-3">
-                <div class="col-md-6"><div class="text-muted small">Code produit</div><div class="fw-bold">${escapeHtml(option.dataset.productCode || '-')}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Fournisseur</div><div>${escapeHtml(option.dataset.fournisseur || '-')}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Groupe fournisseur</div><div>${escapeHtml(option.dataset.groupeFournisseur || '-')}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Conditionnement</div><div>${escapeHtml(option.dataset.conditionnement || '-')}</div></div>
-                <div class="col-12"><div class="text-muted small">Codes de suivi</div><div>${escapeHtml(option.dataset.trackingCodes || '-')}</div></div>
-                <div class="col-12"><div class="text-muted small">Dates de péremption</div><div>${escapeHtml(option.dataset.expiryDates || '-')}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Stock U</div><div>${formatMoney(getSelectedStock(option, 'unite'))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Stock SU</div><div>${formatMoney(getSelectedStock(option, 'sous_unite'))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Stock SSU</div><div>${formatMoney(getSelectedStock(option, 'sous_sous_unite'))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Prix U TTC</div><div>${formatMoney(toNumber(option.dataset.uniteTtc))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Prix SU TTC</div><div>${formatMoney(toNumber(option.dataset.sousUniteTtc))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Prix SSU TTC</div><div>${formatMoney(toNumber(option.dataset.sousSousUniteTtc))}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Rayon</div><div>${escapeHtml(option.dataset.rayon || '-')}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Famille</div><div>${escapeHtml(option.dataset.famille || '-')}</div></div>
-                <div class="col-md-4"><div class="text-muted small">Section</div><div>${escapeHtml(option.dataset.section || '-')}</div></div>
-                <div class="col-12"><div class="text-muted small">Fidélité</div><div>${pointsBadge}</div></div>
+            <div class="d-flex flex-column gap-3">
+                <div class="info-section info-section-blue">
+                    <div class="info-section-title"><i class="fas fa-store me-1"></i>Identification</div>
+                    <div class="row g-2">
+                        <div class="col-6 col-md-4"><div class="info-field-label">Code produit</div><div class="info-field-value">${escapeHtml(option.dataset.productCode || '-')}</div></div>
+                        <div class="col-6 col-md-4"><div class="info-field-label">Fournisseur</div><div class="info-field-value">${escapeHtml(option.dataset.fournisseur || '-')}</div></div>
+                        <div class="col-6 col-md-4"><div class="info-field-label">Groupe fournisseur</div><div class="info-field-value">${escapeHtml(option.dataset.groupeFournisseur || '-')}</div></div>
+                        <div class="col-6 col-md-4"><div class="info-field-label">Rayon</div><div class="info-field-value">${escapeHtml(option.dataset.rayon || '-')}</div></div>
+                        <div class="col-6 col-md-4"><div class="info-field-label">Famille</div><div class="info-field-value">${escapeHtml(option.dataset.famille || '-')}</div></div>
+                        <div class="col-6 col-md-4"><div class="info-field-label">Section</div><div class="info-field-value">${escapeHtml(option.dataset.section || '-')}</div></div>
+                    </div>
+                </div>
+
+                <div class="info-section info-section-green">
+                    <div class="info-section-title"><i class="fas fa-boxes me-1"></i>Stock &amp; conditionnement</div>
+                    <div class="stock-available mb-2">${stockChips}${detailNote}</div>
+                    <div class="row g-2">
+                        <div class="col-12"><div class="info-field-label">Codes de suivi</div><div class="info-field-value">${escapeHtml(option.dataset.trackingCodes || '-')}</div></div>
+                        <div class="col-12"><div class="info-field-label">Dates de péremption</div><div class="info-field-value">${escapeHtml(option.dataset.expiryDates || '-')}</div></div>
+                    </div>
+                </div>
+
+                <div class="info-section info-section-amber">
+                    <div class="info-section-title"><i class="fas fa-tag me-1"></i>Tarification (TTC)</div>
+                    <div class="row g-2">${priceTiles}</div>
+                </div>
+
+                <div class="info-section info-section-purple">
+                    <div class="info-section-title"><i class="fas fa-star me-1"></i>Fidélité</div>
+                    ${pointsBadge}
+                </div>
             </div>
         `;
         bootstrap.Modal.getOrCreateInstance(document.getElementById('productInfoModal')).show();

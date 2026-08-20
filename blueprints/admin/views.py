@@ -2153,6 +2153,12 @@ def get_products_stock_expiry_dates(produits):
                 + (stock.quantite_sous_unites or 0)
                 + (stock.quantite_sous_sous_unites or 0)
             )
+            # Meme filtre que get_products_stock_tracking_codes ci-dessus : un lot
+            # epuise (vendu/sorti en totalite) ne doit pas polluer la liste, sinon
+            # elle desynchronise du nombre de codes de suivi affiches (ex: 2 codes
+            # de suivi actifs mais 3 dates de peremption dont une a Total:0).
+            if total <= 0:
+                continue
             label = stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else '-'
             expiries.append(
                 f'{label} '
