@@ -63,6 +63,35 @@
     .stat-card .stat-label { font-size: 0.6rem; }
   }
 
+  /* Barre de progression REELLE (octets recus / Content-Length de la reponse
+     JSON, pas une animation simulee) affichee pendant le chargement en JS de
+     la liste -- voir fetchJsonWithProgress. */
+  #allVentesProgressWrap { height: 3px; background: #f1e3e3; overflow: hidden; border-radius: 14px 14px 0 0; }
+  #allVentesProgressBar { height: 100%; width: 0%; background: linear-gradient(90deg,#3498db,#2c3e50); transition: width 0.12s linear; }
+  #allVentesProgressBar.indeterminate {
+    width: 40% !important;
+    animation: allVentesProgressIndeterminate 1.1s ease-in-out infinite;
+  }
+  @keyframes allVentesProgressIndeterminate {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+  .ventes-activity-indicator { font-size: 0.72rem; color: #7a8896; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .ventes-activity-indicator .spinner-border { width: 0.75rem; height: 0.75rem; border-width: 2px; }
+
+  .ventes-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.3rem; padding: 0.75rem; }
+  .ventes-pagination .page-btn {
+    min-width: 32px; height: 32px; padding: 0 0.5rem; border-radius: 8px;
+    border: 1px solid #e8edf4; background: #fff; color: #2c3e50; font-size: 0.78rem; font-weight: 600;
+  }
+  .ventes-pagination .page-btn:hover:not(:disabled) { background: #f4f7fb; }
+  .ventes-pagination .page-btn.active { background: linear-gradient(135deg,#2c3e50,#3498db); color: #fff; border-color: transparent; }
+  .ventes-pagination .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ventes-pagination .page-ellipsis { color: #b3bcc6; padding: 0 0.2rem; font-size: 0.78rem; }
+
+  .ventes-toolbar { background: #f8f9fb; border-radius: 12px 12px 0 0; }
+  html[data-bs-theme="dark"] .ventes-toolbar { background: #16202b; }
+
   @media print {
     body { background: #fff !important; }
     .btn, .navbar, .breadcrumb, .d-print-none { display: none !important; }
@@ -94,6 +123,9 @@
         <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-light btn-sm">
             <i class="fas fa-arrow-left me-1"></i> Retour
         </a>
+        <a href="{{ url_for('admin.ventes_stats') }}" class="btn btn-light btn-sm" title="Voir les statistiques des ventes">
+            <i class="fas fa-chart-pie me-1"></i> Statistiques
+        </a>
         <a href="{{ url_for('admin.list_raisons_annulation_vente') }}" class="btn btn-light btn-sm" title="Gérer les raisons d'annulation">
             <i class="fas fa-ban me-1"></i> Raisons
         </a>
@@ -104,21 +136,23 @@
   </div>
 </div>
 
-<!-- Filters -->
-<form method="GET" class="card-form mb-3 d-print-none">
+<!-- Filters : interceptes en JS (voir script), jamais un vrai rechargement de
+     page -- la recherche porte sur tout l'historique cote serveur (voir
+     get_filtered_ventes dans list_all_ventes_data), pas juste la page affichee. -->
+<form id="ventesFilterForm" class="card-form mb-3 d-print-none">
     <div class="p-3 p-sm-4">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Recherche</label>
-                <input type="text" name="q" class="form-control form-control-sm" value="{{ request.args.get('q', '') }}" placeholder="Numéro, client, auteur...">
+                <input type="text" name="q" id="ventesSearchInput" class="form-control form-control-sm" placeholder="Numéro, client, auteur...">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Statut</label>
                 <select name="statut" class="form-select form-select-sm">
                     <option value="">Tous</option>
-                    <option value="validee" {% if request.args.get('statut') == 'validee' %}selected{% endif %}>Validee</option>
-                    <option value="brouillon" {% if request.args.get('statut') == 'brouillon' %}selected{% endif %}>Brouillon</option>
-                    <option value="annulee" {% if request.args.get('statut') == 'annulee' %}selected{% endif %}>Annulee</option>
+                    <option value="validee">Validee</option>
+                    <option value="brouillon">Brouillon</option>
+                    <option value="annulee">Annulee</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -126,25 +160,25 @@
                 <select name="raison_annulation_id" class="form-select form-select-sm">
                     <option value="">Toutes</option>
                     {% for r in raisons_annulation %}
-                    <option value="{{ r.id }}" {% if request.args.get('raison_annulation_id')|int == r.id %}selected{% endif %}>{{ r.nom }}</option>
+                    <option value="{{ r.id }}">{{ r.nom }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Date début</label>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from', '') }}">
+                <input type="date" name="date_from" class="form-control form-control-sm">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Date fin</label>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to', '') }}">
+                <input type="date" name="date_to" class="form-control form-control-sm">
             </div>
             <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-primary btn-sm flex-fill">
-                    <i class="fas fa-filter me-1"></i> Appliquer les filtres
+                    <i class="fas fa-filter me-1"></i> Rechercher
                 </button>
-                <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-outline-secondary btn-sm">
+                <button type="button" id="ventesResetFiltersBtn" class="btn btn-outline-secondary btn-sm" title="Réinitialiser les filtres">
                     <i class="fas fa-rotate-left"></i>
-                </a>
+                </button>
             </div>
         </div>
     </div>
@@ -155,7 +189,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;"><i class="fas fa-receipt"></i></div>
       <div>
-        <div class="stat-number">{{ ventes|length }}</div>
+        <div class="stat-number" id="statTotalVentes">…</div>
         <div class="stat-label">Total des ventes</div>
       </div>
     </div>
@@ -164,7 +198,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#e6f7ee,#c8f0d9);color:#1e8e3e;"><i class="fas fa-chart-line"></i></div>
       <div>
-        <div class="stat-number">{{ "%.2f"|format(total_benefice) }}</div>
+        <div class="stat-number" id="statBenefice">…</div>
         <div class="stat-label">Marge brute</div>
       </div>
     </div>
@@ -173,7 +207,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#fef7e0,#fde8b3);color:#e37400;"><i class="fas fa-percent"></i></div>
       <div>
-        <div class="stat-number">{{ "%.2f"|format(total_tva_reelle) }}</div>
+        <div class="stat-number" id="statTva">…</div>
         <div class="stat-label">TVA effective</div>
       </div>
     </div>
@@ -182,7 +216,7 @@
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:linear-gradient(135deg,#fee8e8,#fcc5c5);color:#d93025;"><i class="fas fa-sack-dollar"></i></div>
       <div>
-        <div class="stat-number">{{ "%.2f"|format(ventes|sum(attribute='total_ttc')) }}</div>
+        <div class="stat-number" id="statTtc">…</div>
         <div class="stat-label">Chiffre d'affaires (TTC)</div>
       </div>
     </div>
@@ -190,40 +224,20 @@
 </div>
 
 <div class="card-custom">
-    <!-- Mobile cards: no horizontal scroll -->
-    <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileAllVenteList">
-        {% for vente in ventes %}
-        <div class="mobile-card">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-                <div style="min-width:0;">
-                    <div class="fw-bold" style="font-size:0.85rem;">{{ vente.numero_vente }}</div>
-                    <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%y %H:%M') if vente.created_at else '-' }} · {{ vente.client_label }}</div>
-                </div>
-                <div class="d-flex gap-1 flex-shrink-0 d-print-none">
-                    <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-eye" style="font-size:0.7rem;"></i>
-                    </a>
-                    {% if vente.statut != 'annulee' %}
-                    <button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="{{ vente.id }}" data-vente-numero="{{ vente.numero_vente }}" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;" title="Annuler cette vente">
-                        <i class="fas fa-ban" style="font-size:0.7rem;"></i>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-            {% if vente.statut == 'annulee' %}
-            <div class="mt-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.65rem;" title="{{ vente.raison_annulation_nom or '' }}"><i class="fas fa-ban me-1"></i>Annulée — {{ vente.raison_annulation_nom }}</span></div>
-            {% endif %}
-            <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
-                <span>HT <strong>{{ "%.2f"|format(vente.total_ht) }}</strong></span>
-                <span class="amount-benefice">Marge <strong>{{ "%.2f"|format(vente.total_benefice) }}</strong></span>
-                <span class="amount-tva">TVA <strong>{{ "%.2f"|format(vente.total_tva_reelle) }}</strong></span>
-                <span class="text-success">TTC <strong>{{ "%.2f"|format(vente.total_ttc) }}</strong></span>
-            </div>
-        </div>
-        {% else %}
-        <div class="text-center py-4 text-muted">Aucune vente trouvée.</div>
-        {% endfor %}
+    <div id="allVentesProgressWrap" class="d-none"><div id="allVentesProgressBar"></div></div>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2 border-bottom d-print-none">
+        <span class="ventes-activity-indicator" id="allVentesActivityIndicator">
+            <span class="spinner-border text-primary" role="status"></span>
+            <span id="allVentesActivityText">Chargement...</span>
+        </span>
+        <span class="cell-sub" id="allVentesRangeLabel"></span>
     </div>
+
+    <div id="allVentesPaginationTop" class="ventes-pagination d-print-none"></div>
+
+    <!-- Mobile cards: no horizontal scroll -->
+    <div class="d-sm-none p-2" style="display:flex;flex-direction:column;gap:0.5rem;" id="mobileAllVenteList"></div>
 
     <!-- Desktop table -->
     <div class="table-responsive d-none d-sm-block">
@@ -241,45 +255,11 @@
                     <th class="text-end d-print-none">Actions</th>
                 </tr>
             </thead>
-            <tbody>
-                {% for vente in ventes %}
-                <tr>
-                    <td>
-                        <div class="fw-bold">{{ vente.numero_vente }}</div>
-                        <div class="cell-sub">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</div>
-                    </td>
-                    <td>
-                        <div>{{ vente.client_label }}</div>
-                        <div class="cell-sub">{{ vente.groupe_client_nom or 'Client comptoir' }}</div>
-                    </td>
-                    <td>
-                        <span class="badge bg-light text-dark border">{{ vente.mode_paiement.replace('_', ' ') }}</span>
-                        {% if vente.statut == 'annulee' %}
-                        <div class="cell-sub text-danger fw-semibold" title="{{ vente.raison_annulation_nom or '' }}"><i class="fas fa-ban me-1"></i>Annulée — {{ vente.raison_annulation_nom }}</div>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">{{ "%.2f"|format(vente.total_ht) }}</td>
-                    <td class="text-end amount-benefice">{{ "%.2f"|format(vente.total_benefice) }}</td>
-                    <td class="text-end amount-tva">{{ "%.2f"|format(vente.total_tva_reelle) }}</td>
-                    <td class="text-end fw-bold text-success">{{ "%.2f"|format(vente.total_ttc) }}</td>
-                    <td>{{ vente.auteur_prenom }} {{ vente.auteur_nom }}</td>
-                    <td class="text-end d-print-none">
-                        <a href="{{ url_for('admin.detail_vente', id=vente.id) }}" class="btn btn-sm btn-outline-info" title="Voir">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        {% if vente.statut != 'annulee' %}
-                        <button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="{{ vente.id }}" data-vente-numero="{{ vente.numero_vente }}" title="Annuler cette vente">
-                            <i class="fas fa-ban"></i>
-                        </button>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="9" class="text-center py-5 text-muted">Aucune vente trouvée.</td></tr>
-                {% endfor %}
-            </tbody>
+            <tbody id="allVentesTableBody"></tbody>
         </table>
     </div>
+
+    <div id="allVentesPaginationBottom" class="ventes-pagination d-print-none"></div>
 </div>
 
 <!-- Modal d'annulation de vente : voir templates/admin/ventes/list.html pour le
@@ -326,8 +306,236 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  const DATA_URL = "{{ url_for('admin.list_all_ventes_data') }}";
+  const moneyFormatter = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function fmtMoney(v) { return moneyFormatter.format(Number(v || 0)); }
+  function fmtInt(v) { return String(Math.round(Number(v || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // --- Chargement JSON avec une VRAIE barre de progression : suit les octets
+  // recus (ReadableStream) rapportes au Content-Length de CETTE reponse,
+  // jamais une animation temporelle simulee. Si le navigateur ou la reponse
+  // ne permet pas cette mesure (pas de body.getReader ou pas de
+  // Content-Length), bascule en mode indetermine plutot que d'inventer un
+  // pourcentage.
+  const progressWrap = document.getElementById('allVentesProgressWrap');
+  const progressBar = document.getElementById('allVentesProgressBar');
+
+  function showProgress() {
+      progressWrap.classList.remove('d-none');
+      progressBar.classList.add('indeterminate');
+      progressBar.style.width = '0%';
+  }
+  function setProgress(ratio) {
+      progressBar.classList.remove('indeterminate');
+      progressBar.style.width = Math.round(Math.min(Math.max(ratio, 0), 1) * 100) + '%';
+  }
+  function hideProgress() {
+      setTimeout(() => progressWrap.classList.add('d-none'), 150);
+  }
+
+  function fetchJsonWithProgress(url) {
+      showProgress();
+      return fetch(url, { headers: { 'Accept': 'application/json' } }).then((response) => {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const contentLength = response.headers.get('Content-Length');
+          const total = contentLength ? parseInt(contentLength, 10) : 0;
+          if (!response.body || !response.body.getReader || !total) {
+              return response.json();
+          }
+          const reader = response.body.getReader();
+          const chunks = [];
+          let received = 0;
+          function pump() {
+              return reader.read().then(({ done, value }) => {
+                  if (done) {
+                      let length = 0;
+                      chunks.forEach((c) => { length += c.length; });
+                      const merged = new Uint8Array(length);
+                      let offset = 0;
+                      chunks.forEach((c) => { merged.set(c, offset); offset += c.length; });
+                      return JSON.parse(new TextDecoder('utf-8').decode(merged));
+                  }
+                  chunks.push(value);
+                  received += value.length;
+                  setProgress(received / total);
+                  return pump();
+              });
+          }
+          return pump();
+      });
+  }
+
+  // --- Etat courant (filtres + page), reflete dans l'URL (history.pushState)
+  // pour rester partageable/rechargeable sans perdre le contexte.
+  const filterForm = document.getElementById('ventesFilterForm');
+  const activityIndicator = document.getElementById('allVentesActivityIndicator');
+  const activityText = document.getElementById('allVentesActivityText');
+  const rangeLabel = document.getElementById('allVentesRangeLabel');
+  const tableBody = document.getElementById('allVentesTableBody');
+  const mobileList = document.getElementById('mobileAllVenteList');
+  let currentPage = 1;
+  let currentPagination = null;
+
+  function currentFilters() {
+      const data = new FormData(filterForm);
+      const params = {};
+      for (const [key, value] of data.entries()) {
+          if (value) params[key] = value;
+      }
+      return params;
+  }
+
+  function applyFiltersFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      filterForm.querySelector('[name="q"]').value = params.get('q') || '';
+      filterForm.querySelector('[name="statut"]').value = params.get('statut') || '';
+      filterForm.querySelector('[name="raison_annulation_id"]').value = params.get('raison_annulation_id') || '';
+      filterForm.querySelector('[name="date_from"]').value = params.get('date_from') || '';
+      filterForm.querySelector('[name="date_to"]').value = params.get('date_to') || '';
+      return parseInt(params.get('page') || '1', 10) || 1;
+  }
+
+  function renderVenteRow(v) {
+      const statutBadge = v.statut === 'annulee'
+          ? `<div class="cell-sub text-danger fw-semibold" title="${escapeHtml(v.raison_annulation_nom || '')}"><i class="fas fa-ban me-1"></i>Annulée — ${escapeHtml(v.raison_annulation_nom || '')}</div>`
+          : '';
+      const cancelBtn = v.statut !== 'annulee'
+          ? `<button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="${v.id}" data-vente-numero="${escapeHtml(v.numero_vente)}" title="Annuler cette vente"><i class="fas fa-ban"></i></button>`
+          : '';
+      return `<tr>
+          <td><div class="fw-bold">${escapeHtml(v.numero_vente)}</div><div class="cell-sub">${escapeHtml(v.created_at)}</div></td>
+          <td><div>${escapeHtml(v.client_label)}</div><div class="cell-sub">${escapeHtml(v.groupe_client_nom)}</div></td>
+          <td><span class="badge bg-light text-dark border">${escapeHtml(v.mode_paiement)}</span>${statutBadge}</td>
+          <td class="text-end">${fmtMoney(v.total_ht)}</td>
+          <td class="text-end amount-benefice">${fmtMoney(v.total_benefice)}</td>
+          <td class="text-end amount-tva">${fmtMoney(v.total_tva_reelle)}</td>
+          <td class="text-end fw-bold text-success">${fmtMoney(v.total_ttc)}</td>
+          <td>${escapeHtml(v.auteur_prenom)} ${escapeHtml(v.auteur_nom)}</td>
+          <td class="text-end d-print-none">
+              <a href="${v.detail_url}" class="btn btn-sm btn-outline-info" title="Voir"><i class="fas fa-eye"></i></a>
+              ${cancelBtn}
+          </td>
+      </tr>`;
+  }
+
+  function renderVenteCard(v) {
+      const statutBadge = v.statut === 'annulee'
+          ? `<div class="mt-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.65rem;" title="${escapeHtml(v.raison_annulation_nom || '')}"><i class="fas fa-ban me-1"></i>Annulée — ${escapeHtml(v.raison_annulation_nom || '')}</span></div>`
+          : '';
+      const cancelBtn = v.statut !== 'annulee'
+          ? `<button type="button" class="btn btn-sm btn-outline-danger annuler-vente-btn" data-vente-id="${v.id}" data-vente-numero="${escapeHtml(v.numero_vente)}" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;" title="Annuler cette vente"><i class="fas fa-ban" style="font-size:0.7rem;"></i></button>`
+          : '';
+      return `<div class="mobile-card">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+              <div style="min-width:0;">
+                  <div class="fw-bold" style="font-size:0.85rem;">${escapeHtml(v.numero_vente)}</div>
+                  <div class="cell-sub">${escapeHtml(v.created_at)} · ${escapeHtml(v.client_label)}</div>
+              </div>
+              <div class="d-flex gap-1 flex-shrink-0 d-print-none">
+                  <a href="${v.detail_url}" class="btn btn-sm btn-outline-info" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;"><i class="fas fa-eye" style="font-size:0.7rem;"></i></a>
+                  ${cancelBtn}
+              </div>
+          </div>
+          ${statutBadge}
+          <div class="d-flex flex-wrap gap-2 mt-1" style="font-size:0.72rem;">
+              <span>HT <strong>${fmtMoney(v.total_ht)}</strong></span>
+              <span class="amount-benefice">Marge <strong>${fmtMoney(v.total_benefice)}</strong></span>
+              <span class="amount-tva">TVA <strong>${fmtMoney(v.total_tva_reelle)}</strong></span>
+              <span class="text-success">TTC <strong>${fmtMoney(v.total_ttc)}</strong></span>
+          </div>
+      </div>`;
+  }
+
+  function renderPagination(container, pagination) {
+      if (!pagination || pagination.pages <= 1) { container.innerHTML = ''; return; }
+      const page = pagination.page;
+      const pages = pagination.pages;
+      let html = '';
+      html += `<button type="button" class="page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+      const windowSize = 2;
+      let lastPrinted = 0;
+      for (let p = 1; p <= pages; p++) {
+          if (p !== 1 && p !== pages && Math.abs(p - page) > windowSize) continue;
+          if (lastPrinted && p - lastPrinted > 1) html += '<span class="page-ellipsis">…</span>';
+          html += `<button type="button" class="page-btn ${p === page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+          lastPrinted = p;
+      }
+      html += `<button type="button" class="page-btn" data-page="${page + 1}" ${page >= pages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+      container.innerHTML = html;
+      container.querySelectorAll('.page-btn[data-page]').forEach((btn) => {
+          btn.addEventListener('click', () => loadVentes(parseInt(btn.dataset.page, 10)));
+      });
+  }
+
+  function loadVentes(page) {
+      currentPage = Math.max(page || 1, 1);
+      const filters = currentFilters();
+      const params = new URLSearchParams(filters);
+      params.set('page', currentPage);
+
+      // Reflete l'etat dans l'URL (sans recharger la page) pour rester
+      // partageable/rechargeable.
+      const newUrl = window.location.pathname + '?' + params.toString();
+      window.history.replaceState(null, '', newUrl);
+
+      activityIndicator.classList.remove('d-none', 'text-danger');
+      activityText.textContent = 'Chargement...';
+
+      fetchJsonWithProgress(DATA_URL + '?' + params.toString())
+          .then((data) => {
+              currentPagination = data.pagination;
+              document.getElementById('statTotalVentes').textContent = fmtInt(data.totals.count);
+              document.getElementById('statBenefice').textContent = fmtMoney(data.totals.benefice);
+              document.getElementById('statTva').textContent = fmtMoney(data.totals.tva_reelle);
+              document.getElementById('statTtc').textContent = fmtMoney(data.totals.total_ttc);
+
+              if (data.ventes.length === 0) {
+                  tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted">Aucune vente trouvée.</td></tr>';
+                  mobileList.innerHTML = '<div class="text-center py-4 text-muted">Aucune vente trouvée.</div>';
+              } else {
+                  tableBody.innerHTML = data.ventes.map(renderVenteRow).join('');
+                  mobileList.innerHTML = data.ventes.map(renderVenteCard).join('');
+              }
+
+              const start = data.ventes.length ? (data.pagination.page - 1) * data.pagination.per_page + 1 : 0;
+              const end = start + data.ventes.length - 1;
+              rangeLabel.textContent = data.pagination.total
+                  ? `${fmtInt(start)}–${fmtInt(end)} sur ${fmtInt(data.pagination.total)}`
+                  : '';
+
+              renderPagination(document.getElementById('allVentesPaginationTop'), data.pagination);
+              renderPagination(document.getElementById('allVentesPaginationBottom'), data.pagination);
+
+              activityText.textContent = 'À jour';
+              setTimeout(() => activityIndicator.classList.add('d-none'), 900);
+              hideProgress();
+          })
+          .catch(() => {
+              tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-danger">Erreur de chargement. Réessayez.</td></tr>';
+              mobileList.innerHTML = '<div class="text-center py-4 text-danger">Erreur de chargement. Réessayez.</div>';
+              activityIndicator.classList.remove('d-none');
+              activityIndicator.classList.add('text-danger');
+              activityText.textContent = 'Erreur de chargement';
+              hideProgress();
+          });
+  }
+
+  filterForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      loadVentes(1);
+  });
+  document.getElementById('ventesResetFiltersBtn').addEventListener('click', () => {
+      filterForm.reset();
+      loadVentes(1);
+  });
+
+  // Delegation : les boutons Annuler sont recrees a chaque rendu (contenu
+  // charge en JS), un querySelectorAll+forEach au chargement ne suffirait
+  // qu'une fois.
   const annulerModalEl = document.getElementById('annulerVenteModal');
-  if (!annulerModalEl) return;
   const annulerVenteUrlTemplate = "{{ url_for('admin.annuler_vente', id=0) }}";
   const annulerModal = bootstrap.Modal.getOrCreateInstance(annulerModalEl);
   const annulerNumero = document.getElementById('annulerVenteNumero');
@@ -338,16 +546,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const annulerConfirm = document.getElementById('annulerVenteConfirm');
   let pendingVenteId = null;
 
-  document.querySelectorAll('.annuler-vente-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-          pendingVenteId = btn.dataset.venteId;
-          annulerNumero.textContent = btn.dataset.venteNumero || '';
-          annulerRaison.value = '';
-          annulerCommentaire.value = '';
-          annulerRestaurerStock.checked = true;
-          annulerError.classList.add('d-none');
-          annulerModal.show();
-      });
+  document.addEventListener('click', (event) => {
+      const btn = event.target.closest('.annuler-vente-btn');
+      if (!btn) return;
+      pendingVenteId = btn.dataset.venteId;
+      annulerNumero.textContent = btn.dataset.venteNumero || '';
+      annulerRaison.value = '';
+      annulerCommentaire.value = '';
+      annulerRestaurerStock.checked = true;
+      annulerError.classList.add('d-none');
+      annulerModal.show();
   });
 
   annulerConfirm.addEventListener('click', () => {
@@ -378,7 +586,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   annulerError.classList.remove('d-none');
                   return;
               }
-              window.location.reload();
+              annulerModal.hide();
+              loadVentes(currentPage);
           })
           .catch(() => {
               annulerError.textContent = 'Erreur réseau, veuillez réessayer.';
@@ -389,6 +598,8 @@ document.addEventListener('DOMContentLoaded', function() {
               annulerConfirm.innerHTML = '<i class="fas fa-ban me-1"></i> Annuler la vente';
           });
   });
+
+  loadVentes(applyFiltersFromUrl());
 });
 </script>
 {% endblock %}

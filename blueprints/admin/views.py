@@ -2582,15 +2582,78 @@ def list_ventes():
 @login_required
 @permission_required('gestion_ventes')
 def list_all_ventes():
-    ventes = get_filtered_ventes()
-    totals_reels = compute_ventes_totals_reels(ventes)
+    # Le tableau (potentiellement des milliers de lignes) est charge en JS
+    # apres affichage de la page, voir list_all_ventes_data -- pas de rendu
+    # SSR de la liste ici (contrairement a la page GET simple), pour ne pas
+    # generer un HTML enorme d'un coup avec une pharmacie qui a beaucoup
+    # d'historique.
     return render_template(
         'admin/ventes/all.html',
-        ventes=ventes,
-        total_benefice=totals_reels['benefice'],
-        total_tva_reelle=totals_reels['tva_reelle'],
         raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all()
     )
+
+ALL_VENTES_PAGE_SIZE = 100
+
+def serialize_vente_for_list(vente):
+    return {
+        'id': vente.id,
+        'numero_vente': vente.numero_vente,
+        'created_at': vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-',
+        'client_label': vente.client_label,
+        'groupe_client_nom': vente.groupe_client_nom or 'Client comptoir',
+        'mode_paiement': (vente.mode_paiement or '').replace('_', ' '),
+        'statut': vente.statut,
+        'raison_annulation_nom': vente.raison_annulation_nom,
+        'total_ht': round(vente.total_ht or 0, 2),
+        'total_benefice': round(vente.total_benefice or 0, 2),
+        'total_tva_reelle': round(vente.total_tva_reelle or 0, 2),
+        'total_ttc': round(vente.total_ttc or 0, 2),
+        'auteur_prenom': vente.auteur_prenom,
+        'auteur_nom': vente.auteur_nom,
+        'detail_url': url_for('admin.detail_vente', id=vente.id),
+    }
+
+@admin.route('/ventes/all/data')
+@login_required
+@permission_required('gestion_ventes')
+def list_all_ventes_data():
+    """JSON pagine de 'Toutes les ventes', charge en JS depuis all.html avec
+    une vraie barre de progression (suivi du telechargement de CETTE reponse
+    via Content-Length, pas une simulation). Reutilise get_filtered_ventes
+    (filtre sur l'INTEGRALITE du dataset, comme les autres pages Ventes) puis
+    pagine seulement l'affichage -- la recherche/les filtres portent donc
+    toujours sur tout l'historique, jamais juste la page courante."""
+    all_ventes = get_filtered_ventes()
+    total_count = len(all_ventes)
+
+    try:
+        page = max(int(request.args.get('page') or 1), 1)
+    except ValueError:
+        page = 1
+    per_page = ALL_VENTES_PAGE_SIZE
+    total_pages = max((total_count + per_page - 1) // per_page, 1)
+    page = min(page, total_pages)
+    start = (page - 1) * per_page
+    ventes_page = all_ventes[start:start + per_page]
+
+    totals_reels = compute_ventes_totals_reels(all_ventes)
+    total_ttc_sum = sum(vente.total_ttc or 0 for vente in all_ventes)
+
+    return jsonify({
+        'ventes': [serialize_vente_for_list(vente) for vente in ventes_page],
+        'pagination': {
+            'page': page,
+            'pages': total_pages,
+            'total': total_count,
+            'per_page': per_page,
+        },
+        'totals': {
+            'count': total_count,
+            'benefice': round(totals_reels['benefice'], 2),
+            'tva_reelle': round(totals_reels['tva_reelle'], 2),
+            'total_ttc': round(total_ttc_sum, 2),
+        },
+    })
 
 
 @admin.route('/ventes/stats')
