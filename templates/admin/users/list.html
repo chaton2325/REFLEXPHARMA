@@ -291,6 +291,9 @@
             <a href="{{ url_for('admin.list_conges', user_id=user.id) }}" class="btn btn-outline-warning btn-action" title="Congés">
               <i class="fas fa-umbrella-beach"></i>
             </a>
+            <a href="{{ url_for('admin.list_all_ventes') }}?auteur_id={{ user.id }}" class="btn btn-outline-success btn-action" title="Voir ses ventes">
+              <i class="fas fa-receipt"></i>
+            </a>
           </div>
         </div>
       </div>
@@ -353,6 +356,9 @@
                 </button>
                 <a href="{{ url_for('admin.list_conges', user_id=user.id) }}" class="btn btn-outline-warning btn-action" title="Congés">
                   <i class="fas fa-umbrella-beach"></i>
+                </a>
+                <a href="{{ url_for('admin.list_all_ventes') }}?auteur_id={{ user.id }}" class="btn btn-outline-success btn-action" title="Voir ses ventes">
+                  <i class="fas fa-receipt"></i>
                 </a>
                 <a href="{{ url_for('admin.toggle_user_active', id=user.id) }}" class="btn btn-outline-secondary btn-action" title="{% if user.is_active %}Désactiver{% else %}Activer{% endif %}">
                   <i class="fas {% if user.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
@@ -420,6 +426,9 @@
       <div class="modal-footer border-top-0 pt-0 d-flex flex-wrap gap-2">
         <a href="{{ url_for('admin.list_conges', user_id=user.id) }}" class="btn btn-outline-warning" style="border-radius:10px;font-weight:600;">
           <i class="fas fa-umbrella-beach me-1"></i> Congés
+        </a>
+        <a href="{{ url_for('admin.list_all_ventes') }}?auteur_id={{ user.id }}" class="btn btn-outline-success" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-receipt me-1"></i> Ventes
         </a>
         <a href="{{ url_for('admin.toggle_user_active', id=user.id) }}" class="btn btn-{% if user.is_active %}secondary{% else %}success{% endif %}" style="border-radius:10px;font-weight:600;">
           <i class="fas {% if user.is_active %}fa-user-slash{% else %}fa-user-check{% endif %} me-1"></i> {% if user.is_active %}Désactiver{% else %}Activer{% endif %}

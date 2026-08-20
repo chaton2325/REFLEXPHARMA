@@ -165,6 +165,15 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label">Auteur</label>
+                <select name="auteur_id" id="ventesAuteurSelect" class="form-select form-select-sm">
+                    <option value="">Tous les auteurs</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.prenom }} {{ u.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">Date début</label>
                 <input type="date" name="date_from" class="form-control form-control-sm">
             </div>
@@ -393,6 +402,7 @@ document.addEventListener('DOMContentLoaded', function() {
       filterForm.querySelector('[name="q"]').value = params.get('q') || '';
       filterForm.querySelector('[name="statut"]').value = params.get('statut') || '';
       filterForm.querySelector('[name="raison_annulation_id"]').value = params.get('raison_annulation_id') || '';
+      filterForm.querySelector('[name="auteur_id"]').value = params.get('auteur_id') || '';
       filterForm.querySelector('[name="date_from"]').value = params.get('date_from') || '';
       filterForm.querySelector('[name="date_to"]').value = params.get('date_to') || '';
       return parseInt(params.get('page') || '1', 10) || 1;

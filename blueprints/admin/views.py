@@ -2475,6 +2475,10 @@ def build_vente_stats(ventes):
             (weekday_buckets, weekday)
         ]:
             add_stat_bucket(buckets, key, vente)
+        # auteur_id (pas juste le label prenom/nom) : necessaire pour le lien
+        # "Voir ses ventes" (filtre auteur_id de la liste des ventes, voir
+        # ranking_card/employee_of_month dans le template).
+        employee_buckets[employee]['auteur_id'] = vente.auteur_id
 
         for ligne in vente.lignes:
             for buckets, key in [
@@ -2494,7 +2498,9 @@ def build_vente_stats(ventes):
     if latest_month:
         for vente in ventes:
             if vente.created_at and vente.created_at.strftime('%Y-%m') == latest_month:
-                add_stat_bucket(month_employee_buckets, sale_employee_label(vente), vente)
+                label = sale_employee_label(vente)
+                add_stat_bucket(month_employee_buckets, label, vente)
+                month_employee_buckets[label]['auteur_id'] = vente.auteur_id
 
     # Fill gaps in daily stats with zeros
     if daily_buckets:
@@ -2589,7 +2595,8 @@ def list_all_ventes():
     # d'historique.
     return render_template(
         'admin/ventes/all.html',
-        raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all()
+        raisons_annulation=RaisonAnnulationVente.query.order_by(RaisonAnnulationVente.nom.asc()).all(),
+        users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all()
     )
 
 ALL_VENTES_PAGE_SIZE = 100
@@ -3138,7 +3145,7 @@ def create_vente():
             groupe_client_id=None,
             groupe_client_nom=client.groupe.nom if client and client.groupe else None,
             groupe_absorption_pourcentage=client.groupe.pourcentage_absorption if client and client.groupe else 0,
-            auteur_id=None,
+            auteur_id=current_user.id,
             auteur_nom=current_user.nom,
             auteur_prenom=current_user.prenom,
             auteur_email=current_user.email

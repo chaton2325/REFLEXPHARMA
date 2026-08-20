@@ -215,9 +215,14 @@
     <div class="col">
         <div class="stat-card d-flex align-items-center gap-3">
             <div class="stat-icon" style="background:linear-gradient(135deg,#f0e8fe,#d9c5fc);color:#7c3aed;"><i class="fas fa-user-clock"></i></div>
-            <div>
+            <div class="flex-grow-1" style="min-width:0;">
                 <div class="stat-number" style="font-size:0.95rem;">{{ stats.employee_of_month.label if stats.employee_of_month else '-' }}</div>
                 <div class="stat-label">Employé du mois</div>
+                {% if stats.employee_of_month and stats.employee_of_month.auteur_id %}
+                <a href="{{ url_for('admin.list_all_ventes') }}?auteur_id={{ stats.employee_of_month.auteur_id }}" class="btn btn-sm btn-outline-primary mt-1" style="font-size:0.65rem;padding:0.15rem 0.4rem;" title="Voir les ventes de {{ stats.employee_of_month.label }}">
+                    <i class="fas fa-receipt me-1"></i>Ventes
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -289,7 +294,7 @@
     </div>
 </div>
 
-{% macro ranking_card(title, rows, color='primary', quantity=False) %}
+{% macro ranking_card(title, rows, color='primary', quantity=False, sales_link=False) %}
 <div class="card h-100">
     <div class="card-header bg-white py-3">
         <h5 class="card-title mb-0">{{ title }}</h5>
@@ -298,9 +303,16 @@
         {% set max_value = rows[0].ttc if rows else 0 %}
         {% for row in rows[:10] %}
         <div class="stat-row">
-            <div class="d-flex justify-content-between mb-1">
-                <span class="small fw-bold text-truncate" style="max-width: 70%;">{{ row.label }}</span>
-                <span class="small text-muted">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</span>
+            <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
+                <span class="small fw-bold text-truncate" style="max-width: 55%;">{{ row.label }}</span>
+                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <span class="small text-muted">{{ "{:,.2f}".format(row.ttc).replace(',', ' ').replace('.', ',') }}</span>
+                    {% if sales_link and row.auteur_id %}
+                    <a href="{{ url_for('admin.list_all_ventes') }}?auteur_id={{ row.auteur_id }}" class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size:0.62rem;" title="Voir les ventes de {{ row.label }}">
+                        <i class="fas fa-receipt"></i>
+                    </a>
+                    {% endif %}
+                </div>
             </div>
             <div class="stat-bar-track">
                 {% set pct = (row.ttc / max_value * 100) if max_value else 0 %}
@@ -320,7 +332,7 @@
 {% endmacro %}
 
 <div class="row g-4 mb-4">
-    <div class="col-lg-6">{{ ranking_card('Top Employés (CA)', stats.employees, 'primary') }}</div>
+    <div class="col-lg-6">{{ ranking_card('Top Employés (CA)', stats.employees, 'primary', sales_link=True) }}</div>
     <div class="col-lg-6">{{ ranking_card('Top Produits (CA)', stats.products, 'success', True) }}</div>
 </div>
 

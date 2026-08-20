@@ -252,6 +252,24 @@ def setup_database():
         except Exception:
             db.session.rollback()
 
+        # Correctif retroactif : create_vente() ecrivait auteur_id=None (copie
+        # par erreur du pattern client_id=None, qui LUI est un choix delibere
+        # -- voir vente.py). Les ventes deja enregistrees ont donc auteur_id
+        # NULL, rendant le filtre "Auteur" (liste des ventes, employe du mois,
+        # bouton "Voir ses ventes") systematiquement vide malgre auteur_nom/
+        # auteur_email correctement renseignes. Retrouve l'auteur par email
+        # (unique sur users) -- idempotent, ne touche plus rien une fois fait.
+        try:
+            db.session.execute(text("""
+                UPDATE ventes SET auteur_id = users.id
+                FROM users
+                WHERE ventes.auteur_id IS NULL
+                  AND ventes.auteur_email IS NOT NULL
+                  AND users.email = ventes.auteur_email;
+            """))
+        except Exception:
+            db.session.rollback()
+
         db.session.commit()
         print("Structure de la base de données vérifiée et mise à jour.")
 
