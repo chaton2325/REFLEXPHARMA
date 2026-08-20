@@ -1035,6 +1035,24 @@ document.addEventListener('DOMContentLoaded', function() {
         setupTabSearch(document.getElementById('tracaSortiesSearch'), el, sorties.length);
     }
 
+    function renderTransformations(transformations) {
+        const el = document.getElementById('tracaTransformsList');
+        document.getElementById('tracaTransformsCount').textContent = transformations.length;
+        if (!transformations.length) {
+            el.innerHTML = '<div class="small text-muted">Aucune transformation enregistrée pour ce lot.</div>';
+        } else {
+            el.innerHTML = transformations.map(function(t) {
+                const search = (t.reason + ' ' + t.date + ' ' + t.user).toLowerCase();
+                return '<div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-2"'
+                    + ' data-search="' + escapeHtml(search) + '">'
+                    + '<div><div class="fw-semibold small">' + escapeHtml(t.reason) + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(t.date) + ' · ' + escapeHtml(t.user) + '</div></div>'
+                    + '</div>';
+            }).join('');
+        }
+        setupTabSearch(document.getElementById('tracaTransformsSearch'), el, transformations.length);
+    }
+
     function loadTracabilite(stockId) {
         tracaLoading.classList.remove('d-none');
         tracaError.classList.add('d-none');
@@ -1065,6 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 renderVentes(data.ventes);
                 renderSorties(data.sorties, data.code_suivi);
+                renderTransformations(data.transformations);
 
                 tracaLoading.classList.add('d-none');
                 tracaContent.classList.remove('d-none');
@@ -1081,6 +1100,115 @@ document.addEventListener('DOMContentLoaded', function() {
             tracaModal.show();
             loadTracabilite(btn.dataset.stockId);
         });
+    });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Transformer unites <-> sous-unites d'un lot (bouton stock-transform-btn,
+    // uniquement propose sur les produits vendus au detail) : petite modale
+    // partagee, POST JSON vers admin.transform_stock puis reload de la page
+    // (les quantites affectent trop d'endroits de la page pour patcher le DOM
+    // proprement -- contrairement au panier de Nouvelle vente, un reload ici
+    // ne fait perdre aucun etat en cours).
+    const transformModalEl = document.getElementById('stockTransformModal');
+    if (!transformModalEl) return;
+    const transformModal = bootstrap.Modal.getOrCreateInstance(transformModalEl);
+    const transformError = document.getElementById('transformError');
+    const transformQuantite = document.getElementById('transformQuantite');
+    const transformPreview = document.getElementById('transformPreview');
+    const transformQuantiteLabel = document.getElementById('transformQuantiteLabel');
+    const transformConfirmBtn = document.getElementById('transformConfirmBtn');
+    let activeStockId = null;
+    let activeUnites = 0;
+    let activeSousUnites = 0;
+    let activeTaille = 1;
+
+    function currentDirection() {
+        return document.querySelector('input[name="transformDirection"]:checked').value;
+    }
+
+    function updateTransformPreview() {
+        const direction = currentDirection();
+        const quantite = Math.max(parseInt(transformQuantite.value, 10) || 0, 0);
+        transformError.classList.add('d-none');
+
+        if (direction === 'vers_sous_unite') {
+            transformQuantiteLabel.textContent = "Nombre d'unités à transformer";
+            transformQuantite.max = activeUnites;
+            transformPreview.textContent = quantite > 0
+                ? `${quantite} unité(s) → ${quantite * activeTaille} sous-unité(s)`
+                : '';
+            if (quantite > activeUnites) {
+                transformError.textContent = `Seulement ${activeUnites} unité(s) disponible(s) sur ce lot.`;
+                transformError.classList.remove('d-none');
+            }
+        } else {
+            transformQuantiteLabel.textContent = "Nombre d'unités à reconstituer";
+            const maxUnites = Math.floor(activeSousUnites / activeTaille);
+            transformQuantite.max = maxUnites;
+            transformPreview.textContent = quantite > 0
+                ? `${quantite * activeTaille} sous-unité(s) → ${quantite} unité(s)`
+                : '';
+            if (quantite > maxUnites) {
+                transformError.textContent = `Seulement ${activeSousUnites} sous-unité(s) disponible(s) sur ce lot (${maxUnites} unité(s) reconstituable(s)).`;
+                transformError.classList.remove('d-none');
+            }
+        }
+    }
+
+    document.querySelectorAll('input[name="transformDirection"]').forEach((radio) => {
+        radio.addEventListener('change', updateTransformPreview);
+    });
+    transformQuantite.addEventListener('input', updateTransformPreview);
+
+    document.querySelectorAll('.stock-transform-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            activeStockId = btn.dataset.stockId;
+            activeUnites = parseInt(btn.dataset.quantiteUnites, 10) || 0;
+            activeSousUnites = parseInt(btn.dataset.quantiteSousUnites, 10) || 0;
+            activeTaille = parseInt(btn.dataset.tailleConditionnement, 10) || 1;
+            document.getElementById('transformProduitNom').textContent = btn.dataset.produitNom || '';
+            document.getElementById('transformCodeSuivi').textContent = btn.dataset.codeSuivi || '';
+            document.getElementById('transformStockUnites').textContent = activeUnites;
+            document.getElementById('transformStockSousUnites').textContent = activeSousUnites;
+            document.getElementById('transformDirVersSousUnite').checked = true;
+            transformQuantite.value = 1;
+            updateTransformPreview();
+            transformModal.show();
+        });
+    });
+
+    transformConfirmBtn.addEventListener('click', function() {
+        const direction = currentDirection();
+        const quantite = Math.max(parseInt(transformQuantite.value, 10) || 0, 0);
+        if (quantite <= 0) {
+            transformError.textContent = 'Veuillez indiquer une quantité valide.';
+            transformError.classList.remove('d-none');
+            return;
+        }
+        transformConfirmBtn.disabled = true;
+        fetch("{{ url_for('admin.transform_stock', id=999999999) }}".replace('999999999', activeStockId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ direction: direction, quantite: quantite }),
+        })
+            .then((res) => res.json().then((data) => ({ ok: res.ok, data: data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    transformError.textContent = data.message || 'Transformation impossible.';
+                    transformError.classList.remove('d-none');
+                    transformConfirmBtn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(() => {
+                transformError.textContent = 'Erreur réseau, réessayez.';
+                transformError.classList.remove('d-none');
+                transformConfirmBtn.disabled = false;
+            });
     });
 });
 </script>
@@ -1315,6 +1443,16 @@ document.addEventListener('DOMContentLoaded', function() {
               <button type="button" class="btn btn-outline-info btn-action stock-traca-btn" data-stock-id="{{ stock.id }}" title="Suivi des ventes de ce lot">
                 <i class="fas fa-chart-line"></i>
               </button>
+              {% if stock.produit.conditionnement and stock.produit.conditionnement >= 2 %}
+              <button type="button" class="btn btn-outline-primary btn-action stock-transform-btn"
+                      data-stock-id="{{ stock.id }}" data-produit-nom="{{ stock.produit.nom }}"
+                      data-code-suivi="{{ stock.code_suivi }}"
+                      data-quantite-unites="{{ stock.quantite_unites }}" data-quantite-sous-unites="{{ stock.quantite_sous_unites }}"
+                      data-taille-conditionnement="{{ stock.produit.taille_conditionnement or 1 }}"
+                      title="Transformer unités / sous-unités">
+                <i class="fas fa-exchange-alt"></i>
+              </button>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -1408,6 +1546,16 @@ document.addEventListener('DOMContentLoaded', function() {
                   <button type="button" class="btn btn-sm btn-outline-info stock-traca-btn" data-stock-id="{{ stock.id }}" title="Suivi des ventes de ce lot">
                     <i class="fas fa-chart-line"></i>
                   </button>
+                  {% if stock.produit.conditionnement and stock.produit.conditionnement >= 2 %}
+                  <button type="button" class="btn btn-sm btn-outline-primary stock-transform-btn"
+                          data-stock-id="{{ stock.id }}" data-produit-nom="{{ stock.produit.nom }}"
+                          data-code-suivi="{{ stock.code_suivi }}"
+                          data-quantite-unites="{{ stock.quantite_unites }}" data-quantite-sous-unites="{{ stock.quantite_sous_unites }}"
+                          data-taille-conditionnement="{{ stock.produit.taille_conditionnement or 1 }}"
+                          title="Transformer unités / sous-unités">
+                    <i class="fas fa-exchange-alt"></i>
+                  </button>
+                  {% endif %}
                   <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}">
                     <i class="fas fa-edit"></i>
                   </button>
@@ -1812,6 +1960,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 <i class="fas fa-sign-out-alt me-1"></i>Sorties <span class="badge bg-secondary ms-1" id="tracaSortiesCount">0</span>
               </button>
             </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tracaTransformsTabBtn" data-bs-toggle="tab" data-bs-target="#tracaTransformsPane" type="button" role="tab">
+                <i class="fas fa-exchange-alt me-1"></i>Transformations <span class="badge bg-secondary ms-1" id="tracaTransformsCount">0</span>
+              </button>
+            </li>
           </ul>
           <div class="tab-content border border-top-0 rounded-bottom-3 p-2" id="tracaTabsContent">
             <div class="tab-pane fade show active" id="tracaVentesPane" role="tabpanel">
@@ -1822,11 +1975,71 @@ document.addEventListener('DOMContentLoaded', function() {
               <input type="text" id="tracaSortiesSearch" class="form-control form-control-sm mb-2 d-none" placeholder="Rechercher par raison, date, utilisateur...">
               <div id="tracaSortiesList" class="tab-pane-scroll"></div>
             </div>
+            <div class="tab-pane fade" id="tracaTransformsPane" role="tabpanel">
+              <input type="text" id="tracaTransformsSearch" class="form-control form-control-sm mb-2 d-none" placeholder="Rechercher par date, utilisateur...">
+              <div id="tracaTransformsList" class="tab-pane-scroll"></div>
+            </div>
           </div>
         </div>
       </div>
       <div class="modal-footer border-top">
         <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transformer unites <-> sous-unites d'un lot : modale partagee, uniquement
+     proposee (bouton stock-transform-btn) sur les produits vendus au detail
+     (conditionnement >= 2). Voir admin.transform_stock. -->
+<div class="modal fade" id="stockTransformModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-exchange-alt me-2"></i>Transformer — <span id="transformProduitNom"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-3">
+          <span id="transformCodeSuivi" class="badge bg-dark-subtle text-dark border"></span>
+        </div>
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-6">
+            <div class="p-2 border rounded-3">
+              <div class="fw-bold" id="transformStockUnites">-</div>
+              <div class="small text-muted">Unité(s) en stock</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-2 border rounded-3">
+              <div class="fw-bold" id="transformStockSousUnites">-</div>
+              <div class="small text-muted">Sous-unité(s) en stock</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Sens de la transformation</label>
+          <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="transformDirection" id="transformDirVersSousUnite" value="vers_sous_unite" checked>
+            <label class="btn btn-outline-primary btn-sm" for="transformDirVersSousUnite"><i class="fas fa-arrow-right me-1"></i>Unité → Sous-unités</label>
+            <input type="radio" class="btn-check" name="transformDirection" id="transformDirVersUnite" value="vers_unite">
+            <label class="btn btn-outline-primary btn-sm" for="transformDirVersUnite"><i class="fas fa-arrow-left me-1"></i>Sous-unités → Unité</label>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-bold" id="transformQuantiteLabel">Nombre d'unités à transformer</label>
+          <input type="number" min="1" step="1" value="1" class="form-control" id="transformQuantite">
+        </div>
+        <div class="small text-muted mb-2" id="transformPreview"></div>
+        <div class="alert alert-warning small d-none" id="transformError"></div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="transformConfirmBtn" style="border-radius:10px;">
+          <i class="fas fa-exchange-alt me-1"></i>Transformer
+        </button>
       </div>
     </div>
   </div>

@@ -1004,6 +1004,7 @@
                     data-famille="{{ produit.famille.nom if produit.famille else '-' }}"
                     data-section="{{ produit.section.nom if produit.section else '-' }}"
                     data-conditionnement="{{ [produit.conditionnement or 1, 3 if stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) > 0 else 2 if stock_totals.get(produit.id, {}).get('sous_unite', 0) > 0 else 1]|max }}"
+                    data-taille-conditionnement="{{ produit.taille_conditionnement or 1 }}"
                     data-stock-unite="{{ stock_totals.get(produit.id, {}).get('unite', 0) }}"
                     data-stock-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_unite', 0) }}"
                     data-stock-sous-sous-unite="{{ stock_totals.get(produit.id, {}).get('sous_sous_unite', 0) }}"
@@ -1965,9 +1966,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const PRICE_TTC_DATASET_KEY = { unite: 'uniteTtc', sous_unite: 'sousUniteTtc', sous_sous_unite: 'sousSousUniteTtc' };
+    const TRANSFORM_PRODUIT_URL_TEMPLATE = "{{ url_for('admin.transform_produit_stock', id=999999999) }}";
+    const PRODUIT_STOCK_DETAIL_URL_TEMPLATE = "{{ url_for('admin.produit_stock_detail', id=999999999) }}";
 
-    function showProductInfo(option) {
+    // Produit/lot actuellement affiches dans la modale "Voir les details" (si
+    // ouverte) : permet de la rafraichir automatiquement (poll cross-poste
+    // toutes les 5s, voir applyStockLevels) au lieu de rester figee sur les
+    // quantites du moment de l'ouverture.
+    let currentInfoOption = null;
+    let currentInfoCodeSuivi = '';
+
+    function showProductInfo(option, codeSuivi) {
         if (!option) return;
+        currentInfoOption = option;
+        currentInfoCodeSuivi = codeSuivi || '';
         const pointsFidelite = Math.round(toNumber(option.dataset.pointsFidelite));
         const pointsBadge = pointsFidelite > 0
             ? `<span class="badge bg-success"><i class="fas fa-star me-1"></i>${pointsFidelite} point${pointsFidelite > 1 ? 's' : ''} / unité</span>`
@@ -1986,6 +1998,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const detailNote = applicableTiers.length > 1
             ? '<span class="stock-detail-note"><i class="fas fa-layer-group"></i>Vendu au détail</span>'
             : '<span class="stock-detail-note stock-detail-note-muted"><i class="fas fa-box"></i>Vendu entier uniquement</span>';
+        // Transformer unite <-> sous-unites directement depuis cette modale :
+        // utile quand il ne reste plus de sous-unites en rayon mais qu'il
+        // reste des boites entieres (ou l'inverse), sans quitter la vente en
+        // cours. Uniquement propose si le produit se vend au detail.
+        const transformLotNote = codeSuivi
+            ? `<div class="small mb-2"><span class="badge bg-success"><i class="fas fa-qrcode me-1"></i>Lot scanné : ${escapeHtml(codeSuivi)}</span> <span class="text-muted">— la transformation s'appliquera exclusivement à ce lot.</span></div>`
+            : '<div class="small text-muted mb-2"><i class="fas fa-circle-info me-1"></i>Aucun lot précis scanné : le lot le plus proche de la péremption ayant assez de stock sera transformé (FEFO).</div>';
+        const transformBlock = applicableTiers.length > 1 ? `
+            <div class="mt-3 pt-3 border-top">
+                <div class="small fw-bold text-muted text-uppercase mb-2">Transformer</div>
+                ${transformLotNote}
+                <div class="btn-group w-100 mb-2" role="group">
+                    <input type="radio" class="btn-check" name="infoTransformDirection" id="infoTransformDirVersSousUnite" value="vers_sous_unite" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="infoTransformDirVersSousUnite">Unité → Sous-unités</label>
+                    <input type="radio" class="btn-check" name="infoTransformDirection" id="infoTransformDirVersUnite" value="vers_unite">
+                    <label class="btn btn-outline-primary btn-sm" for="infoTransformDirVersUnite">Sous-unités → Unité</label>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <input type="number" min="1" step="1" value="1" class="form-control form-control-sm" id="infoTransformQuantite" style="max-width:90px;">
+                    <button type="button" class="btn btn-primary btn-sm flex-shrink-0" id="infoTransformConfirmBtn"><i class="fas fa-exchange-alt me-1"></i>Transformer</button>
+                </div>
+                <div class="small text-muted mt-1" id="infoTransformPreview"></div>
+                <div class="alert alert-warning small mt-2 mb-0 d-none" id="infoTransformError"></div>
+            </div>
+        ` : '';
         const priceTiles = applicableTiers.map((tier) => `
             <div class="col-4">
                 <div class="info-price-tile">
@@ -2018,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="col-12"><div class="info-field-label">Codes de suivi</div><div class="info-field-value">${escapeHtml(option.dataset.trackingCodes || '-')}</div></div>
                         <div class="col-12"><div class="info-field-label">Dates de péremption</div><div class="info-field-value">${escapeHtml(option.dataset.expiryDates || '-')}</div></div>
                     </div>
+                    ${transformBlock}
                 </div>
 
                 <div class="info-section info-section-amber">
@@ -2031,8 +2069,94 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         `;
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('productInfoModal')).show();
+
+        if (applicableTiers.length > 1) {
+            wireProductInfoTransform(option, codeSuivi);
+        }
+
+        // Ne rappelle .show() que si la modale n'est pas deja ouverte : cette
+        // fonction sert aussi a simplement RAFRAICHIR son contenu (poll live,
+        // apres transformation) sans vouloir la re-declencher a chaque fois.
+        const modalEl = document.getElementById('productInfoModal');
+        if (!modalEl.classList.contains('show')) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
     }
+
+    function wireProductInfoTransform(option, codeSuivi) {
+        const taille = Math.max(parseInt(option.dataset.tailleConditionnement, 10) || 1, 1);
+        const quantiteInput = document.getElementById('infoTransformQuantite');
+        const previewEl = document.getElementById('infoTransformPreview');
+        const errorEl = document.getElementById('infoTransformError');
+        const confirmBtn = document.getElementById('infoTransformConfirmBtn');
+
+        function currentDirection() {
+            return document.querySelector('input[name="infoTransformDirection"]:checked').value;
+        }
+
+        function updatePreview() {
+            const direction = currentDirection();
+            const quantite = Math.max(parseInt(quantiteInput.value, 10) || 0, 0);
+            errorEl.classList.add('d-none');
+            if (quantite <= 0) {
+                previewEl.textContent = '';
+                return;
+            }
+            previewEl.textContent = direction === 'vers_sous_unite'
+                ? `${quantite} unité(s) → ${quantite * taille} sous-unité(s)`
+                : `${quantite * taille} sous-unité(s) → ${quantite} unité(s)`;
+        }
+
+        document.querySelectorAll('input[name="infoTransformDirection"]').forEach((radio) => {
+            radio.addEventListener('change', updatePreview);
+        });
+        quantiteInput.addEventListener('input', updatePreview);
+        updatePreview();
+
+        confirmBtn.addEventListener('click', function() {
+            const direction = currentDirection();
+            const quantite = Math.max(parseInt(quantiteInput.value, 10) || 0, 0);
+            if (quantite <= 0) {
+                errorEl.textContent = 'Veuillez indiquer une quantité valide.';
+                errorEl.classList.remove('d-none');
+                return;
+            }
+            confirmBtn.disabled = true;
+            const payload = { direction: direction, quantite: quantite };
+            if (codeSuivi) payload.code_suivi = codeSuivi;
+            fetch(TRANSFORM_PRODUIT_URL_TEMPLATE.replace('999999999', option.value), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(payload),
+            })
+                .then((res) => res.json().then((data) => ({ ok: res.ok, data: data })))
+                .then(({ ok, data }) => {
+                    confirmBtn.disabled = false;
+                    if (!ok || !data.success) {
+                        errorEl.textContent = data.message || 'Transformation impossible.';
+                        errorEl.classList.remove('d-none');
+                        return;
+                    }
+                    // Le serveur renvoie directement le nouveau detail (totaux +
+                    // codes de suivi + dates de peremption) dans cette meme reponse
+                    // (voir transform_produit_stock) : applique immediatement, sans
+                    // second aller-retour reseau separe (dont un echec silencieux
+                    // laissait auparavant l'affichage fige).
+                    applyProductStockDetail(option.value, data);
+                    showProductInfo(option, codeSuivi);
+                })
+                .catch(() => {
+                    confirmBtn.disabled = false;
+                    errorEl.textContent = 'Erreur réseau, réessayez.';
+                    errorEl.classList.remove('d-none');
+                });
+        });
+    }
+
+    document.getElementById('productInfoModal').addEventListener('hidden.bs.modal', function() {
+        currentInfoOption = null;
+        currentInfoCodeSuivi = '';
+    });
 
     function resetClientBalancePayments() {
         fieldById('amountClientBalance').value = '0';
@@ -2386,6 +2510,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (input) input.value = codeSuivi || '';
     }
 
+    // Un code de suivi tape/colle a la main dans la recherche (pas assez vite
+    // pour etre reconnu comme un scan douchette, voir looksLikeScan plus bas)
+    // doit quand meme identifier precisement UN lot -- sinon la ligne reste
+    // sans code_suivi et une action ulterieure (transformation, sortie ciblee)
+    // retombe sur le mauvais lot en FEFO au lieu du lot que l'utilisateur a
+    // reellement saisi.
+    function findExactCodeSuiviMatch(option, rawQuery) {
+        if (!option || !rawQuery) return '';
+        const normalizedQuery = rawQuery.trim().toUpperCase();
+        if (!normalizedQuery) return '';
+        const codes = (option.dataset.trackingCodes || '').split(' | ').map((entry) => entry.split(' ')[0]);
+        return codes.find((code) => code.toUpperCase() === normalizedQuery) || '';
+    }
+
     function selectProductOnLine(line, produitId) {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
         const productSearch = line.querySelector('.product-search');
@@ -2541,7 +2679,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const metaLine = metaInfoTrigger.closest('.sale-line');
             const metaSelect = metaLine.querySelector('select[name="produit_id[]"]');
             const metaOption = metaSelect.options[metaSelect.selectedIndex];
-            if (metaOption && metaOption.value) showProductInfo(metaOption);
+            if (metaOption && metaOption.value) showProductInfo(metaOption, getLineCodeSuivi(metaLine));
             return;
         }
         const item = event.target.closest('.product-results [data-option-value]');
@@ -2550,11 +2688,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
         if (event.target.closest('[data-product-info]')) {
             const detailOption = Array.from(productSelect.options).find((option) => option.value === item.dataset.optionValue);
-            showProductInfo(detailOption);
+            // Le code de suivi scanne sur cette ligne n'est pertinent que si on
+            // consulte le produit DEJA choisi sur cette ligne -- pas un autre
+            // produit simplement survole/previsualise dans les resultats.
+            const relevantCodeSuivi = detailOption && detailOption.value === productSelect.value ? getLineCodeSuivi(line) : '';
+            showProductInfo(detailOption, relevantCodeSuivi);
             return;
         }
+        // Si le texte tape dans la recherche correspond exactement a un code de
+        // suivi de ce produit (saisie manuelle d'un lot precis, trop lente pour
+        // etre detectee comme un scan douchette), on le capture AVANT que
+        // selectProductOnLine() ne remette le champ de recherche au nom du
+        // produit et n'efface code_suivi[] (selection consideree "manuelle").
+        const searchInput = line.querySelector('.product-search');
+        const targetOption = Array.from(productSelect.options).find((option) => option.value === item.dataset.optionValue);
+        const matchedCodeSuivi = findExactCodeSuiviMatch(targetOption, searchInput ? searchInput.value : '');
+
         playCartAddSound();
         selectProductOnLine(line, item.dataset.optionValue);
+        if (matchedCodeSuivi) {
+            setLineCodeSuivi(line, matchedCodeSuivi);
+            updateSaleSummary();
+        }
     });
     body.addEventListener('focusin', function(event) {
         if (!event.target.classList.contains('product-search')) return;
@@ -2712,6 +2867,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // rejoue les memes fonctions que lors d'une saisie normale.
     const STOCK_LEVELS_URL = "{{ url_for('admin.stock_levels') }}";
 
+    // Applique un detail de stock (totaux agreges + codes de suivi + dates de
+    // peremption formates) pour UN SEUL produit. Les codes de suivi/dates de
+    // peremption (data-tracking-codes/data-expiry-dates) sont des chaines
+    // figees au chargement de la page -- /api/stock-levels (poll toutes les
+    // 5s) ne les couvre PAS, seulement les totaux agreges. D'ou ce chemin
+    // separe, utilise juste apres une transformation (reponse deja enrichie,
+    // voir transform_produit_stock) et pour rafraichir la modale "Voir les
+    // details" pendant qu'elle reste ouverte (voir applyStockLevels).
+    function applyProductStockDetail(produitId, detail) {
+        const produitIdStr = String(produitId);
+        document.querySelectorAll('select[name="produit_id[]"] option[value]').forEach((option) => {
+            if (option.value !== produitIdStr) return;
+            if (detail.stock_totals) {
+                option.dataset.stockUnite = detail.stock_totals.unite;
+                option.dataset.stockSousUnite = detail.stock_totals.sous_unite;
+                option.dataset.stockSousSousUnite = detail.stock_totals.sous_sous_unite;
+            }
+            if (detail.tracking_codes !== undefined) option.dataset.trackingCodes = detail.tracking_codes;
+            if (detail.expiry_dates !== undefined) option.dataset.expiryDates = detail.expiry_dates;
+        });
+        updateSaleSummary();
+    }
+
     function applyStockLevels(levels) {
         document.querySelectorAll('select[name="produit_id[]"] option[value]').forEach((option) => {
             if (!option.value || !levels[option.value]) return;
@@ -2731,6 +2909,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const search = line.querySelector('.product-search');
             if (select && search) renderSearchResults(select, search.value);
         });
+        // La modale "Voir les details", si ouverte, reste sinon figee sur les
+        // quantites du moment de son ouverture (ex: une vente faite sur un
+        // autre poste, ou une transformation, ne s'y refletent jamais tant
+        // qu'on ne la ferme/rouvre pas). Requete ciblee supplementaire pour CE
+        // seul produit : les codes de suivi/dates de peremption affiches n'y
+        // sont pas rafraichis par les data-stock-* deja mis a jour ci-dessus
+        // (ce sont des chaines figees, non couvertes par /api/stock-levels).
+        const infoModalEl = document.getElementById('productInfoModal');
+        if (infoModalEl && infoModalEl.classList.contains('show') && currentInfoOption) {
+            const produitId = currentInfoOption.value;
+            fetch(PRODUIT_STOCK_DETAIL_URL_TEMPLATE.replace('999999999', produitId), { headers: { 'Accept': 'application/json' } })
+                .then((res) => res.json())
+                .then((detail) => {
+                    applyProductStockDetail(produitId, detail);
+                    showProductInfo(currentInfoOption, currentInfoCodeSuivi);
+                })
+                .catch(() => {
+                    showProductInfo(currentInfoOption, currentInfoCodeSuivi);
+                });
+        }
     }
 
     function pollStockLevels() {

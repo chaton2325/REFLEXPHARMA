@@ -303,7 +303,7 @@
           <td>{{ item.numero_bl }}</td>
           <td>{{ item.date_peremption.strftime('%d/%m/%Y') if item.date_peremption else 'N/A' }}</td>
           <td>
-            <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% else %}bg-success{% endif %}">
+            <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% elif item.action == 'transform' %}bg-primary{% else %}bg-success{% endif %}">
               {{ action_labels.get(item.action, item.action) }}
             </span>
           </td>
@@ -344,7 +344,7 @@
           <div class="fw-semibold" style="color:#1a1a2e;">{{ item.produit.nom }}</div>
           <small class="text-muted">{{ item.produit.code_produit }}</small>
         </div>
-        <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% else %}bg-success{% endif %}">
+        <span class="badge {% if item.action == 'delete' %}bg-danger{% elif item.action == 'edit' %}bg-warning text-dark{% elif item.action == 'adjust' %}bg-info text-dark{% elif item.action == 'qr_print' %}bg-dark{% elif item.action == 'transform' %}bg-primary{% else %}bg-success{% endif %}">
           {{ action_labels.get(item.action, item.action) }}
         </span>
       </div>

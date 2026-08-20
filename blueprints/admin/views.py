@@ -193,6 +193,7 @@ STOCK_MODIFICATION_ACTION_LABELS = {
     'qr_print': 'Tirage QR',
     'update': 'Mise à jour',
     'restock': 'Restockage (annulation vente)',
+    'transform': 'Transformation (détail)',
 }
 
 def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
@@ -216,6 +217,52 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
         new_quantite_sous_sous_unites=new_values[2]
     )
     db.session.add(modification)
+
+def compute_stock_transform(stock, produit, direction, quantite):
+    """Casse `quantite` unite(s) en sous-unites (direction='vers_sous_unite')
+    ou regroupe `quantite` unite(s) a partir de sous-unites (direction=
+    'vers_unite'), sur UN lot precis. Operation neutre en valeur : le stock ne
+    quitte pas la pharmacie, seul son conditionnement change -- pas de
+    StockExitLog, juste une StockModification (action='transform') pour
+    l'audit et le suivi (voir stock_tracabilite).
+
+    Retourne (True, None) si applique, (False, message_erreur) sinon (rien
+    n'est modifie dans ce cas : appeler uniquement apres avoir verifie la
+    disponibilite, voir transform_stock/transform_produit_stock)."""
+    taille = produit.taille_conditionnement or 1
+    if quantite <= 0:
+        return False, "Quantité invalide."
+    if direction == 'vers_sous_unite':
+        if (stock.quantite_unites or 0) < quantite:
+            return False, f"Stock insuffisant : {stock.quantite_unites or 0} unité(s) disponible(s) sur ce lot."
+    elif direction == 'vers_unite':
+        needed = quantite * taille
+        if (stock.quantite_sous_unites or 0) < needed:
+            return False, f"Stock insuffisant : {stock.quantite_sous_unites or 0} sous-unité(s) disponible(s) sur ce lot (il en faut {needed})."
+    else:
+        return False, "Direction invalide."
+
+    old_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    if direction == 'vers_sous_unite':
+        stock.quantite_unites -= quantite
+        stock.quantite_sous_unites += quantite * taille
+        reason = f"Transformation : {quantite} unité(s) → {quantite * taille} sous-unité(s) (conditionnement ×{taille})"
+    else:
+        stock.quantite_sous_unites -= quantite * taille
+        stock.quantite_unites += quantite
+        reason = f"Transformation : {quantite * taille} sous-unité(s) → {quantite} unité(s) (conditionnement ×{taille})"
+    new_values = (stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites)
+    create_stock_modification(
+        stock=stock,
+        produit=produit,
+        action='transform',
+        reason=reason,
+        old_values=old_values,
+        new_values=new_values,
+        old_qr_tire=stock.qr_tire,
+        new_qr_tire=stock.qr_tire
+    )
+    return True, None
 
 def create_stock_exit_log(stock, reason, old_values, new_values, exit_values, source=None, inventaire_titre=None):
     fournisseur = stock.produit.fournisseur
@@ -2167,6 +2214,23 @@ def get_products_stock_expiry_dates(produits):
         expiries_by_product[produit.id] = expiries
     return expiries_by_product
 
+def get_produit_stock_detail_payload(produit):
+    """Etat de stock complet d'UN produit (agrege + detail par lot), pour
+    rafraichir en JS la modale "Voir les details" de Nouvelle vente sans
+    recharger la page. Les codes de suivi/dates de peremption affiches dans
+    cette modale (data-tracking-codes/data-expiry-dates) sont des chaines
+    figees au chargement initial : le refresh live base sur /api/stock-levels
+    ne les couvre PAS (il ne renvoie que les totaux agreges par produit --
+    un detail par lot pour tout le catalogue serait un payload bien trop
+    lourd a repeter toutes les 5s). Reutilise les memes helpers que le rendu
+    initial (get_product_stock_summary / get_products_stock_tracking_codes /
+    get_products_stock_expiry_dates), appeles pour ce seul produit."""
+    return {
+        'stock_totals': get_product_stock_summary(produit),
+        'tracking_codes': ' | '.join(get_products_stock_tracking_codes([produit]).get(produit.id, [])),
+        'expiry_dates': ' | '.join(get_products_stock_expiry_dates([produit]).get(produit.id, [])),
+    }
+
 def consume_product_stock_for_sale(produit, unite, quantite, numero_vente, preferred_code_suivi=None):
     """Sort la quantite vendue du stock du produit. Si preferred_code_suivi est
     fourni (lot identifie par un scan camera/douchette), la sortie se fait
@@ -2829,11 +2893,25 @@ def vente_scan_lookup():
     if not produit:
         produit = Produit.query.filter_by(code_produit=code).first()
 
+    ambiguous = False
     if not produit:
-        stock = Stock.query.filter(Stock.code_suivi.ilike(f'%{code}%')).first()
-        produit = stock.produit if stock else None
+        # Recherche partielle en dernier recours (scan tronque, fragment saisi
+        # a la main) : UNIQUEMENT si elle designe un lot SANS AMBIGUITE. Deux
+        # lots du meme produit mis en stock a quelques jours d'intervalle ont
+        # des codes de suivi tres proches (meme prefixe fournisseur, meme
+        # suffixe CIP, dates voisines) -- prendre le premier resultat au
+        # hasard (.first()) pouvait renvoyer un AUTRE lot que celui vise. On
+        # echoue proprement plutot que de deviner lequel.
+        candidates = Stock.query.filter(Stock.code_suivi.ilike(f'%{code}%')).all()
+        if len(candidates) == 1:
+            stock = candidates[0]
+            produit = stock.produit
+        elif len(candidates) > 1:
+            ambiguous = True
 
     if not produit:
+        if ambiguous:
+            return {'success': False, 'message': f"Plusieurs lots correspondent a '{code}' : saisissez le code de suivi complet."}, 404
         return {'success': False, 'message': f"Aucun produit trouve pour le code '{code}'."}, 404
 
     return {
@@ -2867,6 +2945,95 @@ def stock_levels():
         str(produit_id): {'unite': unite, 'sous_unite': sous_unite, 'sous_sous_unite': sous_sous_unite}
         for produit_id, unite, sous_unite, sous_sous_unite in rows
     })
+
+@admin.route('/api/produits/<int:id>/stock-detail')
+@login_required
+@permission_required('gestion_ventes')
+def produit_stock_detail(id):
+    """Detail de stock (agrege + codes de suivi + dates de peremption) d'UN
+    seul produit -- interrogee en JS uniquement quand la modale "Voir les
+    details" est ouverte (pas dans le poll global toutes les 5s, qui ne
+    couvre que les totaux agreges de tout le catalogue via /api/stock-levels :
+    ce detail par lot serait trop lourd a repeter pour chaque produit)."""
+    produit = Produit.query.get_or_404(id)
+    return jsonify(get_produit_stock_detail_payload(produit))
+
+@admin.route('/produits/<int:id>/transformer', methods=['POST'])
+@login_required
+@permission_required('gestion_ventes')
+def transform_produit_stock(id):
+    """Meme transformation unites <-> sous-unites que transform_stock, mais au
+    niveau PRODUIT plutot que d'un lot precis : utilisee depuis le modale
+    "Voir les details" de Nouvelle vente, ou le caissier ne voit qu'un stock
+    agrege tous lots confondus et n'a pas a choisir lequel casser (ex: plus
+    de sous-unites en stock pour finir une vente, il faut ouvrir une boite).
+
+    Si code_suivi est fourni (lot precisement scanne/selectionne sur la ligne
+    de vente courante, voir getLineCodeSuivi cote JS), la transformation se
+    fait EXCLUSIVEMENT sur CE lot -- jamais un autre, meme si le stock global
+    du produit suffirait : le lot physiquement identifie par le caissier doit
+    etre celui reellement transforme, pas un choix "au hasard" (FEFO) parmi
+    d'autres lots. Sans lot precise, repartit la quantite demandee en FEFO
+    (lot qui perime le plus tot d'abord), lot par lot -- chacun logue
+    separement (voir compute_stock_transform), comme pour la consommation de
+    stock a la vente (voir consume_product_stock_for_sale). Tout ou rien :
+    si le stock disponible (lot precis, ou tous lots confondus en FEFO) ne
+    suffit pas, rien n'est modifie."""
+    produit = Produit.query.get_or_404(id)
+    if not produit.conditionnement or produit.conditionnement < 2:
+        return jsonify({'success': False, 'message': "Ce produit n'est pas vendu au détail : aucune transformation possible."}), 400
+
+    direction = (request.form.get('direction') or '').strip()
+    code_suivi = (request.form.get('code_suivi') or '').strip()
+    try:
+        quantite = int(request.form.get('quantite') or 0)
+    except ValueError:
+        quantite = 0
+    if quantite <= 0 or direction not in ('vers_sous_unite', 'vers_unite'):
+        return jsonify({'success': False, 'message': 'Requête invalide.'}), 400
+
+    taille = produit.taille_conditionnement or 1
+
+    if code_suivi:
+        stock = next((s for s in produit.stocks if s.code_suivi == code_suivi), None)
+        if not stock:
+            return jsonify({'success': False, 'message': f"Lot {code_suivi} introuvable pour ce produit."}), 400
+        applied, error = compute_stock_transform(stock, produit, direction, quantite)
+        if not applied:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': error}), 400
+        db.session.commit()
+        # produit.stocks est rechargee depuis la base a cet acces
+        # (expire_on_commit=True par defaut) : deja a jour post-commit.
+        return jsonify({'success': True, 'message': 'Transformation effectuée.', **get_produit_stock_detail_payload(produit)})
+
+    stocks = sorted(produit.stocks, key=lambda item: item.date_peremption)
+
+    if direction == 'vers_sous_unite':
+        total_available = sum(int(s.quantite_unites or 0) for s in stocks)
+        unite_label = 'unité(s)'
+    else:
+        total_available = sum(int(s.quantite_sous_unites or 0) // taille for s in stocks)
+        unite_label = 'groupe(s) de sous-unités'
+    if total_available < quantite:
+        return jsonify({
+            'success': False,
+            'message': f"Stock insuffisant tous lots confondus : {total_available} {unite_label} disponible(s), {quantite} demandé(s)."
+        }), 400
+
+    remaining = quantite
+    for stock in stocks:
+        if remaining <= 0:
+            break
+        capacity = stock.quantite_unites if direction == 'vers_sous_unite' else (stock.quantite_sous_unites // taille)
+        take = min(capacity, remaining)
+        if take <= 0:
+            continue
+        compute_stock_transform(stock, produit, direction, take)
+        remaining -= take
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Transformation effectuée.', **get_produit_stock_detail_payload(produit)})
 
 @admin.route('/ventes/create', methods=['GET', 'POST'])
 @login_required
@@ -5380,12 +5547,14 @@ def stock_tracabilite(id):
     code_suivi = stock.code_suivi
 
     # Quantite initiale : premiere modification 'create' de ce lot (log
-    # d'audit). Repli sur la quantite actuelle pour un lot antérieur au
-    # logging (tres ancien) -- affiche alors 0% ecoule plutot qu'un chiffre
-    # faux.
+    # d'audit). Recherche par code_suivi, PAS stock_id : create_stock_modification
+    # met toujours stock_id=None (l'audit doit rester lisible meme si le lot est
+    # supprime plus tard) -- filtrer par stock_id ne matcherait donc jamais rien.
+    # Repli sur la quantite actuelle pour un lot antérieur au logging (tres
+    # ancien) -- affiche alors 0% ecoule plutot qu'un chiffre faux.
     creation = (
         StockModification.query
-        .filter_by(stock_id=stock.id, action='create')
+        .filter_by(code_suivi=code_suivi, action='create')
         .order_by(StockModification.created_at.asc())
         .first()
     )
@@ -5443,6 +5612,25 @@ def stock_tracabilite(id):
         'origine': 'Inventaire' if e.source == 'inventaire' else 'Manuel',
     } for e in exits]
 
+    # Transformations (casse/regroupement unite <-> sous-unite, voir
+    # compute_stock_transform) : n'affecte PAS le % ecoule ci-dessous, le
+    # stock ne quitte pas la pharmacie -- juste une info d'audit distincte.
+    transformations = (
+        StockModification.query
+        .filter_by(code_suivi=code_suivi, action='transform')
+        .order_by(StockModification.created_at.desc())
+        .all()
+    )
+    transformations_payload = [{
+        'date': t.created_at.strftime('%d/%m/%Y %H:%M'),
+        'reason': t.effective_reason or '-',
+        'old_unites': t.old_quantite_unites,
+        'old_sous_unites': t.old_quantite_sous_unites,
+        'new_unites': t.new_quantite_unites,
+        'new_sous_unites': t.new_quantite_sous_unites,
+        'user': f'{t.user.prenom} {t.user.nom}'.strip() if t.user else '-',
+    } for t in transformations]
+
     # Le % "ecoule" compte les ventes ET les sorties hors-vente (avarie,
     # perte, ecart d'inventaire...) : un lot de 10 dont 8 sont vendues et 2
     # sorties (avarie) est bien a 100% ecoule, pas 80%.
@@ -5463,6 +5651,7 @@ def stock_tracabilite(id):
         'pourcentage_vendu': pourcentage_vendu,
         'ventes': ventes_payload,
         'sorties': sorties_payload,
+        'transformations': transformations_payload,
     })
 
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
@@ -5522,6 +5711,37 @@ def delete_stock(id):
     db.session.commit()
     flash(f'Stock supprimé pour {produit_nom} ({code_suivi}).', 'success')
     return redirect(url_for('admin.manage_stock'))
+
+@admin.route('/stock/<int:id>/transformer', methods=['POST'])
+@login_required
+@permission_required('gestion_stock')
+def transform_stock(id):
+    """Casse/regroupe unites <-> sous-unites sur CE lot precis (bouton dedie
+    sur chaque ligne du Stock, voir aussi transform_produit_stock pour
+    l'equivalent cote Nouvelle vente). JSON, appelee en JS."""
+    stock = Stock.query.options(joinedload(Stock.produit)).get_or_404(id)
+    produit = stock.produit
+    if not produit.conditionnement or produit.conditionnement < 2:
+        return jsonify({'success': False, 'message': "Ce produit n'est pas vendu au détail : aucune transformation possible."}), 400
+
+    direction = (request.form.get('direction') or '').strip()
+    try:
+        quantite = int(request.form.get('quantite') or 0)
+    except ValueError:
+        quantite = 0
+
+    applied, error = compute_stock_transform(stock, produit, direction, quantite)
+    if not applied:
+        return jsonify({'success': False, 'message': error}), 400
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'message': 'Transformation effectuée.',
+        'quantite_unites': stock.quantite_unites,
+        'quantite_sous_unites': stock.quantite_sous_unites,
+        'quantite_sous_sous_unites': stock.quantite_sous_sous_unites,
+    })
 
 @admin.route('/stock/exit', methods=['GET', 'POST'])
 @login_required
