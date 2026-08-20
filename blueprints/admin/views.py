@@ -388,7 +388,14 @@ def get_requested_qr_counts(stock_ids):
     return counts
 
 def get_selected_stock_ids():
-    return [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    # Chaque lot a une case a cocher dans le tableau desktop ET dans la carte
+    # mobile (meme name="stock_ids", meme valeur) : les deux existent toujours
+    # dans le DOM (seul l'affichage responsive masque l'une des deux), donc un
+    # meme id peut arriver deux fois dans le formulaire. dict.fromkeys
+    # deduplique en conservant l'ordre, pour ne jamais generer/exporter deux
+    # fois le QR d'un meme lot.
+    ids = [int(stock_id) for stock_id in request.form.getlist('stock_ids') if stock_id.isdigit()]
+    return list(dict.fromkeys(ids))
 
 def get_stocks_in_requested_order(stock_ids):
     stocks = Stock.query.filter(Stock.id.in_(stock_ids)).all()

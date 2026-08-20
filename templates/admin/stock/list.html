@@ -705,9 +705,29 @@
     padding: 0.3rem 0.5rem;
   }
 
-  /* Barre d'outils Stock : deux groupes distincts (Filtres / Tri) plutot qu'une
-     seule ligne surchargee de controles. */
+  /* Barre d'outils Stock : panneau distinct, trois groupes clairement
+     etiquetes (Recherche / Filtres / Tri) plutot que des controles en vrac. */
+  .stock-toolbar {
+    background: #f8f9fb;
+    border: 1px solid #eef1f5;
+    border-radius: 12px;
+    padding: 0.75rem 0.9rem;
+  }
+  .stock-toolbar .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .stock-toolbar .toolbar-row + .toolbar-row {
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e4e8ee;
+  }
   .stock-toolbar .toolbar-label {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    min-width: 80px;
     font-size: 0.72rem;
     font-weight: 700;
     color: #7a8896;
@@ -715,6 +735,8 @@
     letter-spacing: 0.3px;
     white-space: nowrap;
   }
+  html[data-bs-theme="dark"] .stock-toolbar { background: #16202b; border-color: rgba(255,255,255,0.08); }
+  html[data-bs-theme="dark"] .stock-toolbar .toolbar-row + .toolbar-row { border-top-color: rgba(255,255,255,0.08); }
   .mobile-filter-label {
     font-size: 0.66rem;
     font-weight: 700;
@@ -937,84 +959,113 @@ document.addEventListener('DOMContentLoaded', function() {
     <form id="bulkQrForm" method="POST" action="{{ url_for('admin.preview_selected_stock_qr_codes') }}"></form>
     <div class="card-custom">
       <div class="p-3 p-sm-4 border-bottom">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <h5 class="mb-0" style="font-size:1rem;font-weight:600;color:#2c3e50;">Stock Courant</h5>
-          <div class="d-none d-sm-flex flex-column gap-2 stock-toolbar">
-            <div class="d-flex flex-row align-items-center gap-2 flex-wrap">
-              <div class="input-group input-group-sm" style="min-width:200px;width:auto;">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
-                <button type="button" id="stockSearchBtn" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
-              </div>
-              <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:120px;width:auto;">
+          <div class="d-flex align-items-center gap-2">
+            <div id="stockActivityIndicator" class="small text-muted d-none d-sm-block">
+              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              Traitement...
+            </div>
+            <div class="d-none d-sm-flex align-items-center gap-2 flex-shrink-0">
+              <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
+                <i class="fas fa-qrcode me-1"></i> QR
+              </button>
+              <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}" formmethod="POST" class="btn btn-sm btn-outline-danger stock-export-button" disabled>
+                <i class="fas fa-file-pdf"></i>
+              </button>
+              <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}" formmethod="POST" class="btn btn-sm btn-outline-success stock-export-button" disabled>
+                <i class="fas fa-file-excel"></i>
+              </button>
+              <small class="text-muted text-nowrap"><span id="stockVisibleCount">{{ stocks|length }}</span>/{{ stocks|length }}</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recherche / filtres / tri (desktop) : un panneau, trois lignes etiquetees -->
+        <div class="d-none d-sm-flex flex-column stock-toolbar">
+          <div class="toolbar-row">
+            <span class="toolbar-label"><i class="fas fa-search me-1"></i>Recherche</span>
+            <div class="input-group input-group-sm" style="min-width:220px;width:auto;">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="stockSearchInput" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
+              <button type="button" id="stockSearchBtn" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
+            </div>
+          </div>
+          <div class="toolbar-row">
+            <span class="toolbar-label"><i class="fas fa-filter me-1"></i>Filtres</span>
+            <select id="qrTireFilter" class="form-select form-select-sm" style="min-width:120px;width:auto;">
+              <option value="all">QR : Tous</option>
+              <option value="non">QR : Non tiré</option>
+              <option value="oui">QR : Tiré</option>
+            </select>
+            <select id="stockFilterDateField" class="form-select form-select-sm" style="min-width:150px;width:auto;" title="Date utilisée par le filtre ci-dessous">
+              <option value="created" selected>Date mise en stock</option>
+              <option value="peremption">Date péremption</option>
+              <option value="updated">Dernière modif.</option>
+            </select>
+            <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width:130px;width:auto;">
+            <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary" title="Filtrer sur la date du jour">
+              <i class="fas fa-calendar-day me-1"></i>Aujourd'hui
+            </button>
+            <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">Toutes dates</button>
+          </div>
+          <div class="toolbar-row">
+            <span class="toolbar-label"><i class="fas fa-sort me-1"></i>Trier par</span>
+            <select id="stockSortField" class="form-select form-select-sm" style="min-width:170px;width:auto;">
+              <option value="produit">Produit</option>
+              <option value="bl">Numéro de BL</option>
+              <option value="code_suivi">Code suivi</option>
+              <option value="peremption">Date péremption</option>
+              <option value="created" selected>Date mise en stock</option>
+              <option value="updated">Dernière modification</option>
+              <option value="quantite">Quantité</option>
+              <option value="ttc">Montant TTC</option>
+            </select>
+            <select id="stockSortDirection" class="form-select form-select-sm" style="min-width:130px;width:auto;">
+              <option value="desc" selected>Décroissant</option>
+              <option value="asc">Croissant</option>
+            </select>
+            <button type="button" id="applyStockSort" class="btn btn-sm btn-outline-secondary">
+              <i class="fas fa-sort-amount-down-alt me-1"></i>Appliquer
+            </button>
+            <button type="button" id="resetStockFiltersBtn" class="btn btn-sm btn-outline-danger ms-auto" title="Réinitialiser la recherche, les filtres et le tri">
+              <i class="fas fa-rotate-left me-1"></i>Réinitialiser les filtres
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex d-sm-none align-items-center gap-2 w-100">
+          <div class="input-group input-group-sm" style="flex:1;">
+            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="stockSearchInputMobile" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
+            <button type="button" id="stockSearchBtnMobile" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
+          </div>
+          <details style="position:relative;">
+            <summary style="list-style:none;cursor:pointer;font-size:0.75rem;padding:0.3rem 0.6rem;border:1px solid #dee2e6;border-radius:8px;background:#fff;white-space:nowrap;">
+              <i class="fas fa-sliders-h"></i> Filtres
+            </summary>
+            <div style="position:absolute;top:100%;right:0;z-index:1050;background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:0.75rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);width:280px;display:flex;flex-direction:column;gap:0.5rem;">
+              <div class="mobile-filter-label">Filtres</div>
+              <select id="qrTireFilterMobile" class="form-select form-select-sm">
                 <option value="all">QR : Tous</option>
                 <option value="non">QR : Non tiré</option>
                 <option value="oui">QR : Tiré</option>
               </select>
-              <select id="stockFilterDateField" class="form-select form-select-sm" style="min-width:150px;width:auto;" title="Date utilisée par le filtre ci-dessous">
+              <select id="stockFilterDateFieldMobile" class="form-select form-select-sm">
                 <option value="created" selected>Date mise en stock</option>
                 <option value="peremption">Date péremption</option>
                 <option value="updated">Dernière modif.</option>
               </select>
-              <input type="date" id="stockDateFilter" class="form-control form-control-sm" style="min-width:130px;width:auto;">
-              <button type="button" id="stockTodayFilter" class="btn btn-sm btn-outline-primary" title="Filtrer sur la date du jour">
-                <i class="fas fa-calendar-day me-1"></i>Aujourd'hui
-              </button>
-              <button type="button" id="clearStockDateFilter" class="btn btn-sm btn-outline-secondary">Toutes dates</button>
-            </div>
-            <div class="d-flex flex-row align-items-center gap-2 flex-wrap">
-              <span class="toolbar-label"><i class="fas fa-sort me-1"></i>Trier par</span>
-              <select id="stockSortField" class="form-select form-select-sm" style="min-width:170px;width:auto;">
+              <input type="date" id="stockDateFilterMobile" class="form-control form-control-sm">
+              <div class="d-flex gap-2">
+                <button type="button" id="stockTodayFilterMobile" class="btn btn-sm btn-outline-primary flex-1">Aujourd'hui</button>
+                <button type="button" id="clearStockDateFilterMobile" class="btn btn-sm btn-outline-secondary flex-1">Toutes</button>
+              </div>
+
+              <div class="mobile-filter-label">Trier par</div>
+              <select id="stockSortFieldMobile" class="form-select form-select-sm">
                 <option value="produit">Produit</option>
                 <option value="bl">Numéro de BL</option>
-                <option value="code_suivi">Code suivi</option>
-                <option value="peremption">Date péremption</option>
-                <option value="created" selected>Date mise en stock</option>
-                <option value="updated">Dernière modification</option>
-                <option value="quantite">Quantité</option>
-                <option value="ttc">Montant TTC</option>
-              </select>
-              <select id="stockSortDirection" class="form-select form-select-sm" style="min-width:130px;width:auto;">
-                <option value="desc" selected>Décroissant</option>
-                <option value="asc">Croissant</option>
-              </select>
-              <button type="button" id="applyStockSort" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-sort-amount-down-alt me-1"></i>Appliquer
-              </button>
-            </div>
-          </div>
-          <div class="d-flex d-sm-none align-items-center gap-2 w-100">
-            <div class="input-group input-group-sm" style="flex:1;">
-              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-              <input type="text" id="stockSearchInputMobile" class="form-control" placeholder="Rechercher..." value="{{ search_q }}">
-              <button type="button" id="stockSearchBtnMobile" class="btn btn-primary" title="Rechercher"><i class="fas fa-search"></i></button>
-            </div>
-            <details style="position:relative;">
-              <summary style="list-style:none;cursor:pointer;font-size:0.75rem;padding:0.3rem 0.6rem;border:1px solid #dee2e6;border-radius:8px;background:#fff;white-space:nowrap;">
-                <i class="fas fa-sliders-h"></i> Filtres
-              </summary>
-              <div style="position:absolute;top:100%;right:0;z-index:1050;background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:0.75rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);width:280px;display:flex;flex-direction:column;gap:0.5rem;">
-                <div class="mobile-filter-label">Filtres</div>
-                <select id="qrTireFilterMobile" class="form-select form-select-sm">
-                  <option value="all">QR : Tous</option>
-                  <option value="non">QR : Non tiré</option>
-                  <option value="oui">QR : Tiré</option>
-                </select>
-                <select id="stockFilterDateFieldMobile" class="form-select form-select-sm">
-                  <option value="created" selected>Date mise en stock</option>
-                  <option value="peremption">Date péremption</option>
-                  <option value="updated">Dernière modif.</option>
-                </select>
-                <input type="date" id="stockDateFilterMobile" class="form-control form-control-sm">
-                <div class="d-flex gap-2">
-                  <button type="button" id="stockTodayFilterMobile" class="btn btn-sm btn-outline-primary flex-1">Aujourd'hui</button>
-                  <button type="button" id="clearStockDateFilterMobile" class="btn btn-sm btn-outline-secondary flex-1">Toutes</button>
-                </div>
-
-                <div class="mobile-filter-label">Trier par</div>
-                <select id="stockSortFieldMobile" class="form-select form-select-sm">
-                  <option value="produit">Produit</option>
-                  <option value="bl">Numéro de BL</option>
                   <option value="code_suivi">Code suivi</option>
                   <option value="peremption">Date péremption</option>
                   <option value="created" selected>Date mise en stock</option>
@@ -1029,26 +1080,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button type="button" id="applyStockSortMobile" class="btn btn-sm btn-outline-secondary w-100">
                   <i class="fas fa-sort-amount-down-alt me-1"></i> Appliquer le tri
                 </button>
+                <button type="button" id="resetStockFiltersBtnMobile" class="btn btn-sm btn-outline-danger w-100">
+                  <i class="fas fa-rotate-left me-1"></i> Réinitialiser les filtres
+                </button>
               </div>
             </details>
           </div>
-          <div id="stockActivityIndicator" class="small text-muted d-none d-sm-block">
-            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-            Traitement...
-          </div>
-          <div class="d-none d-sm-flex align-items-center gap-2 flex-shrink-0">
-            <button type="submit" form="bulkQrForm" id="bulkQrButton" class="btn btn-sm btn-dark" disabled>
-              <i class="fas fa-qrcode me-1"></i> QR
-            </button>
-            <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_pdf') }}" formmethod="POST" class="btn btn-sm btn-outline-danger stock-export-button" disabled>
-              <i class="fas fa-file-pdf"></i>
-            </button>
-            <button type="submit" form="bulkQrForm" formaction="{{ url_for('admin.export_selected_stock_qr_excel') }}" formmethod="POST" class="btn btn-sm btn-outline-success stock-export-button" disabled>
-              <i class="fas fa-file-excel"></i>
-            </button>
-            <small class="text-muted text-nowrap"><span id="stockVisibleCount">{{ stocks|length }}</span>/{{ stocks|length }}</small>
-          </div>
-        </div>
         <div class="d-flex d-sm-none align-items-center gap-2 mt-2">
           <button type="submit" form="bulkQrForm" id="bulkQrButtonMobile" class="btn btn-sm btn-dark" disabled style="font-size:0.75rem;padding:0.3rem 0.6rem;">
             <i class="fas fa-qrcode me-1"></i> QR
@@ -2142,10 +2179,23 @@ document.addEventListener('DOMContentLoaded', function() {
             .filter(Boolean);
     }
 
+    // Chaque lot a une case a cocher dans le tableau desktop ET dans la carte
+    // mobile (meme value=id, seul l'affichage responsive masque l'une des
+    // deux -- les deux restent dans le DOM). Compter les elements coches
+    // directement double donc le total ("86" au lieu de "43" pour 43 lots) :
+    // on deduplique par id de lot avant de compter/comparer.
+    function uniqueIds(checkboxes) {
+        const ids = new Set();
+        checkboxes.forEach((cb) => ids.add(cb.value));
+        return ids;
+    }
+
     function updateSelectionState() {
-        const selectedCount = Array.from(stockCheckboxes()).filter((checkbox) => checkbox.checked).length;
-        const visibleCheckboxes = Array.from(stockCheckboxes(visibleStockRows())).concat(visibleMobileCheckboxes());
-        const visibleSelectedCount = visibleCheckboxes.filter((checkbox) => checkbox.checked).length;
+        const selectedIds = uniqueIds(Array.from(stockCheckboxes()).filter((cb) => cb.checked));
+        const selectedCount = selectedIds.size;
+        const visibleIds = uniqueIds(stockCheckboxes(visibleStockRows()).concat(visibleMobileCheckboxes()));
+        let visibleSelectedCount = 0;
+        visibleIds.forEach((id) => { if (selectedIds.has(id)) visibleSelectedCount++; });
 
         if (selectedStockCount) {
             selectedStockCount.textContent = selectedCount;
@@ -2157,8 +2207,8 @@ document.addEventListener('DOMContentLoaded', function() {
             button.disabled = selectedCount === 0;
         });
         if (toggleVisibleQrRows) {
-            toggleVisibleQrRows.checked = visibleCheckboxes.length > 0 && visibleSelectedCount === visibleCheckboxes.length;
-            toggleVisibleQrRows.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleCheckboxes.length;
+            toggleVisibleQrRows.checked = visibleIds.size > 0 && visibleSelectedCount === visibleIds.size;
+            toggleVisibleQrRows.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.size;
         }
     }
 
@@ -2263,6 +2313,36 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Reinitialise recherche + filtres + tri. La recherche vit dans l'URL
+    // (?q=...) : seule une navigation vers l'URL de base peut vraiment la
+    // vider, ce qui remet aussi QR/date/tri a leurs valeurs par defaut
+    // gratuitement (aucun des deux n'est persiste cote serveur). Sans
+    // recherche active, un reset "sur place" suffit et reste plus rapide
+    // (pas de rechargement de page).
+    function resetStockFilters() {
+        if (stockSearchInput && stockSearchInput.value.trim()) {
+            if (window.showNavLoadingOverlay) window.showNavLoadingOverlay();
+            window.location.href = '{{ url_for("admin.manage_stock") }}';
+            return;
+        }
+        [['qrTireFilter', 'all'], ['qrTireFilterMobile', 'all'],
+         ['stockFilterDateField', 'created'], ['stockFilterDateFieldMobile', 'created'],
+         ['stockDateFilter', ''], ['stockDateFilterMobile', ''],
+         ['stockSortField', 'created'], ['stockSortFieldMobile', 'created'],
+         ['stockSortDirection', 'desc'], ['stockSortDirectionMobile', 'desc']].forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        });
+        runWithIndicator(() => {
+            filterStockRows();
+            sortStockRowsByField('created', 'desc');
+        });
+    }
+    const resetStockFiltersBtn = document.getElementById('resetStockFiltersBtn');
+    const resetStockFiltersBtnMobile = document.getElementById('resetStockFiltersBtnMobile');
+    if (resetStockFiltersBtn) resetStockFiltersBtn.addEventListener('click', resetStockFilters);
+    if (resetStockFiltersBtnMobile) resetStockFiltersBtnMobile.addEventListener('click', resetStockFilters);
 
     if (qrTireFilter) {
         qrTireFilter.addEventListener('change', () => {
@@ -2423,15 +2503,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const origUpdate = updateSelectionState;
         updateSelectionState = function() {
             origUpdate();
-            const selectedCount = Array.from(stockCheckboxes()).filter(cb => cb.checked).length;
+            const selectedIds = uniqueIds(Array.from(stockCheckboxes()).filter(cb => cb.checked));
+            const selectedCount = selectedIds.size;
             if (bulkQrButtonMobile) bulkQrButtonMobile.disabled = selectedCount === 0;
             document.querySelectorAll('.stock-export-button-mobile').forEach(b => b.disabled = selectedCount === 0);
             if (selectedStockCountMobile) selectedStockCountMobile.textContent = selectedCount;
             if (toggleMobileRows) {
-                const visibleMobile = visibleMobileCheckboxes();
-                const visibleChecks = stockCheckboxes(visibleStockRows()).concat(visibleMobile);
-                toggleMobileRows.checked = visibleChecks.length > 0 && visibleChecks.every(cb => cb.checked);
-                toggleMobileRows.indeterminate = visibleChecks.some(cb => cb.checked) && !toggleMobileRows.checked;
+                const visibleIds = uniqueIds(stockCheckboxes(visibleStockRows()).concat(visibleMobileCheckboxes()));
+                let visibleSelectedCount = 0;
+                visibleIds.forEach((id) => { if (selectedIds.has(id)) visibleSelectedCount++; });
+                toggleMobileRows.checked = visibleIds.size > 0 && visibleSelectedCount === visibleIds.size;
+                toggleMobileRows.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.size;
             }
         };
     }
