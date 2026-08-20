@@ -43,7 +43,6 @@
     border-radius: 14px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     border: 1px solid rgba(0,0,0,0.03);
-    overflow: hidden;
   }
   .card-form .card-header {
     background: #f8f9fa;
@@ -52,6 +51,7 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
+    border-radius: 14px 14px 0 0;
   }
   .card-form .card-header h5 {
     font-size: 0.98rem;
@@ -211,6 +211,17 @@
     line-height: 1.4;
   }
 
+  /* Champ TVA verrouille a 0 quand la case "TVA applicable" est decochee :
+     readonly (pas disabled) pour que la valeur 0 soit bien envoyee au submit. */
+  #inputTva[readonly] {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
+  html[data-bs-theme="dark"] #inputTva[readonly] {
+    background-color: #232f3b;
+  }
+
   html[data-bs-theme="dark"] .detail-toggle-card {
     --dtc-bg: #171f27;
     --dtc-border: #2a3541;
@@ -233,6 +244,63 @@
   html[data-bs-theme="dark"] .card-form .card-header .step-num {
     background: rgba(90,169,230,0.16);
     color: #5aa9e6;
+  }
+
+  /* Fournisseur recherchable : input texte + liste de resultats filtree en
+     direct par-dessus le select natif (conserve pour la valeur/soumission). */
+  .searchable-select { position: relative; }
+  .searchable-select-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    padding: 0.25rem;
+  }
+  .searchable-select-item {
+    padding: 0.45rem 0.65rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #2c3e50;
+  }
+  .searchable-select-item:hover,
+  .searchable-select-item.active {
+    background: rgba(52,152,219,0.14);
+  }
+  .searchable-select-empty {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  html[data-bs-theme="dark"] .searchable-select-results {
+    background: #1c2733;
+    border-color: #2a3541;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  html[data-bs-theme="dark"] .searchable-select-item { color: #e8edf2; }
+  html[data-bs-theme="dark"] .searchable-select-item:hover,
+  html[data-bs-theme="dark"] .searchable-select-item.active { background: rgba(90,169,230,0.2); }
+  html[data-bs-theme="dark"] .searchable-select-empty { color: #9aa7b3; }
+
+  /* Focus plus marque (bleu plus present que le focus Bootstrap par defaut)
+     sur tous les champs de ce formulaire, pour une navigation clavier lisible. */
+  .form-custom .form-control:focus,
+  .form-custom .form-select:focus,
+  .form-custom .form-check-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0.25rem rgba(52,152,219,0.45);
+  }
+  html[data-bs-theme="dark"] .form-custom .form-control:focus,
+  html[data-bs-theme="dark"] .form-custom .form-select:focus,
+  html[data-bs-theme="dark"] .form-custom .form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(90,169,230,0.5);
   }
 
   @media (max-width: 575.98px) {
@@ -276,8 +344,15 @@
               <input type="text" name="nom" class="form-control" value="{{ produit.nom if produit else '' }}" required>
             </div>
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Fournisseur <span class="text-danger">*</span></label>
-              <select name="fournisseur_id" id="fournisseurSelect" class="form-select" required {{ 'disabled' if produit }}>
+              <label class="form-label" for="fournisseurSearchInput">Fournisseur <span class="text-danger">*</span></label>
+              <div class="searchable-select">
+                <input type="text" id="fournisseurSearchInput" class="form-control" autocomplete="off" required
+                    placeholder="Rechercher un fournisseur..."
+                    value="{{ (produit.fournisseur.nom ~ ' (' ~ produit.fournisseur.prefixe ~ ')') if produit and produit.fournisseur else '' }}"
+                    {{ 'disabled' if produit }}>
+                <div class="searchable-select-results d-none" id="fournisseurSearchResults"></div>
+              </div>
+              <select name="fournisseur_id" id="fournisseurSelect" class="d-none" tabindex="-1" aria-hidden="true" {{ 'disabled' if produit }}>
                 <option value="">Choisir un fournisseur...</option>
                 {% for f in fournisseurs %}
                 <option value="{{ f.id }}"
@@ -286,6 +361,7 @@
                 </option>
                 {% endfor %}
               </select>
+              <div id="fournisseurSearchError" class="small text-danger mt-1 d-none">Veuillez choisir un fournisseur dans la liste.</div>
             </div>
             <div class="col-sm-6 col-md-4">
               <label class="form-label">CIP <span class="text-danger">*</span></label>
@@ -312,8 +388,12 @@
         <div class="card-body">
           <div class="row g-3">
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Rayon</label>
-              <select name="rayon_id" class="form-select">
+              <label class="form-label" for="rayonSearchInput">Rayon</label>
+              <div class="searchable-select">
+                <input type="text" id="rayonSearchInput" class="form-control" autocomplete="off" placeholder="Rechercher un rayon...">
+                <div class="searchable-select-results d-none" id="rayonSearchResults"></div>
+              </div>
+              <select name="rayon_id" id="rayonSelect" class="d-none" tabindex="-1" aria-hidden="true">
                 <option value="">Aucun</option>
                 {% for r in rayons %}
                 <option value="{{ r.id }}" {% if produit and produit.rayon_id == r.id %}selected{% endif %}>{{ r.nom }}</option>
@@ -321,8 +401,12 @@
               </select>
             </div>
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Famille</label>
-              <select name="famille_id" class="form-select">
+              <label class="form-label" for="familleSearchInput">Famille</label>
+              <div class="searchable-select">
+                <input type="text" id="familleSearchInput" class="form-control" autocomplete="off" placeholder="Rechercher une famille...">
+                <div class="searchable-select-results d-none" id="familleSearchResults"></div>
+              </div>
+              <select name="famille_id" id="familleSelect" class="d-none" tabindex="-1" aria-hidden="true">
                 <option value="">Aucune</option>
                 {% for f in familles %}
                 <option value="{{ f.id }}" {% if produit and produit.famille_id == f.id %}selected{% endif %}>{{ f.nom }}</option>
@@ -330,8 +414,12 @@
               </select>
             </div>
             <div class="col-sm-6 col-md-4">
-              <label class="form-label">Section</label>
-              <select name="section_id" class="form-select">
+              <label class="form-label" for="sectionSearchInput">Section</label>
+              <div class="searchable-select">
+                <input type="text" id="sectionSearchInput" class="form-control" autocomplete="off" placeholder="Rechercher une section...">
+                <div class="searchable-select-results d-none" id="sectionSearchResults"></div>
+              </div>
+              <select name="section_id" id="sectionSelect" class="d-none" tabindex="-1" aria-hidden="true">
                 <option value="">Aucune</option>
                 {% for s in sections %}
                 <option value="{{ s.id }}" {% if produit and produit.section_id == s.id %}selected{% endif %}>{{ s.nom }}</option>
@@ -415,13 +503,19 @@
           <div class="row g-3 mb-3">
             <div class="col-sm-6">
               <label class="form-label">Coefficient <span class="text-danger">*</span></label>
-              <input type="number" step="0.01" min="0" name="coefficient" id="inputCoefficient" class="form-control" value="{{ produit.coefficient if produit else '1.0' }}" required>
+              <input type="number" step="0.01" min="0" name="coefficient" id="inputCoefficient" class="form-control" value="{{ produit.coefficient if produit else '1.34' }}" required>
               <div class="form-text small text-muted">Prix de vente HT = Prix d'achat &times; coefficient.</div>
             </div>
             <div class="col-sm-6">
-              <label class="form-label">TVA (%) <span class="text-danger">*</span></label>
+              <div class="d-flex align-items-center justify-content-between">
+                <label for="inputTva" class="form-label mb-0">TVA (%) <span class="text-danger">*</span></label>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" role="switch" id="tvaCheckbox" {% if not produit or produit.tva %}checked{% endif %}>
+                  <label class="form-check-label small text-muted" for="tvaCheckbox">TVA applicable</label>
+                </div>
+              </div>
               <input type="number" step="0.01" min="0" name="tva" id="inputTva" class="form-control" value="{{ produit.tva if produit else '20.0' }}" required>
-              <div class="form-text small text-muted">Appliquée sur le prix de vente HT pour obtenir le TTC.</div>
+              <div class="form-text small text-muted">Appliquée sur le prix de vente HT pour obtenir le TTC. Décocher "TVA applicable" pour un produit exonéré (TVA fixée à 0%, champ verrouillé).</div>
             </div>
           </div>
           <div class="form-text small text-muted mb-3">
@@ -468,6 +562,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const prixSousUniteCalc = document.getElementById('prixSousUniteCalc');
     const inputCoefficient = document.getElementById('inputCoefficient');
     const inputTva = document.getElementById('inputTva');
+    const tvaCheckbox = document.getElementById('tvaCheckbox');
+    const fournisseurSearchInput = document.getElementById('fournisseurSearchInput');
+    const fournisseurSearchResults = document.getElementById('fournisseurSearchResults');
+    const fournisseurSelect = document.getElementById('fournisseurSelect');
+    const fournisseurSearchError = document.getElementById('fournisseurSearchError');
+
+    // Case "TVA applicable" decochee : champ verrouille a 0 (readonly, pas
+    // disabled, pour que la valeur 0 soit bien envoyee au submit). Recochee :
+    // le champ redevient modifiable et retrouve le dernier taux saisi, plutot
+    // que de rester bloque a 0.
+    let lastTvaValue = (inputTva.value && Number(inputTva.value) > 0) ? inputTva.value : '20.0';
+
+    function updateTvaField() {
+        if (tvaCheckbox.checked) {
+            inputTva.readOnly = false;
+            if (!inputTva.value || Number(inputTva.value) <= 0) inputTva.value = lastTvaValue;
+        } else {
+            if (Number(inputTva.value) > 0) lastTvaValue = inputTva.value;
+            inputTva.value = '0';
+            inputTva.readOnly = true;
+        }
+    }
 
     function updateFields() {
         const estDetail = detailCheckbox.checked;
@@ -538,6 +654,142 @@ document.addEventListener('DOMContentLoaded', function() {
         apercuDiv.innerHTML = html;
     }
 
+    function escapeHtmlAttr(s) {
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    // ---- Champ recherchable generique : transforme un <select> (conserve,
+    // masque, seule source de verite pour la valeur soumise) en input texte +
+    // liste filtree en direct par-dessus. Utilise pour fournisseur, rayon,
+    // famille et section. Inactif si l'input est deja desactive (fournisseur
+    // fige en edition, comme le CIP). ----
+    function initSearchableSelect(opts) {
+        const searchInput = opts.searchInput;
+        const resultsEl = opts.resultsEl;
+        const selectEl = opts.selectEl;
+        const errorEl = opts.errorEl || null;
+        if (!searchInput || searchInput.disabled) return;
+        const wrapper = searchInput.closest('.searchable-select');
+
+        const allOptions = Array.from(selectEl.options)
+            .filter(function(o) { return o.value; })
+            .map(function(o) { return { id: o.value, label: o.textContent.trim() }; });
+
+        // Pre-remplit l'affichage a partir de la selection initiale du select
+        // (rayon/famille/section n'ont pas de valeur pre-remplie cote Jinja :
+        // on lit simplement le libelle de l'option deja "selected").
+        if (!searchInput.value && selectEl.value) {
+            const initial = allOptions.find(function(o) { return o.id === selectEl.value; });
+            if (initial) searchInput.value = initial.label;
+        }
+
+        let filtered = [];
+        let activeIndex = -1;
+
+        function isOpen() { return !resultsEl.classList.contains('d-none'); }
+
+        function hide() {
+            resultsEl.classList.add('d-none');
+            resultsEl.innerHTML = '';
+            activeIndex = -1;
+        }
+
+        function render(items) {
+            filtered = items;
+            activeIndex = -1;
+            resultsEl.innerHTML = items.length === 0
+                ? '<div class="searchable-select-empty">Aucun résultat.</div>'
+                : items.map(function(o, idx) {
+                    return '<div class="searchable-select-item" data-index="' + idx + '">' + escapeHtmlAttr(o.label) + '</div>';
+                }).join('');
+            resultsEl.querySelectorAll('.searchable-select-item').forEach(function(el) {
+                // mousedown (pas click) : s'execute avant le blur de l'input, sinon
+                // le blur fermerait la liste avant que le clic ne soit pris en compte.
+                el.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    select(filtered[Number(el.dataset.index)]);
+                });
+            });
+            resultsEl.classList.remove('d-none');
+        }
+
+        function select(o) {
+            selectEl.value = o.id;
+            searchInput.value = o.label;
+            if (errorEl) errorEl.classList.add('d-none');
+            hide();
+            if (opts.onSelect) opts.onSelect(o);
+        }
+
+        function filterOptions(q) {
+            const query = q.trim().toLowerCase();
+            if (!query) return allOptions;
+            return allOptions.filter(function(o) { return o.label.toLowerCase().indexOf(query) !== -1; });
+        }
+
+        searchInput.addEventListener('input', function() {
+            // Toute frappe invalide la selection precedente tant qu'une option
+            // n'est pas re-choisie explicitement dans la liste (evite d'envoyer
+            // un id ne correspondant plus au texte affiche).
+            selectEl.value = '';
+            if (errorEl) errorEl.classList.add('d-none');
+            render(filterOptions(searchInput.value));
+        });
+        searchInput.addEventListener('focus', function() {
+            // Toujours tout afficher a l'ouverture (meme si le champ contient deja
+            // un libelle choisi) : plus simple pour parcourir/changer que de devoir
+            // d'abord vider le texte pour retrouver la liste complete. Taper filtre
+            // ensuite normalement (voir le listener 'input').
+            render(allOptions);
+        });
+        searchInput.addEventListener('blur', function() {
+            // Laisse le temps au mousedown d'un resultat de s'executer avant de fermer.
+            setTimeout(hide, 150);
+            if (!selectEl.value) searchInput.value = '';
+        });
+        searchInput.addEventListener('keydown', function(e) {
+            const items = resultsEl.querySelectorAll('.searchable-select-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!isOpen()) { render(allOptions); return; }
+                if (items.length === 0) return;
+                activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                items.forEach(function(el, idx) { el.classList.toggle('active', idx === activeIndex); });
+                items[activeIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                activeIndex = Math.max(activeIndex - 1, 0);
+                items.forEach(function(el, idx) { el.classList.toggle('active', idx === activeIndex); });
+                items[activeIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                // Un premier Entree choisit l'option en surbrillance (ferme la
+                // liste) ; le gestionnaire generique du formulaire (plus bas) ne
+                // voit alors jamais cette frappe (stopPropagation) et n'avance pas
+                // encore au champ suivant, pour laisser le temps de verifier le
+                // choix. Si la liste n'est pas ouverte (ou vide), on la laisse
+                // remonter : l'Entree passe alors normalement au champ suivant.
+                if (isOpen() && items.length > 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    select(filtered[activeIndex >= 0 ? activeIndex : 0]);
+                }
+            } else if (e.key === 'Escape') {
+                hide();
+            }
+        });
+        document.addEventListener('click', function(e) {
+            if (wrapper && !wrapper.contains(e.target)) hide();
+        });
+    }
+
+    initSearchableSelect({ searchInput: fournisseurSearchInput, resultsEl: fournisseurSearchResults, selectEl: fournisseurSelect, errorEl: fournisseurSearchError });
+    initSearchableSelect({ searchInput: document.getElementById('rayonSearchInput'), resultsEl: document.getElementById('rayonSearchResults'), selectEl: document.getElementById('rayonSelect') });
+    initSearchableSelect({ searchInput: document.getElementById('familleSearchInput'), resultsEl: document.getElementById('familleSearchResults'), selectEl: document.getElementById('familleSelect') });
+    initSearchableSelect({ searchInput: document.getElementById('sectionSearchInput'), resultsEl: document.getElementById('sectionSearchResults'), selectEl: document.getElementById('sectionSelect') });
+
     detailCheckbox.addEventListener('change', function() { updateFields(); updatePrixSousUniteCalc(); renderApercuPrix(); });
     detailToggleCard.addEventListener('click', function(e) {
         if (e.target === detailCheckbox || e.target.tagName === 'LABEL') return;
@@ -547,10 +799,50 @@ document.addEventListener('DOMContentLoaded', function() {
     [prixAchatUnite, inputTailleConditionnement, inputCoefficient, inputTva].forEach(function(input) {
         if (input) input.addEventListener('input', function() { updatePrixSousUniteCalc(); renderApercuPrix(); });
     });
+    tvaCheckbox.addEventListener('change', function() { updateTvaField(); renderApercuPrix(); });
 
     updateFields();
+    updateTvaField();
     updatePrixSousUniteCalc();
     renderApercuPrix();
+
+    // ---- Validation du fournisseur choisi (select natif masque : voir plus
+    // haut pourquoi "required" n'y est plus pose directement). ----
+    const formEl = document.querySelector('form.form-custom');
+    formEl.addEventListener('submit', function(e) {
+        if (fournisseurSelect && !fournisseurSelect.disabled && !fournisseurSelect.value) {
+            e.preventDefault();
+            fournisseurSearchError.classList.remove('d-none');
+            fournisseurSearchInput.focus();
+        }
+    });
+
+    // ---- Entree pour passer au champ suivant, jusqu'au bouton d'envoi : la
+    // liste des champs "actifs" (visibles, non desactives) est recalculee a
+    // chaque frappe pour suivre naturellement les champs qui apparaissent /
+    // disparaissent (conditionnement au detail, TVA verrouillee...). ----
+    const submitBtn = formEl.querySelector('.form-actions-bar button[type="submit"]');
+    function focusableFormFields() {
+        return Array.from(formEl.querySelectorAll('input, select, textarea')).filter(function(el) {
+            return !el.disabled && el.type !== 'hidden' && el.offsetParent !== null;
+        });
+    }
+    formEl.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' || e.defaultPrevented) return;
+        const target = e.target;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT') return;
+        e.preventDefault();
+        const fields = focusableFormFields();
+        const idx = fields.indexOf(target);
+        if (idx === -1) return;
+        const next = fields[idx + 1];
+        if (next) {
+            next.focus();
+            if (next.tagName === 'INPUT' && typeof next.select === 'function') next.select();
+        } else if (submitBtn) {
+            submitBtn.click();
+        }
+    });
 });
 </script>
 {% endblock %}
