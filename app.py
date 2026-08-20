@@ -259,6 +259,10 @@ def ensure_database_schema(app):
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_produits_fournisseur_id ON produits (fournisseur_id);"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_entries_produit_id ON stock_entries (produit_id);"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_entries_date_peremption ON stock_entries (date_peremption);"))
+            # Utilise par admin.stock_tracabilite (suivi des ventes d'un lot
+            # precis, bouton dedie sur /admin/stock) pour retrouver les lignes
+            # de vente d'un lot sans scanner toute la table a chaque ouverture.
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_vente_lignes_stock_code_suivi ON vente_lignes (stock_code_suivi);"))
         except Exception:
             db.session.rollback()
 

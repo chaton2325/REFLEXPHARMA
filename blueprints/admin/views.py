@@ -5335,6 +5335,106 @@ def stock_stats():
         'chiffre_affaires_total': round(sum(s.prix_ttc_total for s in stocks), 2),
     })
 
+@admin.route('/api/stock/<int:id>/tracabilite')
+@login_required
+@permission_required('gestion_stock')
+def stock_tracabilite(id):
+    """Suivi des ventes/sorties d'un lot precis : combien a deja ete vendu de
+    CE lot (scan reel du code de suivi, voir VenteLigne.stock_code_suivi),
+    combien est sorti sans etre vendu (avarie/perte/inventaire, voir
+    StockExitLog), et ce qu'il reste. Chargee a la demande en JS (bouton dedie
+    sur chaque ligne, une seule modale partagee dans le DOM) plutot que
+    precalculee pour chaque lot affiche, pour ne pas alourdir le chargement de
+    la page /admin/stock."""
+    stock = Stock.query.options(joinedload(Stock.produit)).get_or_404(id)
+    code_suivi = stock.code_suivi
+
+    # Quantite initiale : premiere modification 'create' de ce lot (log
+    # d'audit). Repli sur la quantite actuelle pour un lot antérieur au
+    # logging (tres ancien) -- affiche alors 0% ecoule plutot qu'un chiffre
+    # faux.
+    creation = (
+        StockModification.query
+        .filter_by(stock_id=stock.id, action='create')
+        .order_by(StockModification.created_at.asc())
+        .first()
+    )
+    quantite_initiale = creation.new_total if creation else stock.quantite_totale
+
+    # Ventes tracees precisement sur CE lot (scan camera/douchette du code de
+    # suivi). Les ventes sans scan (FEFO, lot le plus proche de la peremption
+    # choisi automatiquement) ne sont pas attribuables a un lot precis --
+    # volontairement absentes ici, note explicative cote client.
+    lignes = (
+        VenteLigne.query
+        .filter_by(stock_code_suivi=code_suivi)
+        .order_by(VenteLigne.created_at.desc())
+        .all()
+    )
+    numeros_vente = list(dict.fromkeys(l.numero_vente for l in lignes))
+    ventes_by_numero = {
+        v.numero_vente: v
+        for v in (Vente.query.filter(Vente.numero_vente.in_(numeros_vente)).all() if numeros_vente else [])
+    }
+
+    quantite_vendue = sum(l.quantite for l in lignes)
+    montant_vendu_ttc = sum(l.total_ttc for l in lignes)
+    marge_vendue = sum(l.benefice for l in lignes)
+
+    ventes_payload = []
+    for l in lignes:
+        v = ventes_by_numero.get(l.numero_vente)
+        ventes_payload.append({
+            'vente_id': v.id if v else None,
+            'numero_vente': l.numero_vente,
+            'date': l.created_at.strftime('%d/%m/%Y %H:%M'),
+            'quantite': l.quantite,
+            'unite': l.unite,
+            'total_ttc': l.total_ttc,
+            'annulee': bool(v and v.statut == 'annulee'),
+        })
+
+    exits = (
+        StockExitLog.query
+        .filter_by(code_suivi=code_suivi)
+        .order_by(StockExitLog.created_at.desc())
+        .all()
+    )
+    quantite_sortie = sum(
+        e.quantite_unites_sortie + e.quantite_sous_unites_sortie + e.quantite_sous_sous_unites_sortie
+        for e in exits
+    )
+    sorties_payload = [{
+        'id': e.id,
+        'date': e.created_at.strftime('%d/%m/%Y %H:%M'),
+        'raison': e.reason_nom,
+        'quantite': e.quantite_unites_sortie + e.quantite_sous_unites_sortie + e.quantite_sous_sous_unites_sortie,
+        'user': f'{e.user_prenom} {e.user_nom}'.strip(),
+        'origine': 'Inventaire' if e.source == 'inventaire' else 'Manuel',
+    } for e in exits]
+
+    # Le % "ecoule" compte les ventes ET les sorties hors-vente (avarie,
+    # perte, ecart d'inventaire...) : un lot de 10 dont 8 sont vendues et 2
+    # sorties (avarie) est bien a 100% ecoule, pas 80%.
+    quantite_ecoulee = quantite_vendue + quantite_sortie
+    pourcentage_vendu = round((quantite_ecoulee / quantite_initiale) * 100, 1) if quantite_initiale else 0
+
+    return jsonify({
+        'produit_nom': stock.produit.nom,
+        'code_suivi': code_suivi,
+        'numero_bl': stock.numero_bl,
+        'date_peremption': stock.date_peremption.strftime('%d/%m/%Y') if stock.date_peremption else 'N/A',
+        'quantite_initiale': quantite_initiale,
+        'quantite_vendue': quantite_vendue,
+        'quantite_sortie': quantite_sortie,
+        'quantite_restante': stock.quantite_totale,
+        'montant_vendu_ttc': round(montant_vendu_ttc, 2),
+        'marge_vendue': round(marge_vendue, 2),
+        'pourcentage_vendu': pourcentage_vendu,
+        'ventes': ventes_payload,
+        'sorties': sorties_payload,
+    })
+
 @admin.route('/stock/edit/<int:id>', methods=['POST'])
 @login_required
 @permission_required('gestion_stock')

@@ -758,6 +758,19 @@
     .stat-card .stat-label { font-size: 0.58rem; letter-spacing: 0.1px; }
     .card-form .card-body { padding: 1rem; }
   }
+
+  .traca-row-link {
+    cursor: pointer;
+    border-radius: 8px;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+    margin: 0 -0.4rem;
+    transition: background-color 0.15s ease;
+  }
+  .traca-row-link:hover { background-color: #f1f5f9; }
+  html[data-bs-theme="dark"] .traca-row-link:hover { background-color: rgba(255,255,255,0.06); }
+  .traca-row-link .traca-row-chevron { color: #9aa5b1; }
+  #tracaTabsContent .tab-pane-scroll { max-height: 320px; overflow-y: auto; }
 </style>
 {% endblock %}
 
@@ -918,6 +931,157 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(function() {
             STAT_IDS.forEach(function(id) { setStat(id, '—'); });
         });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Suivi des ventes d'un lot (bouton dedie sur chaque ligne, voir plus
+    // bas) : charge en JS uniquement a l'ouverture de la modale partagee
+    // #stockTracaModal, jamais au chargement de la page -- sinon il faudrait
+    // une requete ventes + une requete sorties PAR LOT affiche.
+    const tracaModalEl = document.getElementById('stockTracaModal');
+    if (!tracaModalEl) return;
+    const tracaModal = bootstrap.Modal.getOrCreateInstance(tracaModalEl);
+    const tracaLoading = document.getElementById('tracaLoading');
+    const tracaError = document.getElementById('tracaError');
+    const tracaContent = document.getElementById('tracaContent');
+    const TRACA_URL_TEMPLATE = "{{ url_for('admin.stock_tracabilite', id=999999999) }}";
+    const VENTE_DETAIL_URL_TEMPLATE = "{{ url_for('admin.detail_vente', id=999999999) }}";
+    const EXIT_LOGS_URL = "{{ url_for('admin.list_stock_exit_logs') }}";
+    const SEARCH_THRESHOLD = 8; // n'affiche la recherche par onglet qu'au-dela de ce nombre de lignes (lots tres vendus / avec beaucoup de sorties)
+
+    function withThousands(intPart) {
+        return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+    function fmtQty(v) {
+        return withThousands(String(Math.round(Number(v || 0))));
+    }
+    function fmtMoney(v) {
+        const parts = Number(v || 0).toFixed(2).split('.');
+        return withThousands(parts[0]) + '.' + parts[1] + ' {{ devise }}';
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    function setupTabSearch(inputEl, listEl, count) {
+        // La recherche par onglet ne sert (et ne s'affiche) que si le lot a
+        // beaucoup de lignes -- pas la peine pour 2-3 ventes.
+        inputEl.classList.toggle('d-none', count <= SEARCH_THRESHOLD);
+        inputEl.value = '';
+        inputEl.oninput = function() {
+            const q = inputEl.value.trim().toLowerCase();
+            listEl.querySelectorAll('[data-search]').forEach(function(row) {
+                row.classList.toggle('d-none', !!q && row.dataset.search.indexOf(q) === -1);
+            });
+        };
+    }
+
+    function renderVentes(ventes) {
+        const el = document.getElementById('tracaVentesList');
+        document.getElementById('tracaVentesCount').textContent = ventes.length;
+        if (!ventes.length) {
+            el.innerHTML = '<div class="small text-muted">Aucune vente tracée sur ce lot.</div>';
+        } else {
+            el.innerHTML = ventes.map(function(v) {
+                const badge = v.annulee ? ' <span class="badge bg-danger">Annulée</span>' : '';
+                const search = (v.numero_vente + ' ' + v.date).toLowerCase();
+                const clickable = v.vente_id ? ' traca-row-link' : '';
+                const chevron = v.vente_id ? '<i class="fas fa-chevron-right traca-row-chevron small"></i>' : '';
+                return '<div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-2' + clickable + '"'
+                    + ' data-search="' + escapeHtml(search) + '"'
+                    + (v.vente_id ? ' data-vente-id="' + v.vente_id + '" role="button" tabindex="0"' : '') + '>'
+                    + '<div style="min-width:0;"><div class="fw-semibold small text-truncate">N° ' + escapeHtml(v.numero_vente) + badge + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(v.date) + ' · ' + fmtQty(v.quantite) + ' ' + escapeHtml(v.unite) + ' · ' + fmtMoney(v.total_ttc) + '</div></div>'
+                    + chevron + '</div>';
+            }).join('');
+            el.querySelectorAll('[data-vente-id]').forEach(function(row) {
+                const open = function() { window.open(VENTE_DETAIL_URL_TEMPLATE.replace('999999999', row.dataset.venteId), '_blank'); };
+                row.addEventListener('click', open);
+                row.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+            });
+        }
+        setupTabSearch(document.getElementById('tracaVentesSearch'), el, ventes.length);
+    }
+
+    function renderSorties(sorties, codeSuivi) {
+        const el = document.getElementById('tracaSortiesList');
+        document.getElementById('tracaSortiesCount').textContent = sorties.length;
+        if (!sorties.length) {
+            el.innerHTML = '<div class="small text-muted">Aucune sortie enregistrée pour ce lot.</div>';
+        } else {
+            el.innerHTML = sorties.map(function(s) {
+                const search = (s.raison + ' ' + s.date + ' ' + s.user + ' ' + s.origine).toLowerCase();
+                const exitUrl = EXIT_LOGS_URL + '?q=' + encodeURIComponent(codeSuivi) + '&open=' + s.id;
+                return '<div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-2 traca-row-link"'
+                    + ' data-search="' + escapeHtml(search) + '" data-exit-url="' + escapeHtml(exitUrl) + '" role="button" tabindex="0">'
+                    + '<div><div class="fw-semibold small">' + escapeHtml(s.raison) + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(s.date) + ' · ' + fmtQty(s.quantite) + ' · ' + escapeHtml(s.user) + ' (' + escapeHtml(s.origine) + ')</div></div>'
+                    + '<i class="fas fa-chevron-right traca-row-chevron small"></i></div>';
+            }).join('');
+            el.querySelectorAll('[data-exit-url]').forEach(function(row) {
+                const open = function() { window.open(row.dataset.exitUrl, '_blank'); };
+                row.addEventListener('click', open);
+                row.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+            });
+        }
+        setupTabSearch(document.getElementById('tracaSortiesSearch'), el, sorties.length);
+    }
+
+    function loadTracabilite(stockId) {
+        tracaLoading.classList.remove('d-none');
+        tracaError.classList.add('d-none');
+        tracaContent.classList.add('d-none');
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tracaVentesTabBtn')).show();
+        fetch(TRACA_URL_TEMPLATE.replace('999999999', stockId), { headers: { 'Accept': 'application/json' } })
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                setText('tracaProduitNom', data.produit_nom);
+                setText('tracaCodeSuivi', data.code_suivi);
+                setText('tracaBl', data.numero_bl);
+                setText('tracaPeremption', data.date_peremption);
+                setText('tracaQteInitiale', fmtQty(data.quantite_initiale));
+                setText('tracaQteVendue', fmtQty(data.quantite_vendue));
+                setText('tracaQteSortie', fmtQty(data.quantite_sortie));
+                setText('tracaQteRestante', fmtQty(data.quantite_restante));
+                setText('tracaMontantVendu', fmtMoney(data.montant_vendu_ttc));
+                setText('tracaMargeVendue', fmtMoney(data.marge_vendue));
+
+                const pct = Math.max(0, Math.min(100, data.pourcentage_vendu));
+                setText('tracaPourcentageLabel', pct + '%');
+                const bar = document.getElementById('tracaProgressBar');
+                bar.style.width = pct + '%';
+                bar.className = 'progress-bar ' + (pct >= 100 ? 'bg-success' : pct >= 50 ? 'bg-info' : 'bg-warning');
+
+                renderVentes(data.ventes);
+                renderSorties(data.sorties, data.code_suivi);
+
+                tracaLoading.classList.add('d-none');
+                tracaContent.classList.remove('d-none');
+            })
+            .catch(function() {
+                tracaLoading.classList.add('d-none');
+                tracaError.textContent = 'Impossible de charger le suivi de ce lot.';
+                tracaError.classList.remove('d-none');
+            });
+    }
+
+    document.querySelectorAll('.stock-traca-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            tracaModal.show();
+            loadTracabilite(btn.dataset.stockId);
+        });
+    });
 });
 </script>
 
@@ -1144,9 +1308,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span class="amount-tva">TVA: {{ "%.2f"|format(stock.tva_total) }} {{ devise }}</span>
               </div>
             </div>
-            <button type="button" class="btn btn-outline-info btn-action flex-shrink-0" data-bs-toggle="modal" data-bs-target="#viewStockModal{{ stock.id }}" title="Voir les détails">
-              <i class="fas fa-eye"></i>
-            </button>
+            <div class="d-flex flex-column gap-1 flex-shrink-0">
+              <button type="button" class="btn btn-outline-info btn-action" data-bs-toggle="modal" data-bs-target="#viewStockModal{{ stock.id }}" title="Voir les détails">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button type="button" class="btn btn-outline-info btn-action stock-traca-btn" data-stock-id="{{ stock.id }}" title="Suivi des ventes de ce lot">
+                <i class="fas fa-chart-line"></i>
+              </button>
+            </div>
           </div>
         </div>
         {% endfor %}
@@ -1236,6 +1405,9 @@ document.addEventListener('DOMContentLoaded', function() {
                   <a href="{{ url_for('admin.stock_exit', stock_id=stock.id) }}" class="btn btn-sm btn-outline-warning" title="Sortie de stock">
                     <i class="fas fa-sign-out-alt"></i>
                   </a>
+                  <button type="button" class="btn btn-sm btn-outline-info stock-traca-btn" data-stock-id="{{ stock.id }}" title="Suivi des ventes de ce lot">
+                    <i class="fas fa-chart-line"></i>
+                  </button>
                   <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editStockModal{{ stock.id }}">
                     <i class="fas fa-edit"></i>
                   </button>
@@ -1550,6 +1722,115 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 {% endfor %}
+
+<!-- Suivi des ventes d'un lot : UNE SEULE modale partagee par toutes les
+     lignes (pas une par lot comme edit/view/delete ci-dessus) -- son contenu
+     est charge en JS a l'ouverture (voir admin.stock_tracabilite), pour ne
+     pas alourdir le chargement de la page avec des requetes ventes/sorties
+     sur chaque lot affiche. -->
+<div class="modal fade" id="stockTracaModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-chart-line me-2"></i>Suivi des ventes — <span id="tracaProduitNom"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tracaLoading" class="text-center text-muted py-5">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Chargement du suivi...</div>
+        </div>
+        <div id="tracaError" class="alert alert-warning small d-none"></div>
+        <div id="tracaContent" class="d-none">
+          <div class="text-muted small mb-3">
+            <span id="tracaCodeSuivi" class="badge bg-dark-subtle text-dark border"></span>
+            BL : <span id="tracaBl"></span> · Péremption : <span id="tracaPeremption"></span>
+          </div>
+
+          <div class="mb-2 d-flex justify-content-between small">
+            <span class="text-muted">Écoulé (vendu + sorti)</span>
+            <span class="fw-bold" id="tracaPourcentageLabel">0%</span>
+          </div>
+          <div class="progress mb-3" style="height:10px;border-radius:6px;">
+            <div id="tracaProgressBar" class="progress-bar" role="progressbar" style="width:0%"></div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+              <div class="p-2 text-center border rounded-3">
+                <div class="fw-bold" id="tracaQteInitiale">-</div>
+                <div class="small text-muted">Quantité initiale</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-2 text-center border rounded-3">
+                <div class="fw-bold text-success" id="tracaQteVendue">-</div>
+                <div class="small text-muted">Vendue</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-2 text-center border rounded-3">
+                <div class="fw-bold text-warning" id="tracaQteSortie">-</div>
+                <div class="small text-muted">Sortie (non vendue)</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-2 text-center border rounded-3">
+                <div class="fw-bold text-primary" id="tracaQteRestante">-</div>
+                <div class="small text-muted">Restante en stock</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <div class="p-2 text-center border rounded-3 bg-success bg-opacity-10">
+                <div class="fw-bold" id="tracaMontantVendu">-</div>
+                <div class="small text-muted">Chiffre d'affaires généré</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="p-2 text-center border rounded-3 bg-success bg-opacity-10">
+                <div class="fw-bold" id="tracaMargeVendue">-</div>
+                <div class="small text-muted">Marge brute générée</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="small text-muted mb-3">
+            <i class="fas fa-circle-info me-1"></i>Seules les ventes où ce lot précis a été scanné sont comptabilisées ici ; une vente sans scan (sortie FEFO automatique) n'est pas attribuable à un lot précis.
+          </div>
+
+          <ul class="nav nav-tabs small" id="tracaTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="tracaVentesTabBtn" data-bs-toggle="tab" data-bs-target="#tracaVentesPane" type="button" role="tab">
+                <i class="fas fa-cash-register me-1"></i>Ventes <span class="badge bg-secondary ms-1" id="tracaVentesCount">0</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tracaSortiesTabBtn" data-bs-toggle="tab" data-bs-target="#tracaSortiesPane" type="button" role="tab">
+                <i class="fas fa-sign-out-alt me-1"></i>Sorties <span class="badge bg-secondary ms-1" id="tracaSortiesCount">0</span>
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content border border-top-0 rounded-bottom-3 p-2" id="tracaTabsContent">
+            <div class="tab-pane fade show active" id="tracaVentesPane" role="tabpanel">
+              <input type="text" id="tracaVentesSearch" class="form-control form-control-sm mb-2 d-none" placeholder="Rechercher par n° vente, date...">
+              <div id="tracaVentesList" class="tab-pane-scroll"></div>
+            </div>
+            <div class="tab-pane fade" id="tracaSortiesPane" role="tabpanel">
+              <input type="text" id="tracaSortiesSearch" class="form-control form-control-sm mb-2 d-none" placeholder="Rechercher par raison, date, utilisateur...">
+              <div id="tracaSortiesList" class="tab-pane-scroll"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Stock Entry Modal: recherche produit (paginee cote serveur) + panier multi-lignes -->
 <div class="modal fade" id="stockEntryModal" tabindex="-1" data-bs-keyboard="false">

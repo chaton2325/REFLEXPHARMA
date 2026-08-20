@@ -482,6 +482,12 @@
       left: 18px;
     }
   }
+
+  .exit-row-highlight { animation: exitRowHighlight 2.5s ease; }
+  @keyframes exitRowHighlight {
+    0% { background-color: #fff3cd; }
+    100% { background-color: transparent; }
+  }
 </style>
 {% endblock %}
 
@@ -724,6 +730,7 @@
         {% set fournisseur = supplier.fournisseur %}
         {% set groupe_fournisseur = supplier.groupe_fournisseur %}
         <tr class="exit-log-row"
+            data-id="{{ item.id }}"
             data-search="{{ (item.created_at.strftime('%d/%m/%Y %H:%M') ~ ' ' ~ item.produit_nom ~ ' ' ~ item.produit_code ~ ' ' ~ fournisseur ~ ' ' ~ groupe_fournisseur ~ ' ' ~ item.code_suivi ~ ' ' ~ item.numero_bl ~ ' ' ~ item.date_peremption.strftime('%d/%m/%Y') ~ ' ' ~ (item.mise_en_stock_at.strftime('%d/%m/%Y %H:%M') if item.mise_en_stock_at else '') ~ ' ' ~ (item.mise_en_stock_user_prenom or '') ~ ' ' ~ (item.mise_en_stock_user_nom or '') ~ ' ' ~ (item.mise_en_stock_user_email or '') ~ ' ' ~ item.user_prenom ~ ' ' ~ item.user_nom ~ ' ' ~ item.user_email ~ ' ' ~ item.reason_nom ~ ' ' ~ '%.2f'|format(prices.tva_pourcentage) ~ ' ' ~ '%.2f'|format(prices.total_ht) ~ ' ' ~ '%.2f'|format(prices.total_ttc) ~ ' ' ~ (item.inventaire_titre if item.source == 'inventaire' else 'manuel'))|lower }}"
             data-date="{{ item.created_at.strftime('%Y%m%d%H%M%S') if item.created_at else '' }}"
             data-produit="{{ item.produit_nom|lower }}"
@@ -1199,6 +1206,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateVisibleCount();
     updateExportLinks();
+
+    // Arrivee depuis la modale "Suivi des ventes" du lot (bouton stock-traca-btn,
+    // voir stock/list.html) : ?q=<code_suivi> filtre deja sur ce lot, &open=<id>
+    // fait defiler jusqu'a la sortie precise et la met en surbrillance.
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const qParam = params.get('q');
+        const openParam = params.get('open');
+        if (qParam && searchInput) {
+            searchInput.value = qParam;
+            filterRows();
+        }
+        if (openParam) {
+            const target = rows.find((row) => row.dataset.id === openParam);
+            if (target) {
+                setTimeout(function() {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    target.classList.add('exit-row-highlight');
+                    setTimeout(function() { target.classList.remove('exit-row-highlight'); }, 2500);
+                }, 150);
+            }
+        }
+    })();
 
     // ---- Choix des colonnes PDF (#pdfColumnsModal) puis apercu in-page
     // (#pdfPreviewModal, fetch()->blob->iframe) -- meme pattern que
