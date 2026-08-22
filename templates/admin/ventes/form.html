@@ -342,6 +342,13 @@
     box-shadow: inset 3px 0 0 #3498db;
     color: inherit;
   }
+  /* Ligne survolee au clavier (fleches haut/bas) : distincte de .active (qui
+     marque la valeur deja retenue sur la ligne) pour rester lisible quand les
+     deux coincident (bordure epaisse + fond plus soutenu). */
+  .treeview-row.kbd-focus {
+    background-color: #dbe9fd;
+    box-shadow: inset 3px 0 0 #2c3e50;
+  }
   .treeview-row:disabled {
     cursor: not-allowed;
     opacity: .55;
@@ -828,6 +835,9 @@
       <p><span class="d-none d-sm-inline">Enregistrer une vente au comptoir ou sur compte client. </span><span class="numero-badge ms-sm-1">N° prévu : {{ suggested_numero }}</span></p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.list_all_ventes') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-list me-1"></i> Toutes<span class="d-none d-sm-inline"> les ventes</span>
+      </a>
       <a href="{{ url_for('admin.list_ventes') }}" class="btn btn-light btn-sm">
         <i class="fas fa-arrow-left me-1"></i> Retour<span class="d-none d-sm-inline"> aux ventes</span>
       </a>
@@ -846,7 +856,12 @@
       <div class="row g-2">
         <div class="col-12 col-lg-5">
           <div class="client-pane">
-          <label class="form-label">Client</label>
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label mb-1">Client</label>
+            <button type="button" class="btn btn-sm btn-link p-0 mb-1" id="toggleClientListBtn" title="Afficher ou masquer la liste complète des clients">
+              <i class="fas fa-eye me-1"></i><span id="toggleClientListLabel">Afficher la liste</span>
+            </button>
+          </div>
           <input type="search" id="clientSearchInput" class="form-control mb-2" placeholder="Rechercher client: nom, matricule, email, groupe...">
           <select name="client_id" class="form-select visually-hidden" id="clientSelect">
             <option value="" data-solde="0" data-groupe="" data-groupe-solde="0" data-absorption="0" data-points-fidelite="0" data-search="client comptoir">Client comptoir</option>
@@ -1411,6 +1426,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const clientSelect = document.getElementById('clientSelect');
     const clientSearchInput = document.getElementById('clientSearchInput');
     const clientResults = document.getElementById('clientResults');
+    const toggleClientListBtn = document.getElementById('toggleClientListBtn');
+    const toggleClientListLabel = document.getElementById('toggleClientListLabel');
+    // Masquee par defaut : avec une recherche vide, la liste des clients (qui
+    // peut etre longue) reste repliee tant qu'on ne clique pas sur "Afficher
+    // la liste" ou qu'on ne tape rien -- des qu'une recherche est saisie, les
+    // resultats filtres s'affichent normalement quel que soit cet etat.
+    let clientListVisible = false;
     const moneyFormatter = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     document.querySelectorAll('[aria-hidden="true"]:not(.modal) input, [aria-hidden="true"]:not(.modal) button').forEach((element) => {
         element.disabled = true;
@@ -1561,6 +1583,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const panel = getResultPanel(select);
         const isProduct = select.classList.contains('product-select');
         const normalizedQuery = query.trim().toLowerCase();
+
+        // Liste clients masquee et recherche vide : rien a afficher (voir
+        // toggleClientListBtn) -- des qu'une recherche est tapee, on retombe
+        // sur le comportement normal ci-dessous quel que soit cet etat.
+        if (select === clientSelect && !clientListVisible && normalizedQuery === '') {
+            panel.innerHTML = `<div class="treeview-empty">Liste masquée — tapez pour rechercher un client, ou cliquez sur "Afficher la liste".</div>`;
+            return;
+        }
+
         const options = Array.from(select.options).filter((option, index) => {
             if (isProduct && index === 0) return false;
             const haystack = option.dataset.search || option.textContent.toLowerCase();
@@ -1596,6 +1627,12 @@ document.addEventListener('DOMContentLoaded', function() {
             </button>
         `;
         }).join('');
+
+        // Premiere ligne exploitable surlignee par defaut : permet de valider
+        // au clavier avec Entree juste apres avoir tape, sans devoir d'abord
+        // appuyer sur une fleche (cf. handleTreeviewSearchKeydown).
+        const firstEnabledRow = panel.querySelector('.treeview-row:not(:disabled)');
+        if (firstEnabledRow) firstEnabledRow.classList.add('kbd-focus');
     }
 
     function filterSelectOptions(select, query, enforceStock = false) {
@@ -1613,6 +1650,64 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         renderSearchResults(select, query);
     }
+
+    // ---- Navigation clavier des recherches client/produit (fleches haut/bas
+    // + Entree), en plus du clic deja gere ailleurs sur .treeview-row : la
+    // ligne surlignee au clavier (.kbd-focus) est distincte de la ligne deja
+    // retenue sur la vente (.active). Entree simule un clic sur la ligne
+    // surlignee, ce qui reutilise exactement la logique de selection deja en
+    // place (clientResults.click / body.click sur .product-results) plutot
+    // que de la dupliquer ici. ----
+    function getTreeviewPanelForSearchInput(input) {
+        if (input === clientSearchInput) return clientResults;
+        if (input.classList.contains('product-search')) {
+            const line = input.closest('.sale-line');
+            return line ? line.querySelector('.product-results') : null;
+        }
+        return null;
+    }
+
+    function moveTreeviewKeyboardFocus(panel, direction) {
+        const rows = Array.from(panel.querySelectorAll('.treeview-row:not(:disabled)'));
+        if (rows.length === 0) return;
+        let index = rows.findIndex((row) => row.classList.contains('kbd-focus'));
+        rows.forEach((row) => row.classList.remove('kbd-focus'));
+        index = index === -1 ? (direction > 0 ? 0 : rows.length - 1) : (index + direction + rows.length) % rows.length;
+        rows[index].classList.add('kbd-focus');
+        rows[index].scrollIntoView({ block: 'nearest' });
+    }
+
+    function activateTreeviewKeyboardFocus(panel) {
+        const row = panel.querySelector('.treeview-row.kbd-focus:not(:disabled)') || panel.querySelector('.treeview-row:not(:disabled)');
+        if (row) row.click();
+    }
+
+    function handleTreeviewSearchKeydown(event) {
+        const panel = getTreeviewPanelForSearchInput(event.target);
+        if (!panel) return;
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            panel.classList.remove('d-none');
+            moveTreeviewKeyboardFocus(panel, event.key === 'ArrowDown' ? 1 : -1);
+        } else if (event.key === 'Enter') {
+            // Laisse passer si un autre gestionnaire a deja traite cette
+            // touche (ex: detection de scan douchette sur .product-search,
+            // voir plus bas) -- on ne selectionne pas une deuxieme fois.
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            activateTreeviewKeyboardFocus(panel);
+        } else if (event.key === 'Escape') {
+            event.target.blur();
+        }
+    }
+
+    clientSearchInput.addEventListener('keydown', handleTreeviewSearchKeydown);
+    // La navigation clavier de .product-search est cablee plus bas, APRES le
+    // detecteur de scan douchette (voir la aussi une note "if (event.defaultPrevented) return;"
+    // dans handleTreeviewSearchKeydown) : l'ordre d'enregistrement des listeners
+    // 'keydown' sur body determine qui traite Entree en premier, et le scan
+    // doit rester prioritaire pour ne pas selectionner deux produits differents
+    // (le mieux surligne au clavier ET celui reellement scanne) sur une meme frappe.
 
     function updateUnitOptions(line) {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
@@ -2653,6 +2748,20 @@ document.addEventListener('DOMContentLoaded', function() {
     clientSearchInput.addEventListener('input', function() {
         filterSelectOptions(clientSelect, clientSearchInput.value);
     });
+    if (toggleClientListBtn) {
+        toggleClientListBtn.addEventListener('click', function() {
+            clientListVisible = !clientListVisible;
+            const icon = toggleClientListBtn.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-eye', !clientListVisible);
+                icon.classList.toggle('fa-eye-slash', clientListVisible);
+            }
+            if (toggleClientListLabel) {
+                toggleClientListLabel.textContent = clientListVisible ? 'Masquer la liste' : 'Afficher la liste';
+            }
+            filterSelectOptions(clientSelect, clientSearchInput.value);
+        });
+    }
     clientResults.addEventListener('click', function(event) {
         const item = event.target.closest('[data-option-value]');
         if (!item) return;
@@ -2766,6 +2875,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch((err) => console.error('Erreur de lookup scan:', err));
+    });
+    // Navigation clavier (fleches haut/bas + Entree) des resultats de recherche
+    // produit, cablee APRES le detecteur de scan douchette ci-dessus : les deux
+    // listeners 'keydown' sur body s'executent dans l'ordre d'ajout, donc un
+    // scan reste traite en premier (et appelle event.preventDefault()) avant que
+    // handleTreeviewSearchKeydown() ne verifie event.defaultPrevented sur Entree.
+    body.addEventListener('keydown', function(event) {
+        if (!event.target.classList.contains('product-search')) return;
+        handleTreeviewSearchKeydown(event);
     });
     body.addEventListener('change', function(event) {
         if (event.target.classList.contains('product-select')) {
