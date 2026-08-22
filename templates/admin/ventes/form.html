@@ -229,7 +229,17 @@
     border-radius: 14px;
     border: 1px solid transparent;
     line-height: 1.4;
+    /* Dans le panier, ce sont des <button> (choix de l'unite de vente en un
+       clic) ; dans la modale "Voir les details" (lecture seule), ce sont de
+       simples <span> -- ce reset neutralise l'apparence native de bouton dans
+       le premier cas sans rien changer au second. */
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
   }
+  button.stock-chip { cursor: pointer; transition: transform 0.1s ease; }
+  button.stock-chip:hover:not(:disabled) { filter: brightness(0.96); transform: translateY(-1px); }
+  button.stock-chip:disabled { cursor: not-allowed; opacity: 0.65; }
   .stock-chip-ok { background: #e6f6ec; color: #1f8a4c; border-color: #bfe8cf; }
   .stock-chip-empty { background: #eef1f5; color: #94a3b8; border-color: #dde3ea; }
   .stock-chip-danger { background: #fdeaea; color: #c62828; border-color: #f5c2c2; }
@@ -1769,13 +1779,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const conditionnement = Math.min(Math.max(parseInt(selectedProduct.dataset.conditionnement || '1', 10), 1), 3);
         const applicableTiers = UNIT_TIERS.filter((tier) => tier.minConditionnement <= conditionnement);
 
+        // Pastilles cliquables (boutons) : selectionnent directement l'unite de
+        // vente en un clic, sans passer par le <select> "Unités" au-dessus --
+        // beaucoup d'utilisateurs n'ont pas le reflexe d'ouvrir ce menu deroulant
+        // pour choisir unite/sous-unite, alors qu'ils regardent deja ces pastilles
+        // pour verifier le stock disponible (voir le listener 'click' juste apres
+        // cette fonction, sur .stock-chip[data-unit-value]).
         const chipsHtml = applicableTiers.map((tier) => {
             const stock = getSelectedStock(selectedProduct, tier.key);
             const isSelectedTier = unitSelect.value === tier.key;
-            let stateClass = stock > 0 ? 'stock-chip-ok' : 'stock-chip-empty';
+            const isAvailable = stock > 0;
+            let stateClass = isAvailable ? 'stock-chip-ok' : 'stock-chip-empty';
             if (isSelectedTier && invalid) stateClass = 'stock-chip-danger';
             const selectedClass = isSelectedTier ? ' stock-chip-selected' : '';
-            return `<span class="stock-chip ${stateClass}${selectedClass}" title="${escapeHtml(tier.label === 'U' ? 'Unités' : tier.label === 'SU' ? 'Sous unités' : 'Sous sous unités')}">${tier.label} : ${formatMoney(stock)}</span>`;
+            const tierName = tier.label === 'U' ? 'unités' : tier.label === 'SU' ? 'sous-unités' : 'sous-sous-unités';
+            const title = isAvailable ? `Cliquer pour vendre en ${tierName}` : `Aucun stock en ${tierName}`;
+            return `<button type="button" class="stock-chip ${stateClass}${selectedClass}" data-unit-value="${tier.key}" ${isAvailable ? '' : 'disabled'} title="${escapeHtml(title)}">${tier.label} : ${formatMoney(stock)}</button>`;
         }).join('');
 
         const detailNote = applicableTiers.length > 1
@@ -1784,6 +1803,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         stockAvailable.innerHTML = chipsHtml + detailNote;
     }
+
+    // Clic sur une pastille de stock (U / SU / SSU) : bascule le <select>
+    // "unite[]" de la ligne sur ce palier -- meme effet que le choisir dans le
+    // menu deroulant, mais sans avoir a l'ouvrir. Le focus est ensuite deplace
+    // sur la quantite (etape suivante logique une fois l'unite choisie), texte
+    // pre-selectionne pour une saisie immediate.
+    body.addEventListener('click', function(event) {
+        const chip = event.target.closest('.stock-chip[data-unit-value]');
+        if (!chip || chip.disabled) return;
+        const line = chip.closest('.sale-line');
+        const unitSelect = line.querySelector('select[name="unite[]"]');
+        if (unitSelect.value !== chip.dataset.unitValue) {
+            unitSelect.value = chip.dataset.unitValue;
+            unitSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const quantityInput = line.querySelector('input[name="quantite[]"]');
+        if (quantityInput) {
+            quantityInput.focus();
+            quantityInput.select();
+        }
+    });
 
     function updateLineProductMeta(line) {
         const productSelect = line.querySelector('select[name="produit_id[]"]');
