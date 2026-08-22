@@ -95,6 +95,12 @@
         </nav>
         <h1 class="mb-1"><i class="fas fa-receipt me-2"></i>{{ vente.numero_vente }}</h1>
         <p class="mb-0">{{ vente.created_at.strftime('%d/%m/%Y %H:%M') if vente.created_at else '-' }}</p>
+        {% if not vente.client_id %}
+        <div class="mt-2" style="max-width:280px;">
+            <label for="clientComptoirNomInput" class="form-label small text-muted mb-1">Nom du client (facture/ticket uniquement, non enregistré)</label>
+            <input type="text" id="clientComptoirNomInput" class="form-control form-control-sm" placeholder="Ex: Jean Dupont" maxlength="120">
+        </div>
+        {% endif %}
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#receiptModal">
@@ -198,9 +204,7 @@
                             <span>Heure: {{ vente.created_at.strftime('%H:%M') }}</span>
                         </div>
                         <div>Vendeur: {{ vente.auteur_prenom }} {{ vente.auteur_nom }}</div>
-                        {% if vente.client_matricule %}
-                        <div>Client: {{ vente.client_label }}</div>
-                        {% endif %}
+                        <div id="receiptClientLine" {% if not vente.client_matricule %}style="display:none;"{% endif %}>Client: <span id="receiptClientLineName">{{ vente.client_label }}</span></div>
                         {% if fidelite_active and vente.points_gagnes %}
                         <div>Points fidélité gagnés: {{ vente.points_gagnes }}</div>
                         {% endif %}
@@ -495,9 +499,28 @@ document.addEventListener('DOMContentLoaded', function () {
         watermark: {{ ('ANNULEE' if vente.statut == 'annulee' else 'RE-IMPRESSION')|tojson }}
     };
 
+    // ---- Nom libre pour vente comptoir (input affiche uniquement si
+    // vente.client_id est vide, cf. plus haut) : n'est jamais enregistre en
+    // base ni ne cree de fiche client, sert uniquement a personnaliser CE
+    // ticket / CETTE facture PDF. Met a jour la ligne "Client" affichee dans
+    // l'apercu du ticket en direct ; receiptData.client (impression thermique)
+    // et l'URL de la facture PDF sont mis a jour au moment du clic, pas ici. ----
+    const clientComptoirInput = document.getElementById('clientComptoirNomInput');
+    const receiptClientLine = document.getElementById('receiptClientLine');
+    const receiptClientLineName = document.getElementById('receiptClientLineName');
+    if (clientComptoirInput) {
+        clientComptoirInput.addEventListener('input', function () {
+            const nom = clientComptoirInput.value.trim();
+            if (receiptClientLineName) receiptClientLineName.textContent = nom;
+            if (receiptClientLine) receiptClientLine.style.display = nom ? '' : 'none';
+        });
+    }
+
     const printBtn = document.getElementById('printReceiptBtn');
     if (printBtn) {
         printBtn.addEventListener('click', async function () {
+            const clientComptoirNom = clientComptoirInput ? clientComptoirInput.value.trim() : '';
+            if (clientComptoirNom) receiptData.client = clientComptoirNom;
             if (AUTO_PRINT_ENABLED && window.ReflexPrinter && ReflexPrinter.isSupported()) {
                 try {
                     if (await ReflexPrinter.isReady()) {
@@ -564,7 +587,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const factureePdfBtn = document.getElementById('factureePdfBtn');
     if (factureePdfBtn) {
         factureePdfBtn.addEventListener('click', () => {
-            loadPdfPreview({{ url_for('admin.export_vente_pdf', id=vente.id)|tojson }}, {{ ('facture_' ~ vente.numero_vente ~ '.pdf')|tojson }});
+            let pdfUrl = {{ url_for('admin.export_vente_pdf', id=vente.id)|tojson }};
+            const clientComptoirNom = clientComptoirInput ? clientComptoirInput.value.trim() : '';
+            if (clientComptoirNom) {
+                pdfUrl += '?client_nom=' + encodeURIComponent(clientComptoirNom);
+            }
+            loadPdfPreview(pdfUrl, {{ ('facture_' ~ vente.numero_vente ~ '.pdf')|tojson }});
         });
     }
 });

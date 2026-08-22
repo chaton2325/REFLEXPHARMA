@@ -3409,6 +3409,13 @@ def export_vente_pdf(id):
     devise = devise_active()
     generated_at = datetime.now()
 
+    # Nom libre saisi juste avant l'export (vente comptoir uniquement) : sert
+    # uniquement a personnaliser CE PDF, jamais enregistre sur la vente ni
+    # cree de fiche client -- voir aussi receiptData.client dans detail.html
+    # pour l'equivalent cote ticket de caisse.
+    client_nom_libre = (request.args.get('client_nom') or '').strip()
+    client_nom_affiche = client_nom_libre if (client_nom_libre and not vente.client_id) else vente.client_label
+
     def money(value):
         return f'{value:,.2f} {devise}'.replace(',', ' ')
 
@@ -3481,7 +3488,7 @@ def export_vente_pdf(id):
     info_left = [
         Paragraph('CLIENT', section_label_style),
         Spacer(1, 3),
-        Paragraph(escape(vente.client_label), info_style),
+        Paragraph(escape(client_nom_affiche), info_style),
         Paragraph(escape(vente.client_matricule or 'Vente comptoir'), info_sub_style),
     ]
     if vente.groupe_client_nom:
