@@ -2182,9 +2182,14 @@ document.addEventListener('DOMContentLoaded', function() {
                       <div class="small text-muted mb-2 d-flex align-items-center justify-content-between gap-2">
                         <span>Tarification du produit sélectionné</span>
                         {% if current_user.has_permission('gestion_produits') %}
-                        <button type="button" id="openEditPricingBtn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.72rem;" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
-                          <i class="fas fa-pen me-1"></i>Ajuster
-                        </button>
+                        <div class="d-flex gap-1 flex-shrink-0">
+                          <button type="button" id="openEditProduitBtn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.72rem;" title="Modifier le produit (nom, CIP, classement, conditionnement...)">
+                            <i class="fas fa-pen-to-square me-1"></i>Modifier
+                          </button>
+                          <button type="button" id="openEditPricingBtn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.72rem;" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
+                            <i class="fas fa-pen me-1"></i>Ajuster
+                          </button>
+                        </div>
                         {% endif %}
                       </div>
                       <div id="pricingLevels" class="pricing-levels"></div>
@@ -2295,9 +2300,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
           <div class="fw-bold" id="cidNom" style="font-size:1.05rem;color:#1a1a2e;"></div>
           {% if current_user.has_permission('gestion_produits') %}
-          <button type="button" id="cidEditPricingBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
-            <i class="fas fa-pen me-1"></i>Prix/TVA
-          </button>
+          <div class="d-flex gap-1 flex-shrink-0">
+            <button type="button" id="cidEditProduitBtn" class="btn btn-sm btn-outline-secondary" title="Modifier le produit (nom, CIP, classement, conditionnement...)">
+              <i class="fas fa-pen-to-square me-1"></i>Produit
+            </button>
+            <button type="button" id="cidEditPricingBtn" class="btn btn-sm btn-outline-secondary" title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
+              <i class="fas fa-pen me-1"></i>Prix/TVA
+            </button>
+          </div>
           {% endif %}
         </div>
         <div class="text-muted small mb-3" id="cidMeta"></div>
@@ -2424,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <div class="row g-3 mb-3">
           <div class="col-sm-6">
-            <label for="qcpPrixUnite" class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
+            <label for="qcpPrixUnite" class="form-label">Prix d'achat (Unité)</label>
             <div class="input-group">
               <input type="number" step="0.01" min="0" id="qcpPrixUnite" class="form-control" value="0">
               <span class="input-group-text">{{ devise }}</span>
@@ -2477,6 +2487,128 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 
+<!-- Modification complete (hors fournisseur, volontairement fixe -- voir
+     quick_update_produit) d'un produit du catalogue, accessible depuis la
+     ligne en cours de saisie ET depuis le detail d'une ligne deja dans le
+     panier -- meme principe que editProduitPricingModal juste apres, mais
+     pour nom/CIP/classement/conditionnement/points fidelite en plus du prix. -->
+<div class="modal fade" id="editProduitModal" tabindex="-1" data-bs-backdrop="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border:none;">
+        <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Modifier le produit</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body form-custom">
+        <div id="epError" class="alert alert-warning small py-2 px-3 d-none"></div>
+        <div class="text-muted small mb-3">
+          Ces modifications mettent à jour immédiatement le produit dans le catalogue (ventes, futures entrées en stock comprises).
+          Fournisseur : <strong id="epFournisseurNom"></strong> (non modifiable ici).
+        </div>
+
+        <div class="mb-3">
+          <label for="epNom" class="form-label">Nom du produit <span class="text-danger">*</span></label>
+          <input type="text" id="epNom" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label for="epCip" class="form-label">CIP <span class="text-danger">*</span></label>
+          <input type="text" id="epCip" class="form-control" placeholder="Ex: 3400930000001">
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label for="epRayon" class="form-label">Rayon</label>
+            <select id="epRayon" class="form-select">
+              <option value="">Aucun</option>
+              {% for r in rayons %}<option value="{{ r.id }}">{{ r.nom }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label for="epFamille" class="form-label">Famille</label>
+            <select id="epFamille" class="form-select">
+              <option value="">Aucune</option>
+              {% for f in familles %}<option value="{{ f.id }}">{{ f.nom }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label for="epSection" class="form-label">Section</label>
+            <select id="epSection" class="form-select">
+              <option value="">Aucune</option>
+              {% for s in sections %}<option value="{{ s.id }}">{{ s.nom }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="mb-3">
+          <label class="form-label">Mode de vente</label>
+          <div class="detail-toggle-card" id="epDetailToggleCard">
+            <div class="detail-toggle-icon" id="epDetailToggleIcon"><i class="fas fa-box"></i></div>
+            <div class="detail-toggle-body">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="epDetailCheckbox">
+                <label class="form-check-label" for="epDetailCheckbox">Vendre le produit au détail</label>
+              </div>
+              <div class="detail-toggle-desc" id="epDetailDesc">Vente uniquement à l'unité complète (ex : boîte).</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label for="epPrixUnite" class="form-label">Prix d'achat (Unité)</label>
+            <div class="input-group">
+              <input type="number" step="0.01" min="0" id="epPrixUnite" class="form-control">
+              <span class="input-group-text">{{ devise }}</span>
+            </div>
+          </div>
+          <div class="col-sm-6" id="epGroupSous" style="display:none;">
+            <label for="epTailleConditionnement" class="form-label">Conditionnement</label>
+            <div class="input-group">
+              <input type="number" step="1" min="1" id="epTailleConditionnement" class="form-control" placeholder="Ex : 10">
+              <span class="input-group-text">unités/boîte</span>
+            </div>
+            <div class="form-text small text-muted">Prix d'achat sous-unité calculé : <span id="epPrixSousUniteCalc" class="fw-semibold">—</span></div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label for="epCoefficient" class="form-label">Coefficient <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="epCoefficient" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label for="epTva" class="form-label">TVA (%) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="epTva" class="form-control">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Aperçu du prix de vente</label>
+          <div id="epApercuPrix" class="row g-3"></div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="epStockSecurite" class="form-label">Stock de sécurité</label>
+            <input type="number" step="1" min="0" id="epStockSecurite" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label for="epPointsFidelite" class="form-label">Points fidélité</label>
+            <input type="number" step="1" min="0" id="epPointsFidelite" class="form-control" placeholder="Hérite famille/rayon">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="epSubmit" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-save me-1"></i> Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Ajustement rapide prix d'achat / coefficient / TVA d'un produit du catalogue,
      accessible depuis la ligne en cours de saisie ET depuis le detail d'une ligne
      deja dans le panier (memes prix fournisseur susceptibles de changer). Centre,
@@ -2495,7 +2627,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div id="eppError" class="alert alert-warning small py-2 px-3 d-none"></div>
 
         <div class="mb-3">
-          <label for="eppPrixUnite" class="form-label">Prix d'achat (Unité) <span class="text-danger">*</span></label>
+          <label for="eppPrixUnite" class="form-label">Prix d'achat (Unité)</label>
           <div class="input-group">
             <input type="number" step="0.01" min="0" id="eppPrixUnite" class="form-control">
             <span class="input-group-text">{{ devise }}</span>
@@ -3574,7 +3706,17 @@ document.addEventListener('DOMContentLoaded', function() {
             mCodePreview.value = prefix + cipSuffix + bl + day + month + year + produitId;
         }
 
-        function mRefreshLine() { mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode(); }
+        // Reaffiche aussi l'en-tete (nom/CIP/fournisseur + pastilles coef/TVA),
+        // fige depuis selectProduit() sinon : necessaire depuis que le produit
+        // selectionne peut etre modifie en place (nom/CIP via "Modifier",
+        // coefficient/TVA via "Ajuster") sans repasser par une nouvelle recherche.
+        function mRefreshLine() {
+            selProduitNom.textContent = selectedProduit.nom;
+            selProduitMeta.textContent = selectedProduit.code_produit + (selectedProduit.fournisseur ? ' · ' + selectedProduit.fournisseur : '');
+            prodCoefBadgeMobile.textContent = 'Coef. x' + Number(selectedProduit.coefficient || 1).toFixed(2);
+            prodTvaBadgeMobile.textContent = 'TVA ' + Number(selectedProduit.tva || 0) + '%';
+            mUpdateCond(); mUpdatePrice(); mUpdateTotals(); mUpdateCode();
+        }
 
         mQtyUnites.addEventListener('input', mUpdateTotals);
         mQtySous.addEventListener('input', mUpdateTotals);
@@ -3691,7 +3833,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return currentLineTotalsFor(item.produit, cidQtyUnites.value, cidQtySous.value, cidQtySousSous.value);
         }
 
+        // Reaffiche aussi le nom/CIP/fournisseur affiches en tete de la modale : le
+        // produit d'une ligne du panier peut avoir ete modifie en place (nom/CIP
+        // via "Modifier", pas seulement le prix) sans que la modale se referme.
         function cidRefreshTotals() {
+            if (editingCartIndex !== null) {
+                const item = cart[editingCartIndex];
+                cidNom.textContent = item.produit.nom;
+                cidMeta.textContent = item.produit.code_produit + (item.produit.fournisseur ? ' · ' + item.produit.fournisseur : '');
+            }
             const t = cidCurrentTotals();
             cidTotals.textContent = mFormat(t.ht) + ' HT / Marge brute ' + mFormat(t.benefice) + ' / TVA ' + mFormat(t.tva) + ' / ' + mFormat(t.ttc) + ' TTC';
         }
@@ -3915,10 +4065,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     : selectedProduit?.id;
                 if (!produitId) return;
 
-                const prixUnite = Number(eppPrixUnite.value || 0);
                 const coefficient = Number(eppCoefficient.value || 0);
                 const tva = Number(eppTva.value || 0);
-                if (prixUnite <= 0) { eppError.textContent = "Le prix d'achat (unité) doit être supérieur à 0."; eppError.classList.remove('d-none'); eppPrixUnite.focus(); return; }
                 if (coefficient <= 0) { eppError.textContent = 'Le coefficient doit être supérieur à 0.'; eppError.classList.remove('d-none'); eppCoefficient.focus(); return; }
                 if (tva < 0) { eppError.textContent = 'La TVA ne peut pas être négative.'; eppError.classList.remove('d-none'); eppTva.focus(); return; }
 
@@ -3973,6 +4121,232 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             stockEntryModalEl.addEventListener('hide.bs.modal', () => editProduitPricingModal.hide());
+        }
+
+        // ---- Modification complete (hors fournisseur, voir quick_update_produit)
+        // d'un produit du catalogue, depuis la ligne en cours (selectedProduit) ou
+        // depuis une ligne deja au panier (cart[editingCartIndex]) : meme contexte
+        // dual 'line'/'cart-item' que editProduitPricingModal ci-dessus, mais pour
+        // nom/CIP/classement/conditionnement/points fidelite en plus du prix. ----
+        const editProduitModalEl = document.getElementById('editProduitModal');
+        if (editProduitModalEl) {
+            const epError = document.getElementById('epError');
+            const epFournisseurNom = document.getElementById('epFournisseurNom');
+            const epNom = document.getElementById('epNom');
+            const epCip = document.getElementById('epCip');
+            const epRayon = document.getElementById('epRayon');
+            const epFamille = document.getElementById('epFamille');
+            const epSection = document.getElementById('epSection');
+            const epDetailCheckbox = document.getElementById('epDetailCheckbox');
+            const epDetailToggleCard = document.getElementById('epDetailToggleCard');
+            const epDetailToggleIcon = document.getElementById('epDetailToggleIcon');
+            const epDetailDesc = document.getElementById('epDetailDesc');
+            const epPrixUnite = document.getElementById('epPrixUnite');
+            const epTailleConditionnement = document.getElementById('epTailleConditionnement');
+            const epPrixSousUniteCalc = document.getElementById('epPrixSousUniteCalc');
+            const epGroupSous = document.getElementById('epGroupSous');
+            const epCoefficient = document.getElementById('epCoefficient');
+            const epTva = document.getElementById('epTva');
+            const epStockSecurite = document.getElementById('epStockSecurite');
+            const epPointsFidelite = document.getElementById('epPointsFidelite');
+            const epApercuPrix = document.getElementById('epApercuPrix');
+            const epSubmit = document.getElementById('epSubmit');
+            const openEditProduitBtn = document.getElementById('openEditProduitBtn');
+            const cidEditProduitBtn = document.getElementById('cidEditProduitBtn');
+            const editProduitModal = bootstrap.Modal.getOrCreateInstance(editProduitModalEl, { backdrop: false });
+            const PRODUIT_UPDATE_URL_TEMPLATE = `{{ url_for('admin.quick_update_produit', id=999999999) }}`;
+
+            let epEditContext = null;
+            // Conditionnement du produit tel qu'ouvert : le switch "vendre au
+            // detail" reste a 2 etats (comme la creation rapide de produit) mais
+            // ne doit JAMAIS faire regresser un produit deja en sous-sous-unite
+            // (conditionnement 3) vers 2 simplement parce que la case reste cochee
+            // -- seul le decochage explicite (retour a 1, "vente en gros
+            // uniquement") est destructif, et alors delibere.
+            let epOriginalConditionnement = 1;
+
+            function epUpdateDetail() {
+                const estDetail = epDetailCheckbox.checked;
+                epGroupSous.style.display = estDetail ? 'block' : 'none';
+                epDetailToggleCard.classList.toggle('is-active', estDetail);
+                epDetailToggleIcon.querySelector('i').className = estDetail ? 'fas fa-box-open' : 'fas fa-box';
+                epDetailDesc.textContent = estDetail
+                    ? "Vente possible à l'unité et à la sous-unité (ex : boîte + comprimé)."
+                    : "Vente uniquement à l'unité complète (ex : boîte).";
+            }
+
+            function epConditionnementSoumis() {
+                if (!epDetailCheckbox.checked) return 1;
+                return Math.max(epOriginalConditionnement, 2);
+            }
+
+            // Meme formule que templates/admin/produits/form.html (prixSousUniteCalcule).
+            function epPrixSousUniteCalcule() {
+                if (!epDetailCheckbox.checked) return 0;
+                const taille = parseInt(epTailleConditionnement.value, 10) || 0;
+                const prixUnite = parseFloat(epPrixUnite.value) || 0;
+                return taille > 0 ? prixUnite / taille : 0;
+            }
+
+            function epUpdatePrixSousUniteCalc() {
+                const valeur = epPrixSousUniteCalcule();
+                epPrixSousUniteCalc.textContent = valeur > 0 ? mFormat(valeur) : '—';
+            }
+
+            function epRenderApercuPrix() {
+                const coefficient = parseFloat(epCoefficient.value) || 1.0;
+                const tauxTva = parseFloat(epTva.value) || 0.0;
+                const niveaux = [
+                    { label: 'Unité', icon: 'fa-box', value: parseFloat(epPrixUnite.value) || 0, visible: true },
+                    { label: 'Sous-unité', icon: 'fa-box-open', value: epPrixSousUniteCalcule(), visible: epDetailCheckbox.checked },
+                ];
+                let html = '';
+                niveaux.forEach(function(niveau) {
+                    if (!niveau.visible) return;
+                    const prixAchat = niveau.value;
+                    if (!prixAchat || prixAchat <= 0) return;
+                    const b = mUnitBreakdown(prixAchat, coefficient, tauxTva);
+                    const arrondiNote = b.ttc !== b.ttcBrut
+                        ? `<div class="small text-muted mt-1"><i class="fas fa-magnet me-1"></i>Arrondi (brut : ${mFormat(b.ttcBrut)})</div>`
+                        : '';
+                    html += `
+                        <div class="col-sm-6">
+                            <div class="p-3 pricing-preview price-preview-card">
+                                <div class="price-preview-title small fw-bold text-muted mb-2"><i class="fas ${niveau.icon}"></i>${niveau.label}</div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Prix vente HT</span><span class="fw-semibold">${mFormat(b.ht)}</span></div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Marge brute</span><span class="fw-semibold text-success">${mFormat(b.benefice)}</span></div>
+                                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">TVA (${Number(tauxTva || 0).toFixed(2)}%)</span><span class="fw-semibold">${mFormat(b.tva)}</span></div>
+                                <div class="d-flex justify-content-between small pt-1 mt-1 price-preview-total-row"><span class="text-muted">Prix vente TTC</span><span class="fw-bold text-primary">${mFormat(b.ttc)}</span></div>
+                                ${arrondiNote}
+                            </div>
+                        </div>
+                    `;
+                });
+                epApercuPrix.innerHTML = html;
+            }
+
+            epDetailCheckbox.addEventListener('change', () => { epUpdateDetail(); epUpdatePrixSousUniteCalc(); epRenderApercuPrix(); });
+            epDetailToggleCard.addEventListener('click', (e) => {
+                if (e.target === epDetailCheckbox || e.target.tagName === 'LABEL') return;
+                epDetailCheckbox.checked = !epDetailCheckbox.checked;
+                epDetailCheckbox.dispatchEvent(new Event('change'));
+            });
+            epTailleConditionnement.addEventListener('input', () => { epUpdatePrixSousUniteCalc(); epRenderApercuPrix(); });
+            [epPrixUnite, epCoefficient, epTva].forEach((el) => el.addEventListener('input', epRenderApercuPrix));
+            epPrixUnite.addEventListener('input', epUpdatePrixSousUniteCalc);
+
+            function openProduitEditor(produit, context) {
+                epEditContext = context;
+                epError.classList.add('d-none');
+                epFournisseurNom.textContent = produit.fournisseur || '-';
+                epNom.value = produit.nom || '';
+                epCip.value = produit.code_produit || '';
+                epRayon.value = produit.rayon_id || '';
+                epFamille.value = produit.famille_id || '';
+                epSection.value = produit.section_id || '';
+                epOriginalConditionnement = Number(produit.conditionnement || 1);
+                epDetailCheckbox.checked = epOriginalConditionnement >= 2;
+                epPrixUnite.value = produit.prix_unite_ht || 0;
+                epTailleConditionnement.value = produit.taille_conditionnement || '';
+                epCoefficient.value = produit.coefficient || 1;
+                epTva.value = produit.tva || 0;
+                epStockSecurite.value = produit.stock_securite || 0;
+                epPointsFidelite.value = (produit.points_fidelite === null || produit.points_fidelite === undefined) ? '' : produit.points_fidelite;
+                epUpdateDetail();
+                epUpdatePrixSousUniteCalc();
+                epRenderApercuPrix();
+                editProduitModal.show();
+            }
+
+            if (openEditProduitBtn) {
+                openEditProduitBtn.addEventListener('click', () => {
+                    if (!selectedProduit) return;
+                    openProduitEditor(selectedProduit, 'line');
+                });
+            }
+            if (cidEditProduitBtn) {
+                cidEditProduitBtn.addEventListener('click', () => {
+                    if (editingCartIndex === null) return;
+                    openProduitEditor(cart[editingCartIndex].produit, 'cart-item');
+                });
+            }
+
+            function epShowError(msg) {
+                epError.textContent = msg;
+                epError.classList.remove('d-none');
+            }
+
+            epSubmit.addEventListener('click', () => {
+                epError.classList.add('d-none');
+                const produitId = epEditContext === 'cart-item' && editingCartIndex !== null
+                    ? cart[editingCartIndex].produit.id
+                    : selectedProduit?.id;
+                if (!produitId) return;
+
+                const nom = epNom.value.trim();
+                if (!nom) { epShowError('Le nom du produit est requis.'); epNom.focus(); return; }
+                const cip = epCip.value.trim();
+                if (!cip) { epShowError('Le CIP est requis.'); epCip.focus(); return; }
+                const coefficient = Number(epCoefficient.value || 0);
+                if (coefficient <= 0) { epShowError('Le coefficient doit être supérieur à 0.'); epCoefficient.focus(); return; }
+
+                const payload = new URLSearchParams({
+                    nom,
+                    code_produit: cip,
+                    rayon_id: epRayon.value,
+                    famille_id: epFamille.value,
+                    section_id: epSection.value,
+                    conditionnement: String(epConditionnementSoumis()),
+                    taille_conditionnement: epTailleConditionnement.value,
+                    prix_unite: epPrixUnite.value,
+                    coefficient: epCoefficient.value,
+                    tva: epTva.value,
+                    stock_securite: epStockSecurite.value,
+                    points_fidelite: epPointsFidelite.value
+                });
+
+                epSubmit.disabled = true;
+                epSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enregistrement...';
+
+                fetch(PRODUIT_UPDATE_URL_TEMPLATE.replace('999999999', produitId), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload.toString()
+                })
+                    .then((res) => res.json().then((data) => ({ status: res.status, data })))
+                    .then(({ status, data }) => {
+                        if (status !== 200 || !data.success) {
+                            epShowError(data.message || 'Impossible de mettre à jour le produit.');
+                            return;
+                        }
+                        if (epEditContext === 'cart-item' && editingCartIndex !== null) {
+                            const item = cart[editingCartIndex];
+                            item.produit = data.produit;
+                            item.ttc = currentLineTotalsFor(data.produit, item.quantite_unites, item.quantite_sous_unites, item.quantite_sous_sous_unites).ttc;
+                            cidRefreshTotals();
+                            renderCart();
+                        } else {
+                            selectedProduit = data.produit;
+                            mRefreshLine();
+                        }
+                        editProduitModal.hide();
+                    })
+                    .catch(() => epShowError('Erreur réseau, veuillez réessayer.'))
+                    .finally(() => {
+                        epSubmit.disabled = false;
+                        epSubmit.innerHTML = '<i class="fas fa-save me-1"></i> Enregistrer';
+                    });
+            });
+
+            editProduitModalEl.addEventListener('hidden.bs.modal', () => {
+                if (stockEntryModalEl.classList.contains('show')) {
+                    document.body.classList.add('modal-open');
+                }
+                if (cartItemDetailModalEl.classList.contains('show')) {
+                    document.body.classList.add('modal-open');
+                }
+            });
+            stockEntryModalEl.addEventListener('hide.bs.modal', () => editProduitModal.hide());
         }
 
         // ---- Soumission : serialise le panier en champs caches avant le submit natif ----
@@ -4206,8 +4580,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const cip = qcpCip.value.trim();
                 if (!cip) { qcpShowError('Le CIP est requis.'); qcpCip.focus(); return; }
                 if (!qcpFournisseur.value) { qcpShowError('Veuillez choisir un fournisseur.'); qcpFournisseur.focus(); return; }
-                const prixUnite = Number(qcpPrixUnite.value || 0);
-                if (prixUnite <= 0) { qcpShowError("Le prix d'achat (unité) est requis."); qcpPrixUnite.focus(); return; }
 
                 const payload = new URLSearchParams({
                     nom,

@@ -164,8 +164,10 @@ def appliquer_prix_sous_unite_calcule(produit):
 
 def produit_to_stock_json(p):
     """Serialisation JSON d'un produit pour le selecteur du module Stock (voir
-    stock_produits_search, quick_create_produit, quick_update_produit_pricing) :
-    tarification complete + prefixe fournisseur (utilise dans le code de suivi)."""
+    stock_produits_search, quick_create_produit, quick_update_produit_pricing,
+    quick_update_produit) : tarification complete + prefixe fournisseur
+    (utilise dans le code de suivi) + champs de classement/conditionnement
+    (utilises par la modale "Modifier le produit" du panier d'entree en stock)."""
     return {
         'id': p.id,
         'nom': p.nom,
@@ -173,9 +175,15 @@ def produit_to_stock_json(p):
         'fournisseur_id': p.fournisseur_id,
         'fournisseur': p.fournisseur.nom if p.fournisseur else None,
         'fournisseur_prefixe': p.fournisseur.prefixe if p.fournisseur else None,
+        'rayon_id': p.rayon_id,
+        'famille_id': p.famille_id,
+        'section_id': p.section_id,
         'conditionnement': p.conditionnement,
+        'taille_conditionnement': p.taille_conditionnement or 1,
         'coefficient': p.effectif_coefficient,
         'tva': p.effectif_tva,
+        'stock_securite': p.stock_securite or 0,
+        'points_fidelite': p.points_fidelite,
         'prix_unite_ht': p.prix_unite or 0,
         'prix_unite_ttc': p.prix_unite_ttc or 0,
         'prix_sous_unite_ht': p.prix_sous_unite or 0,
@@ -4680,8 +4688,6 @@ def quick_create_produit():
     except ValueError:
         return jsonify({'success': False, 'message': 'Prix, coefficient et TVA doivent être numériques.'}), 400
 
-    if prix_unite <= 0:
-        return jsonify({'success': False, 'message': "Le prix d'achat (unité) est requis."}), 400
     if coefficient <= 0:
         return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
 
@@ -4714,8 +4720,6 @@ def quick_update_produit_pricing(id):
     except ValueError:
         return jsonify({'success': False, 'message': 'Valeurs numériques invalides.'}), 400
 
-    if prix_unite <= 0:
-        return jsonify({'success': False, 'message': "Le prix d'achat (unité) doit être supérieur à 0."}), 400
     if coefficient <= 0:
         return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
     if tva < 0:
@@ -4726,6 +4730,70 @@ def quick_update_produit_pricing(id):
     produit.prix_sous_sous_unite = prix_sous_sous_unite
     produit.coefficient = coefficient
     produit.tva = tva
+    db.session.commit()
+
+    return jsonify({'success': True, 'produit': produit_to_stock_json(produit)})
+
+@admin.route('/produits/<int:id>/quick-update', methods=['POST'])
+@login_required
+@permission_required('gestion_produits')
+def quick_update_produit(id):
+    """Modification complete (hors fournisseur) d'un produit du catalogue en
+    JSON, depuis le module Stock : corriger nom/CIP/classement/conditionnement/
+    tarification/points fidelite sans quitter le flux de saisie en cours (ligne
+    pas encore ajoutee au panier OU deja dedans -- voir openProduitEditor cote
+    JS). Le fournisseur n'est volontairement pas modifiable ici : la saisie en
+    stock est scopee a un fournisseur actif (une livraison = un seul
+    fournisseur), en changer casserait cet invariant en cours de saisie ; ca
+    reste possible depuis la fiche produit complete (edit_produit)."""
+    produit = Produit.query.get_or_404(id)
+
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        return jsonify({'success': False, 'message': 'Le nom du produit est requis.'}), 400
+
+    code_produit = (request.form.get('code_produit') or '').strip()
+    if not code_produit:
+        return jsonify({'success': False, 'message': 'Le CIP est requis.'}), 400
+
+    doublon = Produit.query.filter(
+        Produit.code_produit == code_produit,
+        Produit.fournisseur_id == produit.fournisseur_id,
+        Produit.id != produit.id
+    ).first()
+    if doublon:
+        return jsonify({'success': False, 'message': f'Le CIP "{code_produit}" est déjà utilisé par un autre produit chez ce fournisseur.'}), 400
+
+    try:
+        prix_unite = float(request.form.get('prix_unite') or 0)
+        coefficient = float(request.form.get('coefficient') or 0)
+        tva = float(request.form.get('tva') or 0)
+        conditionnement = int(request.form.get('conditionnement') or 1)
+        taille_conditionnement = int(request.form.get('taille_conditionnement') or 1)
+        stock_securite = int(request.form.get('stock_securite') or 0)
+        points_fidelite_raw = request.form.get('points_fidelite')
+        points_fidelite = int(points_fidelite_raw) if points_fidelite_raw not in (None, '') else None
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Valeurs numériques invalides.'}), 400
+
+    if coefficient <= 0:
+        return jsonify({'success': False, 'message': 'Le coefficient doit être supérieur à 0.'}), 400
+    if tva < 0:
+        return jsonify({'success': False, 'message': 'La TVA ne peut pas être négative.'}), 400
+
+    produit.nom = nom
+    produit.code_produit = code_produit
+    produit.rayon_id = int(request.form.get('rayon_id')) if request.form.get('rayon_id') else None
+    produit.famille_id = int(request.form.get('famille_id')) if request.form.get('famille_id') else None
+    produit.section_id = int(request.form.get('section_id')) if request.form.get('section_id') else None
+    produit.conditionnement = conditionnement
+    produit.taille_conditionnement = taille_conditionnement
+    produit.prix_unite = prix_unite
+    produit.coefficient = coefficient
+    produit.tva = tva
+    produit.stock_securite = stock_securite
+    produit.points_fidelite = points_fidelite
+    appliquer_prix_sous_unite_calcule(produit)
     db.session.commit()
 
     return jsonify({'success': True, 'produit': produit_to_stock_json(produit)})
