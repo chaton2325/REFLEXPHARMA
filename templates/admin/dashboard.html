@@ -415,6 +415,37 @@
   }
   .alert-item-chevron { color: #c0392b; font-size: 0.8rem; flex-shrink: 0; }
 
+  /* Couleur par type d'alerte (voir buildItem() : alert-item-<type>), pour
+     distinguer la nature/urgence d'un coup d'oeil sans lire le texte :
+     rouge = perime (le plus urgent, du stock perime est encore en rayon),
+     ambre = stock bas (seuil de securite atteint, actionnable mais moins
+     urgent), bleu = support (notification, pas une alerte de stock). Les
+     regles ".alert-item.alert-item-X" (specificite 0,2,0) l'emportent sur la
+     base ".alert-item" (0,1,0) quel que soit l'ordre dans la feuille ; les
+     regles imbriquees ".alert-item-X .alert-item-icon" etc. sont deja plus
+     specifiques que la base par construction. */
+  .alert-item.alert-item-perime { background: #fff5f5; border-color: #fbdcdc; }
+  .alert-item-perime .alert-item-icon { background: #fee8e8; color: #d93025; }
+  .alert-item-perime .alert-item-tag { background: #d93025; }
+  .alert-item-perime .alert-item-chevron { color: #c0392b; }
+
+  .alert-item.alert-item-stock_securite { background: #fff8ec; border-color: #f5dfb0; }
+  .alert-item-stock_securite .alert-item-icon { background: #fdecc8; color: #b8710a; }
+  .alert-item-stock_securite .alert-item-tag { background: #e08e0b; }
+  .alert-item-stock_securite .alert-item-chevron { color: #c9770a; }
+
+  .alert-item.alert-item-support_reply { background: #eef4ff; border-color: #c7d9fb; }
+  .alert-item-support_reply .alert-item-icon { background: #dce8fe; color: #2f5fd6; }
+  .alert-item-support_reply .alert-item-tag { background: #2f5fd6; }
+  .alert-item-support_reply .alert-item-chevron { color: #3a5fc4; }
+
+  /* Meme distinction, en teintes tres pales, quand la carte est en mode
+     "has-alerts" (vibrante rouge) : .alert-card.has-alerts .alert-item (0,3,0)
+     force sinon un fond quasi-blanc uniforme qui gommerait la difference. */
+  .alert-card.has-alerts .alert-item.alert-item-perime { background: rgba(255,235,235,0.96); }
+  .alert-card.has-alerts .alert-item.alert-item-stock_securite { background: rgba(255,246,230,0.96); }
+  .alert-card.has-alerts .alert-item.alert-item-support_reply { background: rgba(232,240,255,0.96); }
+
   /* Etat "au moins une alerte" : carte rouge qui vibre comme un telephone */
   .alert-card.has-alerts {
     background: linear-gradient(135deg, #b71c1c 0%, #e53935 100%);
@@ -976,7 +1007,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function buildItem(alert) {
         const item = document.createElement('a');
-        item.className = 'alert-item';
+        // alert-item-<type> porte la couleur (voir CSS .alert-item-perime /
+        // -stock_securite / -support_reply) : chaque type d'alerte reste
+        // reconnaissable d'un coup d'oeil, la base .alert-item servant de
+        // repli neutre si un type inconnu apparait un jour.
+        item.className = 'alert-item alert-item-' + alert.type;
         item.href = alert.url;
         item.title = 'Cliquer pour ouvrir la fiche concernée';
 
