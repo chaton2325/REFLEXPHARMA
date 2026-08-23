@@ -51,6 +51,21 @@ window.ReflexPrinter = (function () {
         return data;
     }
 
+    // mode: 'auto' (detection via le nom du driver Windows), 'escpos' (ticket
+    // mis en forme, imprimantes thermiques) ou 'text' (texte brut sans aucune
+    // commande, imprimantes "Generique / Texte seulement" -- voir agent.py::
+    // get_selected_mode pour le detail de la detection automatique).
+    async function setPrintMode(mode) {
+        const res = await withTimeout(fetch(AGENT_BASE_URL + '/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode })
+        }), FETCH_TIMEOUT_MS);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Impossible d'enregistrer le format d'impression.");
+        return data;
+    }
+
     async function printReceipt(receipt) {
         const res = await withTimeout(fetch(AGENT_BASE_URL + '/print', {
             method: 'POST',
@@ -85,6 +100,7 @@ window.ReflexPrinter = (function () {
         ping: ping,
         listPrinters: listPrinters,
         setSelectedPrinter: setSelectedPrinter,
+        setPrintMode: setPrintMode,
         printReceipt: printReceipt,
         printTestPage: printTestPage
     };

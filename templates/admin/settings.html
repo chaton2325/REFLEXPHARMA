@@ -407,6 +407,16 @@
           <select id="printerSelect" class="form-select form-select-sm"></select>
         </div>
 
+        <div class="mb-3 d-none" id="printerModeWrapper">
+          <label for="printerModeSelect" class="form-label">Format d'impression</label>
+          <select id="printerModeSelect" class="form-select form-select-sm">
+            <option value="auto">Détection automatique</option>
+            <option value="escpos">Ticket mis en forme (imprimante thermique ESC/POS)</option>
+            <option value="text">Texte simple (imprimante générique / "Texte seulement")</option>
+          </select>
+          <div class="form-text" id="printerModeHint" style="font-size:0.72rem;"></div>
+        </div>
+
         <div class="d-flex flex-wrap gap-2 mb-3">
           <button type="button" id="btnRefreshAgent" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-rotate me-1"></i> Rafraîchir
@@ -692,11 +702,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusText = document.getElementById('printerStatusText');
     const selectWrapper = document.getElementById('printerSelectWrapper');
     const select = document.getElementById('printerSelect');
+    const modeWrapper = document.getElementById('printerModeWrapper');
+    const modeSelect = document.getElementById('printerModeSelect');
+    const modeHint = document.getElementById('printerModeHint');
     const btnRefresh = document.getElementById('btnRefreshAgent');
     const btnTest = document.getElementById('btnTestPrinter');
 
     async function refreshStatus() {
         selectWrapper.classList.add('d-none');
+        modeWrapper.classList.add('d-none');
         btnTest.disabled = true;
 
         const ready = await ReflexPrinter.ping();
@@ -721,6 +735,23 @@ document.addEventListener('DOMContentLoaded', function () {
             statusText.textContent = 'Agent actif' + (data.selected ? ' — imprimante active : ' + data.selected : ' — aucune imprimante choisie');
             selectWrapper.classList.remove('d-none');
             btnTest.disabled = !data.selected;
+
+            // Format d'impression : ESC/POS (ticket mis en forme, imprimantes
+            // thermiques) impossible a distinguer d'un "rien ne s'imprime" sur
+            // une imprimante configuree en "Generique / Texte seulement" (ce
+            // driver n'interprete pas les commandes ESC/POS) -- voir agent.py::
+            // get_selected_mode, qui detecte ce cas via le nom du driver Windows.
+            if (data.selected) {
+                modeWrapper.classList.remove('d-none');
+                modeSelect.value = data.mode_override || 'auto';
+                if (data.mode_override) {
+                    modeHint.textContent = '';
+                } else {
+                    modeHint.textContent = data.mode === 'text'
+                        ? 'Détecté automatiquement : imprimante générique (texte simple), sans mise en forme.'
+                        : 'Détecté automatiquement : imprimante thermique ESC/POS (ticket mis en forme).';
+                }
+            }
         } catch (err) {
             console.error(err);
             statusBox.className = 'printer-status is-unsupported';
@@ -735,6 +766,16 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (err) {
             console.error(err);
             alert(err.message || "Impossible d'enregistrer l'imprimante choisie.");
+        }
+    });
+
+    modeSelect.addEventListener('change', async function () {
+        try {
+            await ReflexPrinter.setPrintMode(modeSelect.value);
+            await refreshStatus();
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Impossible d'enregistrer le format d'impression.");
         }
     });
 

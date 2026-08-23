@@ -74,6 +74,52 @@ def get_selected_printer():
     return config.get('printer') or get_default_printer()
 
 
+# Le driver Windows "Generique / Texte seulement" (Generic / Text Only) ne
+# comprend PAS les commandes ESC/POS (centrage, gras, coupe...) : ce sont des
+# octets de commande specifiques aux imprimantes thermiques, que ce driver
+# imprime tels quels comme des caracteres parasites au lieu de les executer --
+# d'ou un ticket illisible ("sans style, rien") sur les imprimantes generiques
+# configurees ainsi (courant pour les imprimantes de tickets bas de gamme sans
+# vrai driver). Ce marqueur sert a detecter ce cas et basculer automatiquement
+# sur build_receipt_text_bytes() (aucune commande, alignement par espaces).
+GENERIC_TEXT_DRIVER_MARKERS = ('generic', 'generique', 'text only', 'texte seulement')
+
+
+def strip_accents_lower(text):
+    return strip_accents(text).lower()
+
+
+def get_printer_driver_name(printer_name):
+    try:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            info = win32print.GetPrinter(handle, 2)
+            return info.get('pDriverName') or ''
+        finally:
+            win32print.ClosePrinter(handle)
+    except Exception:
+        return ''
+
+
+def guess_is_generic_text_driver(printer_name):
+    driver = strip_accents_lower(get_printer_driver_name(printer_name))
+    return any(marker in driver for marker in GENERIC_TEXT_DRIVER_MARKERS)
+
+
+def get_selected_mode(printer_name):
+    """'escpos' (ticket mis en forme, imprimantes thermiques) ou 'text' (texte
+    brut sans aucune commande, imprimantes generiques/texte seulement). Priorite
+    a un choix explicite de l'utilisateur (config['mode']) ; sinon detection
+    automatique via le nom du driver Windows de l'imprimante selectionnee."""
+    if not printer_name:
+        return 'escpos'
+    config = load_config()
+    mode = config.get('mode')
+    if mode in ('escpos', 'text'):
+        return mode
+    return 'text' if guess_is_generic_text_driver(printer_name) else 'escpos'
+
+
 def get_selected_host():
     config = load_config()
     return config.get('host') or DEFAULT_HOST
@@ -199,6 +245,90 @@ def build_receipt_bytes(receipt):
     return b.build()
 
 
+class PlainTextReceiptBuilder:
+    """Meme contenu que ReceiptBuilder, mais AUCUNE commande ESC/POS : centrage
+    et alignement colonnes fait uniquement par des espaces, tirets en ASCII pur
+    -- pour les imprimantes configurees sous Windows avec le driver "Generique
+    / Texte seulement" (Generic / Text Only), qui n'interprete aucune commande
+    d'imprimante thermique (voir get_selected_mode / GENERIC_TEXT_DRIVER_MARKERS)."""
+
+    def __init__(self):
+        self.lines = []
+
+    def center(self, text=''):
+        text = str(text)
+        pad = max(0, (LINE_WIDTH - len(text)) // 2)
+        self.lines.append(' ' * pad + text)
+        return self
+
+    def line(self, text=''):
+        self.lines.append(str(text))
+        return self
+
+    def feed(self, n=1):
+        self.lines.extend([''] * n)
+        return self
+
+    def hr(self, char='-'):
+        self.lines.append(char * LINE_WIDTH)
+        return self
+
+    def row(self, left, right):
+        left, right = str(left), str(right)
+        space = max(1, LINE_WIDTH - len(left) - len(right))
+        self.lines.append(left + ' ' * space + right)
+        return self
+
+    def build(self):
+        # CRLF (pas juste LF) : certains drivers/imprimantes "texte seulement"
+        # (heritage dot-matrix/serie) ne font pas de retour chariot implicite
+        # sur un simple saut de ligne, ce qui decale chaque ligne en escalier.
+        # Un saut de page (form feed) final ejecte/avance le papier en fin de
+        # ticket, seul mecanisme de "fin de page" que ce type de driver
+        # comprenne (pas de commande de coupe possible, contrairement a
+        # ReceiptBuilder.cut() en mode ESC/POS).
+        body = ''.join(strip_accents(l) + '\r\n' for l in self.lines)
+        return body.encode('ascii', errors='replace') + b'\x0c'
+
+
+def build_receipt_text_bytes(receipt):
+    b = PlainTextReceiptBuilder()
+    b.center(receipt.get('pharmacyName') or 'ReflexPharma')
+    b.center('Pharmacie - Parapharmacie')
+    b.center('Vente No: ' + str(receipt.get('numero') or ''))
+    b.feed(1)
+    b.row('Date: ' + str(receipt.get('date') or ''), 'Heure: ' + str(receipt.get('heure') or ''))
+    b.line('Vendeur: ' + str(receipt.get('vendeur') or ''))
+    if receipt.get('client'):
+        b.line('Client: ' + str(receipt['client']))
+    if receipt.get('points'):
+        b.line('Points fidelite gagnes: ' + str(receipt['points']))
+    if receipt.get('pointsTotaux'):
+        b.line('Total points fidelite client: ' + str(receipt['pointsTotaux']))
+    b.hr('-')
+    for ligne in receipt.get('lignes') or []:
+        b.line(ligne.get('nom', ''))
+        b.row('  ' + str(ligne.get('qte', '')) + ' x ' + str(ligne.get('pu', '')), ligne.get('total', ''))
+    b.hr('-')
+    if receipt.get('codePromo'):
+        b.row(
+            'Code promo ' + str(receipt['codePromo']) + ' (-' + str(receipt.get('codePromoPourcentage', '')) + '%)',
+            '-' + str(receipt.get('codePromoMontant', ''))
+        )
+    b.row('NET A PAYER (TTC)', receipt.get('totalTtc', ''))
+    b.hr('.')
+    b.row('Paiement:', receipt.get('modePaiement', ''))
+    b.row('Recu:', receipt.get('montantRecu', ''))
+    b.row('Rendu:', receipt.get('monnaieRendue', ''))
+    b.feed(1)
+    if receipt.get('watermark'):
+        b.center('*** ' + str(receipt['watermark']) + ' ***')
+    b.center('Merci de votre confiance !')
+    b.center('Logiciel ReflexPharma')
+    b.feed(3)
+    return b.build()
+
+
 def send_raw_to_printer(printer_name, data):
     handle = win32print.OpenPrinter(printer_name)
     try:
@@ -218,6 +348,17 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        # Private Network Access (Chrome recent) : une page chargee sur une
+        # origine PUBLIQUE (ex: tunnel ngrok en https, meme si le navigateur
+        # tourne sur ce meme poste) qui appelle 127.0.0.1 doit recevoir cet
+        # en-tete sur la reponse au preflight OPTIONS, sinon Chrome bloque
+        # silencieusement la requete (ping()/isReady() renvoient false sans
+        # jamais atteindre l'agent) et le code appelant se rabat sur
+        # window.print() -- ticket sans mise en forme, avec titre/URL/pagination
+        # injectes par le navigateur (voir ce qui remontait dans le ticket :
+        # "Nouvelle vente - TsariPharm" + l'URL ngrok elle-meme). Sans cet
+        # en-tete, PNA bloque meme si ALLOWED_ORIGIN vaut '*'.
+        self.send_header('Access-Control-Allow-Private-Network', 'true')
 
     def _send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
@@ -244,11 +385,23 @@ class AgentHandler(BaseHTTPRequestHandler):
         elif self.path == '/printers':
             try:
                 names, default = list_printers()
-                self._send_json(200, {'printers': names, 'default': default, 'selected': get_selected_printer()})
+                selected = get_selected_printer()
+                self._send_json(200, {
+                    'printers': names,
+                    'default': default,
+                    'selected': selected,
+                    'mode': get_selected_mode(selected) if selected else None,
+                    'mode_override': load_config().get('mode'),
+                })
             except Exception as e:
                 self._send_json(500, {'message': str(e)})
         elif self.path == '/config':
-            self._send_json(200, {'printer': get_selected_printer()})
+            selected = get_selected_printer()
+            self._send_json(200, {
+                'printer': selected,
+                'mode': get_selected_mode(selected) if selected else None,
+                'mode_override': load_config().get('mode'),
+            })
         else:
             self._send_json(404, {'message': 'Route inconnue.'})
 
@@ -263,22 +416,35 @@ class AgentHandler(BaseHTTPRequestHandler):
 
         if self.path == '/config':
             printer = payload.get('printer')
-            if not printer:
-                self._send_json(400, {'message': "Nom d'imprimante requis."})
+            mode = payload.get('mode')  # 'escpos' | 'text' | 'auto' (repli sur la detection) | absent
+            if not printer and mode is None:
+                self._send_json(400, {'message': "Nom d'imprimante ou format d'impression requis."})
                 return
             config = load_config()
-            config['printer'] = printer
+            if printer:
+                config['printer'] = printer
+            if mode is not None:
+                if mode in ('escpos', 'text'):
+                    config['mode'] = mode
+                else:
+                    config.pop('mode', None)
             save_config(config)
-            self._send_json(200, {'printer': printer})
+            selected = get_selected_printer()
+            self._send_json(200, {
+                'printer': selected,
+                'mode': get_selected_mode(selected) if selected else None,
+                'mode_override': config.get('mode'),
+            })
         elif self.path == '/print':
             printer = get_selected_printer()
             if not printer:
                 self._send_json(400, {'message': 'Aucune imprimante configuree sur ce poste.'})
                 return
             try:
-                data = build_receipt_bytes(payload)
+                mode = get_selected_mode(printer)
+                data = build_receipt_text_bytes(payload) if mode == 'text' else build_receipt_bytes(payload)
                 send_raw_to_printer(printer, data)
-                self._send_json(200, {'success': True})
+                self._send_json(200, {'success': True, 'mode': mode})
             except Exception as e:
                 self._send_json(500, {'message': "Echec d'impression : " + str(e)})
         else:
@@ -318,8 +484,13 @@ def run_gui():
     printer_var = tk.StringVar()
 
     def refresh_printer_label():
-        selected = get_selected_printer() or 'Aucune imprimante configuree'
-        printer_var.set('Imprimante active : ' + selected)
+        selected = get_selected_printer()
+        if not selected:
+            printer_var.set('Imprimante active : aucune imprimante configuree')
+        else:
+            mode = get_selected_mode(selected)
+            mode_label = 'texte simple' if mode == 'text' else 'ticket stylé (ESC/POS)'
+            printer_var.set('Imprimante active : ' + selected + '\nFormat : ' + mode_label)
         root.after(3000, refresh_printer_label)
 
     tk.Label(root, textvariable=printer_var, font=('Segoe UI', 9, 'bold'), fg='#1e8e3e', wraplength=340).pack(pady=(12, 0))
