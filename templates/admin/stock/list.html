@@ -2262,9 +2262,19 @@ document.addEventListener('DOMContentLoaded', function() {
         </form>
       </div>
       <div class="modal-footer border-top flex-column align-items-stretch gap-2">
+        <div id="cartSubmitError" class="alert alert-warning small py-2 px-3 mb-0 d-none"></div>
+        <div id="cartSubmitProgress" class="d-none">
+          <div class="d-flex align-items-center gap-2 small text-muted mb-1">
+            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+            <span>Enregistrement de l'entrée en stock en cours, veuillez patienter...</span>
+          </div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width:100%"></div>
+          </div>
+        </div>
         <div class="row g-2">
           <div class="col-sm-5">
-            <label for="reason_id_mobile" class="form-label mb-1">Raison de l'entrée (pré-définie)</label>
+            <label for="reason_id_mobile" class="form-label mb-1">Raison de l'entrée (pré-définie) <span class="text-danger">*</span></label>
             <select form="stockFormMobile" name="reason_id" id="reason_id_mobile" class="form-select form-select-sm">
               <option value="">-- Choisir une raison --</option>
               {% for r in reasons %}
@@ -2273,14 +2283,18 @@ document.addEventListener('DOMContentLoaded', function() {
             </select>
           </div>
           <div class="col-sm-7">
-            <label for="reason_mobile" class="form-label mb-1">Commentaire / Raison libre</label>
+            <label for="reason_mobile" class="form-label mb-1">Commentaire / Raison libre <span class="text-danger">*</span></label>
             <input type="text" form="stockFormMobile" name="reason" id="reason_mobile" class="form-control form-control-sm" placeholder="Ex: réapprovisionnement fournisseur, correction d'inventaire...">
+          </div>
+          <div class="col-12">
+            <div class="small text-muted">* L'un des deux champs ci-dessus est requis (raison pré-définie ou commentaire libre).</div>
           </div>
         </div>
         <div class="d-flex justify-content-end gap-2">
-          <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+          <button type="button" id="cancelCartBtn" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
           <button type="submit" form="stockFormMobile" id="validateCartBtn" class="btn btn-primary" style="border-radius:10px;font-weight:600;" disabled>
-            <i class="fas fa-check-circle me-1"></i> Valider le panier (<span id="cartCountFooter">0</span>)
+            <span id="validateCartBtnIdle"><i class="fas fa-check-circle me-1"></i> Valider le panier (<span id="cartCountFooter">0</span>)</span>
+            <span id="validateCartBtnBusy" class="d-none"><span class="spinner-border spinner-border-sm me-1"></span>Enregistrement...</span>
           </button>
         </div>
       </div>
@@ -3243,6 +3257,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const cartTotalTtc = document.getElementById('cartTotalTtc');
     const cartHiddenFields = document.getElementById('cartHiddenFields');
     const validateCartBtn = document.getElementById('validateCartBtn');
+    const validateCartBtnIdle = document.getElementById('validateCartBtnIdle');
+    const validateCartBtnBusy = document.getElementById('validateCartBtnBusy');
     const clearCartBtn = document.getElementById('clearCartBtn');
     const cartPersistedHint = document.getElementById('cartPersistedHint');
     const stockEntryPendingBadge = document.getElementById('stockEntryPendingBadge');
@@ -4349,12 +4365,65 @@ document.addEventListener('DOMContentLoaded', function() {
             stockEntryModalEl.addEventListener('hide.bs.modal', () => editProduitModal.hide());
         }
 
-        // ---- Soumission : serialise le panier en champs caches avant le submit natif ----
+        // ---- Soumission : revalide chaque ligne du panier (chaque ligne est deja
+        // validee a l'ajout/edition -- voir addToCartBtn/cidSave -- mais rien ne
+        // revalidait ce qui atterrit reellement ici : un panier restaure depuis
+        // localStorage, potentiellement ancien ou modifie hors de l'app, doit lui
+        // aussi etre bloque s'il contient une ligne incomplete plutot que
+        // d'envoyer silencieusement des champs vides au serveur), serialise le
+        // panier en champs caches, puis affiche l'indicateur d'activite le temps
+        // du submit natif (rechargement de page, donc pas de reelle progression
+        // mesurable -- indicateur indetermine plutot que barre chiffree). ----
+        const cartSubmitError = document.getElementById('cartSubmitError');
+        const cartSubmitProgress = document.getElementById('cartSubmitProgress');
+        const cancelCartBtn = document.getElementById('cancelCartBtn');
+
+        function showCartSubmitError(msg) {
+            cartSubmitError.textContent = msg;
+            cartSubmitError.classList.remove('d-none');
+        }
+
+        function findInvalidCartItem() {
+            return cart.find((item) => {
+                const qu = Number(item.quantite_unites || 0);
+                const qsu = Number(item.quantite_sous_unites || 0);
+                const qssu = Number(item.quantite_sous_sous_unites || 0);
+                return !item.produit || !item.produit.id
+                    || !String(item.numero_bl || '').trim()
+                    || !item.date_peremption
+                    || (qu <= 0 && qsu <= 0 && qssu <= 0);
+            });
+        }
+
         stockEntryForm.addEventListener('submit', (e) => {
+            cartSubmitError.classList.add('d-none');
+
             if (cart.length === 0) {
                 e.preventDefault();
                 return;
             }
+
+            // Champ de niveau page (pas une ligne du panier), mais tout aussi
+            // bloquant cote serveur (voir manage_stock : reason_id OU reason
+            // requis) -- rate une premiere fois car findInvalidCartItem() ne
+            // regarde que les lignes du panier, jamais les champs du pied de
+            // modale.
+            const reasonIdValue = document.getElementById('reason_id_mobile').value;
+            const reasonTextValue = document.getElementById('reason_mobile').value.trim();
+            if (!reasonIdValue && !reasonTextValue) {
+                e.preventDefault();
+                showCartSubmitError('Veuillez préciser la raison de cette entrée en stock (raison pré-définie ou commentaire libre).');
+                document.getElementById('reason_mobile').focus();
+                return;
+            }
+
+            const invalidItem = findInvalidCartItem();
+            if (invalidItem) {
+                e.preventDefault();
+                showCartSubmitError(`La ligne "${invalidItem.produit ? invalidItem.produit.nom : 'inconnue'}" est incomplète (BL, date de péremption ou quantité manquant) : rouvrez-la pour la corriger avant de valider.`);
+                return;
+            }
+
             cartHiddenFields.innerHTML = cart.map((item) => `
                 <input type="hidden" name="produit_id[]" value="${item.produit.id}">
                 <input type="hidden" name="numero_bl[]" value="${escapeHtml(item.numero_bl)}">
@@ -4363,6 +4432,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="hidden" name="quantite_sous_unites[]" value="${item.quantite_sous_unites}">
                 <input type="hidden" name="quantite_sous_sous_unites[]" value="${item.quantite_sous_sous_unites}">
             `).join('');
+
+            // A partir d'ici la soumission va bel et bien partir : affiche
+            // l'indicateur et verrouille les boutons pour eviter un double-envoi
+            // (double-clic, ou double Entree malgre le blocage clavier plus bas).
+            cartSubmitProgress.classList.remove('d-none');
+            validateCartBtn.disabled = true;
+            validateCartBtnIdle.classList.add('d-none');
+            validateCartBtnBusy.classList.remove('d-none');
+            if (cancelCartBtn) cancelCartBtn.disabled = true;
         });
 
         // Bloque la soumission implicite (touche Entree) partout sauf dans le textarea de raison
@@ -4393,6 +4471,14 @@ document.addEventListener('DOMContentLoaded', function() {
             produitLineForm.classList.add('d-none');
             produitLineEmpty.classList.remove('d-none');
             refreshFournisseurUi();
+            // Efface un eventuel message d'erreur/etat "en cours" laisse par une
+            // precedente tentative de validation (le panier, lui, est conserve
+            // entre deux ouvertures -- voir renderCart() plus bas pour le compteur).
+            cartSubmitError.classList.add('d-none');
+            cartSubmitProgress.classList.add('d-none');
+            validateCartBtnIdle.classList.remove('d-none');
+            validateCartBtnBusy.classList.add('d-none');
+            if (cancelCartBtn) cancelCartBtn.disabled = false;
             renderCart();
         });
 
