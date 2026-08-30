@@ -223,6 +223,44 @@
     .page-header h1 { font-size: 1.15rem; }
     .col-masquable { display: none; }
   }
+
+  /* --- Tarification (apercu + ajustement) dans le modal "Entree en stock"
+     d'une ligne de commande : mêmes classes/valeurs que templates/admin/
+     stock/list.html (pricing-preview/pricing-chip*/rate-badge*), pour un
+     rendu identique -- avec en plus le mode sombre que la version d'origine
+     n'avait pas. --- */
+  .rate-badge {
+    display: inline-block; font-size: 0.64rem; font-weight: 600;
+    padding: 0.05em 0.4em; border-radius: 4px; letter-spacing: 0.2px;
+  }
+  .rate-badge-coef { background: #eef3fc; color: #1a5fb4; }
+  .rate-badge-tva { background: #fdf1e0; color: #a5670a; }
+  html[data-bs-theme="dark"] .rate-badge-coef { background: rgba(26,95,180,0.22); color: #7cb8f0; }
+  html[data-bs-theme="dark"] .rate-badge-tva { background: rgba(165,103,10,0.22); color: #f0a860; }
+
+  .pricing-preview { background: #f8f9fa; }
+  html[data-bs-theme="dark"] .pricing-preview { background: #1c2733 !important; }
+
+  .pricing-levels { display: flex; flex-direction: column; gap: 0.6rem; }
+  .pricing-level-label {
+    font-size: 0.66rem; font-weight: 700; color: #7a8896;
+    text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.35rem;
+  }
+  .pricing-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.4rem; }
+  .pricing-chip {
+    background: #fff; border: 1px solid #e8edf4; border-radius: 8px;
+    padding: 0.35rem 0.55rem; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0;
+  }
+  .pricing-chip-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #7a8896; }
+  .pricing-chip-value { font-size: 0.78rem; font-weight: 700; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pricing-chip-marge .pricing-chip-value { color: #1e8e3e; }
+  .pricing-chip-tva .pricing-chip-value { color: #a5670a; }
+  .pricing-chip-ttc { background: #eef3fc; border-color: #d7e6fb; }
+  .pricing-chip-ttc .pricing-chip-value { color: #1a5fb4; font-size: 0.84rem; }
+  html[data-bs-theme="dark"] .pricing-chip { background: #16202b; border-color: rgba(255,255,255,0.08); }
+  html[data-bs-theme="dark"] .pricing-chip-value { color: #e8edf2; }
+  html[data-bs-theme="dark"] .pricing-chip-ttc { background: rgba(52,152,219,0.15); border-color: rgba(52,152,219,0.3); }
+  html[data-bs-theme="dark"] .pricing-chip-ttc .pricing-chip-value { color: #7cb8f0; }
 </style>
 {% endblock %}
 
@@ -546,7 +584,20 @@
   </div>
 </form>
 
+{% macro pricing_level_chips(label, ht, benefice, tva, ttc) %}
+<div class="pricing-level">
+  <div class="pricing-level-label">{{ label }}</div>
+  <div class="pricing-chips">
+    <div class="pricing-chip"><span class="pricing-chip-label">HT</span><span class="pricing-chip-value">{{ "%.2f"|format(ht or 0) }} {{ devise }}</span></div>
+    <div class="pricing-chip pricing-chip-marge"><span class="pricing-chip-label">Marge brute</span><span class="pricing-chip-value">{{ "%.2f"|format(benefice or 0) }} {{ devise }}</span></div>
+    <div class="pricing-chip pricing-chip-tva"><span class="pricing-chip-label">TVA</span><span class="pricing-chip-value">{{ "%.2f"|format(tva or 0) }} {{ devise }}</span></div>
+    <div class="pricing-chip pricing-chip-ttc"><span class="pricing-chip-label">TTC</span><span class="pricing-chip-value">{{ "%.2f"|format(ttc or 0) }} {{ devise }}</span></div>
+  </div>
+</div>
+{% endmacro %}
+
 {% if peut_gerer_stock and commande.statut != 'annulee' %}
+{% set peut_modifier_prix = current_user.has_permission('gestion_produits') %}
 {% for l in commande.lignes %}
 {% if l.produit_id and l.produit %}
 <!-- Modal entrée en stock rapide - ligne {{ l.id }} -->
@@ -563,11 +614,41 @@
             Produit et quantité pré-remplis depuis la commande <strong>{{ commande.numero }}</strong>.
             Il ne manque que le numéro de BL et la date de péremption du lot reçu.
           </p>
+
+          <div class="border rounded p-3 pricing-preview mb-3">
+            <div class="small text-muted mb-2 d-flex align-items-center justify-content-between gap-2 flex-wrap">
+              <span>Tarification du produit</span>
+              <div class="d-flex align-items-center gap-1 flex-shrink-0 flex-wrap">
+                <span class="rate-badge rate-badge-coef" id="rateCoef{{ l.id }}">Coef. x{{ "%.2f"|format(l.produit.effectif_coefficient) }}</span>
+                <span class="rate-badge rate-badge-tva" id="rateTva{{ l.id }}">TVA {{ "%g"|format(l.produit.effectif_tva) }}%</span>
+                {% if peut_modifier_prix %}
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 btn-ajuster-pricing" style="font-size:0.72rem;"
+                        data-ligne-id="{{ l.id }}" data-produit-id="{{ l.produit.id }}" data-produit-nom="{{ l.produit.nom }}"
+                        data-prix-unite="{{ l.produit.prix_unite or 0 }}" data-coefficient="{{ l.produit.effectif_coefficient }}"
+                        data-tva="{{ l.produit.effectif_tva }}" data-prix-sous-unite="{{ l.produit.prix_sous_unite or 0 }}"
+                        data-prix-sous-sous-unite="{{ l.produit.prix_sous_sous_unite or 0 }}" data-conditionnement="{{ l.produit.conditionnement or 1 }}"
+                        title="Modifier le prix d'achat, le coefficient ou la TVA du produit">
+                  <i class="fas fa-pen me-1"></i>Ajuster
+                </button>
+                {% endif %}
+              </div>
+            </div>
+            <div class="pricing-levels" id="pricingLevels{{ l.id }}">
+              {{ pricing_level_chips('Unité', l.produit.prix_vente_unite_ht, l.produit.benefice_unite, l.produit.montant_tva_unite, l.produit.prix_unite_ttc) }}
+              {% if l.produit.conditionnement and l.produit.conditionnement >= 2 %}
+              {{ pricing_level_chips('Sous-unité', l.produit.prix_vente_sous_unite_ht, l.produit.benefice_sous_unite, l.produit.montant_tva_sous_unite, l.produit.prix_sous_unite_ttc) }}
+              {% endif %}
+              {% if l.produit.conditionnement and l.produit.conditionnement >= 3 %}
+              {{ pricing_level_chips('Sous-sous-unité', l.produit.prix_vente_sous_sous_unite_ht, l.produit.benefice_sous_sous_unite, l.produit.montant_tva_sous_sous_unite, l.produit.prix_sous_sous_unite_ttc) }}
+              {% endif %}
+            </div>
+          </div>
+
           <div class="mb-3">
-            <label class="form-label">Quantité à mettre en stock (unités) <span class="text-danger">*</span></label>
-            <input type="number" min="1" step="1" name="quantite_unites" class="form-control" required
+            <label class="form-label">Quantité unités</label>
+            <input type="number" class="form-control" readonly tabindex="-1" style="background-color:#e9ecef;"
                    value="{{ l.quantite_restante_a_stocker if l.quantite_restante_a_stocker > 0 else l.quantite_cible_stock }}">
-            <div class="form-text">{{ l.quantite_mise_en_stock }} u. déjà en stock sur {{ l.quantite_cible_stock }} u. {{ 'livrée(s)' if commande.statut == 'livree' else 'commandée(s)' }}.</div>
+            <div class="form-text">{{ l.quantite_mise_en_stock }} u. déjà en stock sur {{ l.quantite_cible_stock }} u. {{ 'livrée(s)' if commande.statut == 'livree' else 'commandée(s)' }} — fixée par la commande, non modifiable ici.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Numéro de BL <span class="text-danger">*</span></label>
@@ -590,6 +671,100 @@
 </div>
 {% endif %}
 {% endfor %}
+
+{% if peut_modifier_prix %}
+<!-- Modal partage "Ajuster le prix / coefficient / TVA" : une seule instance
+     reutilisee par toutes les lignes (voir bouton .btn-ajuster-pricing de
+     chaque modal ligne ci-dessus). Memes champs/logique de recalcul que
+     templates/admin/stock/list.html#editProduitPricingModal. -->
+<div class="modal fade" id="editProduitPricingModal" tabindex="-1" data-bs-backdrop="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title"><i class="fas fa-tags me-2"></i>Ajuster le prix / coefficient / TVA</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-3">
+          Ces valeurs sont celles du catalogue pour <strong id="eppProduitNom"></strong>. Les modifier ici les met à jour immédiatement pour ce produit (prochaines ventes et entrées en stock comprises).
+        </div>
+        <div id="eppError" class="alert alert-warning small py-2 px-3 d-none"></div>
+
+        <div class="mb-3">
+          <label for="eppPrixUnite" class="form-label">Prix d'achat (Unité)</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixUnite" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="eppPrixVenteTtc" class="form-label">Prix de vente (Unité) TTC</label>
+          <div class="input-group">
+            <input type="number" step="0.01" min="0" id="eppPrixVenteTtc" class="form-control">
+            <span class="input-group-text">{{ devise }}</span>
+          </div>
+          <div class="form-text small text-muted">Modifier le prix d'achat ou le prix de vente ajuste automatiquement le coefficient pour rester cohérent.</div>
+        </div>
+        <div class="mb-3" id="eppGroupSous">
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label for="eppPrixSousUnite" class="form-label">Prix d'achat (Sous-unité)</label>
+              <div class="input-group">
+                <input type="number" step="0.01" min="0" id="eppPrixSousUnite" class="form-control" readonly tabindex="-1" style="background-color:#e9ecef;">
+                <span class="input-group-text">{{ devise }}</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <label for="eppPrixVenteSousUniteTtc" class="form-label">Prix de vente (Sous-unité) TTC</label>
+              <div class="input-group">
+                <input type="number" step="0.01" min="0" id="eppPrixVenteSousUniteTtc" class="form-control">
+                <span class="input-group-text">{{ devise }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-text small text-muted">Le prix d'achat reste calculé automatiquement (non modifiable). Modifier le prix de vente ajuste le coefficient — partagé avec l'unité, dont le prix de vente s'ajuste donc aussi.</div>
+        </div>
+        <div class="mb-3" id="eppGroupSousSous">
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label for="eppPrixSousSousUnite" class="form-label">Prix d'achat (Sous-sous-unité)</label>
+              <div class="input-group">
+                <input type="number" step="0.01" min="0" id="eppPrixSousSousUnite" class="form-control" readonly tabindex="-1" style="background-color:#e9ecef;">
+                <span class="input-group-text">{{ devise }}</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <label for="eppPrixVenteSousSousUniteTtc" class="form-label">Prix de vente (Sous-sous-unité) TTC</label>
+              <div class="input-group">
+                <input type="number" step="0.01" min="0" id="eppPrixVenteSousSousUniteTtc" class="form-control">
+                <span class="input-group-text">{{ devise }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-text small text-muted">Le prix d'achat reste calculé automatiquement (non modifiable). Modifier le prix de vente ajuste le coefficient — partagé avec les autres niveaux, dont le prix de vente s'ajuste donc aussi.</div>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="eppCoefficient" class="form-label">Coefficient <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="eppCoefficient" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label for="eppTva" class="form-label">TVA (%) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" id="eppTva" class="form-control">
+          </div>
+        </div>
+        <div id="eppBreakdown" class="pricing-levels mt-3"></div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="eppSubmit" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-save me-1"></i> Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endif %}
 
 {% if commande.statut == 'livree' and commande.lignes_manquantes %}
@@ -826,6 +1001,262 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         new bootstrap.Modal(createdModalEl).show();
+    }
+
+    // --- Ajuster le prix / coefficient / TVA depuis une ligne de commande :
+    // meme modal/logique de recalcul que templates/admin/stock/list.html
+    // (#editProduitPricingModal), adapte pour etre partage entre toutes les
+    // lignes de cette page (une seule instance, reseedee a chaque clic sur
+    // ".btn-ajuster-pricing" avec les valeurs de la ligne concernee, prises
+    // directement dans son dataset -- pas besoin d'un aller-retour reseau
+    // puisque le produit est deja connu au rendu de la page). ---
+    const editProduitPricingModalEl = document.getElementById('editProduitPricingModal');
+    if (editProduitPricingModalEl) {
+        const eppProduitNom = document.getElementById('eppProduitNom');
+        const eppError = document.getElementById('eppError');
+        const eppPrixUnite = document.getElementById('eppPrixUnite');
+        const eppPrixVenteTtc = document.getElementById('eppPrixVenteTtc');
+        const eppPrixSousUnite = document.getElementById('eppPrixSousUnite');
+        const eppPrixVenteSousUniteTtc = document.getElementById('eppPrixVenteSousUniteTtc');
+        const eppPrixSousSousUnite = document.getElementById('eppPrixSousSousUnite');
+        const eppPrixVenteSousSousUniteTtc = document.getElementById('eppPrixVenteSousSousUniteTtc');
+        const eppGroupSous = document.getElementById('eppGroupSous');
+        const eppGroupSousSous = document.getElementById('eppGroupSousSous');
+        const eppCoefficient = document.getElementById('eppCoefficient');
+        const eppTva = document.getElementById('eppTva');
+        const eppBreakdown = document.getElementById('eppBreakdown');
+        const eppSubmit = document.getElementById('eppSubmit');
+        const editProduitPricingModal = bootstrap.Modal.getOrCreateInstance(editProduitPricingModalEl, { backdrop: false });
+        const PRICING_UPDATE_URL_TEMPLATE = "{{ url_for('admin.quick_update_produit_pricing', id=999999999) }}";
+
+        let currentLigneId = null;
+        let currentTriggerBtn = null;
+
+        function mFormat(v) { return Number(v || 0).toFixed(2) + ' {{ devise }}'; }
+        function escapeHtml(s) {
+            return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // Reproduit la meme logique d'arrondi que Produit._prix_details cote
+        // serveur (voir utils/arrondi.py), pour que l'apercu live corresponde
+        // au prix reellement applique une fois enregistre.
+        const ARRONDI_ACTIVE = {{ 'true' if arrondi_active else 'false' }};
+        const ARRONDI_SENS = {{ (arrondi_sens or 'superieur')|tojson }};
+        const ARRONDI_PALIER = {{ arrondi_palier or 25 }};
+
+        function mArrondirPrix(valeur) {
+            if (!ARRONDI_ACTIVE || !ARRONDI_PALIER) return valeur;
+            const fn = ARRONDI_SENS === 'inferieur' ? Math.floor : Math.ceil;
+            return fn(valeur / ARRONDI_PALIER) * ARRONDI_PALIER;
+        }
+
+        function mUnitBreakdown(prixAchat, coefficient, tvaTaux) {
+            const achat = Number(prixAchat || 0);
+            const tauxTva = Number(tvaTaux || 0) / 100;
+            const htBrut = achat * (Number(coefficient || 1) || 1);
+            const ttcBrut = htBrut * (1 + tauxTva);
+            const ttc = mArrondirPrix(ttcBrut);
+            const ht = ttc !== ttcBrut ? ttc / (1 + tauxTva) : htBrut;
+            const tva = ttc - ht;
+            const benefice = ht - achat;
+            return { ht, benefice, tva, ttc };
+        }
+
+        function pricingLevelHtml(label, breakdown) {
+            return `
+                <div class="pricing-level">
+                    <div class="pricing-level-label">${escapeHtml(label)}</div>
+                    <div class="pricing-chips">
+                        <div class="pricing-chip">
+                            <span class="pricing-chip-label">HT</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.ht)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-marge">
+                            <span class="pricing-chip-label">Marge brute</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.benefice)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-tva">
+                            <span class="pricing-chip-label">TVA</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.tva)}</span>
+                        </div>
+                        <div class="pricing-chip pricing-chip-ttc">
+                            <span class="pricing-chip-label">TTC</span>
+                            <span class="pricing-chip-value">${mFormat(breakdown.ttc)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ---- Meme recalcul bidirectionnel qu'en Stock : un seul coefficient
+        // partage par les 3 niveaux. Modifier le prix d'achat, le coefficient
+        // ou la TVA recalcule les 3 prix de vente TTC. Modifier directement un
+        // prix de vente TTC recalcule au contraire ce coefficient partage. ----
+        let eppCurrentCond = 1;
+        let eppRatioSous = 0;
+        let eppRatioSousSous = 0;
+
+        function eppRenderBreakdown() {
+            const achat = Number(eppPrixUnite.value || 0);
+            const coefficient = Number(eppCoefficient.value || 0) || 1;
+            const tva = Number(eppTva.value || 0);
+            let html = pricingLevelHtml('Unité', mUnitBreakdown(achat, coefficient, tva));
+            if (eppCurrentCond >= 2) {
+                html += pricingLevelHtml('Sous-unité', mUnitBreakdown(Number(eppPrixSousUnite.value || 0), coefficient, tva));
+            }
+            if (eppCurrentCond >= 3) {
+                html += pricingLevelHtml('Sous-sous-unité', mUnitBreakdown(Number(eppPrixSousSousUnite.value || 0), coefficient, tva));
+            }
+            eppBreakdown.innerHTML = html;
+        }
+
+        function eppSyncAchatSousNiveaux() {
+            const achatUnite = Number(eppPrixUnite.value || 0);
+            if (eppCurrentCond >= 2) {
+                eppPrixSousUnite.value = (achatUnite * eppRatioSous).toFixed(2);
+            }
+            if (eppCurrentCond >= 3) {
+                eppPrixSousSousUnite.value = (achatUnite * eppRatioSousSous).toFixed(2);
+            }
+        }
+
+        function eppSyncVenteFields(skipField) {
+            const coefficient = Number(eppCoefficient.value || 0) || 1;
+            const tva = Number(eppTva.value || 0);
+            if (skipField !== eppPrixVenteTtc) {
+                const achat = Number(eppPrixUnite.value || 0);
+                eppPrixVenteTtc.value = achat > 0 ? mUnitBreakdown(achat, coefficient, tva).ttc.toFixed(2) : '';
+            }
+            if (eppCurrentCond >= 2 && skipField !== eppPrixVenteSousUniteTtc) {
+                const achatSous = Number(eppPrixSousUnite.value || 0);
+                eppPrixVenteSousUniteTtc.value = achatSous > 0 ? mUnitBreakdown(achatSous, coefficient, tva).ttc.toFixed(2) : '';
+            }
+            if (eppCurrentCond >= 3 && skipField !== eppPrixVenteSousSousUniteTtc) {
+                const achatSousSous = Number(eppPrixSousSousUnite.value || 0);
+                eppPrixVenteSousSousUniteTtc.value = achatSousSous > 0 ? mUnitBreakdown(achatSousSous, coefficient, tva).ttc.toFixed(2) : '';
+            }
+            eppRenderBreakdown();
+        }
+
+        function eppRecalcFromAchat() {
+            eppSyncAchatSousNiveaux();
+            eppSyncVenteFields(null);
+        }
+
+        function eppRecalcCoefficientFromVente(achatDuNiveau, champVenteTtc) {
+            const achat = Number(achatDuNiveau || 0);
+            const venteTtc = Number(champVenteTtc.value || 0);
+            const tva = Number(eppTva.value || 0);
+            if (achat > 0 && venteTtc > 0) {
+                eppCoefficient.value = (venteTtc / (1 + tva / 100) / achat).toFixed(4);
+            }
+            eppSyncVenteFields(champVenteTtc);
+        }
+
+        eppPrixUnite.addEventListener('input', eppRecalcFromAchat);
+        eppCoefficient.addEventListener('input', eppRecalcFromAchat);
+        eppTva.addEventListener('input', eppRecalcFromAchat);
+        eppPrixVenteTtc.addEventListener('input', () => eppRecalcCoefficientFromVente(eppPrixUnite.value, eppPrixVenteTtc));
+        eppPrixVenteSousUniteTtc.addEventListener('input', () => eppRecalcCoefficientFromVente(eppPrixSousUnite.value, eppPrixVenteSousUniteTtc));
+        eppPrixVenteSousSousUniteTtc.addEventListener('input', () => eppRecalcCoefficientFromVente(eppPrixSousSousUnite.value, eppPrixVenteSousSousUniteTtc));
+
+        document.querySelectorAll('.btn-ajuster-pricing').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentLigneId = btn.dataset.ligneId;
+                currentTriggerBtn = btn;
+                eppError.classList.add('d-none');
+                eppProduitNom.textContent = btn.dataset.produitNom;
+                eppPrixUnite.value = btn.dataset.prixUnite || 0;
+                eppCoefficient.value = btn.dataset.coefficient || 1;
+                eppTva.value = btn.dataset.tva || 0;
+                const cond = Number(btn.dataset.conditionnement || 1);
+                eppCurrentCond = cond;
+                const prixUniteInitial = Number(btn.dataset.prixUnite || 0);
+                eppRatioSous = (cond >= 2 && prixUniteInitial > 0) ? Number(btn.dataset.prixSousUnite || 0) / prixUniteInitial : 0;
+                eppRatioSousSous = (cond >= 3 && prixUniteInitial > 0) ? Number(btn.dataset.prixSousSousUnite || 0) / prixUniteInitial : 0;
+                eppGroupSous.style.display = cond >= 2 ? 'block' : 'none';
+                eppGroupSousSous.style.display = cond >= 3 ? 'block' : 'none';
+                eppRecalcFromAchat();
+                editProduitPricingModal.show();
+            });
+        });
+
+        eppSubmit.addEventListener('click', () => {
+            eppError.classList.add('d-none');
+            const produitId = currentTriggerBtn ? currentTriggerBtn.dataset.produitId : null;
+            if (!produitId || !currentLigneId) return;
+
+            const coefficient = Number(eppCoefficient.value || 0);
+            const tva = Number(eppTva.value || 0);
+            if (coefficient <= 0) { eppError.textContent = 'Le coefficient doit être supérieur à 0.'; eppError.classList.remove('d-none'); eppCoefficient.focus(); return; }
+            if (tva < 0) { eppError.textContent = 'La TVA ne peut pas être négative.'; eppError.classList.remove('d-none'); eppTva.focus(); return; }
+
+            const payload = new URLSearchParams({
+                prix_unite: eppPrixUnite.value,
+                prix_sous_unite: eppPrixSousUnite.value,
+                prix_sous_sous_unite: eppPrixSousSousUnite.value,
+                coefficient: eppCoefficient.value,
+                tva: eppTva.value
+            });
+
+            eppSubmit.disabled = true;
+            eppSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enregistrement...';
+
+            fetch(PRICING_UPDATE_URL_TEMPLATE.replace('999999999', produitId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload.toString()
+            })
+                .then((res) => res.json().then((data) => ({ status: res.status, data })))
+                .then(({ status, data }) => {
+                    if (status !== 200 || !data.success) {
+                        eppError.textContent = data.message || 'Impossible de mettre à jour le produit.';
+                        eppError.classList.remove('d-none');
+                        return;
+                    }
+                    const p = data.produit;
+                    const ligneId = currentLigneId;
+                    const rateCoef = document.getElementById('rateCoef' + ligneId);
+                    const rateTva = document.getElementById('rateTva' + ligneId);
+                    const pricingLevels = document.getElementById('pricingLevels' + ligneId);
+                    if (rateCoef) rateCoef.textContent = 'Coef. x' + Number(p.coefficient).toFixed(2);
+                    if (rateTva) rateTva.textContent = 'TVA ' + Number(p.tva) + '%';
+                    if (pricingLevels) {
+                        const cond = Number(p.conditionnement || 1);
+                        let html = pricingLevelHtml('Unité', mUnitBreakdown(p.prix_unite_ht, p.coefficient, p.tva));
+                        if (cond >= 2) html += pricingLevelHtml('Sous-unité', mUnitBreakdown(p.prix_sous_unite_ht, p.coefficient, p.tva));
+                        if (cond >= 3) html += pricingLevelHtml('Sous-sous-unité', mUnitBreakdown(p.prix_sous_sous_unite_ht, p.coefficient, p.tva));
+                        pricingLevels.innerHTML = html;
+                    }
+                    if (currentTriggerBtn) {
+                        currentTriggerBtn.dataset.prixUnite = p.prix_unite_ht;
+                        currentTriggerBtn.dataset.coefficient = p.coefficient;
+                        currentTriggerBtn.dataset.tva = p.tva;
+                        currentTriggerBtn.dataset.prixSousUnite = p.prix_sous_unite_ht;
+                        currentTriggerBtn.dataset.prixSousSousUnite = p.prix_sous_sous_unite_ht;
+                    }
+                    editProduitPricingModal.hide();
+                })
+                .catch(() => { eppError.textContent = 'Erreur réseau, veuillez réessayer.'; eppError.classList.remove('d-none'); })
+                .finally(() => {
+                    eppSubmit.disabled = false;
+                    eppSubmit.innerHTML = '<i class="fas fa-save me-1"></i> Enregistrer';
+                });
+        });
+
+        // Le modal "Ajuster" flotte au-dessus du modal d'entree en stock d'une
+        // ligne (backdrop desactive sur lui-meme pour ne pas assombrir deux
+        // fois) : fermer le modal ligne ferme aussi celui-ci, et le rouvrir
+        // apres fermeture du sien remet la classe modal-open sur <body> pour
+        // que le modal ligne reste correctement interactif.
+        document.querySelectorAll('[id^="stockLigneModal"]').forEach(modalEl => {
+            modalEl.addEventListener('hide.bs.modal', () => editProduitPricingModal.hide());
+        });
+        editProduitPricingModalEl.addEventListener('hidden.bs.modal', () => {
+            if (document.querySelector('.modal.show[id^="stockLigneModal"]')) {
+                document.body.classList.add('modal-open');
+            }
+        });
     }
 });
 </script>

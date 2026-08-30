@@ -124,7 +124,10 @@ class CommandeLigne(db.Model):
     @property
     def quantite_mise_en_stock(self):
         """Unites deja entrees en stock a partir de cette ligne (via l'entree en
-        stock rapide depuis le module Commandes)."""
+        stock rapide depuis le module Commandes) : toujours en unites entieres,
+        la quantite mise en stock depuis une commande etant fixee par la
+        commande elle-meme (non modifiable, voir commande_ligne_entree_stock),
+        jamais saisie en sous-unites."""
         return sum((s.quantite_unites or 0) for s in self.stocks_lies)
 
     @property

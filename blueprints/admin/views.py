@@ -5324,7 +5324,8 @@ def show_commande(id):
     created = request.args.get('created') == '1'
     livree_confirm = request.args.get('livree') == '1' and commande.statut == 'livree'
     return render_template('admin/commandes/show.html', commande=commande, origine=origine,
-                           relances=relances, created=created, livree_confirm=livree_confirm)
+                           relances=relances, created=created, livree_confirm=livree_confirm,
+                           arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier())
 
 _XLSX_MIMETYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -5587,10 +5588,16 @@ def livraison_commande(id):
 @permission_required('gestion_stock')
 def commande_ligne_entree_stock(commande_id, ligne_id):
     """Entrée en stock rapide depuis une ligne de commande fournisseur : le produit
-    et la quantité sont pré-remplis depuis la commande, il ne manque que le numéro
-    de BL et la date de péremption du lot reçu (informations que la commande ne
-    connaît pas). Réutilise exactement la même logique que le formulaire générique
-    du module Stock (perform_stock_entry)."""
+    et la quantité sont fixés par la commande elle-même, il ne manque que le
+    numéro de BL et la date de péremption du lot reçu (informations que la
+    commande ne connaît pas). Réutilise la même logique que le formulaire
+    générique du module Stock (perform_stock_entry), mais UNIQUEMENT en unités
+    entières : le principe d'une commande est qu'on commande N unités pour
+    qu'elles entrent en stock -- la quantité n'est donc jamais saisie ni
+    recalculée depuis le formulaire, elle est toujours dérivée ici cote
+    serveur (jamais depuis request.form), pour qu'un utilisateur ne puisse pas
+    la modifier ni via le champ readonly du modal, ni via une requete
+    modifiee a la main."""
     commande = Commande.query.get_or_404(commande_id)
     ligne = CommandeLigne.query.filter_by(id=ligne_id, commande_id=commande.id).first_or_404()
 
@@ -5615,12 +5622,9 @@ def commande_ligne_entree_stock(commande_id, ligne_id):
         flash('La date de péremption est invalide.', 'danger')
         return redirect(url_for('admin.show_commande', id=commande.id))
 
-    try:
-        quantite_unites = max(0, int(request.form.get('quantite_unites') or 0))
-    except ValueError:
-        quantite_unites = 0
+    quantite_unites = ligne.quantite_restante_a_stocker if ligne.quantite_restante_a_stocker > 0 else ligne.quantite_cible_stock
     if quantite_unites <= 0:
-        flash('Veuillez préciser une quantité à mettre en stock.', 'warning')
+        flash('Cette ligne est déjà entièrement mise en stock.', 'warning')
         return redirect(url_for('admin.show_commande', id=commande.id))
 
     stock, _ = perform_stock_entry(
