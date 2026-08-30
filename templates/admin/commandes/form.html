@@ -46,17 +46,52 @@
   .table-produits .qte-input:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.12); outline: none; }
   .table-produits tr.sous-seuil td { background: #fff5f5; }
   .table-produits tr.a-quantite td { background: #eefaf2; }
+  /* Produit à risque de péremption ET dans le panier (qte > 0, classe .a-quantite
+     déjà posée par le JS existant) : priorité visuelle sur le vert "au panier". */
+  .table-produits tr.a-quantite[data-risque-peremption="1"] td { background: #fff3e0; }
+  html[data-bs-theme="dark"] .table-produits tr.a-quantite[data-risque-peremption="1"] td { background: rgba(184,88,10,0.18); }
 
   .badge-stock { font-weight: 600; padding: 0.25rem 0.55rem; border-radius: 7px; font-size: 0.75rem; }
   .stock-ok { background: #e6f7ee; color: #1e8e3e; }
   .stock-bas { background: #fee8e8; color: #d93025; }
   .stock-sans-seuil { background: #f1f3f4; color: #6c757d; }
+  .badge-risque-peremption {
+    background: #fff3e0; color: #b8580a; border: none; cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .badge-risque-peremption:hover, .badge-risque-peremption:focus-visible { filter: brightness(0.94); }
+  html[data-bs-theme="dark"] .badge-risque-peremption { background: rgba(184,88,10,0.25); color: #f0a860; }
 
   .btn-suggestion {
     border: 1px dashed #3498db; color: #3498db; background: transparent;
     border-radius: 7px; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.5rem;
   }
   .btn-suggestion:hover { background: #e8f0fe; }
+
+  .btn-detail-su {
+    border: none; background: transparent; color: #7a8896;
+    font-size: 0.68rem; font-weight: 600; padding: 0; margin-top: 0.2rem;
+    display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer;
+  }
+  .btn-detail-su:hover { color: #3498db; text-decoration: underline; }
+  #dsuLignes tr { cursor: default; }
+  #dsuLignes tr[data-clickable] { cursor: pointer; }
+  #dsuLignes tr[data-clickable]:hover td { background: #eef3fc; }
+  html[data-bs-theme="dark"] #dsuLignes tr[data-clickable]:hover td { background: rgba(255,255,255,0.06); }
+
+  .dsu-resume-box { background: #f8f9fa; border-radius: 10px; }
+  .dsu-resume-text { font-size: 0.88rem; color: #2c3e50; }
+  html[data-bs-theme="dark"] .dsu-resume-box { background: #1c2733; }
+  html[data-bs-theme="dark"] .dsu-resume-text { color: #e8edf2; }
+
+  #rpLotsPerimes tr:hover td, #rpSorties tr:hover td { background: #f1f5f9; }
+  html[data-bs-theme="dark"] #rpLotsPerimes tr:hover td,
+  html[data-bs-theme="dark"] #rpSorties tr:hover td { background: rgba(255,255,255,0.06); }
+
+  @media (max-width: 575.98px) {
+    #detailSousUniteModal .modal-dialog,
+    #detailRisquePeremptionModal .modal-dialog { margin: 0.5rem; }
+  }
 
   .search-wrapper { position: relative; }
   .search-wrapper .form-control { padding-left: 2.3rem; background: #f8f9fa; }
@@ -336,12 +371,14 @@
           {% set seuil = p.stock_securite or 0 %}
           {% set suggestion = (seuil * 2 - stock) if (seuil > 0 and (seuil * 2 - stock) > 0) else 0 %}
           {% set codes = codes_suivi.get(p.id, []) %}
+          {% set msg_risque_peremption = risque_peremption.get(p.id) %}
           <tr data-fournisseur="{{ p.fournisseur_id }}"
               data-produit="{{ p.id }}"
               data-stock="{{ stock }}"
               data-seuil="{{ seuil }}"
               data-suggestion="{{ suggestion }}"
               data-peremption="{{ peremption_30j.get(p.id, 0) }}"
+              data-risque-peremption="{{ 1 if msg_risque_peremption else 0 }}"
               data-search="{{ (p.nom ~ ' ' ~ p.code_produit ~ ' ' ~ codes|join(' '))|lower }}"
               class="{{ 'sous-seuil' if (seuil > 0 and stock <= seuil) else '' }}"
               style="display:none;">
@@ -349,6 +386,19 @@
               <div class="fw-semibold" style="color:#1a1a2e;">{{ p.nom }}</div>
               {% if seuil > 0 and stock <= seuil %}
               <span class="badge-stock stock-bas" style="font-size:0.68rem;"><i class="fas fa-triangle-exclamation me-1"></i>Sous le seuil</span>
+              {% endif %}
+              {% if msg_risque_peremption %}
+              <button type="button" class="badge-stock badge-risque-peremption btn-risque-peremption" style="font-size:0.68rem;"
+                      data-produit-id="{{ p.id }}" data-produit-nom="{{ p.nom }}" title="{{ msg_risque_peremption }}">
+                <i class="fas fa-clock-rotate-left me-1"></i>Risque péremption
+              </button>
+              {% endif %}
+              {% if p.conditionnement and p.conditionnement >= 2 %}
+              <div>
+                <button type="button" class="btn-detail-su" data-produit-id="{{ p.id }}" data-produit-nom="{{ p.nom }}" title="Voir le détail des ventes en sous-unités">
+                  <i class="fas fa-magnifying-glass-chart"></i> Détail sous-unités
+                </button>
+              </div>
               {% endif %}
             </td>
             <td class="col-masquable"><span class="badge bg-secondary" style="font-weight:500;font-size:0.72rem;">{{ p.code_produit }}</span></td>
@@ -409,6 +459,131 @@
     <div>
       <div class="overlay-title">Envoi de la commande...</div>
       <div class="overlay-sub">Merci de patienter, ne fermez pas la page.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail des ventes en sous-unites (explique la conversion sous-unites ->
+     unite(s) utilisee par l'assistant de commande) : chargee a la demande en
+     JS, jamais precalculee pour tout le catalogue. -->
+<div class="modal fade" id="detailSousUniteModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title mb-0" style="font-size:1rem;">
+          <i class="fas fa-magnifying-glass-chart me-2"></i>Ventes en sous-unités — <span id="dsuProduitNom"></span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <label class="form-label mb-0 small fw-semibold" style="color:#2c3e50;">Période</label>
+          <select id="dsuPeriode" class="form-select form-select-sm" style="width:auto;">
+            <option value="7">7 derniers jours</option>
+            <option value="30" selected>30 derniers jours</option>
+            <option value="90">90 derniers jours</option>
+            <option value="365">365 derniers jours</option>
+          </select>
+        </div>
+
+        <div id="dsuLoading" class="text-center py-4">
+          <span class="spinner-border spinner-border-sm text-muted"></span>
+        </div>
+        <div id="dsuError" class="alert alert-danger d-none small mb-0"></div>
+
+        <div id="dsuContent" class="d-none">
+          <div class="p-3 mb-3 dsu-resume-box">
+            <div id="dsuResume" class="dsu-resume-text"></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>N° vente</th>
+                  <th class="text-end">Quantité (s.u.)</th>
+                  <th class="text-end">Montant TTC</th>
+                </tr>
+              </thead>
+              <tbody id="dsuLignes"></tbody>
+            </table>
+          </div>
+          <div id="dsuVide" class="text-center text-muted py-3 d-none small">Aucune vente en sous-unité sur cette période.</div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <div class="small text-muted" id="dsuPageInfo"></div>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-secondary" id="dsuPrev"><i class="fas fa-chevron-left"></i></button>
+              <button type="button" class="btn btn-outline-secondary" id="dsuNext"><i class="fas fa-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail du risque de peremption (voir bouton "Risque péremption" par
+     produit) : liste les lots concernes, charge a la demande en JS. -->
+<div class="modal fade" id="detailRisquePeremptionModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2c3e50,#3498db);color:#fff;border-radius:14px 14px 0 0;border:none;">
+        <h5 class="modal-title mb-0" style="font-size:1rem;">
+          <i class="fas fa-clock-rotate-left me-2"></i>Risque de péremption — <span id="rpProduitNom"></span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="rpLoading" class="text-center text-muted py-5">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Chargement...</div>
+        </div>
+        <div id="rpError" class="alert alert-danger d-none small mb-0"></div>
+
+        <div id="rpContent" class="d-none">
+          <div id="rpAucunSignal" class="text-center text-muted py-4 d-none">
+            <i class="fas fa-circle-check" style="font-size:1.8rem;color:#1e8e3e;display:block;margin-bottom:0.5rem;"></i>
+            Aucun signal de péremption pour ce produit pour le moment.
+          </div>
+
+          <div id="rpSectionActuel" class="mb-4 d-none">
+            <h6 class="text-danger"><i class="fas fa-triangle-exclamation me-1"></i>Actuellement en stock, déjà périmé</h6>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>BL</th>
+                    <th>Code suivi</th>
+                    <th>Péremption</th>
+                    <th class="text-end">Quantité</th>
+                    <th class="text-end">Périmé depuis</th>
+                  </tr>
+                </thead>
+                <tbody id="rpLotsPerimes"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="rpSectionHistorique" class="d-none">
+            <h6 class="text-warning"><i class="fas fa-clock-rotate-left me-1"></i>Sorti après péremption (historique)</h6>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>BL</th>
+                    <th>Péremption</th>
+                    <th>Sortie le</th>
+                    <th class="text-end">Quantité</th>
+                    <th>Raison</th>
+                    <th>Par</th>
+                  </tr>
+                </thead>
+                <tbody id="rpSorties"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -805,6 +980,181 @@ document.addEventListener('DOMContentLoaded', function() {
             btnSubmit.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Passer la commande';
         }
     });
+
+    // --- Détail des ventes en sous-unités : explique le nombre d'unités que
+    // l'assistant de commande (stratégies "Vendus aujourd'hui"/"à une date"/
+    // Pareto) déduit des ventes au détail. Chargé à la demande, une page de
+    // ventes à la fois (un produit très vendu en détail peut en cumuler des
+    // centaines sur la période). ---
+    const dsuModalEl = document.getElementById('detailSousUniteModal');
+    if (dsuModalEl) {
+        const dsuModal = bootstrap.Modal.getOrCreateInstance(dsuModalEl);
+        const dsuProduitNom = document.getElementById('dsuProduitNom');
+        const dsuPeriode = document.getElementById('dsuPeriode');
+        const dsuLoading = document.getElementById('dsuLoading');
+        const dsuErrorEl = document.getElementById('dsuError');
+        const dsuContent = document.getElementById('dsuContent');
+        const dsuResume = document.getElementById('dsuResume');
+        const dsuLignes = document.getElementById('dsuLignes');
+        const dsuVide = document.getElementById('dsuVide');
+        const dsuPageInfo = document.getElementById('dsuPageInfo');
+        const dsuPrev = document.getElementById('dsuPrev');
+        const dsuNext = document.getElementById('dsuNext');
+        const DETAIL_SU_URL_TEMPLATE = "{{ url_for('admin.commande_ventes_sous_unite_detail', id=999999999) }}";
+        const VENTE_DETAIL_URL_TEMPLATE = "{{ url_for('admin.detail_vente', id=999999999) }}";
+
+        let dsuProduitId = null;
+        let dsuPage = 1;
+
+        function dsuFmtQty(v) {
+            return String(Math.round(Number(v || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        }
+        function dsuFmtMoney(v) {
+            const parts = Number(v || 0).toFixed(2).split('.');
+            return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + '.' + parts[1] + ' {{ devise }}';
+        }
+        function dsuEscape(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function chargerDetailSousUnite() {
+            dsuLoading.classList.remove('d-none');
+            dsuErrorEl.classList.add('d-none');
+            dsuContent.classList.add('d-none');
+            const jours = dsuPeriode.value;
+            fetch(DETAIL_SU_URL_TEMPLATE.replace('999999999', dsuProduitId) + '?jours=' + jours + '&page=' + dsuPage, { headers: { 'Accept': 'application/json' } })
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    const taille = data.taille_conditionnement;
+                    dsuResume.innerHTML = '<strong>' + dsuFmtQty(data.sous_unites_total) + '</strong> sous-unité(s) vendue(s) sur les '
+                        + data.jours + ' derniers jours'
+                        + (taille > 1 ? ' · conditionnement ×' + taille : '')
+                        + ' → <strong>' + data.unites_equivalentes.toFixed(2) + '</strong> unité(s) équivalente(s)'
+                        + ' (soit ' + Math.ceil(data.unites_equivalentes) + ' unité(s) une fois arrondi pour la commande).';
+
+                    dsuLignes.innerHTML = '';
+                    if (data.lignes.length === 0) {
+                        dsuVide.classList.remove('d-none');
+                    } else {
+                        dsuVide.classList.add('d-none');
+                        data.lignes.forEach(l => {
+                            const tr = document.createElement('tr');
+                            if (l.vente_id) {
+                                tr.setAttribute('data-clickable', '1');
+                                tr.addEventListener('click', () => window.open(VENTE_DETAIL_URL_TEMPLATE.replace('999999999', l.vente_id), '_blank'));
+                            }
+                            tr.innerHTML = '<td>' + dsuEscape(l.date) + '</td>'
+                                + '<td>' + dsuEscape(l.numero_vente) + '</td>'
+                                + '<td class="text-end">' + dsuFmtQty(l.quantite) + '</td>'
+                                + '<td class="text-end">' + dsuFmtMoney(l.total_ttc) + '</td>';
+                            dsuLignes.appendChild(tr);
+                        });
+                    }
+                    dsuPageInfo.textContent = data.total > 0 ? ('Page ' + data.page + ' / ' + data.pages + ' · ' + data.total + ' ligne(s)') : '';
+                    dsuPrev.disabled = data.page <= 1;
+                    dsuNext.disabled = data.page >= data.pages;
+
+                    dsuLoading.classList.add('d-none');
+                    dsuContent.classList.remove('d-none');
+                })
+                .catch(() => {
+                    dsuLoading.classList.add('d-none');
+                    dsuErrorEl.textContent = 'Impossible de charger le détail des ventes. Réessayez.';
+                    dsuErrorEl.classList.remove('d-none');
+                });
+        }
+
+        document.querySelectorAll('.btn-detail-su').forEach(btn => {
+            btn.addEventListener('click', () => {
+                dsuProduitId = btn.dataset.produitId;
+                dsuProduitNom.textContent = btn.dataset.produitNom;
+                dsuPage = 1;
+                dsuModal.show();
+                chargerDetailSousUnite();
+            });
+        });
+
+        dsuPeriode.addEventListener('change', () => { dsuPage = 1; chargerDetailSousUnite(); });
+        dsuPrev.addEventListener('click', () => { if (dsuPage > 1) { dsuPage--; chargerDetailSousUnite(); } });
+        dsuNext.addEventListener('click', () => { dsuPage++; chargerDetailSousUnite(); });
+    }
+
+    // --- Détail du risque de péremption : liste les lots concernés (voir
+    // bouton "Risque péremption" par produit). Pas de pagination ici -- le
+    // nombre de lots est naturellement borné, contrairement au détail des
+    // ventes en sous-unités qui peut cumuler des centaines de lignes. ---
+    const rpModalEl = document.getElementById('detailRisquePeremptionModal');
+    if (rpModalEl) {
+        const rpModal = bootstrap.Modal.getOrCreateInstance(rpModalEl);
+        const rpProduitNom = document.getElementById('rpProduitNom');
+        const rpLoading = document.getElementById('rpLoading');
+        const rpErrorEl = document.getElementById('rpError');
+        const rpContent = document.getElementById('rpContent');
+        const rpAucunSignal = document.getElementById('rpAucunSignal');
+        const rpSectionActuel = document.getElementById('rpSectionActuel');
+        const rpSectionHistorique = document.getElementById('rpSectionHistorique');
+        const rpLotsPerimes = document.getElementById('rpLotsPerimes');
+        const rpSorties = document.getElementById('rpSorties');
+        const RISQUE_PEREMPTION_URL_TEMPLATE = "{{ url_for('admin.commande_risque_peremption_detail', id=999999999) }}";
+
+        function rpEscape(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function chargerRisquePeremption(produitId) {
+            rpLoading.classList.remove('d-none');
+            rpErrorEl.classList.add('d-none');
+            rpContent.classList.add('d-none');
+            fetch(RISQUE_PEREMPTION_URL_TEMPLATE.replace('999999999', produitId), { headers: { 'Accept': 'application/json' } })
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    rpLotsPerimes.innerHTML = '';
+                    rpSorties.innerHTML = '';
+
+                    const hasSignal = data.lots_perimes.length > 0 || data.sorties_apres_peremption.length > 0;
+                    rpAucunSignal.classList.toggle('d-none', hasSignal);
+                    rpSectionActuel.classList.toggle('d-none', data.lots_perimes.length === 0);
+                    rpSectionHistorique.classList.toggle('d-none', data.sorties_apres_peremption.length === 0);
+
+                    data.lots_perimes.forEach(l => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = '<td>' + rpEscape(l.numero_bl) + '</td>'
+                            + '<td><span class="badge bg-dark-subtle text-dark border">' + rpEscape(l.code_suivi) + '</span></td>'
+                            + '<td>' + rpEscape(l.date_peremption) + '</td>'
+                            + '<td class="text-end">' + l.quantite + '</td>'
+                            + '<td class="text-end text-danger fw-semibold">' + (l.jours_perime === 0 ? "aujourd'hui" : l.jours_perime + ' j') + '</td>';
+                        rpLotsPerimes.appendChild(tr);
+                    });
+
+                    data.sorties_apres_peremption.forEach(s => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = '<td>' + rpEscape(s.numero_bl) + '</td>'
+                            + '<td>' + rpEscape(s.date_peremption) + '</td>'
+                            + '<td>' + rpEscape(s.date_sortie) + '</td>'
+                            + '<td class="text-end">' + s.quantite + '</td>'
+                            + '<td>' + rpEscape(s.raison || '-') + '</td>'
+                            + '<td>' + rpEscape(s.user) + '</td>';
+                        rpSorties.appendChild(tr);
+                    });
+
+                    rpLoading.classList.add('d-none');
+                    rpContent.classList.remove('d-none');
+                })
+                .catch(() => {
+                    rpLoading.classList.add('d-none');
+                    rpErrorEl.textContent = 'Impossible de charger le détail du risque de péremption. Réessayez.';
+                    rpErrorEl.classList.remove('d-none');
+                });
+        }
+
+        document.querySelectorAll('.btn-risque-peremption').forEach(btn => {
+            btn.addEventListener('click', () => {
+                rpProduitNom.textContent = btn.dataset.produitNom;
+                rpModal.show();
+                chargerRisquePeremption(btn.dataset.produitId);
+            });
+        });
+    }
 });
 </script>
 {% endblock %}

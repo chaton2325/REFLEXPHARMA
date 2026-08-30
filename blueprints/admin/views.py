@@ -4902,6 +4902,73 @@ def _unites_perimant_bientot(nb_jours=30):
     ).group_by(Stock.produit_id).all()
     return {pid: int(total or 0) for pid, total in rows if (total or 0) > 0}
 
+def _produits_risque_peremption(produits):
+    """Retourne {produit_id: message} pour les produits qui ont deja, au
+    moins une fois, un lot qui atteint (ou a atteint) sa date de peremption
+    alors qu'il restait en stock -- invendu a temps. Deux signaux combines :
+
+    1. Des lots ACTUELLEMENT en stock et deja perimes (invendus a ce jour).
+    2. Des lots deja SORTIS du stock par le passe a une date posterieure ou
+       egale a leur propre date de peremption (StockExitLog) -- quelle que
+       soit la raison de sortie choisie. Ce deuxieme signal ne depend PAS du
+       libelle de raison selectionne par le pharmacien (ex: "Casse / Perime"
+       est un texte libre, personnalisable via /stock/reasons) : seules les
+       dates comptent, ce qui le rend fiable et impossible a fausser par une
+       raison mal choisie.
+
+    Sert a avertir dans le panier de commande (voir commandes/form.html) :
+    un produit qui perime regulierement avant d'etre vendu merite d'etre
+    commande avec prudence plutot que par reflexe (stock de securite,
+    reassort automatique...). Les sorties de stock etant des photos sans
+    lien vers les produits (comme VenteLigne), le rapprochement se fait par
+    CIP + fournisseur snapshote -- meme raisonnement que
+    commandes_stats_ventes."""
+    today = datetime.now().date()
+
+    stock_perime_rows = db.session.query(
+        Stock.produit_id,
+        db.func.coalesce(db.func.sum(
+            Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites
+        ), 0)
+    ).filter(
+        Stock.date_peremption <= today,
+        (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) > 0
+    ).group_by(Stock.produit_id).all()
+    unites_perimees_par_produit = {pid: int(total or 0) for pid, total in stock_perime_rows}
+
+    exits_rows = db.session.query(
+        StockExitLog.produit_code,
+        StockExitLog.fournisseur_nom,
+        db.func.count(StockExitLog.id)
+    ).filter(
+        StockExitLog.date_peremption <= db.func.date(StockExitLog.created_at)
+    ).group_by(StockExitLog.produit_code, StockExitLog.fournisseur_nom).all()
+    exits_par_cle = {}
+    for code, fournisseur_nom, count in exits_rows:
+        exits_par_cle[(code, fournisseur_nom)] = exits_par_cle.get((code, fournisseur_nom), 0) + count
+
+    result = {}
+    for produit in produits:
+        unites_perimees = unites_perimees_par_produit.get(produit.id, 0)
+        fournisseur_nom = produit.fournisseur.nom if produit.fournisseur else None
+        # Le repli sur (code, None) ne s'ajoute que si fournisseur_nom n'est pas
+        # deja None lui-meme, sinon on compterait deux fois la meme cle.
+        nb_expirations = exits_par_cle.get((produit.code_produit, fournisseur_nom), 0)
+        if fournisseur_nom is not None:
+            nb_expirations += exits_par_cle.get((produit.code_produit, None), 0)
+        if unites_perimees <= 0 and nb_expirations <= 0:
+            continue
+
+        parts = []
+        if unites_perimees > 0:
+            parts.append(f"{unites_perimees} article(s) déjà périmé(s) actuellement en stock")
+        if nb_expirations == 1:
+            parts.append("un lot a déjà expiré en stock par le passé")
+        elif nb_expirations > 1:
+            parts.append(f"périme régulièrement en stock ({nb_expirations} lots expirés par le passé)")
+        result[produit.id] = 'Attention : ' + ' · '.join(parts) + '.'
+    return result
+
 @admin.route('/api/commandes/stats-ventes')
 @login_required
 @permission_required('gestion_commandes')
@@ -5004,6 +5071,150 @@ def commandes_stats_ventes():
         'produits': produits
     })
 
+COMMANDE_VENTES_SOUS_UNITE_PAGE_SIZE = 20
+
+@admin.route('/api/commandes/produit/<int:id>/ventes-sous-unite')
+@login_required
+@permission_required('gestion_commandes')
+def commande_ventes_sous_unite_detail(id):
+    """Detail des ventes en sous-unite d'UN produit sur une periode donnee :
+    explique le nombre affiche dans l'assistant de commande (voir
+    commandes_stats_ventes) en listant les ventes qui le composent, avec la
+    conversion sous-unites -> unite(s) via le conditionnement du produit.
+    Chargee a la demande en JS (bouton dedie par produit dans le tableau de
+    commande.form.html), jamais precalculee pour tout le catalogue au
+    chargement de la page -- meme principe que stock_tracabilite. Paginee
+    (per_page ci-dessus) : un produit tres vendu au detail peut cumuler des
+    centaines de lignes de vente sur la periode."""
+    produit = Produit.query.get_or_404(id)
+
+    try:
+        jours = max(1, min(int(request.args.get('jours', 30)), 365))
+    except (TypeError, ValueError):
+        jours = 30
+    debut = datetime.now() - timedelta(days=jours)
+
+    # Meme desambiguisation CIP + fournisseur snapshote que commandes_stats_ventes
+    # (les lignes de vente sont des photos sans lien vers les produits).
+    fournisseur_nom = produit.fournisseur.nom if produit.fournisseur else None
+    base_query = (
+        VenteLigne.query
+        .join(Vente, Vente.numero_vente == VenteLigne.numero_vente)
+        .filter(
+            Vente.statut == 'validee',
+            VenteLigne.unite == 'sous_unite',
+            VenteLigne.created_at >= debut,
+            VenteLigne.produit_code == produit.code_produit,
+            db.or_(
+                VenteLigne.produit_fournisseur == fournisseur_nom,
+                VenteLigne.produit_fournisseur.is_(None)
+            )
+        )
+    )
+
+    # Le total agrege se calcule sur base_query SANS order_by : un ORDER BY sur
+    # une colonne non agregee (created_at) serait invalide une fois le SELECT
+    # remplace par un SUM() seul (with_entities conserve l'ORDER BY existant).
+    sous_unites_total = base_query.with_entities(db.func.coalesce(db.func.sum(VenteLigne.quantite), 0)).scalar() or 0
+    taille = produit.taille_conditionnement or 1
+
+    page = request.args.get('page', 1, type=int)
+    pagination = (
+        base_query
+        .order_by(VenteLigne.created_at.desc())
+        .paginate(page=page, per_page=COMMANDE_VENTES_SOUS_UNITE_PAGE_SIZE, error_out=False)
+    )
+
+    numeros_vente = list(dict.fromkeys(l.numero_vente for l in pagination.items))
+    ventes_by_numero = {
+        v.numero_vente: v
+        for v in (Vente.query.filter(Vente.numero_vente.in_(numeros_vente)).all() if numeros_vente else [])
+    }
+    lignes = [{
+        'vente_id': (ventes_by_numero.get(l.numero_vente).id if ventes_by_numero.get(l.numero_vente) else None),
+        'numero_vente': l.numero_vente,
+        'date': l.created_at.strftime('%d/%m/%Y %H:%M'),
+        'quantite': l.quantite,
+        'total_ttc': l.total_ttc,
+    } for l in pagination.items]
+
+    return jsonify({
+        'jours': jours,
+        'produit_nom': produit.nom,
+        'taille_conditionnement': taille,
+        'sous_unites_total': int(sous_unites_total),
+        'unites_equivalentes': round(sous_unites_total / taille, 2),
+        'lignes': lignes,
+        'page': pagination.page,
+        'pages': pagination.pages,
+        'total': pagination.total,
+    })
+
+@admin.route('/api/commandes/produit/<int:id>/risque-peremption-detail')
+@login_required
+@permission_required('gestion_commandes')
+def commande_risque_peremption_detail(id):
+    """Detail du risque de peremption d'UN produit (voir badge "Risque
+    péremption" dans le panier de commande) : liste les lots ACTUELLEMENT en
+    stock et deja perimes, et les sorties de stock PASSEES dont la date est
+    posterieure ou egale a la date de peremption du lot sorti -- meme regle
+    que _produits_risque_peremption, mais detaillee lot par lot plutot que
+    resumee en un seul message. Chargee a la demande en JS (bouton dedie par
+    produit), jamais precalculee pour tout le catalogue."""
+    produit = Produit.query.get_or_404(id)
+    today = datetime.now().date()
+
+    lots_perimes = (
+        Stock.query
+        .filter(
+            Stock.produit_id == produit.id,
+            Stock.date_peremption <= today,
+            (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) > 0
+        )
+        .order_by(Stock.date_peremption.asc())
+        .all()
+    )
+    lots_perimes_payload = [{
+        'numero_bl': s.numero_bl,
+        'code_suivi': s.code_suivi,
+        'date_peremption': s.date_peremption.strftime('%d/%m/%Y'),
+        'quantite': s.quantite_totale,
+        'jours_perime': (today - s.date_peremption).days,
+    } for s in lots_perimes]
+
+    # Meme desambiguisation CIP + fournisseur snapshote que
+    # _produits_risque_peremption (les sorties de stock sont des photos sans
+    # lien vers les produits).
+    fournisseur_nom = produit.fournisseur.nom if produit.fournisseur else None
+    sorties = (
+        StockExitLog.query
+        .filter(
+            StockExitLog.produit_code == produit.code_produit,
+            StockExitLog.date_peremption <= db.func.date(StockExitLog.created_at),
+            db.or_(
+                StockExitLog.fournisseur_nom == fournisseur_nom,
+                StockExitLog.fournisseur_nom.is_(None)
+            )
+        )
+        .order_by(StockExitLog.created_at.desc())
+        .all()
+    )
+    sorties_payload = [{
+        'numero_bl': s.numero_bl,
+        'code_suivi': s.code_suivi,
+        'date_peremption': s.date_peremption.strftime('%d/%m/%Y'),
+        'date_sortie': s.created_at.strftime('%d/%m/%Y %H:%M'),
+        'quantite': (s.quantite_unites_sortie or 0) + (s.quantite_sous_unites_sortie or 0) + (s.quantite_sous_sous_unites_sortie or 0),
+        'raison': s.reason_nom,
+        'user': f'{s.user_prenom} {s.user_nom}'.strip(),
+    } for s in sorties]
+
+    return jsonify({
+        'produit_nom': produit.nom,
+        'lots_perimes': lots_perimes_payload,
+        'sorties_apres_peremption': sorties_payload,
+    })
+
 def generate_numero_commande():
     base = f"CMD-{datetime.now().strftime('%Y%m%d')}-"
     count = Commande.query.filter(Commande.numero.like(f'{base}%')).count()
@@ -5091,13 +5302,15 @@ def create_commande():
     stocks = _stock_unites_par_produit()
     codes_suivi = _codes_suivi_par_produit()
     peremption_30j = _unites_perimant_bientot(30)
+    risque_peremption = _produits_risque_peremption(produits)
     return render_template('admin/commandes/form.html',
         title='Nouvelle Commande',
         fournisseurs=fournisseurs,
         produits=produits,
         stocks=stocks,
         codes_suivi=codes_suivi,
-        peremption_30j=peremption_30j)
+        peremption_30j=peremption_30j,
+        risque_peremption=risque_peremption)
 
 @admin.route('/commandes/<int:id>')
 @login_required
