@@ -4857,12 +4857,25 @@ def delete_produit(id):
 
 # --- GESTION DES COMMANDES FOURNISSEURS ---
 def _stock_unites_par_produit():
-    """Retourne {produit_id: total d'unités en stock}."""
+    """Retourne {produit_id: équivalent en unités du stock disponible}. Les
+    sous-unités (plaquette, comprimé...) comptent aussi, converties via le
+    conditionnement du produit (ex: conditionnement 100 -> 100 sous-unités en
+    stock valent 1 unité), arrondies à l'unité inférieure (des sous-unités
+    incomplètes ne font pas une unité de plus) : sans cette conversion, un
+    produit stocké/vendu au détail ressortait à "0 unité en stock" pour le
+    module Commandes (seuils de sécurité, assistant de commande) alors qu'il
+    restait potentiellement des dizaines de sous-unités disponibles."""
     rows = db.session.query(
-        Stock.produit_id,
-        db.func.coalesce(db.func.sum(Stock.quantite_unites), 0)
-    ).group_by(Stock.produit_id).all()
-    return {pid: int(total or 0) for pid, total in rows}
+        Produit.id,
+        Produit.taille_conditionnement,
+        db.func.coalesce(db.func.sum(Stock.quantite_unites), 0),
+        db.func.coalesce(db.func.sum(Stock.quantite_sous_unites), 0)
+    ).join(Stock, Stock.produit_id == Produit.id).group_by(Produit.id).all()
+    result = {}
+    for pid, taille_cond, unites, sous_unites in rows:
+        taille = taille_cond or 1
+        result[pid] = int(unites or 0) + int((sous_unites or 0) // taille)
+    return result
 
 def _codes_suivi_par_produit(produit_ids=None):
     """Retourne {produit_id: [codes de suivi des lots encore en stock]},
@@ -4926,8 +4939,12 @@ def commandes_stats_ventes():
 
     rows = db.session.query(
         Produit.id,
+        Produit.taille_conditionnement,
         db.func.coalesce(db.func.sum(
             db.case((VenteLigne.unite == 'unite', VenteLigne.quantite), else_=0)
+        ), 0),
+        db.func.coalesce(db.func.sum(
+            db.case((VenteLigne.unite == 'sous_unite', VenteLigne.quantite), else_=0)
         ), 0),
         db.func.coalesce(db.func.sum(VenteLigne.total_ttc), 0)
     ).select_from(VenteLigne).join(
@@ -4948,26 +4965,34 @@ def commandes_stats_ventes():
         )
     ).filter(*filtres).group_by(Produit.id).all()
 
-    total_ca = float(sum(ca or 0 for _, _, ca in rows))
+    total_ca = float(sum(ca or 0 for _, _, _, _, ca in rows))
 
     # Loi de Pareto (analyse ABC) : produits triés par CA décroissant,
     # marqués tant que le CA cumulé n'atteint pas 80% du total.
     pareto_ids = set()
     if total_ca > 0:
         cumul = 0.0
-        for pid, _, ca in sorted(rows, key=lambda r: float(r[2] or 0), reverse=True):
+        for pid, _, _, _, ca in sorted(rows, key=lambda r: float(r[4] or 0), reverse=True):
             if cumul >= total_ca * 0.8:
                 break
             pareto_ids.add(pid)
             cumul += float(ca or 0)
 
+    # Les ventes en sous-unites (plaquette, comprime...) comptent aussi dans
+    # les unites recommandees a la commande, converties via le conditionnement
+    # du produit (ex: conditionnement 100 -> 100 sous-unites vendues = 1 unite
+    # a recommander) : sans cette conversion, un produit vendu uniquement au
+    # detail ressortait a "0 unite vendue" et l'assistant de commande
+    # (templates/admin/commandes/form.html, strategies "Vendus aujourd'hui" /
+    # "Vendus a une date" / Pareto) ne pouvait proposer qu'un flou "1 unite
+    # minimum" au lieu d'une quantite reellement proportionnee aux ventes.
     produits = {
         str(pid): {
-            'unites': float(unites or 0),
+            'unites': float(unites or 0) + (float(sous_unites or 0) / (taille_cond or 1)),
             'ca': round(float(ca or 0), 2),
             'pareto': pid in pareto_ids
         }
-        for pid, unites, ca in rows
+        for pid, taille_cond, unites, sous_unites, ca in rows
     }
     return jsonify({
         'jours': jours,

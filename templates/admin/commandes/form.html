@@ -582,7 +582,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             q = Math.ceil(info.unites) - (parseInt(row.dataset.stock, 10) || 0);
                         }
                     } else {
-                        // Vendu uniquement en sous-unités (plaquette, comprimé...) : on propose 1 unité minimum
+                        // info.unites inclut deja les ventes en sous-unités converties
+                        // en unités via le conditionnement (voir admin.commandes_stats_ventes) :
+                        // le Math.max garde juste un plancher d'1 unité si le calcul
+                        // donnait 0 malgré une vente réelle (arrondi).
                         q = Math.max(Math.ceil(info.unites), 1);
                     }
                     if (q > 0) {
