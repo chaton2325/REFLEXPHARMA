@@ -775,13 +775,29 @@
 {% endblock %}
 
 {% block content %}
+{% set ruptures_mode = ruptures_mode|default(false) %}
+{% set stock_endpoint = 'admin.stock_ruptures' if ruptures_mode else 'admin.manage_stock' %}
 <div class="page-header">
   <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
     <div>
+      {% if ruptures_mode %}
+      <h1><i class="fas fa-triangle-exclamation me-2"></i>Produits en rupture de stock</h1>
+      <p>Lots retombés à 0 unité et 0 sous-unité (tous niveaux confondus) : plus rien en rayon pour ces produits.</p>
+      {% else %}
       <h1><i class="fas fa-boxes me-2"></i>Gestion du Stock</h1>
       <p>Entrée en stock des produits du catalogue par lot avec BL, péremption, TTC et TVA.</p>
+      {% endif %}
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      {% if ruptures_mode %}
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Stock complet
+      </a>
+      {% else %}
+      <a href="{{ url_for('admin.stock_ruptures') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-triangle-exclamation me-1"></i> Ruptures (stock 0)
+      </a>
+      {% endif %}
       {% if current_user.has_permission('gestion_raisons_stock') %}
       <a href="{{ url_for('admin.list_stock_reasons') }}" class="btn btn-light btn-sm">
         <i class="fas fa-list me-1"></i> Raisons
@@ -1213,26 +1229,26 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% macro stock_pagination() %}
+{% macro stock_pagination(endpoint) %}
 {% if pagination and pagination.pages > 1 %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top">
   <div class="small text-muted">{{ pagination.total }} lot(s) — page {{ pagination.page }} / {{ pagination.pages }}</div>
   <nav aria-label="Pagination du stock">
     <ul class="pagination pagination-sm mb-0">
       <li class="page-item{{ ' disabled' if not pagination.has_prev }}">
-        <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=pagination.prev_num, q=search_q) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
+        <a class="page-link js-nav-loading" href="{{ url_for(endpoint, page=pagination.prev_num, q=search_q) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
       </li>
       {% for p_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
         {% if p_num %}
         <li class="page-item{{ ' active' if p_num == pagination.page }}">
-          <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=p_num, q=search_q) }}">{{ p_num }}</a>
+          <a class="page-link js-nav-loading" href="{{ url_for(endpoint, page=p_num, q=search_q) }}">{{ p_num }}</a>
         </li>
         {% else %}
         <li class="page-item disabled"><span class="page-link">…</span></li>
         {% endif %}
       {% endfor %}
       <li class="page-item{{ ' disabled' if not pagination.has_next }}">
-        <a class="page-link js-nav-loading" href="{{ url_for('admin.manage_stock', page=pagination.next_num, q=search_q) if pagination.has_next else '#' }}">Suivant &raquo;</a>
+        <a class="page-link js-nav-loading" href="{{ url_for(endpoint, page=pagination.next_num, q=search_q) if pagination.has_next else '#' }}">Suivant &raquo;</a>
       </li>
     </ul>
   </nav>
@@ -1252,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="card-custom">
       <div class="p-3 p-sm-4 border-bottom">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <h5 class="mb-0" style="font-size:1rem;font-weight:600;color:#2c3e50;">Stock Courant</h5>
+          <h5 class="mb-0" style="font-size:1rem;font-weight:600;color:#2c3e50;">{{ 'Lots en rupture (stock 0)' if ruptures_mode else 'Stock Courant' }}</h5>
           <div class="d-flex align-items-center gap-2">
             <div id="stockActivityIndicator" class="small text-muted d-none d-sm-block">
               <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -1408,7 +1424,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
 
-      {{ stock_pagination() }}
+      {{ stock_pagination(stock_endpoint) }}
 
       <!-- Mobile cards (xs only) -->
       <div class="d-sm-none p-3" style="display:flex;flex-direction:column;gap:0.75rem;" id="mobileStockList">
@@ -1577,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </table>
       </div>
 
-      {{ stock_pagination() }}
+      {{ stock_pagination(stock_endpoint) }}
     </div>
   </div>
 </div>
@@ -2987,7 +3003,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function resetStockFilters() {
         if (stockSearchInput && stockSearchInput.value.trim()) {
             if (window.showNavLoadingOverlay) window.showNavLoadingOverlay();
-            window.location.href = '{{ url_for("admin.manage_stock") }}';
+            window.location.href = '{{ url_for(stock_endpoint) }}';
             return;
         }
         [['qrTireFilter', 'all'], ['qrTireFilterMobile', 'all'],

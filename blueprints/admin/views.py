@@ -5532,22 +5532,30 @@ def stock_produits_search():
 
 STOCK_PAGE_SIZE = 150
 
-@admin.route('/stock', methods=['GET', 'POST'])
-@login_required
-@permission_required('gestion_stock')
-def manage_stock():
+def _manage_stock_view(ruptures_mode=False):
+    """Vue partagee entre /stock (tous les lots) et /stock/ruptures (memes
+    filtres/tri/modales -- entree en stock, traçabilite, transformation,
+    edition -- mais restreinte aux lots dont le stock total, unites + sous-
+    unites + sous-sous-unites, est retombe a 0 : plus rien a vendre sur ce
+    lot, jamais un catalogue de produits jamais stockes). Un seul et meme
+    template (admin/stock/list.html) est rendu dans les deux cas -- voir
+    ruptures_mode cote template pour l'entete/les libelles et l'endpoint de
+    pagination/reset qui s'adaptent -- afin que toute evolution future du
+    stock (nouvelle colonne, nouveau filtre, nouvelle modale) profite
+    automatiquement aux deux pages sans double maintenance."""
     reasons = StockReason.query.filter_by(type='ajout').all()
     fournisseurs = Fournisseur.query.order_by(Fournisseur.nom.asc()).all()
     rayons = Rayon.query.order_by(Rayon.nom.asc()).all()
     familles = Famille.query.order_by(Famille.nom.asc()).all()
     sections = Section.query.order_by(Section.nom.asc()).all()
+    redirect_endpoint = 'admin.stock_ruptures' if ruptures_mode else 'admin.manage_stock'
 
     if request.method == 'POST':
         reason_id = request.form.get('reason_id')
         reason_text = (request.form.get('reason') or '').strip()
         if not reason_id and not reason_text:
             flash('Veuillez préciser la raison de cette entrée en stock.', 'warning')
-            return redirect(url_for('admin.manage_stock'))
+            return redirect(url_for(redirect_endpoint))
 
         produit_ids = request.form.getlist('produit_id[]')
         numero_bls = request.form.getlist('numero_bl[]')
@@ -5558,26 +5566,26 @@ def manage_stock():
 
         if not produit_ids:
             flash('Le panier est vide. Ajoutez au moins un produit avant de valider.', 'warning')
-            return redirect(url_for('admin.manage_stock'))
+            return redirect(url_for(redirect_endpoint))
 
         rows = []
         for i, pid in enumerate(produit_ids):
             produit = Produit.query.get(int(pid)) if pid else None
             if not produit:
                 flash(f'Produit invalide à la ligne {i + 1} du panier.', 'danger')
-                return redirect(url_for('admin.manage_stock'))
+                return redirect(url_for(redirect_endpoint))
 
             numero_bl_raw = (numero_bls[i] if i < len(numero_bls) else '').strip()
             if not numero_bl_raw:
                 flash(f'Numéro de BL manquant pour {produit.nom} (ligne {i + 1}).', 'warning')
-                return redirect(url_for('admin.manage_stock'))
+                return redirect(url_for(redirect_endpoint))
 
             date_str = (date_peremptions[i] if i < len(date_peremptions) else '').strip()
             try:
                 date_peremption = datetime.strptime(date_str, '%Y-%m-%d').date()
             except ValueError:
                 flash(f'Date de péremption invalide pour {produit.nom} (ligne {i + 1}).', 'danger')
-                return redirect(url_for('admin.manage_stock'))
+                return redirect(url_for(redirect_endpoint))
 
             try:
                 qu = int(qtes_unites[i] or 0) if i < len(qtes_unites) else 0
@@ -5585,11 +5593,11 @@ def manage_stock():
                 qssu = int(qtes_sous_sous_unites[i] or 0) if i < len(qtes_sous_sous_unites) else 0
             except ValueError:
                 flash(f'Quantité invalide pour {produit.nom} (ligne {i + 1}).', 'danger')
-                return redirect(url_for('admin.manage_stock'))
+                return redirect(url_for(redirect_endpoint))
 
             if qu <= 0 and qsu <= 0 and qssu <= 0:
                 flash(f'Veuillez indiquer une quantité pour {produit.nom} (ligne {i + 1}).', 'warning')
-                return redirect(url_for('admin.manage_stock'))
+                return redirect(url_for(redirect_endpoint))
 
             rows.append((produit, numero_bl_raw, date_peremption, qu, qsu, qssu))
 
@@ -5605,7 +5613,7 @@ def manage_stock():
             flash(f'Entrée en stock enregistrée pour {rows[0][0].nom}.', 'stock_success')
         else:
             flash(f'{len(rows)} entrées en stock enregistrées avec succès.', 'stock_success')
-        return redirect(url_for('admin.manage_stock'))
+        return redirect(url_for(redirect_endpoint))
 
     # Recherche cote serveur (q, sur produit/CIP/code suivi/BL/fournisseur) +
     # pagination + eager-loading (produit + son fournisseur) : avant, TOUS les
@@ -5625,6 +5633,10 @@ def manage_stock():
         .join(Produit)
         .outerjoin(Fournisseur, Produit.fournisseur_id == Fournisseur.id)
     )
+    if ruptures_mode:
+        stock_query = stock_query.filter(
+            (Stock.quantite_unites + Stock.quantite_sous_unites + Stock.quantite_sous_sous_unites) == 0
+        )
     if q:
         like = f'%{q}%'
         stock_query = stock_query.filter(db.or_(
@@ -5647,12 +5659,27 @@ def manage_stock():
     # dependent du prix de vente par produit (coefficient, TVA, arrondi -- voir
     # Stock.benefice_total/tva_total/prix_ttc_total) et necessitent donc de
     # boucler sur tout le stock, ce qui ne doit pas retarder le premier rendu
-    # de la liste elle-meme.
+    # de la liste elle-meme. Elles restent globales (tout le stock) meme sur
+    # /stock/ruptures : ce sont des compteurs de contexte general, pas un
+    # resume de la page filtree affichee.
     return render_template('admin/stock/list.html',
         stocks=stocks, reasons=reasons, pagination=pagination, search_q=q,
         fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
-        arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier()
+        arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier(),
+        ruptures_mode=ruptures_mode,
     )
+
+@admin.route('/stock', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_stock')
+def manage_stock():
+    return _manage_stock_view(ruptures_mode=False)
+
+@admin.route('/stock/ruptures', methods=['GET', 'POST'])
+@login_required
+@permission_required('gestion_stock')
+def stock_ruptures():
+    return _manage_stock_view(ruptures_mode=True)
 
 @admin.route('/api/stock-stats')
 @login_required
