@@ -5772,7 +5772,7 @@ def stock_produits_search():
                 ]
     return jsonify(result)
 
-STOCK_PAGE_SIZE = 150
+STOCK_PAGE_SIZE = 20
 
 def _manage_stock_view(ruptures_mode=False):
     """Vue partagee entre /stock (tous les lots) et /stock/ruptures (memes
