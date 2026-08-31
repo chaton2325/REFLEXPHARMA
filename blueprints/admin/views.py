@@ -4580,7 +4580,7 @@ def delete_section(id):
     return redirect(url_for('admin.list_sections'))
 
 # --- GESTION DES PRODUITS ---
-PRODUITS_PAGE_SIZE = 150
+PRODUITS_PAGE_SIZE = 20
 
 @admin.route('/produits')
 @login_required
