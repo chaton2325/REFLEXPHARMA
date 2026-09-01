@@ -58,7 +58,11 @@ def setup_database():
                 ('date_peremption', 'DATE'),
                 ('code_suivi', 'VARCHAR(255)'),
                 ('old_qr_tire', 'BOOLEAN DEFAULT FALSE'),
-                ('new_qr_tire', 'BOOLEAN DEFAULT FALSE')
+                ('new_qr_tire', 'BOOLEAN DEFAULT FALSE'),
+                # Lie une ligne d'audit a la soumission du panier "Nouvelle entree
+                # en stock" dont elle provient (voir models/stock_entry_batch.py) :
+                # reference souple, sans contrainte FK ajoutee en ALTER.
+                ('stock_entry_batch_id', 'INTEGER')
             ],
             'stock_exit_logs': [
                 ('fournisseur_id', 'INTEGER'),
@@ -177,6 +181,14 @@ def setup_database():
                     db.session.execute(text(query))
                 except Exception:
                     db.session.rollback()
+        # Commit dedie a ces ajouts de colonnes, AVANT les blocs suivants : ces
+        # derniers (drop de colonnes/contraintes, index...) partagent sinon la
+        # MEME transaction non validee -- un rollback plus loin (echec d'un de
+        # ces blocs, pour une raison quelconque propre a une base donnee)
+        # efface alors silencieusement les colonnes ajoutees ici, meme si leur
+        # propre ALTER n'a produit aucune erreur (voir app.py::ensure_database_schema,
+        # ou ce meme piege a ete constate en pratique).
+        db.session.commit()
 
         # La table stock_exit_logs doit rester un journal brut sans identifiants
         # pointant vers d'autres tables. On supprime les anciennes colonnes *_id.

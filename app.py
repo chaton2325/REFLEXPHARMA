@@ -16,6 +16,7 @@ from models.section import Section
 from models.produit import Produit
 from models.stock import Stock
 from models.stock_modification import StockModification
+from models.stock_entry_batch import StockEntryBatch
 from models.stock_reason import StockReason
 from models.stock_exit_log import StockExitLog
 from models.groupe_client import GroupeClient
@@ -150,6 +151,14 @@ def ensure_database_schema(app):
                 # validate_inventaire) : NULL sur les sorties anterieures.
                 ('source', 'VARCHAR(20)'),
                 ('inventaire_titre', 'VARCHAR(150)')
+            ],
+            'stock_modification_logs': [
+                # Lie une ligne d'audit a la soumission du panier "Nouvelle entree
+                # en stock" dont elle provient (voir models/stock_entry_batch.py) :
+                # reference souple, sans contrainte FK ajoutee en ALTER (coherent
+                # avec le reste du self-heal). NULL sur les modifications
+                # anterieures a cet ajout, et sur celles qui n'en viennent pas.
+                ('stock_entry_batch_id', 'INTEGER')
             ]
         }
 
@@ -159,13 +168,24 @@ def ensure_database_schema(app):
                     db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column_name} {column_type};"))
                 except Exception:
                     db.session.rollback()
+        # Commit dedie a ces ajouts de colonnes, AVANT les blocs suivants : ces
+        # derniers (backfills/contraintes/index, chacun avec son propre
+        # try/except/rollback plus bas) partagent sinon la MEME transaction non
+        # validee -- un rollback plus loin efface alors silencieusement les
+        # colonnes ajoutees ici, meme si leur propre ALTER n'a produit aucune
+        # erreur (constate en pratique : le bloc coefficient/tva plus bas peut
+        # echouer sur une base ou la migration fournisseurs->produits est deja
+        # terminee depuis longtemps, ce qui annulait au passage les colonnes
+        # ajoutees juste au-dessus).
+        db.session.commit()
 
         try:
             db.session.execute(text("ALTER TABLE vente_lignes DROP CONSTRAINT IF EXISTS vente_lignes_vente_id_fkey;"))
             db.session.execute(text("ALTER TABLE vente_lignes ALTER COLUMN vente_id DROP NOT NULL;"))
             db.session.execute(text("UPDATE vente_lignes SET numero_vente = ventes.numero_vente FROM ventes WHERE vente_lignes.vente_id = ventes.id AND (vente_lignes.numero_vente IS NULL OR vente_lignes.numero_vente = '');"))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc vente_lignes a échoué (rollback -- annule aussi tout ALTER non commité avant ce point) : {exc}")
 
         # Les raisons financieres sont typees (encaissement/decaissement) : les raisons
         # creees avant cette distinction sont classees en decaissement (a ajuster dans
@@ -182,8 +202,9 @@ def ensure_database_schema(app):
                     END IF;
                 END $$;
             """))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc raisons_financieres a échoué (rollback) : {exc}")
 
         # TVA et coefficient : desormais configures uniquement au niveau du PRODUIT
         # (voir models/produit.py), plus au niveau fournisseur/groupe fournisseur.
@@ -191,35 +212,45 @@ def ensure_database_schema(app):
         # leur valeur EFFECTIVE d'avant ce changement -- fournisseur, puis groupe,
         # puis defaut absolu -- avant de rendre la colonne obligatoire, pour ne pas
         # modifier silencieusement le prix de vente de produits deja en catalogue.
+        # Une fois cette migration terminee (cas de toute base deja a jour), le
+        # nettoyage plus bas a deja supprime fournisseurs.coefficient/tva -- le
+        # backfill depuis ces colonnes doit alors etre saute, pas tente a
+        # nouveau (elles n'existent plus, ce qui echouait silencieusement et
+        # annulait tout le reste de cette fonction faute de commit intermediaire).
+        fournisseurs_a_encore_coefficient = db.session.execute(text(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = 'fournisseurs' AND column_name = 'coefficient'"
+        )).first() is not None
         try:
-            db.session.execute(text(
-                "UPDATE produits SET coefficient = fournisseurs.coefficient "
-                "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
-                "AND produits.coefficient IS NULL AND fournisseurs.coefficient IS NOT NULL;"
-            ))
-            db.session.execute(text(
-                "UPDATE produits SET coefficient = groupes_fournisseurs.coefficient_defaut "
-                "FROM fournisseurs, groupes_fournisseurs "
-                "WHERE produits.fournisseur_id = fournisseurs.id "
-                "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.coefficient IS NULL;"
-            ))
+            if fournisseurs_a_encore_coefficient:
+                db.session.execute(text(
+                    "UPDATE produits SET coefficient = fournisseurs.coefficient "
+                    "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
+                    "AND produits.coefficient IS NULL AND fournisseurs.coefficient IS NOT NULL;"
+                ))
+                db.session.execute(text(
+                    "UPDATE produits SET coefficient = groupes_fournisseurs.coefficient_defaut "
+                    "FROM fournisseurs, groupes_fournisseurs "
+                    "WHERE produits.fournisseur_id = fournisseurs.id "
+                    "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.coefficient IS NULL;"
+                ))
+                db.session.execute(text(
+                    "UPDATE produits SET tva = fournisseurs.tva "
+                    "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
+                    "AND produits.tva IS NULL AND fournisseurs.tva IS NOT NULL;"
+                ))
+                db.session.execute(text(
+                    "UPDATE produits SET tva = groupes_fournisseurs.tva_defaut "
+                    "FROM fournisseurs, groupes_fournisseurs "
+                    "WHERE produits.fournisseur_id = fournisseurs.id "
+                    "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.tva IS NULL;"
+                ))
             db.session.execute(text("UPDATE produits SET coefficient = 1.0 WHERE coefficient IS NULL;"))
-            db.session.execute(text(
-                "UPDATE produits SET tva = fournisseurs.tva "
-                "FROM fournisseurs WHERE produits.fournisseur_id = fournisseurs.id "
-                "AND produits.tva IS NULL AND fournisseurs.tva IS NOT NULL;"
-            ))
-            db.session.execute(text(
-                "UPDATE produits SET tva = groupes_fournisseurs.tva_defaut "
-                "FROM fournisseurs, groupes_fournisseurs "
-                "WHERE produits.fournisseur_id = fournisseurs.id "
-                "AND fournisseurs.groupe_id = groupes_fournisseurs.id AND produits.tva IS NULL;"
-            ))
             db.session.execute(text("UPDATE produits SET tva = 20.0 WHERE tva IS NULL;"))
             db.session.execute(text("ALTER TABLE produits ALTER COLUMN coefficient SET DEFAULT 1.0;"))
             db.session.execute(text("ALTER TABLE produits ALTER COLUMN coefficient SET NOT NULL;"))
             db.session.execute(text("ALTER TABLE produits ALTER COLUMN tva SET DEFAULT 20.0;"))
             db.session.execute(text("ALTER TABLE produits ALTER COLUMN tva SET NOT NULL;"))
+            db.session.commit()
         except Exception:
             db.session.rollback()
 
@@ -236,8 +267,9 @@ def ensure_database_schema(app):
                     END IF;
                 END $$;
             """))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc contrainte produits (CIP+fournisseur) a échoué (rollback -- annule aussi tout ALTER non commité avant ce point) : {exc}")
 
         # Une fois le backfill ci-dessus effectue, ces colonnes ne sont plus lues
         # nulle part dans l'application : nettoyage du schema.
@@ -246,8 +278,9 @@ def ensure_database_schema(app):
             db.session.execute(text("ALTER TABLE fournisseurs DROP COLUMN IF EXISTS tva;"))
             db.session.execute(text("ALTER TABLE groupes_fournisseurs DROP COLUMN IF EXISTS coefficient_defaut;"))
             db.session.execute(text("ALTER TABLE groupes_fournisseurs DROP COLUMN IF EXISTS tva_defaut;"))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc nettoyage fournisseurs/groupes a échoué (rollback -- annule aussi tout ALTER non commité avant ce point) : {exc}")
 
         # Index de performance sur les colonnes filtrees/jointes/triees par les
         # pages Catalogue (admin.list_produits) et Stock (admin.manage_stock) :
@@ -263,8 +296,9 @@ def ensure_database_schema(app):
             # precis, bouton dedie sur /admin/stock) pour retrouver les lignes
             # de vente d'un lot sans scanner toute la table a chaque ouverture.
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_vente_lignes_stock_code_suivi ON vente_lignes (stock_code_suivi);"))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc index a échoué (rollback -- annule aussi tout ALTER non commité avant ce point) : {exc}")
 
         # Correctif retroactif : create_vente() ecrivait auteur_id=None (copie
         # par erreur du pattern client_id=None, qui LUI est un choix delibere
@@ -281,10 +315,12 @@ def ensure_database_schema(app):
                   AND ventes.auteur_email IS NOT NULL
                   AND users.email = ventes.auteur_email;
             """))
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
+            print(f"[self-heal] bloc auteur_id ventes a échoué (rollback -- annule aussi tout ALTER non commité avant ce point) : {exc}")
 
         db.session.commit()
+        print("[self-heal] ensure_database_schema : commit final effectué")
 
 def _migrate_legacy_license_cache(app):
     """Compatibilité ascendante : avant l'introduction du bind SQLite dédié
@@ -433,6 +469,7 @@ def create_app(config_name='default'):
     # sollicité, pas même pour un simple self-heal de schéma. Le premier appel
     # a lieu juste après une activation réussie sans redémarrage requis (voir
     # blueprints/license/views.py), ou ici au démarrage suivant.
+    print(f"[self-heal] never_activated={never_activated} -> ensure_database_schema {'appelee' if not never_activated else 'IGNOREE'}")
     if not never_activated:
         ensure_database_schema(app)
 

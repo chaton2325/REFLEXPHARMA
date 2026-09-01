@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+
+{% block title %}Entrées en stock - TsariPharm{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 250px;
+    height: 250px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .page-header h1 { color: #fff; font-weight: 700; font-size: 1.5rem; position: relative; z-index: 1; }
+  .page-header p { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; position: relative; z-index: 1; }
+  .page-header .btn-light { color: #2c3e50; font-weight: 600; border-radius: 10px; padding: 0.5rem 1.2rem; }
+  .page-header .btn-light:hover { transform: translateY(-1px); }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+  }
+  .stat-card .stat-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .stat-card .stat-number { font-size: 1.4rem; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+  .stat-card .stat-label {
+    font-size: 0.75rem; color: #7a8896; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+
+  .card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .table-custom { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+  .table-custom thead th {
+    background: linear-gradient(135deg,#2c3e50,#34495e);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    white-space: nowrap;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.06);
+  }
+  .table-custom tbody td { padding: 0.6rem 0.7rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; font-size: 0.8rem; line-height: 1.3; }
+  .table-custom tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  .table-custom tbody tr:nth-child(even) td { background-color: #ffffff; }
+  .table-custom tbody tr:hover td { background-color: #eef3fc !important; }
+  .table-responsive-custom { border-radius: 12px; border: 1px solid #e8edf4; }
+
+  .mobile-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid #f0f2f5;
+  }
+
+  html[data-bs-theme="dark"] .pdf-preview-dialog { background: transparent; }
+  @media (min-width: 576px) { .pdf-preview-dialog { height: 85vh; } }
+  .pdf-preview-dialog .modal-content { height: 100%; }
+
+  .entree-produits-dialog { height: 85vh; }
+  .entree-produits-dialog .modal-content { height: 100%; }
+  .entree-produits-table thead th {
+    cursor: pointer; user-select: none; font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.3px; color: #5a6b7b; font-weight: 700; border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .entree-produits-table thead th:hover { color: #2c3e50; }
+  .entree-produits-table thead th i { color: #b8c2cc; margin-left: 4px; }
+  .entree-produits-table thead th.sort-asc i, .entree-produits-table thead th.sort-desc i { color: #3498db; }
+  .entree-produits-table tbody td { font-size: 0.82rem; vertical-align: middle; }
+  .entree-produits-table tbody tr:nth-child(odd) td { background-color: #f7fafd; }
+  html[data-bs-theme="dark"] .entree-produits-table thead th { color: #9aa5b1; border-bottom-color: rgba(255,255,255,0.1); }
+  html[data-bs-theme="dark"] .entree-produits-table thead th:hover { color: #e8edf2; }
+  html[data-bs-theme="dark"] .entree-produits-table thead th i { color: #435363; }
+  html[data-bs-theme="dark"] .entree-produits-table thead th.sort-asc i,
+  html[data-bs-theme="dark"] .entree-produits-table thead th.sort-desc i { color: #7cb8f0; }
+  html[data-bs-theme="dark"] .entree-produits-table tbody tr:nth-child(odd) td { background-color: #16202b; }
+  html[data-bs-theme="dark"] .entree-produits-dialog { background: transparent; }
+  @media (max-width: 575.98px) { .entree-produits-dialog { height: 100%; } }
+
+  @media (max-width: 575.98px) {
+    .page-header { padding: 1.25rem; border-radius: 12px; }
+    .page-header h1 { font-size: 1.25rem; }
+    .stat-card { padding: 0.9rem 1rem; }
+    .stat-card .stat-number { font-size: 1.2rem; }
+    .stat-card .stat-icon { width: 36px; height: 36px; font-size: 1rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div>
+      <h1><i class="fas fa-dolly me-2"></i>Entrées en stock</h1>
+      <p>Historique des soumissions du panier « Nouvelle entrée en stock » — consultez les produits entrés ou exportez en PDF, Excel ou CSV.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('admin.manage_stock') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Retour au stock
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-sm-4 col-md-3">
+    <div class="stat-card d-flex align-items-center gap-3">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#e8f0fe,#c5d9f7);color:#1a73e8;">
+        <i class="fas fa-dolly"></i>
+      </div>
+      <div>
+        <div class="stat-number">{{ pagination.total }}</div>
+        <div class="stat-label">Entrées en stock</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% macro entrees_pagination() %}
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top">
+  <div class="small text-muted">{{ pagination.total }} entrée(s) — page {{ pagination.page }} / {{ pagination.pages }}</div>
+  <nav aria-label="Pagination des entrées en stock">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item{{ ' disabled' if not pagination.has_prev }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.list_stock_entrees', page=pagination.prev_num) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
+      </li>
+      {% for p_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p_num %}
+        <li class="page-item{{ ' active' if p_num == pagination.page }}">
+          <a class="page-link js-nav-loading" href="{{ url_for('admin.list_stock_entrees', page=p_num) }}">{{ p_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item{{ ' disabled' if not pagination.has_next }}">
+        <a class="page-link js-nav-loading" href="{{ url_for('admin.list_stock_entrees', page=pagination.next_num) if pagination.has_next else '#' }}">Suivant &raquo;</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endif %}
+{% endmacro %}
+
+<div class="card-custom">
+  <div class="table-responsive table-responsive-custom d-none d-sm-block">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Date</th>
+          <th>Raison</th>
+          <th>Saisie par</th>
+          <th>Lignes</th>
+          <th>Quantité ajoutée</th>
+          <th class="text-end">Export</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in batches %}
+        <tr>
+          <td><span class="badge bg-dark-subtle text-dark border">{{ b.numero }}</span></td>
+          <td>{{ b.created_at.strftime('%d/%m/%Y %H:%M') if b.created_at else 'N/A' }}</td>
+          <td>{{ b.effective_reason or '-' }}</td>
+          <td>{{ b.created_by_nom }}</td>
+          <td>{{ b.nb_lignes }}</td>
+          <td>{{ b.quantite_totale_ajoutee }}</td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary btn-voir-produits" data-batch-id="{{ b.id }}" data-numero="{{ b.numero }}" title="Voir les produits entrés">
+                <i class="fas fa-boxes-stacked"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-voir-bon-pdf" data-batch-id="{{ b.id }}" title="Voir / imprimer le bon PDF">
+                <i class="fas fa-file-pdf"></i>
+              </button>
+              <a href="{{ url_for('admin.export_stock_entree_excel', id=b.id) }}" class="btn btn-outline-success" title="Télécharger en Excel">
+                <i class="fas fa-file-excel"></i>
+              </a>
+              <a href="{{ url_for('admin.export_stock_entree_csv', id=b.id) }}" class="btn btn-outline-secondary" title="Télécharger en CSV">
+                <i class="fas fa-file-csv"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">Aucune entrée en stock pour le moment.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-sm-none p-3 d-flex flex-column gap-2">
+    {% for b in batches %}
+    <div class="mobile-card">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <span class="badge bg-dark-subtle text-dark border">{{ b.numero }}</span>
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-primary btn-voir-produits" data-batch-id="{{ b.id }}" data-numero="{{ b.numero }}" title="Voir les produits entrés">
+            <i class="fas fa-boxes-stacked"></i>
+          </button>
+          <button type="button" class="btn btn-outline-danger btn-voir-bon-pdf" data-batch-id="{{ b.id }}" title="Voir / imprimer le bon PDF">
+            <i class="fas fa-file-pdf"></i>
+          </button>
+          <a href="{{ url_for('admin.export_stock_entree_excel', id=b.id) }}" class="btn btn-outline-success" title="Télécharger en Excel">
+            <i class="fas fa-file-excel"></i>
+          </a>
+          <a href="{{ url_for('admin.export_stock_entree_csv', id=b.id) }}" class="btn btn-outline-secondary" title="Télécharger en CSV">
+            <i class="fas fa-file-csv"></i>
+          </a>
+        </div>
+      </div>
+      <div class="row g-1 small">
+        <div class="col-6 text-muted">Date:</div>
+        <div class="col-6">{{ b.created_at.strftime('%d/%m/%Y %H:%M') if b.created_at else 'N/A' }}</div>
+        <div class="col-6 text-muted">Raison:</div>
+        <div class="col-6">{{ b.effective_reason or '-' }}</div>
+        <div class="col-6 text-muted">Saisie par:</div>
+        <div class="col-6">{{ b.created_by_nom }}</div>
+        <div class="col-6 text-muted">Lignes:</div>
+        <div class="col-6">{{ b.nb_lignes }}</div>
+        <div class="col-6 text-muted">Qté ajoutée:</div>
+        <div class="col-6">{{ b.quantite_totale_ajoutee }}</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <i class="fas fa-dolly" style="font-size:2.5rem;color:#dee2e6;margin-bottom:0.75rem;display:block;"></i>
+      <p class="text-muted mb-0">Aucune entrée en stock pour le moment.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  {{ entrees_pagination() }}
+</div>
+
+<!-- Apercu PDF in-page (pas de nouvel onglet) : fetch() -> blob -> iframe, avec
+     Imprimer/Telecharger en pied de modale -- meme patron que #pdfPreviewModal
+     du module Stock/Ventes. -->
+<div class="modal fade" id="pdfPreviewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down pdf-preview-dialog">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-file-pdf me-2 text-danger"></i>Bon d'entrée en stock</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 d-flex align-items-center justify-content-center" style="flex:1 1 auto;min-height:0;">
+        <div id="pdfPreviewLoading" class="text-center text-muted">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small">Génération du PDF...</div>
+        </div>
+        <iframe id="pdfPreviewFrame" src="about:blank" class="d-none" style="width:100%;height:100%;border:0;display:block;" title="Aperçu PDF"></iframe>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+        <button type="button" class="btn btn-outline-primary" id="pdfPreviewPrint" style="border-radius:10px;font-weight:600;" disabled>
+          <i class="fas fa-print me-1"></i> Imprimer
+        </button>
+        <a href="#" id="pdfPreviewDownload" class="btn btn-primary disabled" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-file-pdf me-1"></i> Télécharger
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Produits d'un bon d'entree : donnees de TOUS les bons de la page (deja
+     chargees pour nb_lignes/quantite_totale_ajoutee, aucun aller-retour
+     supplementaire) embarquees une fois en JSON, recherche/tri/pagination
+     geres entierement cote client dans la modale ci-dessous. -->
+<script type="application/json" id="entreeProduitsData">{{ produits_par_batch | tojson }}</script>
+
+<div class="modal fade" id="entreeProduitsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-sm-down entree-produits-dialog">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;">
+          <i class="fas fa-boxes-stacked me-2 text-primary"></i>Produits entrés — <span id="entreeProduitsNumero"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body d-flex flex-column" style="min-height:0;">
+        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between mb-3">
+          <div class="input-group input-group-sm" style="max-width:340px;">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" id="entreeProduitsSearch" class="form-control" placeholder="Rechercher produit, CIP, N° BL, date...">
+            <button type="button" class="btn btn-outline-secondary" id="entreeProduitsClear" title="Effacer">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="small text-muted"><span id="entreeProduitsCount">0</span> ligne(s)</div>
+        </div>
+        <div class="table-responsive flex-grow-1">
+          <table class="table table-sm entree-produits-table">
+            <thead>
+              <tr>
+                <th data-sort-field="Produit">Produit <i class="fas fa-sort"></i></th>
+                <th data-sort-field="Code (CIP)">CIP <i class="fas fa-sort"></i></th>
+                <th data-sort-field="N° BL">N° BL <i class="fas fa-sort"></i></th>
+                <th data-sort-field="Péremption">Péremption <i class="fas fa-sort"></i></th>
+                <th class="text-end" data-sort-field="Unités">Unités <i class="fas fa-sort"></i></th>
+                <th class="text-end" data-sort-field="Sous-unités">Sous-U. <i class="fas fa-sort"></i></th>
+                <th class="text-end" data-sort-field="Sous-sous-unités">S/Sous-U. <i class="fas fa-sort"></i></th>
+              </tr>
+            </thead>
+            <tbody id="entreeProduitsBody"></tbody>
+          </table>
+        </div>
+        <div id="entreeProduitsEmpty" class="text-center text-muted small py-4 d-none">Aucun produit ne correspond à cette recherche.</div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" style="border-top:1px solid #e9ecef;">
+        <div class="d-flex align-items-center gap-2 me-auto">
+          <button type="button" class="btn btn-sm btn-light border" id="entreeProduitsPrev" style="border-radius:8px;" disabled>
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span class="small text-muted" id="entreeProduitsPageLabel">Page 1 / 1</span>
+          <button type="button" class="btn btn-sm btn-light border" id="entreeProduitsNext" style="border-radius:8px;" disabled>
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pdfPreviewModalEl = document.getElementById('pdfPreviewModal');
+    const pdfPreviewModal = bootstrap.Modal.getOrCreateInstance(pdfPreviewModalEl);
+    const pdfPreviewFrame = document.getElementById('pdfPreviewFrame');
+    const pdfPreviewLoading = document.getElementById('pdfPreviewLoading');
+    const pdfPreviewDownload = document.getElementById('pdfPreviewDownload');
+    const pdfPreviewPrint = document.getElementById('pdfPreviewPrint');
+    let pdfPreviewBlobUrl = null;
+
+    function showPdfPreviewLoading() {
+        pdfPreviewFrame.classList.add('d-none');
+        pdfPreviewLoading.classList.remove('d-none');
+        pdfPreviewPrint.disabled = true;
+        pdfPreviewDownload.classList.add('disabled');
+        pdfPreviewModal.show();
+    }
+    function showPdfPreviewBlob(blob, filename) {
+        if (pdfPreviewBlobUrl) URL.revokeObjectURL(pdfPreviewBlobUrl);
+        pdfPreviewBlobUrl = URL.createObjectURL(blob);
+        pdfPreviewFrame.src = pdfPreviewBlobUrl;
+        pdfPreviewDownload.href = pdfPreviewBlobUrl;
+        pdfPreviewDownload.setAttribute('download', filename || 'entree_stock.pdf');
+        pdfPreviewDownload.classList.remove('disabled');
+        pdfPreviewPrint.disabled = false;
+        pdfPreviewLoading.classList.add('d-none');
+        pdfPreviewFrame.classList.remove('d-none');
+    }
+    pdfPreviewPrint.addEventListener('click', () => {
+        try {
+            pdfPreviewFrame.contentWindow.focus();
+            pdfPreviewFrame.contentWindow.print();
+        } catch (e) {
+            if (pdfPreviewBlobUrl) window.open(pdfPreviewBlobUrl, '_blank');
+        }
+    });
+    pdfPreviewModalEl.addEventListener('hidden.bs.modal', () => {
+        pdfPreviewFrame.src = 'about:blank';
+        if (pdfPreviewBlobUrl) { URL.revokeObjectURL(pdfPreviewBlobUrl); pdfPreviewBlobUrl = null; }
+    });
+
+    const PDF_URL_TEMPLATE = "{{ url_for('admin.export_stock_entree_pdf', id=999999999) }}";
+    document.querySelectorAll('.btn-voir-bon-pdf').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const batchId = btn.dataset.batchId;
+            const url = PDF_URL_TEMPLATE.replace('999999999', batchId);
+            showPdfPreviewLoading();
+            fetch(url)
+                .then((res) => { if (!res.ok) throw new Error('export failed'); return res.blob(); })
+                .then((blob) => showPdfPreviewBlob(blob, 'entree_stock_' + batchId + '.pdf'))
+                .catch(() => {
+                    pdfPreviewModal.hide();
+                    alert("Impossible de générer le bon PDF. Réessayez.");
+                });
+        });
+    });
+
+    // Modale "Voir les produits" : recherche/tri/pagination entierement cote
+    // client sur les lignes du bon choisi (donnees embarquees en JSON plus
+    // haut, deja chargees pour nb_lignes/quantite_totale_ajoutee -- jamais
+    // volumineuses puisque limitees a un seul bon).
+    function escapeHtml(value) {
+        return (value === null || value === undefined ? '' : value).toString()
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    const entreeProduitsModalEl = document.getElementById('entreeProduitsModal');
+    const entreeProduitsModal = bootstrap.Modal.getOrCreateInstance(entreeProduitsModalEl);
+    const ENTREE_PRODUITS_DATA = JSON.parse(document.getElementById('entreeProduitsData').textContent || '{}');
+    const ENTREE_PAGE_SIZE = 10;
+    const entreeProduitsNumero = document.getElementById('entreeProduitsNumero');
+    const entreeProduitsSearch = document.getElementById('entreeProduitsSearch');
+    const entreeProduitsClear = document.getElementById('entreeProduitsClear');
+    const entreeProduitsBody = document.getElementById('entreeProduitsBody');
+    const entreeProduitsCount = document.getElementById('entreeProduitsCount');
+    const entreeProduitsEmpty = document.getElementById('entreeProduitsEmpty');
+    const entreeProduitsPrev = document.getElementById('entreeProduitsPrev');
+    const entreeProduitsNext = document.getElementById('entreeProduitsNext');
+    const entreeProduitsPageLabel = document.getElementById('entreeProduitsPageLabel');
+    let entreeProduitsRows = [];
+    let entreeSortField = 'Produit';
+    let entreeSortDirection = 'asc';
+    let entreePage = 1;
+
+    function parseDateFr(value) {
+        if (!value) return null;
+        const parts = value.split('/');
+        if (parts.length !== 3) return null;
+        const ts = new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+        return Number.isNaN(ts) ? null : ts;
+    }
+    function normalizeValue(v) {
+        return (v === null || v === undefined ? '' : v).toString().toLowerCase();
+    }
+    const ENTREE_NUMERIC_FIELDS = ['Unités', 'Sous-unités', 'Sous-sous-unités'];
+    function compareRows(a, b, field, direction) {
+        const multiplier = direction === 'asc' ? 1 : -1;
+        if (field === 'Péremption') {
+            const da = parseDateFr(a[field]);
+            const db = parseDateFr(b[field]);
+            if (da === null && db === null) return 0;
+            if (da === null) return 1;
+            if (db === null) return -1;
+            return (da - db) * multiplier;
+        }
+        if (ENTREE_NUMERIC_FIELDS.includes(field)) {
+            return ((a[field] || 0) - (b[field] || 0)) * multiplier;
+        }
+        return normalizeValue(a[field]).localeCompare(normalizeValue(b[field]), 'fr', { numeric: true }) * multiplier;
+    }
+    function updateSortIndicators() {
+        document.querySelectorAll('.entree-produits-table thead th[data-sort-field]').forEach((th) => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            const icon = th.querySelector('i');
+            icon.className = 'fas fa-sort';
+            if (th.dataset.sortField === entreeSortField) {
+                th.classList.add(entreeSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                icon.className = entreeSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            }
+        });
+    }
+    function renderEntreeProduits() {
+        const query = normalizeValue(entreeProduitsSearch.value.trim());
+        let filtered = entreeProduitsRows.filter((row) => {
+            if (!query) return true;
+            return Object.values(row).some((v) => normalizeValue(v).includes(query));
+        });
+        filtered.sort((a, b) => compareRows(a, b, entreeSortField, entreeSortDirection));
+
+        entreeProduitsCount.textContent = filtered.length;
+        entreeProduitsEmpty.classList.toggle('d-none', filtered.length !== 0);
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / ENTREE_PAGE_SIZE));
+        if (entreePage > totalPages) entreePage = totalPages;
+        const start = (entreePage - 1) * ENTREE_PAGE_SIZE;
+        const pageRows = filtered.slice(start, start + ENTREE_PAGE_SIZE);
+
+        entreeProduitsBody.innerHTML = pageRows.map((row) => `
+            <tr>
+                <td>${escapeHtml(row['Produit'])}</td>
+                <td>${escapeHtml(row['Code (CIP)'])}</td>
+                <td>${escapeHtml(row['N° BL'])}</td>
+                <td>${escapeHtml(row['Péremption'])}</td>
+                <td class="text-end">${escapeHtml(row['Unités'])}</td>
+                <td class="text-end">${escapeHtml(row['Sous-unités'])}</td>
+                <td class="text-end">${escapeHtml(row['Sous-sous-unités'])}</td>
+            </tr>
+        `).join('');
+
+        entreeProduitsPageLabel.textContent = `Page ${entreePage} / ${totalPages}`;
+        entreeProduitsPrev.disabled = entreePage <= 1;
+        entreeProduitsNext.disabled = entreePage >= totalPages;
+        updateSortIndicators();
+    }
+
+    entreeProduitsSearch.addEventListener('input', () => { entreePage = 1; renderEntreeProduits(); });
+    entreeProduitsClear.addEventListener('click', () => {
+        entreeProduitsSearch.value = '';
+        entreePage = 1;
+        renderEntreeProduits();
+        entreeProduitsSearch.focus();
+    });
+    entreeProduitsPrev.addEventListener('click', () => { entreePage -= 1; renderEntreeProduits(); });
+    entreeProduitsNext.addEventListener('click', () => { entreePage += 1; renderEntreeProduits(); });
+    document.querySelectorAll('.entree-produits-table thead th[data-sort-field]').forEach((th) => {
+        th.addEventListener('click', () => {
+            const field = th.dataset.sortField;
+            entreeSortDirection = (entreeSortField === field && entreeSortDirection === 'asc') ? 'desc' : 'asc';
+            entreeSortField = field;
+            entreePage = 1;
+            renderEntreeProduits();
+        });
+    });
+    document.querySelectorAll('.btn-voir-produits').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const batchId = btn.dataset.batchId;
+            entreeProduitsRows = ENTREE_PRODUITS_DATA[batchId] || [];
+            entreeProduitsNumero.textContent = btn.dataset.numero || '';
+            entreeProduitsSearch.value = '';
+            entreeSortField = 'Produit';
+            entreeSortDirection = 'asc';
+            entreePage = 1;
+            renderEntreeProduits();
+            entreeProduitsModal.show();
+        });
+    });
+});
+</script>
+{% endblock %}

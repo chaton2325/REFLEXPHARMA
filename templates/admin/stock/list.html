@@ -814,6 +814,9 @@
       </a>
       {% endif %}
       {% if current_user.has_permission('gestion_modifications_stock') %}
+      <a href="{{ url_for('admin.list_stock_entrees') }}" class="btn btn-light btn-sm">
+        <i class="fas fa-dolly me-1"></i> Entrées en stock
+      </a>
       <a href="{{ url_for('admin.list_stock_exit_logs') }}" class="btn btn-light btn-sm">
         <i class="fas fa-clipboard-list me-1"></i> Historique
       </a>
@@ -1613,9 +1616,16 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <h5 class="fw-bold mb-1">Entrée en stock validée !</h5>
         <p class="text-muted small mb-3">{{ stock_success_messages[0] }}</p>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
-          <i class="fas fa-check me-1"></i> Continuer
-        </button>
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+          {% if entree_batch_id %}
+          <button type="button" class="btn btn-outline-primary btn-sm" id="stockEntryVoirBonBtn" data-batch-id="{{ entree_batch_id }}">
+            <i class="fas fa-file-pdf me-1"></i> Voir le bon PDF
+          </button>
+          {% endif %}
+          <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
+            <i class="fas fa-check me-1"></i> Continuer
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -4796,6 +4806,39 @@ document.addEventListener('DOMContentLoaded', function() {
         pdfPreviewModalEl.addEventListener('hidden.bs.modal', () => {
             pdfPreviewFrame.src = 'about:blank';
             if (pdfPreviewBlobUrl) { URL.revokeObjectURL(pdfPreviewBlobUrl); pdfPreviewBlobUrl = null; }
+        });
+    }
+
+    // ---- Bon d'entree en stock PDF (voir #stockEntryVoirBonBtn, propose dans
+    // la modale de succes juste apres validation du panier) : meme #pdfPreviewModal
+    // que ci-dessus, requete GET simple (pas de FormData/POST necessaire ici). ----
+    const stockEntryVoirBonBtn = document.getElementById('stockEntryVoirBonBtn');
+    if (stockEntryVoirBonBtn) {
+        stockEntryVoirBonBtn.addEventListener('click', () => {
+            const batchId = stockEntryVoirBonBtn.dataset.batchId;
+            const url = "{{ url_for('admin.export_stock_entree_pdf', id=999999999) }}".replace('999999999', batchId);
+            const openPreview = () => {
+                showPdfPreviewLoading();
+                fetch(url)
+                    .then((res) => { if (!res.ok) throw new Error('export failed'); return res.blob(); })
+                    .then((blob) => showPdfPreviewBlob(blob, timestampedFilename('entree_stock')))
+                    .catch(() => {
+                        pdfPreviewModal.hide();
+                        alert("Impossible de générer le bon PDF. Réessayez.");
+                    });
+            };
+            // Ferme d'abord la modale de succes (deux modales Bootstrap empilees
+            // sans coordination laissent un backdrop en trop) -- meme patron que
+            // "Depuis le modal bleu : ouvrir directement le modal de relance des
+            // manquants" dans templates/admin/commandes/show.html.
+            const successModalEl = document.getElementById('stockEntrySuccessModal');
+            const successModal = successModalEl ? bootstrap.Modal.getInstance(successModalEl) : null;
+            if (successModal) {
+                successModalEl.addEventListener('hidden.bs.modal', openPreview, { once: true });
+                successModal.hide();
+            } else {
+                openPreview();
+            }
         });
     }
 

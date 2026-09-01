@@ -19,6 +19,14 @@ class StockModification(db.Model):
     old_qr_tire = db.Column(db.Boolean, nullable=False, default=False)
     new_qr_tire = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Lie une ligne d'audit (action='create'/'adjust') a la soumission du
+    # panier "Nouvelle entree en stock" dont elle provient (voir
+    # StockEntryBatch), pour generer le bon PDF de cet envoi precis. NULL sur
+    # les modifications qui ne viennent pas de ce panier (edit/delete/
+    # transform/restock/qr_print, ou entree en stock rapide depuis une
+    # commande fournisseur -- deja tracee separement via Stock.commande_ligne_id).
+    stock_entry_batch_id = db.Column(db.Integer, db.ForeignKey('stock_entry_batches.id', ondelete='SET NULL'), nullable=True)
+
     old_quantite_unites = db.Column(db.Integer, nullable=False, default=0)
     old_quantite_sous_unites = db.Column(db.Integer, nullable=False, default=0)
     old_quantite_sous_sous_unites = db.Column(db.Integer, nullable=False, default=0)
@@ -32,6 +40,7 @@ class StockModification(db.Model):
     produit = db.relationship('Produit', backref=db.backref('stock_modifications', lazy=True))
     user = db.relationship('User', backref=db.backref('stock_modifications', lazy=True))
     stock_reason = db.relationship('StockReason', backref=db.backref('modifications', lazy=True))
+    stock_entry_batch = db.relationship('StockEntryBatch', backref=db.backref('modifications', lazy=True))
 
     @property
     def effective_reason(self):

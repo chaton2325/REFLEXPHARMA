@@ -17,6 +17,7 @@ from models.section import Section
 from models.produit import Produit
 from models.stock import Stock
 from models.stock_modification import StockModification
+from models.stock_entry_batch import StockEntryBatch
 from models.stock_reason import StockReason
 from models.stock_exit_log import StockExitLog
 from models.groupe_client import GroupeClient
@@ -55,6 +56,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from .ai_tools import AI_TOOLS, call_ai_tool, REPORTS_DIR, REPORT_FILENAME_RE
 from .bon_commande_pdf import build_bon_commande_pdf, COMMANDE_STATUT_LABELS as _COMMANDE_STATUT_LABELS
+from .stock_entry_pdf import build_stock_entry_pdf
 from .carte_fidelite_render import build_cartes_fidelite_pdf, build_carte_fidelite_png
 from .finance_reports import (
     compute_solde_actuel, query_operations_financieres, label_periode_dates,
@@ -204,7 +206,7 @@ STOCK_MODIFICATION_ACTION_LABELS = {
     'transform': 'Transformation (détail)',
 }
 
-def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None):
+def create_stock_modification(stock, produit, action, reason, old_values, new_values, old_qr_tire, new_qr_tire, reason_id=None, stock_entry_batch_id=None):
     modification = StockModification(
         stock_id=None,
         produit=produit,
@@ -212,6 +214,7 @@ def create_stock_modification(stock, produit, action, reason, old_values, new_va
         action=action,
         reason=reason if not reason_id else None,
         reason_id=reason_id,
+        stock_entry_batch_id=stock_entry_batch_id,
         numero_bl=stock.numero_bl,
         date_peremption=stock.date_peremption,
         code_suivi=stock.code_suivi,
@@ -5663,7 +5666,7 @@ def delete_commande(id):
 
 # --- GESTION DU STOCK ---
 def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites, quantite_sous_unites,
-                         quantite_sous_sous_unites, reason_id, reason_text, commande_ligne_id=None):
+                         quantite_sous_sous_unites, reason_id, reason_text, commande_ligne_id=None, stock_entry_batch_id=None):
     """Cree ou complete un lot de stock (Stock + StockModification associe). Utilise
     a la fois par le formulaire generique du module Stock et par l'entree en stock
     rapide depuis une ligne de commande fournisseur. Ne fait pas le commit : a la
@@ -5695,6 +5698,7 @@ def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites
             action='create',
             reason=reason_text,
             reason_id=reason_id,
+            stock_entry_batch_id=stock_entry_batch_id,
             old_values=(0, 0, 0),
             new_values=(quantite_unites, quantite_sous_unites, quantite_sous_sous_unites),
             old_qr_tire=False,
@@ -5714,6 +5718,7 @@ def perform_stock_entry(produit, numero_bl_raw, date_peremption, quantite_unites
             action='adjust',
             reason=reason_text,
             reason_id=reason_id,
+            stock_entry_batch_id=stock_entry_batch_id,
             old_values=old_values,
             new_values=(stock.quantite_unites, stock.quantite_sous_unites, stock.quantite_sous_sous_unites),
             old_qr_tire=stock.qr_tire,
@@ -5773,6 +5778,15 @@ def stock_produits_search():
     return jsonify(result)
 
 STOCK_PAGE_SIZE = 20
+
+def generate_numero_entree_stock():
+    base = f"ENT-{datetime.now().strftime('%Y%m%d')}-"
+    count = StockEntryBatch.query.filter(StockEntryBatch.numero.like(f'{base}%')).count()
+    while True:
+        numero = f'{base}{count + 1:03d}'
+        if not StockEntryBatch.query.filter_by(numero=numero).first():
+            return numero
+        count += 1
 
 def _manage_stock_view(ruptures_mode=False):
     """Vue partagee entre /stock (tous les lots) et /stock/ruptures (memes
@@ -5843,11 +5857,25 @@ def _manage_stock_view(ruptures_mode=False):
 
             rows.append((produit, numero_bl_raw, date_peremption, qu, qsu, qssu))
 
+        # Un batch par soumission du panier (voir models/stock_entry_batch.py) :
+        # regroupe les lignes de CET envoi pour le bon PDF telechargeable ensuite
+        # (apercu juste apres validation, ou depuis l'historique des entrees).
+        batch = StockEntryBatch(
+            numero=generate_numero_entree_stock(),
+            reason_id=reason_id or None,
+            reason_text=reason_text or None,
+            created_by_id=current_user.id,
+            created_by_nom=f'{current_user.prenom} {current_user.nom}'
+        )
+        db.session.add(batch)
+        db.session.flush()
+
         for produit, numero_bl_raw, date_peremption, qu, qsu, qssu in rows:
             perform_stock_entry(
                 produit, numero_bl_raw, date_peremption,
                 qu, qsu, qssu,
-                reason_id, reason_text
+                reason_id, reason_text,
+                stock_entry_batch_id=batch.id
             )
 
         db.session.commit()
@@ -5855,7 +5883,7 @@ def _manage_stock_view(ruptures_mode=False):
             flash(f'Entrée en stock enregistrée pour {rows[0][0].nom}.', 'stock_success')
         else:
             flash(f'{len(rows)} entrées en stock enregistrées avec succès.', 'stock_success')
-        return redirect(url_for(redirect_endpoint))
+        return redirect(url_for(redirect_endpoint, entree_batch=batch.id))
 
     # Recherche cote serveur (q, sur produit/CIP/code suivi/BL/fournisseur) +
     # pagination + eager-loading (produit + son fournisseur) : avant, TOUS les
@@ -5904,11 +5932,14 @@ def _manage_stock_view(ruptures_mode=False):
     # de la liste elle-meme. Elles restent globales (tout le stock) meme sur
     # /stock/ruptures : ce sont des compteurs de contexte general, pas un
     # resume de la page filtree affichee.
+    # Juste apres une soumission du panier (voir redirect ci-dessus) : permet au
+    # template de proposer le bon PDF de CET envoi depuis la modale de succes.
+    entree_batch_id = request.args.get('entree_batch', type=int)
     return render_template('admin/stock/list.html',
         stocks=stocks, reasons=reasons, pagination=pagination, search_q=q,
         fournisseurs=fournisseurs, rayons=rayons, familles=familles, sections=sections,
         arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier(),
-        ruptures_mode=ruptures_mode,
+        ruptures_mode=ruptures_mode, entree_batch_id=entree_batch_id,
     )
 
 @admin.route('/stock', methods=['GET', 'POST'])
@@ -5922,6 +5953,129 @@ def manage_stock():
 @permission_required('gestion_stock')
 def stock_ruptures():
     return _manage_stock_view(ruptures_mode=True)
+
+@admin.route('/stock/entrees')
+@login_required
+@permission_required('gestion_modifications_stock')
+def list_stock_entrees():
+    """Historique des entrees en stock : une ligne par soumission du panier
+    "Nouvelle entree en stock" (voir models/stock_entry_batch.py), distinct de
+    /stock/modifications qui liste l'audit generique ligne-par-ligne (edits,
+    suppressions, transformations comprises, pas seulement les entrees, et pas
+    regroupe par envoi). Chaque entree peut etre reouverte en PDF (bouton
+    dedie, meme document que celui propose juste apres la validation du
+    panier)."""
+    # Pas de joinedload sur .modifications ici (relation "a plusieurs") : combine
+    # a .paginate() (LIMIT/OFFSET), un eager load sur une collection fausserait le
+    # nombre de lignes reellement renvoyees par page. Le lazy-load par batch pour
+    # nb_lignes/quantite_totale_ajoutee reste largement acceptable a 20/page (meme
+    # compromis que Commande.lignes dans list_commandes, sans eager-load non plus).
+    page = request.args.get('page', 1, type=int)
+    pagination = (
+        StockEntryBatch.query
+        .order_by(StockEntryBatch.created_at.desc())
+        .paginate(page=page, per_page=STOCK_PAGE_SIZE, error_out=False)
+    )
+    # Lignes de chaque bon (produits entres), pretes pour la modale "Voir les
+    # produits" cote client -- memes dicts/colonnes que l'export Excel/CSV
+    # (_stock_entree_export_rows), embarquees en JSON une fois pour toute la
+    # page plutot qu'un aller-retour serveur par bon ouvert : recherche/tri/
+    # pagination de la modale restent donc entierement cote client (dataset
+    # d'un seul bon, jamais volumineux).
+    produits_par_batch = {b.id: _stock_entree_export_rows(b) for b in pagination.items}
+    return render_template('admin/stock/entrees.html', pagination=pagination, batches=pagination.items,
+                           produits_par_batch=produits_par_batch)
+
+@admin.route('/stock/entrees/<int:id>/pdf')
+@login_required
+@permission_required('gestion_stock')
+def export_stock_entree_pdf(id):
+    """PDF du bon d'entree en stock pour UNE soumission du panier -- propose
+    juste apres validation (voir redirect de _manage_stock_view) et depuis
+    /stock/entrees pour revisiter un envoi passe. Accessible a quiconque peut
+    faire une entree en stock (gestion_stock), pas seulement a qui peut voir
+    l'historique complet (gestion_modifications_stock) : on doit toujours
+    pouvoir revoir/imprimer ce qu'on vient soi-meme de saisir."""
+    import io
+
+    batch = StockEntryBatch.query.options(joinedload(StockEntryBatch.modifications)).get_or_404(id)
+    output = io.BytesIO()
+    build_stock_entry_pdf(
+        batch, output,
+        tire_par=f'{current_user.nom} {current_user.prenom}',
+        pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'))
+    output.seek(0)
+    return send_file(output, mimetype='application/pdf', as_attachment=True,
+                     download_name=f'entree_stock_{batch.numero}.pdf')
+
+def _stock_entree_export_rows(batch):
+    """Lignes exportables (Excel/CSV) d'un bon d'entree en stock -- memes
+    colonnes que le PDF (build_stock_entry_pdf), juste sans mise en forme."""
+    return [{
+        'Produit': m.produit.nom if m.produit else '-',
+        'Code (CIP)': m.produit.code_produit if m.produit else '-',
+        'N° BL': m.numero_bl,
+        'Péremption': m.date_peremption.strftime('%d/%m/%Y') if m.date_peremption else '',
+        'Unités': m.delta_quantite_unites,
+        'Sous-unités': m.delta_quantite_sous_unites,
+        'Sous-sous-unités': m.delta_quantite_sous_sous_unites,
+    } for m in batch.modifications]
+
+@admin.route('/stock/entrees/<int:id>/export/excel')
+@login_required
+@permission_required('gestion_stock')
+def export_stock_entree_excel(id):
+    """Meme bon d'entree en stock que export_stock_entree_pdf, au format
+    Excel (memes lignes/colonnes) -- meme recette que export_produits_excel
+    (pandas + ExcelWriter/openpyxl, metadonnees + style d'en-tete)."""
+    batch = StockEntryBatch.query.options(joinedload(StockEntryBatch.modifications)).get_or_404(id)
+    pharmacy_name = Setting.get_value('pharmacy_name', 'REFLEXPHARMA')
+    rows = _stock_entree_export_rows(batch)
+    df = pd.DataFrame(rows, columns=['Produit', 'Code (CIP)', 'N° BL', 'Péremption', 'Unités', 'Sous-unités', 'Sous-sous-unités'])
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Entrée en stock', startrow=4)
+        worksheet = writer.sheets['Entrée en stock']
+
+        worksheet['A1'] = pharmacy_name
+        worksheet['A2'] = f"Bon d'entrée en stock {batch.numero} — {batch.created_at.strftime('%d/%m/%Y %H:%M') if batch.created_at else ''}"
+        worksheet['A3'] = f"Raison : {batch.effective_reason or '-'} | Saisie par : {batch.created_by_nom or ''}"
+        worksheet['A4'] = f"Tiré par : {current_user.nom} {current_user.prenom}"
+
+        from openpyxl.styles import Font, PatternFill, Alignment
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        worksheet['A1'].font = Font(bold=True, size=13)
+        worksheet['A3'].font = Font(italic=True, color="555555")
+        for cell in worksheet[5]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+
+    output.seek(0)
+    return send_file(output, download_name=f'entree_stock_{batch.numero}.xlsx', as_attachment=True)
+
+@admin.route('/stock/entrees/<int:id>/export/csv')
+@login_required
+@permission_required('gestion_stock')
+def export_stock_entree_csv(id):
+    """Meme bon d'entree en stock, au format CSV (memes lignes/colonnes) --
+    meme recette que export_produits_csv (utf-8-sig pour un rendu correct des
+    accents une fois ouvert dans Excel)."""
+    batch = StockEntryBatch.query.options(joinedload(StockEntryBatch.modifications)).get_or_404(id)
+    rows = _stock_entree_export_rows(batch)
+    df = pd.DataFrame(rows, columns=['Produit', 'Code (CIP)', 'N° BL', 'Péremption', 'Unités', 'Sous-unités', 'Sous-sous-unités'])
+
+    output = io.BytesIO()
+    output.write(df.to_csv(index=False).encode('utf-8-sig'))
+    output.seek(0)
+    return send_file(
+        output,
+        download_name=f'entree_stock_{batch.numero}.csv',
+        as_attachment=True,
+        mimetype='text/csv'
+    )
 
 @admin.route('/api/stock-stats')
 @login_required
