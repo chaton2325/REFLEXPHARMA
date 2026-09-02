@@ -68,6 +68,20 @@
   }
   .btn-suggestion:hover { background: #e8f0fe; }
 
+  /* Retirer du panier : n'apparait que sur une ligne deja au panier
+     (classe .a-quantite posee par majRecap quand qte > 0) -- transparent sur
+     fond clair/sombre, pas besoin de regle data-bs-theme dediee. */
+  .qte-cell { display: flex; align-items: center; gap: 0.35rem; }
+  .btn-remove-ligne {
+    display: none; align-items: center; justify-content: center;
+    width: 30px; height: 30px; flex-shrink: 0;
+    border: 1px solid #e74c3c; color: #e74c3c; background: transparent;
+    border-radius: 7px; font-size: 0.8rem; cursor: pointer;
+  }
+  .btn-remove-ligne:hover { background: #fdecea; }
+  html[data-bs-theme="dark"] .btn-remove-ligne:hover { background: rgba(231,76,60,0.18); }
+  tr.a-quantite .btn-remove-ligne { display: inline-flex; }
+
   .btn-detail-su {
     border: none; background: transparent; color: #7a8896;
     font-size: 0.68rem; font-weight: 600; padding: 0; margin-top: 0.2rem;
@@ -318,7 +332,7 @@
         </div>
       </div>
       <div id="assistantFeedback" class="small mt-2" style="min-height:1.2em;color:#7a8896;">
-        Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.
+        Chaque stratégie remplace le contenu du panier par les produits qu'elle recommande — vous pouvez ensuite ajuster les quantités à la main.
       </div>
     </div>
   </div>
@@ -422,7 +436,12 @@
               {% endif %}
             </td>
             <td>
-              <input type="number" min="0" step="1" class="qte-input" name="qte_{{ p.id }}" value="" placeholder="0">
+              <div class="qte-cell">
+                <input type="number" min="0" step="1" class="qte-input" name="qte_{{ p.id }}" value="" placeholder="0">
+                <button type="button" class="btn-remove-ligne btn-remove-produit" title="Retirer du panier">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -670,6 +689,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 majRecap();
             });
         }
+        row.querySelector('.btn-remove-produit').addEventListener('click', () => {
+            row.querySelector('.qte-input').value = '';
+            majRecap();
+            afficherProduits(); // masque immediatement la ligne si "Panier uniquement" est actif
+        });
     });
 
     // --- Assistant de commande : stratégies de remplissage ---
@@ -683,7 +707,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dateVendu.value = iso;
         dateVendu.max = iso;
     })();
-    const FEEDBACK_DEFAUT = "Les stratégies remplissent les quantités des produits concernés sans toucher aux autres — vous pouvez les cumuler puis ajuster à la main.";
+    const FEEDBACK_DEFAUT = "Chaque stratégie remplace le contenu du panier par les produits qu'elle recommande — vous pouvez ensuite ajuster les quantités à la main.";
     const statsCache = {};
 
     function feedbackAssistant(html, couleur) {
@@ -714,6 +738,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function appliquerStrategie(strategie) {
         const lignes = rowsDuFournisseur();
+        // Chaque strategie REMPLACE le contenu du panier par ses propres
+        // recommandations plutot que de s'additionner a une strategie
+        // precedente (sinon les quantites d'un premier clic restent melangees
+        // avec celles d'un second, source de confusion) -- on repart d'un
+        // panier vide pour ce fournisseur a chaque clic sur un bouton.
+        lignes.forEach(row => { row.querySelector('.qte-input').value = ''; });
 
         if (strategie === 'securite' || strategie === 'rupture') {
             let remplis = 0, unites = 0, ignores = 0;

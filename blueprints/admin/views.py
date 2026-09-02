@@ -5433,6 +5433,7 @@ def show_commande(id):
     livree_confirm = request.args.get('livree') == '1' and commande.statut == 'livree'
     return render_template('admin/commandes/show.html', commande=commande, origine=origine,
                            relances=relances, created=created, livree_confirm=livree_confirm,
+                           fournisseurs=Fournisseur.query.order_by(Fournisseur.nom.asc()).all(),
                            arrondi_active=arrondi.is_active(), arrondi_sens=arrondi.get_sens(), arrondi_palier=arrondi.get_palier())
 
 _XLSX_MIMETYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -5619,8 +5620,15 @@ def export_commande_pdf(id):
 @login_required
 @permission_required('gestion_commandes')
 def relancer_commande(id):
-    """Crée une nouvelle commande chez le même fournisseur avec uniquement
-    les quantités manquantes (livré < commandé) de la commande d'origine."""
+    """Crée une nouvelle commande avec uniquement les quantités manquantes
+    (livré < commandé) de la commande d'origine -- chez le même fournisseur par
+    défaut, ou chez un autre fournisseur choisi dans la modale (ex: le
+    fournisseur d'origine n'a pas pu livrer, on relance ailleurs). Les
+    produits/quantités relances restent ceux de la commande d'origine quel que
+    soit le fournisseur choisi : seule l'attribution "commandé chez" change,
+    Commande/CommandeLigne n'imposant pas que les produits d'une commande
+    appartiennent au catalogue du fournisseur de cette commande (tout est
+    snapshoté pour l'historique, voir models/commande.py)."""
     origine = Commande.query.get_or_404(id)
     if origine.statut != 'livree':
         flash('Seule une commande livrée peut être relancée.', 'warning')
@@ -5631,12 +5639,17 @@ def relancer_commande(id):
         flash('Aucun produit manquant sur cette commande.', 'info')
         return redirect(url_for('admin.show_commande', id=origine.id))
 
+    fournisseur_id_raw = request.form.get('fournisseur_id')
+    fournisseur = Fournisseur.query.get(int(fournisseur_id_raw)) if fournisseur_id_raw and fournisseur_id_raw.isdigit() else None
+    fournisseur_id = fournisseur.id if fournisseur else origine.fournisseur_id
+    fournisseur_nom = fournisseur.nom if fournisseur else origine.fournisseur_nom
+
     stocks = _stock_unites_par_produit()
     relance = Commande(
         numero=generate_numero_commande(),
         statut='en_cours',
-        fournisseur_id=origine.fournisseur_id,
-        fournisseur_nom=origine.fournisseur_nom,
+        fournisseur_id=fournisseur_id,
+        fournisseur_nom=fournisseur_nom,
         note=f'Relance des manquants de la commande {origine.numero}',
         relance_de_numero=origine.numero,
         created_by_id=current_user.id,
