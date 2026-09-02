@@ -51,9 +51,12 @@ def compute_solde_actuel():
     return compute_benefice_total_all_time() + encaissements - decaissements
 
 
-def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None, raison_filtre=None):
+def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None, raison_filtre=None, as_query=False):
     """Opérations financières filtrées par intervalle de dates, type et/ou raison,
-    les plus récentes en premier."""
+    les plus récentes en premier. as_query=True renvoie la Query SQLAlchemy non
+    exécutée (pour paginer côté appelant, voir finance_dashboard) au lieu de la
+    liste complète -- les exports PDF/Excel et l'assistant IA continuent d'appeler
+    avec la valeur par défaut et gardent la liste complète, jamais paginée."""
     query = OperationFinanciere.query
     if start_dt is not None:
         query = query.filter(OperationFinanciere.created_at >= start_dt)
@@ -63,7 +66,8 @@ def query_operations_financieres(start_dt=None, end_dt=None, type_filtre=None, r
         query = query.filter(OperationFinanciere.type == type_filtre)
     if raison_filtre:
         query = query.filter(OperationFinanciere.raison == raison_filtre)
-    return query.order_by(OperationFinanciere.created_at.desc()).all()
+    query = query.order_by(OperationFinanciere.created_at.desc())
+    return query if as_query else query.all()
 
 
 def label_periode_dates(date_from=None, date_to=None):

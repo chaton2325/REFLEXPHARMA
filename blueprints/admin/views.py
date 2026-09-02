@@ -10134,6 +10134,8 @@ def export_controle_caisse_excel():
 # MODULE FINANCE (CHIFFRE D'AFFAIRES, BENEFICE, SOLDE)
 # ==============================================================================
 
+FINANCE_OPERATIONS_PAGE_SIZE = 20
+
 @admin.route('/finance')
 @login_required
 @permission_required('gestion_finance')
@@ -10155,7 +10157,9 @@ def finance_dashboard():
     totals = compute_impots_summary(ventes_periode)  # count / ht / tva / benefice / ttc
 
     raison_filtre = (request.args.get('raison') or '').strip()
-    operations = query_operations_financieres(start_dt, end_dt, raison_filtre=raison_filtre or None)
+    page = request.args.get('page', 1, type=int)
+    operations_query = query_operations_financieres(start_dt, end_dt, raison_filtre=raison_filtre or None, as_query=True)
+    pagination = operations_query.paginate(page=page, per_page=FINANCE_OPERATIONS_PAGE_SIZE, error_out=False)
 
     return render_template(
         'admin/finance/dashboard.html',
@@ -10163,7 +10167,8 @@ def finance_dashboard():
         date_to=date_to,
         totals=totals,
         solde_actuel=compute_solde_actuel(),
-        operations=operations,
+        operations=pagination.items,
+        pagination=pagination,
         raison_filtre=raison_filtre,
         raisons_encaissement=RaisonFinanciere.query.filter_by(type='encaissement').order_by(RaisonFinanciere.nom.asc()).all(),
         raisons_decaissement=RaisonFinanciere.query.filter_by(type='decaissement').order_by(RaisonFinanciere.nom.asc()).all()
