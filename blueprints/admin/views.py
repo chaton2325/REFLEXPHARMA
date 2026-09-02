@@ -5332,23 +5332,66 @@ def generate_numero_commande():
             return numero
         count += 1
 
+COMMANDES_PAGE_SIZE = 20
+
 @admin.route('/commandes')
 @login_required
 @permission_required('gestion_commandes')
 def list_commandes():
-    commandes = Commande.query.order_by(Commande.created_at.desc()).all()
-    nb_en_cours = sum(1 for c in commandes if c.statut == 'en_cours')
-    nb_livrees = sum(1 for c in commandes if c.statut == 'livree')
-    nb_ecarts = sum(1 for c in commandes if c.statut == 'livree' and c.a_ecart)
-    # Permet de faire pointer le badge "Relance" vers la commande source
-    ids_par_numero = {c.numero: c.id for c in commandes}
-    # Nombre de relances par commande source (pour le badge compteur)
-    nb_relances_par_numero = {}
-    for c in commandes:
-        if c.relance_de_numero:
-            nb_relances_par_numero[c.relance_de_numero] = nb_relances_par_numero.get(c.relance_de_numero, 0) + 1
+    q = (request.args.get('q') or '').strip()
+    statut_filtre = (request.args.get('statut') or '').strip()
+
+    query = Commande.query
+    if statut_filtre in ('en_cours', 'livree', 'annulee'):
+        query = query.filter(Commande.statut == statut_filtre)
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(
+            Commande.numero.ilike(like),
+            Commande.fournisseur_nom.ilike(like),
+            Commande.relance_de_numero.ilike(like)
+        ))
+
+    page = request.args.get('page', 1, type=int)
+    pagination = query.order_by(Commande.created_at.desc()).paginate(page=page, per_page=COMMANDES_PAGE_SIZE, error_out=False)
+
+    # Stats globales (independantes de la recherche/du filtre/de la page,
+    # comme le solde du module Finance) : de simples comptages SQL, jamais un
+    # chargement de toutes les commandes + leurs lignes en memoire.
+    total_commandes = Commande.query.count()
+    nb_en_cours = Commande.query.filter_by(statut='en_cours').count()
+    nb_livrees = Commande.query.filter_by(statut='livree').count()
+    nb_ecarts = (
+        db.session.query(CommandeLigne.commande_id)
+        .join(Commande, Commande.id == CommandeLigne.commande_id)
+        .filter(
+            Commande.statut == 'livree',
+            CommandeLigne.quantite_livree.isnot(None),
+            CommandeLigne.quantite_livree != CommandeLigne.quantite_commandee
+        )
+        .distinct()
+        .count()
+    )
+
+    # Permet de faire pointer le badge "Relance" vers la commande source, et
+    # de compter les relances d'une commande -- deux requetes legeres sur
+    # l'ensemble de la table (juste numero/id), pas limitees a la page
+    # affichee : la commande source ou les relances d'une ligne visible
+    # peuvent tres bien se trouver sur une autre page.
+    ids_par_numero = dict(db.session.query(Commande.numero, Commande.id).all())
+    nb_relances_par_numero = dict(
+        db.session.query(Commande.relance_de_numero, db.func.count(Commande.id))
+        .filter(Commande.relance_de_numero.isnot(None))
+        .group_by(Commande.relance_de_numero)
+        .all()
+    )
+
     return render_template('admin/commandes/list.html',
-        commandes=commandes,
+        commandes=pagination.items,
+        pagination=pagination,
+        q=q,
+        statut_filtre=statut_filtre,
+        total_commandes=total_commandes,
         nb_en_cours=nb_en_cours,
         nb_livrees=nb_livrees,
         nb_ecarts=nb_ecarts,

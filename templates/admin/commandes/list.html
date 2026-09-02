@@ -87,6 +87,33 @@
 </style>
 {% endblock %}
 
+{% macro commandes_pagination() %}
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top">
+  <div class="small text-muted">{{ pagination.total }} commande(s) — page {{ pagination.page }} / {{ pagination.pages }}</div>
+  <nav aria-label="Pagination des commandes">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item{{ ' disabled' if not pagination.has_prev }}">
+        <a class="page-link" href="{{ url_for('admin.list_commandes', page=pagination.prev_num, q=q, statut=statut_filtre or none) if pagination.has_prev else '#' }}">&laquo; Précédent</a>
+      </li>
+      {% for p_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p_num %}
+        <li class="page-item{{ ' active' if p_num == pagination.page }}">
+          <a class="page-link" href="{{ url_for('admin.list_commandes', page=p_num, q=q, statut=statut_filtre or none) }}">{{ p_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item{{ ' disabled' if not pagination.has_next }}">
+        <a class="page-link" href="{{ url_for('admin.list_commandes', page=pagination.next_num, q=q, statut=statut_filtre or none) if pagination.has_next else '#' }}">Suivant &raquo;</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
   <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
@@ -115,7 +142,7 @@
         <i class="fas fa-truck"></i>
       </div>
       <div>
-        <div class="stat-number">{{ commandes|length }}</div>
+        <div class="stat-number">{{ total_commandes }}</div>
         <div class="stat-label">Commandes</div>
       </div>
     </div>
@@ -158,14 +185,19 @@
 <div class="card-custom">
   <div class="p-3 p-sm-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
     <select id="filterStatut" class="form-select" style="max-width:200px;border-radius:10px;background:#f8f9fa;border:1px solid #e9ecef;font-size:0.85rem;">
-      <option value="">Tous les statuts</option>
-      <option value="en_cours">En cours</option>
-      <option value="livree">Livrée</option>
-      <option value="annulee">Annulée</option>
+      <option value="" {% if not statut_filtre %}selected{% endif %}>Tous les statuts</option>
+      <option value="en_cours" {% if statut_filtre == 'en_cours' %}selected{% endif %}>En cours</option>
+      <option value="livree" {% if statut_filtre == 'livree' %}selected{% endif %}>Livrée</option>
+      <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée</option>
     </select>
-    <div class="search-wrapper" style="width:100%;max-width:300px;">
-      <i class="fas fa-search search-icon"></i>
-      <input type="text" id="searchInput" class="form-control" placeholder="Rechercher (numéro, fournisseur...)">
+    <div class="d-flex gap-2" style="width:100%;max-width:340px;">
+      <div class="search-wrapper flex-grow-1">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="searchInput" class="form-control" placeholder="Rechercher (numéro, fournisseur...)" value="{{ q }}">
+      </div>
+      <button type="button" id="searchBtn" class="btn btn-outline-secondary" style="border-radius:10px;" title="Rechercher">
+        <i class="fas fa-search"></i>
+      </button>
     </div>
   </div>
 
@@ -300,6 +332,8 @@
       </tbody>
     </table>
   </div>
+
+  {{ commandes_pagination() }}
 </div>
 
 <!-- Delete Modals -->
@@ -335,26 +369,34 @@
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const filterStatut = document.getElementById('filterStatut');
+    const searchBtn = document.getElementById('searchBtn');
 
-    function filterList() {
-        const query = searchInput.value.toLowerCase();
-        const statut = filterStatut.value;
-
-        document.querySelectorAll('#commandeTable tbody tr[data-statut]').forEach(row => {
-            const matchQuery = row.textContent.toLowerCase().includes(query);
-            const matchStatut = !statut || row.dataset.statut === statut;
-            row.style.display = matchQuery && matchStatut ? '' : 'none';
-        });
-
-        document.querySelectorAll('#mobileList .mobile-card').forEach(card => {
-            const matchQuery = (card.dataset.search || '').includes(query);
-            const matchStatut = !statut || card.dataset.statut === statut;
-            card.style.display = matchQuery && matchStatut ? '' : 'none';
-        });
+    // La recherche porte sur TOUTES les commandes (pas seulement la page
+    // affichee) : envoyee au serveur (?q=...&statut=...), en rechargement
+    // normal -- meme principe que /stock (goToStockSearch). Declenchee sur
+    // Entree/clic, pas a chaque frappe.
+    function goToCommandesSearch() {
+        const url = new URL(window.location.href);
+        const q = searchInput.value.trim();
+        if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
     }
 
-    searchInput.addEventListener('input', filterList);
-    filterStatut.addEventListener('change', filterList);
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            goToCommandesSearch();
+        }
+    });
+    if (searchBtn) searchBtn.addEventListener('click', goToCommandesSearch);
+
+    filterStatut.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        if (filterStatut.value) url.searchParams.set('statut', filterStatut.value); else url.searchParams.delete('statut');
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+    });
 });
 </script>
 {% endblock %}
