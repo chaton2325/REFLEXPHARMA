@@ -95,6 +95,15 @@ def setup_database():
             'groupes_clients': [
                 ('pourcentage_absorption', 'FLOAT DEFAULT 0')
             ],
+            'clients': [
+                # Solde de points de fidelite du client (deja dans app.py::ensure_database_schema,
+                # ajoute ici aussi -- absent par erreur de cette liste jusqu'ici).
+                ('points_fidelite', 'INTEGER DEFAULT 0'),
+                # Facultatifs, utilises pour completer les factures (voir export_vente_pdf).
+                ('adresse', 'VARCHAR(255)'),
+                ('niu', 'VARCHAR(50)'),
+                ('numero_cni', 'VARCHAR(50)')
+            ],
             'ventes': [
                 ('numero_vente', 'VARCHAR(80)'),
                 ('statut', 'VARCHAR(30) DEFAULT \'validee\''),

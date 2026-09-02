@@ -69,7 +69,12 @@ def ensure_database_schema(app):
             ],
             'clients': [
                 # Solde de points de fidelite du client.
-                ('points_fidelite', 'INTEGER DEFAULT 0')
+                ('points_fidelite', 'INTEGER DEFAULT 0'),
+                # Facultatifs, utilises pour completer les factures (voir
+                # export_vente_pdf) : pre-remplis sur chaque facture du client.
+                ('adresse', 'VARCHAR(255)'),
+                ('niu', 'VARCHAR(50)'),
+                ('numero_cni', 'VARCHAR(50)')
             ],
             'commandes': [
                 ('relance_de_numero', 'VARCHAR(40)')

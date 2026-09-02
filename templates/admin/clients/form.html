@@ -49,6 +49,19 @@
                             <input type="text" name="telephone" class="form-control" value="{{ client.telephone if client and client.telephone else '' }}">
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">Adresse</label>
+                            <input type="text" name="adresse" class="form-control" value="{{ client.adresse if client and client.adresse else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">NIU</label>
+                            <input type="text" name="niu" class="form-control" value="{{ client.niu if client and client.niu else '' }}">
+                            <div class="form-text">Numéro d'Identifiant Unique — utilisé sur les factures de ce client.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">N° CNI</label>
+                            <input type="text" name="numero_cni" class="form-control" value="{{ client.numero_cni if client and client.numero_cni else '' }}">
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">Solde client</label>
                             <input type="number" step="0.01" name="solde" class="form-control" value="{{ client.solde if client else '0' }}" required>
                         </div>

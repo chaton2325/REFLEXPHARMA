@@ -1200,6 +1200,9 @@ def client_snapshot(client):
         'prenom': client.prenom,
         'email': client.email,
         'telephone': client.telephone,
+        'adresse': client.adresse,
+        'niu': client.niu,
+        'numero_cni': client.numero_cni,
         'solde': client.solde,
         'points_fidelite': client.points_fidelite,
         'groupe': client.groupe.nom if client.groupe else None
@@ -1537,6 +1540,9 @@ def create_client():
             prenom=request.form.get('prenom'),
             email=email,
             telephone=request.form.get('telephone'),
+            adresse=(request.form.get('adresse') or '').strip() or None,
+            niu=(request.form.get('niu') or '').strip() or None,
+            numero_cni=(request.form.get('numero_cni') or '').strip() or None,
             solde=float(request.form.get('solde') or 0),
             points_fidelite=int(request.form.get('points_fidelite') or 0),
             groupe_id=int(groupe_id) if groupe_id else None
@@ -1596,6 +1602,9 @@ def edit_client(id):
         client.prenom = request.form.get('prenom')
         client.email = email
         client.telephone = request.form.get('telephone')
+        client.adresse = (request.form.get('adresse') or '').strip() or None
+        client.niu = (request.form.get('niu') or '').strip() or None
+        client.numero_cni = (request.form.get('numero_cni') or '').strip() or None
         client.solde = float(request.form.get('solde') or 0)
         client.points_fidelite = int(request.form.get('points_fidelite') or 0)
         client.groupe_id = int(groupe_id) if groupe_id else None
@@ -3459,6 +3468,7 @@ def detail_vente(id):
     return render_template(
         'admin/ventes/detail.html',
         vente=vente,
+        client=Client.query.get(vente.client_id) if vente.client_id else None,
         pharmacy_name=Setting.get_value('pharmacy_name', 'REFLEXPHARMA'),
         auto_print_enabled=Setting.get_value('auto_print_enabled', 'true') == 'true',
         fidelite_active=fidelite.is_active(),
@@ -3487,6 +3497,30 @@ def export_vente_pdf(id):
     # pour l'equivalent cote ticket de caisse.
     client_nom_libre = (request.args.get('client_nom') or '').strip()
     client_nom_affiche = client_nom_libre if (client_nom_libre and not vente.client_id) else vente.client_label
+
+    # Coordonnees de facturation (adresse/telephone/email/NIU/CNI) : memes
+    # regles que client_nom ci-dessus -- valeur libre saisie juste avant
+    # l'export (jamais enregistree, voir #factureInfoModal dans detail.html),
+    # avec repli sur la fiche client courante si le parametre n'a pas ete
+    # fourni du tout (ex: acces direct a l'URL sans passer par la modale).
+    # Vente n'a PAS de relation vers Client (client_nom/client_email etc. sont
+    # des snapshots historiques figes, voir models/vente.py) -- adresse/niu/
+    # numero_cni n'existant pas avant cette fonctionnalite, ils n'ont aucun
+    # snapshot a figer et sont toujours lus depuis la fiche client courante.
+    client_record = Client.query.get(vente.client_id) if vente.client_id else None
+
+    def _facture_field(param_name, snapshot_value, client_attr):
+        if param_name in request.args:
+            return (request.args.get(param_name) or '').strip()
+        if snapshot_value:
+            return snapshot_value.strip()
+        return (getattr(client_record, client_attr, None) or '').strip() if client_record else ''
+
+    client_adresse = _facture_field('client_adresse', None, 'adresse')
+    client_telephone = _facture_field('client_telephone', None, 'telephone')
+    client_email = _facture_field('client_email', vente.client_email, 'email')
+    client_niu = _facture_field('client_niu', None, 'niu')
+    client_cni = _facture_field('client_cni', None, 'numero_cni')
 
     def money(value):
         return f'{value:,.2f} {devise}'.replace(',', ' ')
@@ -3563,6 +3597,16 @@ def export_vente_pdf(id):
         Paragraph(escape(client_nom_affiche), info_style),
         Paragraph(escape(vente.client_matricule or 'Vente comptoir'), info_sub_style),
     ]
+    if client_adresse:
+        info_left.append(Paragraph(escape(client_adresse), info_sub_style))
+    if client_telephone:
+        info_left.append(Paragraph(f'Tél : {escape(client_telephone)}', info_sub_style))
+    if client_email:
+        info_left.append(Paragraph(f'Email : {escape(client_email)}', info_sub_style))
+    if client_niu:
+        info_left.append(Paragraph(f'NIU : {escape(client_niu)}', info_sub_style))
+    if client_cni:
+        info_left.append(Paragraph(f'CNI : {escape(client_cni)}', info_sub_style))
     if vente.groupe_client_nom:
         info_left.append(Paragraph(f'Groupe : {escape(vente.groupe_client_nom)}', info_sub_style))
 

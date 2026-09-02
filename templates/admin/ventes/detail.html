@@ -275,6 +275,69 @@
     </div>
 </div>
 
+<!-- Informations de facturation : demandees juste avant de generer la
+     facture PDF, pour TOUTE vente (client enregistre ou comptoir) -- pas
+     seulement le nom. Pre-remplies depuis la fiche client (adresse/telephone/
+     email/NIU/CNI) quand la vente est liee a un client enregistre, modifiables
+     au cas par cas pour CETTE facture uniquement (jamais enregistre sur la
+     vente, comme client_nom_libre -- voir export_vente_pdf). Le nom reste fixe
+     pour un client enregistre (deja affiche ci-dessous), seul le comptoir
+     permet de le modifier ici (repris de clientComptoirNomInput). -->
+<div class="modal fade" id="factureInfoModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="fas fa-file-invoice me-2 text-primary"></i>Informations de facturation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {% if vente.client_id %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold text-muted mb-1">Client</label>
+          <input type="text" class="form-control" value="{{ vente.client_label }}" disabled>
+        </div>
+        {% else %}
+        <div class="mb-3">
+          <label for="factureInfoNom" class="form-label small fw-bold text-muted mb-1">Nom du client</label>
+          <input type="text" id="factureInfoNom" class="form-control" placeholder="Ex: Jean Dupont" maxlength="120">
+        </div>
+        {% endif %}
+        <div class="mb-3">
+          <label for="factureInfoAdresse" class="form-label small fw-bold text-muted mb-1">Adresse</label>
+          <input type="text" id="factureInfoAdresse" class="form-control" value="{{ client.adresse if client and client.adresse else '' }}">
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label for="factureInfoTelephone" class="form-label small fw-bold text-muted mb-1">Téléphone</label>
+            <input type="text" id="factureInfoTelephone" class="form-control" value="{{ client.telephone if client and client.telephone else '' }}">
+          </div>
+          <div class="col-sm-6">
+            <label for="factureInfoEmail" class="form-label small fw-bold text-muted mb-1">Email</label>
+            <input type="email" id="factureInfoEmail" class="form-control" value="{{ vente.client_email or (client.email if client and client.email else '') }}">
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="factureInfoNiu" class="form-label small fw-bold text-muted mb-1">NIU</label>
+            <input type="text" id="factureInfoNiu" class="form-control" value="{{ client.niu if client and client.niu else '' }}">
+          </div>
+          <div class="col-sm-6">
+            <label for="factureInfoCni" class="form-label small fw-bold text-muted mb-1">N° CNI</label>
+            <input type="text" id="factureInfoCni" class="form-control" value="{{ client.numero_cni if client and client.numero_cni else '' }}">
+          </div>
+        </div>
+        <div class="form-text mt-2">Ces informations ne s'appliquent qu'à cette facture{% if vente.client_id %} — pour les enregistrer durablement sur la fiche client, modifiez-les depuis le module Clients{% endif %}.</div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e9ecef;">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal" style="border-radius:10px;">Annuler</button>
+        <button type="button" class="btn btn-primary" id="factureInfoGenerateBtn" style="border-radius:10px;font-weight:600;">
+          <i class="fas fa-file-pdf me-1"></i> Générer la facture
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Apercu PDF (in-page, pas de nouvel onglet) : le PDF est recupere via
      fetch() et affiche comme blob dans l'iframe, avec Imprimer/Exporter PDF
      en pied de modale -- meme patron que #pdfPreviewModal du catalogue
@@ -584,15 +647,57 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+    // ---- Modale "Informations de facturation" : ouverte AVANT de generer la
+    // facture PDF, pour toute vente (client enregistre ou comptoir). Les
+    // champs sont deja pre-remplis cote serveur (voir factureInfoModal dans
+    // le gabarit) ; on lit juste leurs valeurs au clic sur "Generer" et on
+    // enchaine sur l'apercu PDF une fois la modale d'infos fermee (meme
+    // patron "fermer modale A puis ouvrir modale B" que #stockEntrySuccessModal
+    // dans stock/list.html). ----
+    const factureInfoModalEl = document.getElementById('factureInfoModal');
+    const factureInfoModal = factureInfoModalEl ? bootstrap.Modal.getOrCreateInstance(factureInfoModalEl) : null;
+    let pendingFacturePdfUrl = null;
+
     const factureePdfBtn = document.getElementById('factureePdfBtn');
-    if (factureePdfBtn) {
+    if (factureePdfBtn && factureInfoModal) {
         factureePdfBtn.addEventListener('click', () => {
-            let pdfUrl = {{ url_for('admin.export_vente_pdf', id=vente.id)|tojson }};
-            const clientComptoirNom = clientComptoirInput ? clientComptoirInput.value.trim() : '';
-            if (clientComptoirNom) {
-                pdfUrl += '?client_nom=' + encodeURIComponent(clientComptoirNom);
+            const factureInfoNom = document.getElementById('factureInfoNom');
+            if (factureInfoNom && clientComptoirInput) {
+                factureInfoNom.value = clientComptoirInput.value.trim();
             }
-            loadPdfPreview(pdfUrl, {{ ('facture_' ~ vente.numero_vente ~ '.pdf')|tojson }});
+            factureInfoModal.show();
+        });
+    }
+    if (factureInfoModalEl) {
+        factureInfoModalEl.addEventListener('hidden.bs.modal', () => {
+            if (!pendingFacturePdfUrl) return;
+            loadPdfPreview(pendingFacturePdfUrl, {{ ('facture_' ~ vente.numero_vente ~ '.pdf')|tojson }});
+            pendingFacturePdfUrl = null;
+        });
+    }
+    const factureInfoGenerateBtn = document.getElementById('factureInfoGenerateBtn');
+    if (factureInfoGenerateBtn) {
+        factureInfoGenerateBtn.addEventListener('click', () => {
+            const params = new URLSearchParams();
+            const factureInfoNom = document.getElementById('factureInfoNom');
+            if (factureInfoNom) {
+                const nom = factureInfoNom.value.trim();
+                if (nom) params.set('client_nom', nom);
+            }
+            const fieldParams = {
+                factureInfoAdresse: 'client_adresse',
+                factureInfoTelephone: 'client_telephone',
+                factureInfoEmail: 'client_email',
+                factureInfoNiu: 'client_niu',
+                factureInfoCni: 'client_cni'
+            };
+            Object.entries(fieldParams).forEach(([elId, paramName]) => {
+                const el = document.getElementById(elId);
+                if (el) params.set(paramName, el.value.trim());
+            });
+            const baseUrl = {{ url_for('admin.export_vente_pdf', id=vente.id)|tojson }};
+            pendingFacturePdfUrl = baseUrl + '?' + params.toString();
+            factureInfoModal.hide();
         });
     }
 });
