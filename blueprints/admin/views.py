@@ -2548,6 +2548,62 @@ def build_vente_stats(ventes):
         'weekdays': sorted_stat_rows(weekday_buckets)
     }
 
+def build_achats_stats(date_from=None, date_to=None):
+    """Achats = valeur des entrees en stock reelles sur la periode (voir
+    perform_stock_entry : action='create' pour un nouveau lot, 'adjust' pour
+    un complement sur un lot deja existant -- les deux representent un vrai
+    achat fournisseur, contrairement a 'restock' qui reverse l'annulation
+    d'une vente ou 'update' qui corrige un ecart d'inventaire). Valorisee au
+    prix d'achat COURANT du produit (Produit.prix_unite/prix_sous_unite/
+    prix_sous_sous_unite) faute de snapshot historique par entree -- meme
+    approximation que Stock.prix_achat_total ailleurs dans l'app."""
+    query = StockModification.query.filter(StockModification.action.in_(('create', 'adjust')))
+    if date_from:
+        query = query.filter(StockModification.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(StockModification.created_at <= datetime.combine(date_to, datetime.max.time()))
+    modifications = query.options(joinedload(StockModification.produit)).all()
+
+    bucket = lambda: {'label': '', 'montant': 0.0, 'count': 0}
+    daily_buckets = defaultdict(bucket)
+    monthly_buckets = defaultdict(bucket)
+    for m in modifications:
+        if not m.produit:
+            continue
+        montant = (
+            max(m.delta_quantite_unites, 0) * float(m.produit.prix_unite or 0)
+            + max(m.delta_quantite_sous_unites, 0) * float(m.produit.prix_sous_unite or 0)
+            + max(m.delta_quantite_sous_sous_unites, 0) * float(m.produit.prix_sous_sous_unite or 0)
+        )
+        if montant <= 0:
+            continue
+        day = m.created_at.strftime('%Y-%m-%d') if m.created_at else 'Sans date'
+        month = m.created_at.strftime('%Y-%m') if m.created_at else 'Sans date'
+        for buckets, key in [(daily_buckets, day), (monthly_buckets, month)]:
+            buckets[key]['label'] = key
+            buckets[key]['montant'] += montant
+            buckets[key]['count'] += 1
+
+    return {
+        'daily': sorted(daily_buckets.values(), key=lambda row: row['label']),
+        'monthly': sorted(monthly_buckets.values(), key=lambda row: row['label']),
+    }
+
+def merge_ventes_achats_series(ventes_rows, achats_rows):
+    """Fusionne les series ventes (stats.daily/monthly, champ 'ttc') et achats
+    (build_achats_stats, champ 'montant') sur l'union de leurs dates -- les
+    deux tables n'ont aucune raison de couvrir exactement les memes jours
+    (ex: une pharmacie qui vend tous les jours mais ne se reapprovisionne
+    qu'une fois par semaine), zero-fill des deux cotes la ou l'un des deux
+    n'a rien."""
+    ventes_by_label = {row['label']: row['ttc'] for row in ventes_rows}
+    achats_by_label = {row['label']: row['montant'] for row in achats_rows}
+    all_labels = sorted(set(ventes_by_label) | set(achats_by_label))
+    return [
+        {'label': label, 'ventes': round(ventes_by_label.get(label, 0.0), 2), 'achats': round(achats_by_label.get(label, 0.0), 2)}
+        for label in all_labels
+    ]
+
 @admin.route('/ventes')
 @login_required
 @permission_required('gestion_ventes')
@@ -2680,10 +2736,15 @@ def list_all_ventes_data():
 def ventes_stats():
     ventes = get_filtered_ventes()
     stats = build_vente_stats(ventes)
+    date_from = parse_date_filter((request.args.get('date_from') or '').strip())
+    date_to = parse_date_filter((request.args.get('date_to') or '').strip())
+    achats_stats = build_achats_stats(date_from, date_to)
+    stats['ventes_achats_daily'] = merge_ventes_achats_series(stats['daily'], achats_stats['daily'])
+    stats['ventes_achats_monthly'] = merge_ventes_achats_series(stats['monthly'], achats_stats['monthly'])
     return render_template(
-        'admin/ventes/stats.html', 
-        ventes=ventes, 
-        stats=stats, 
+        'admin/ventes/stats.html',
+        ventes=ventes,
+        stats=stats,
         export_query=request.args.to_dict(),
         clients=Client.query.order_by(Client.nom.asc()).all(),
         users=User.query.filter_by(is_active=True).order_by(User.nom.asc()).all()

@@ -250,48 +250,122 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
             <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution et Prédiction du CA</h5>
             <div class="d-flex flex-wrap align-items-center gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <label class="small fw-bold text-muted mb-0">Apprentissage :</label>
-                    <select id="trainingPeriod" class="form-select form-select-sm" style="width: auto;">
-                        <option value="4">Derniers 4 jours</option>
-                        <option value="7">Dernière semaine</option>
-                        <option value="30" selected>Dernier mois</option>
-                        <option value="90">Derniers 3 mois</option>
-                        <option value="180">Derniers 6 mois</option>
-                        <option value="365">Dernière année</option>
-                        <option value="0">Toute la période</option>
-                    </select>
+                <div class="d-flex flex-wrap align-items-center gap-3" id="caChartControls">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="small fw-bold text-muted mb-0">Apprentissage :</label>
+                        <select id="trainingPeriod" class="form-select form-select-sm" style="width: auto;">
+                            <option value="4">Derniers 4 jours</option>
+                            <option value="7">Dernière semaine</option>
+                            <option value="30" selected>Dernier mois</option>
+                            <option value="90">Derniers 3 mois</option>
+                            <option value="180">Derniers 6 mois</option>
+                            <option value="365">Dernière année</option>
+                            <option value="0">Toute la période</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="small fw-bold text-muted mb-0">Horizon :</label>
+                        <select id="predictionHorizon" class="form-select form-select-sm" style="width: auto;">
+                            <option value="4" selected>Prochains 4 jours</option>
+                            <option value="7">Une semaine</option>
+                            <option value="30">Un mois</option>
+                            <option value="90">3 mois</option>
+                            <option value="180">6 mois</option>
+                            <option value="365">12 mois</option>
+                        </select>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="toggleRegression" checked>
+                        <label class="form-check-label small fw-bold" for="toggleRegression">Ligne de régression</label>
+                    </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="small fw-bold text-muted mb-0">Horizon :</label>
-                    <select id="predictionHorizon" class="form-select form-select-sm" style="width: auto;">
-                        <option value="4" selected>Prochains 4 jours</option>
-                        <option value="7">Une semaine</option>
-                        <option value="30">Un mois</option>
-                        <option value="90">3 mois</option>
-                        <option value="180">6 mois</option>
-                        <option value="365">12 mois</option>
-                    </select>
-                </div>
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="toggleRegression" checked>
-                    <label class="form-check-label small fw-bold" for="toggleRegression">Ligne de régression</label>
-                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-chart-fullscreen"
+                        data-controls="caChartControls" data-body="caChartBody" data-chart-key="regression"
+                        data-title="Évolution et Prédiction du CA" data-supports-type="0" title="Agrandir en plein écran">
+                    <i class="fas fa-expand"></i>
+                </button>
             </div>
         </div>
     </div>
     <div class="card-body">
-        <div id="chartContainer" style="height: 400px;">
-            <canvas id="regressionChart"></canvas>
-        </div>
-        <div id="regressionError" class="alert alert-warning d-none">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            Il faut au moins <strong>4 jours de ventes</strong> sur la période d'apprentissage pour afficher la ligne de régression.
-        </div>
-        <div class="mt-3 p-3 bg-light rounded border border-info border-start-4" id="predictionResult">
-            <!-- Prediction text will be injected here -->
+        <div id="caChartBody">
+            <div id="chartContainer" class="chart-wrap-resizable" style="height: 400px;">
+                <canvas id="regressionChart"></canvas>
+            </div>
+            <div id="regressionError" class="alert alert-warning d-none">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Il faut au moins <strong>4 jours de ventes</strong> sur la période d'apprentissage pour afficher la ligne de régression.
+            </div>
+            <div class="mt-3 p-3 bg-light rounded border border-info border-start-4" id="predictionResult">
+                <!-- Prediction text will be injected here -->
+            </div>
         </div>
     </div>
+</div>
+
+<!-- Ventes vs Achats : compare le CA encaisse (TTC) a la valeur des entrees
+     en stock reelles sur la meme periode (voir build_achats_stats), pour
+     visualiser d'un coup d'oeil la tresorerie vente/reapprovisionnement. -->
+<div class="card mb-4">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <h5 class="card-title mb-0"><i class="fas fa-scale-balanced me-2 text-primary"></i>Ventes vs Achats</h5>
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="btn-group" role="group" id="vaChartControls">
+                    <input type="radio" class="btn-check" name="vaGranularity" id="vaGranularityDaily" value="daily" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="vaGranularityDaily">Quotidien (30j)</label>
+                    <input type="radio" class="btn-check" name="vaGranularity" id="vaGranularityMonthly" value="monthly">
+                    <label class="btn btn-outline-primary btn-sm" for="vaGranularityMonthly">Mensuel</label>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-chart-fullscreen"
+                        data-controls="vaChartControls" data-body="vaChartBody" data-chart-key="ventesAchats"
+                        data-title="Ventes vs Achats" data-supports-type="1" title="Agrandir en plein écran">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="vaChartBody">
+            <div id="vaSummary" class="mb-3"></div>
+            <div id="ventesAchatsChartWrap" class="chart-wrap-resizable" style="height: 350px;">
+                <canvas id="ventesAchatsChart"></canvas>
+            </div>
+            <div id="ventesAchatsEmpty" class="text-center text-muted py-4 d-none">
+                Aucune donnée de vente ou d'achat sur cette période.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vue plein ecran partagee pour les graphiques Ventes/Achats : le canvas et
+     ses controles (deja cables plus bas) sont deplaces ici au clic sur
+     "Agrandir" -- meme instance Chart.js, memes ecouteurs d'evenements, donc
+     tout ce qui marche dans la vue compacte marche ici aussi, en plus grand.
+     Seuls le type de graphique (Barres/Lignes, quand pertinent) et le
+     telechargement PNG sont propres a cette vue. -->
+<div class="modal fade" id="chartFullscreenModal" tabindex="-1">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header flex-wrap gap-2" style="border-bottom:1px solid #e9ecef;">
+        <h5 class="modal-title fw-bold mb-0" id="chartFullscreenTitle"></h5>
+        <div class="d-flex flex-wrap align-items-center gap-3 ms-auto" id="chartFullscreenControls"></div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm d-none" role="group" id="chartFullscreenTypeToggle">
+                <input type="radio" class="btn-check" name="chartFullscreenType" id="chartFullscreenTypeBar" value="bar" checked>
+                <label class="btn btn-outline-secondary" for="chartFullscreenTypeBar"><i class="fas fa-chart-bar"></i></label>
+                <input type="radio" class="btn-check" name="chartFullscreenType" id="chartFullscreenTypeLine" value="line">
+                <label class="btn btn-outline-secondary" for="chartFullscreenTypeLine"><i class="fas fa-chart-line"></i></label>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="chartFullscreenDownload" title="Télécharger en image">
+                <i class="fas fa-download"></i>
+            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body d-flex flex-column p-3" id="chartFullscreenBody" style="min-height:0;"></div>
+    </div>
+  </div>
 </div>
 
 {% macro ranking_card(title, rows, color='primary', quantity=False, sales_link=False) %}
@@ -612,6 +686,201 @@
         });
 
         updateChart();
+
+        // Ventes vs Achats : deux series deja fusionnees/zero-remplies cote
+        // serveur (merge_ventes_achats_series) sur l'union de leurs dates
+        // respectives -- rien a recalculer ici, juste choisir la granularite
+        // et tronquer aux 30 derniers jours en mode quotidien (comme le
+        // reste de la page).
+        const ventesAchatsDaily = {{ stats.ventes_achats_daily|tojson }};
+        const ventesAchatsMonthly = {{ stats.ventes_achats_monthly|tojson }};
+        let ventesAchatsChart = null;
+        // Barres par defaut (comparaison periode par periode plus lisible),
+        // Lignes disponible depuis le toggle de la vue plein ecran (voir
+        // setupChartFullscreen) -- une seule fonction de rendu pour les deux,
+        // seul le style du dataset change.
+        let vaChartType = 'bar';
+
+        function fmtDevise(v) {
+            return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' {{ devise }}';
+        }
+
+        function vaBuildDataset(label, data, color) {
+            if (vaChartType === 'line') {
+                return {
+                    label: label, data: data, borderColor: color,
+                    backgroundColor: color.replace('0.75', '0.12'),
+                    borderWidth: 2.5, tension: 0.3, fill: true,
+                    pointRadius: 3, pointBackgroundColor: color
+                };
+            }
+            return { label: label, data: data, backgroundColor: color, borderRadius: 4, maxBarThickness: 28 };
+        }
+
+        function renderVentesAchatsChart() {
+            const granularity = document.querySelector('input[name="vaGranularity"]:checked').value;
+            let rows = granularity === 'monthly' ? ventesAchatsMonthly : ventesAchatsDaily;
+            if (granularity === 'daily') rows = rows.slice(-30);
+
+            const chartWrap = document.getElementById('ventesAchatsChartWrap');
+            const emptyEl = document.getElementById('ventesAchatsEmpty');
+            const summaryEl = document.getElementById('vaSummary');
+
+            if (!rows.length) {
+                chartWrap.classList.add('d-none');
+                emptyEl.classList.remove('d-none');
+                summaryEl.innerHTML = '';
+                return;
+            }
+            chartWrap.classList.remove('d-none');
+            emptyEl.classList.add('d-none');
+
+            const labels = rows.map((r) => r.label);
+            const ventesValues = rows.map((r) => r.ventes);
+            const achatsValues = rows.map((r) => r.achats);
+            const totalVentes = ventesValues.reduce((a, b) => a + b, 0);
+            const totalAchats = achatsValues.reduce((a, b) => a + b, 0);
+            const ecart = totalVentes - totalAchats;
+
+            summaryEl.innerHTML = `
+                <div class="d-flex flex-wrap gap-4">
+                    <div><span class="text-muted small d-block">Ventes (TTC)</span><span class="h5 fw-bold text-primary mb-0">${fmtDevise(totalVentes)}</span></div>
+                    <div><span class="text-muted small d-block">Achats</span><span class="h5 fw-bold text-danger mb-0">${fmtDevise(totalAchats)}</span></div>
+                    <div><span class="text-muted small d-block">Écart</span><span class="h5 fw-bold ${ecart >= 0 ? 'text-success' : 'text-danger'} mb-0">${ecart >= 0 ? '+' : ''}${fmtDevise(ecart)}</span></div>
+                </div>
+            `;
+
+            const ctx = document.getElementById('ventesAchatsChart').getContext('2d');
+            if (ventesAchatsChart) {
+                ventesAchatsChart.destroy();
+            }
+            ventesAchatsChart = new Chart(ctx, {
+                type: vaChartType,
+                data: {
+                    labels: labels,
+                    datasets: [
+                        vaBuildDataset('Ventes (TTC)', ventesValues, 'rgba(13, 110, 253, 0.75)'),
+                        vaBuildDataset('Achats', achatsValues, 'rgba(231, 76, 60, 0.75)')
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return context.dataset.label + ': ' + fmtDevise(context.parsed.y); }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: function(value) { return value.toLocaleString('fr-FR') + ' {{ devise }}'; } }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('input[name="vaGranularity"]').forEach((radio) => {
+            radio.addEventListener('change', renderVentesAchatsChart);
+        });
+        renderVentesAchatsChart();
+
+        // Vue plein ecran generique (bouton "Agrandir" de chaque carte) :
+        // deplace le canvas+controles d'UN graphique dans #chartFullscreenModal
+        // -- meme instance Chart.js, memes ecouteurs deja cables plus haut,
+        // rien a resynchroniser. Remis a sa place d'origine a la fermeture.
+        // Le toggle Barres/Lignes (Ventes vs Achats uniquement, voir
+        // data-supports-type) et le telechargement PNG sont propres a cette
+        // vue plein ecran.
+        (function setupChartFullscreen() {
+            const modalEl = document.getElementById('chartFullscreenModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            const modalTitle = document.getElementById('chartFullscreenTitle');
+            const modalControls = document.getElementById('chartFullscreenControls');
+            const modalBody = document.getElementById('chartFullscreenBody');
+            const typeToggle = document.getElementById('chartFullscreenTypeToggle');
+            const downloadBtn = document.getElementById('chartFullscreenDownload');
+            const CHART_GETTERS = {
+                regression: () => regressionChart,
+                ventesAchats: () => ventesAchatsChart
+            };
+            let restoreState = null;
+            let activeChartKey = null;
+
+            function activeChart() {
+                const getter = CHART_GETTERS[activeChartKey];
+                return getter ? getter() : null;
+            }
+            function resizeActive() {
+                const chart = activeChart();
+                if (chart) chart.resize();
+            }
+
+            document.querySelectorAll('.btn-chart-fullscreen').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const controlsEl = document.getElementById(btn.dataset.controls);
+                    const bodyEl = document.getElementById(btn.dataset.body);
+                    const wrapEl = bodyEl.querySelector('.chart-wrap-resizable');
+
+                    restoreState = {
+                        controlsEl, controlsParent: controlsEl.parentNode, controlsNext: controlsEl.nextSibling,
+                        bodyEl, bodyParent: bodyEl.parentNode, bodyNext: bodyEl.nextSibling,
+                        wrapEl, wrapHeight: wrapEl ? wrapEl.style.height : null
+                    };
+                    activeChartKey = btn.dataset.chartKey;
+
+                    modalTitle.textContent = btn.dataset.title || '';
+                    modalControls.innerHTML = '';
+                    modalControls.appendChild(controlsEl);
+                    modalBody.innerHTML = '';
+                    modalBody.appendChild(bodyEl);
+                    if (wrapEl) wrapEl.style.height = '60vh';
+
+                    const supportsType = btn.dataset.supportsType === '1';
+                    typeToggle.classList.toggle('d-none', !supportsType);
+                    if (supportsType) {
+                        document.getElementById('chartFullscreenType' + (vaChartType === 'line' ? 'Line' : 'Bar')).checked = true;
+                    }
+
+                    modal.show();
+                });
+            });
+
+            document.querySelectorAll('input[name="chartFullscreenType"]').forEach((radio) => {
+                radio.addEventListener('change', () => {
+                    if (activeChartKey === 'ventesAchats') {
+                        vaChartType = radio.value;
+                        renderVentesAchatsChart();
+                    }
+                });
+            });
+
+            downloadBtn.addEventListener('click', () => {
+                const chart = activeChart();
+                if (!chart) return;
+                const link = document.createElement('a');
+                link.href = chart.toBase64Image();
+                link.download = (modalTitle.textContent || 'graphique').toLowerCase().replace(/[^a-z0-9]+/g, '_') + '.png';
+                link.click();
+            });
+
+            modalEl.addEventListener('shown.bs.modal', resizeActive);
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!restoreState) return;
+                const { controlsEl, controlsParent, controlsNext, bodyEl, bodyParent, bodyNext, wrapEl, wrapHeight } = restoreState;
+                controlsParent.insertBefore(controlsEl, controlsNext);
+                bodyParent.insertBefore(bodyEl, bodyNext);
+                if (wrapEl) wrapEl.style.height = wrapHeight || '';
+                resizeActive();
+                restoreState = null;
+                activeChartKey = null;
+            });
+        })();
     });
 </script>
 {% endblock %}
